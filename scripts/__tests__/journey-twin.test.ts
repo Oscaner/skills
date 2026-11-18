@@ -26,7 +26,14 @@ import { ENGINE_RUNTIME } from "../../packages/cdd-engine/src-next/infra/runtime
 /** The repo root — the diagram sources and the runtime sources both resolve under it. */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DIAGRAM_SRC = path.join(ROOT, "docs", "diagrams", "src");
-const FACES = path.join(ROOT, "packages", "cdd-engine", "src-next", "session", "faces.ts");
+const TARGET_TYPE = path.join(
+  ROOT,
+  "packages",
+  "cdd-engine",
+  "src-next",
+  "contract",
+  "target-type.ts",
+);
 
 /** The six target words the `--type` value domain must offer, in the engine's order. */
 const TYPE_WORDS = ["phase-spec", "overall", "plan", "single-spec", "wave", "branch"] as const;
@@ -151,10 +158,11 @@ class JourneyTwin {
   }
 }
 
-/** The `TargetType` union members, read from the engine source (the words' runtime home). */
+/** The `TargetType` union members, read from the engine source (the words' runtime home —
+ *  the declaration moved to the contract plane at P40 T3; `session/faces.ts` re-exports it). */
 const targetUnion = (): readonly string[] => {
-  const match = /export type TargetType =([^;]+);/.exec(readFileSync(FACES, "utf8"));
-  expect(match, "session/faces.ts no longer declares TargetType").toBeTruthy();
+  const match = /export type TargetType =([^;]+);/.exec(readFileSync(TARGET_TYPE, "utf8"));
+  expect(match, "contract/target-type.ts no longer declares TargetType").toBeTruthy();
   return (match?.[1] ?? "")
     .split("|")
     .map((member) => member.trim().replace(/^"|"$/g, ""))

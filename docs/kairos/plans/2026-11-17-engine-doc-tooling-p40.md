@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.16
+version: v0.17
 date: 2026-11-18
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -137,10 +137,12 @@ export class PreFlightRefusal {
 - Create: `packages/cdd-engine/src-next/contract/target-type.ts`（`TargetType` 的新家：定义自 `session/faces.ts` 原文搬入，零语义改动、零新词）
 - Modify: `packages/cdd-engine/src-next/session/faces.ts`（定义改为从 `contract/target-type.ts` 的 re-export，`session/` 与 `render/` 的既有读者零改动——方向是 session → contract）
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（声明类型反向 import：`RequiredArm` / `ContextLine` 的定义移到 contract，本文件 import 回来；三张 mode 表、`TemplateAssembler`、`#assertEngineWritten` 与其余类型不动，零行为搬家）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#inputRefusalOf` 与 `#artifactCellOf` 的调用点改为委托；`#answeredByNaming` 只剩注释 prose 换词——它的判据已在 Task 1 换成读 `decl.written`，本任务不动这个判定，只换描述它的那句话）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#inputRefusalOf` 与 `#artifactCellOf` 的调用点改为委托；`#answeredByNaming` 只剩注释 prose 换词——它的判据已在 Task 1 换成读 `decl.written`，本任务不动这个判定，只换描述它的那句话，并新增 `#namingAnswer` 把逐声明答案归约成判据的 `naming` 一格；#emptyReasonOf 随它的选词搬进 `ExigibleCells`（同一判据的第二处声明不留）；no-host 那句与它的通道锚改读词表 `CAPSULE_WORDS.preflight` / `Words#station`，本文件因此不再持有该句字节）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（四新行词面的字节之家：`no-host` 那句从 `face/lifecycle.ts` 迁进 `CAPSULE_WORDS.preflight`（spec §1.3 的措辞搬家），并由一个访问器把四行的词面交给调用点；`dispatchInput` 是 `CAPSULE_WORDS` 的既有那行（访问器连全表分隔符 `CAPSULE_WORDS.separator` 一并交出去——判据按它把站名接到段上，该文件里因此没有第二份 ` · ` 字面）；`artifactIdentity` 同理原样转发；`artifactIdentity` 增一格 `invalid`（`rulings sidecar — {reason}`，自 `face/lifecycle.ts` 的 `#artifactRefusalOf` 迁入——那一臂今天是一条裸字面，spec §3.3 的字节不变），artifact 行的两臂因此都落在同一张表里；同批改述 `#artifactRefusalOf` 的 docstring——它今天把 `rulings sidecar — <reason>` 再念一遍（同一文件里那是个 docstring，不是第二处字面），不改则本任务那条单命中 grep 命中两处）
+- Modify: `packages/cdd-engine/src-next/infra/carrier-seal.ts`（`#isSidecar` 的 docstring 把 `rulings sidecar — ` 再念一遍——不改则那条单命中 grep 命中两处；与 `#artifactRefusalOf` · `CarrierIntegrity` 两条 docstring 同批改述，零行为、零语义）
 - Modify: `packages/cdd-engine/src-next/session/carrier-integrity.ts`（报文改由 CarrierLine 合成——抛错的 message 与拒绝行念同一条格式，不改字节、不加第二份拼装；并给出 `facts()`：carrier 路径与两个 sha8，供快照携带**事实**而不是携带已渲染的句子；同批改述它自己的格式 docstring——那一句逐字写着 `carrier-mismatch · line=…`，不改则载体行模块那条单命中 grep 命中两处）
 - Test: `packages/cdd-engine/src-next/face/__tests__/dispatch-input.test.ts`（仅换掉注释里那句旧字面量；断言零改动）
+- Test: `scripts/__tests__/journey-twin.test.ts`（`TargetType` 的定义搬走后，这条源探针从 `session/faces.ts` 改读它的新家 `contract/target-type.ts`；断言口径不变——六词与 `spec` 退役那一条照旧）
 
 #### Consumes
 - Task 1 的 `ContextLine.written` 与 `NAMED_BRIEF_CELL`
@@ -181,6 +183,11 @@ export interface ExigibleCell {
   readonly path: true | undefined;
   readonly written: "engine" | undefined;
   readonly reason: ExigibleReason; // P38 spec §2.2 的两词闭集
+}
+/** `{{TOKEN}}` 槽语法——唯一读者。住在它读的声明旁边（渲染器的
+ *  `TemplateAssembler.slotOf` 委托给它），判据因此不必自带第二份花括号语法。 */
+export class ContextSlot {
+  static of(line: string): string | undefined;
 }
 export class ExigibleCells {
   /** P38 spec §1.3 的臂解析与 §2.2 的选词，一处：type 命中 + `when` 前置条件 → 该格的词。
@@ -245,9 +252,17 @@ export type ArtifactSnapshot =
     };
 export interface ArtifactSnapshotRead {
   readonly kind: "absent" | "ok" | "invalid" | "misplaced"; // `ArtifactRead` 的四臂
+  /** `ok` / `invalid`: 读到的路径（`ok` 那一格即 `INPUT_RULINGS` 的唯一来源）；
+   *  `misplaced`: **渲染名**（`derived`）；`absent`: null。 */
   readonly path: string | null;
   readonly reason: string | null;
   readonly found: readonly string[];
+  /** `misplaced` 臂的身份词面（面侧 `Words#identityWords` 渲染——contract 不自带拼写），
+   *  填 `identity:` 那一格；其余三臂 null。 */
+  readonly identity: string | null;
+  /** `misplaced` 臂的 sidecar 种类词（`rulings`），填报告首行的 `{kind}` 槽；其余三臂
+   *  null。 */
+  readonly sidecarKind: string | null;
 }
 /** 四行的词面——形状在这里声明，值由调用点注入（Task 4 起是 seam，Task 3 期间是 face 的
  *  调用点），因此本模块既不 import `face/` 也不 import `session/`，四行的措辞也不会在这里
@@ -274,6 +289,10 @@ export interface RowWording {
     readonly derived: string; // {derived}
     readonly found: string; // {found}
     readonly identity: string; // {identity}
+    /** `found` 名单之间的连接词（` · `）与空名单的字（`(none)`）——它们是词不是事实，
+     *  因此住在词面里，判据里零字面。 */
+    readonly foundJoin: string;
+    readonly emptyFound: string;
     readonly repair: readonly string[]; // 固定两句
   };
 }
@@ -295,8 +314,21 @@ export interface PreFlightRowsInput {
    *  Task 5 退役 `mode` 之后这一格整体退场——声明面自己就是答案。 */
   readonly naming: { readonly answered: boolean };
 }
+/** artifact 报告的事实（`misplaced` 臂）——一处合成的输入。 */
+export interface ArtifactReportFacts {
+  readonly sidecarKind: string; // 报告首行的 `{kind}`
+  readonly derived: string; // 渲染名
+  readonly found: readonly string[]; // 落在它位置上的名字
+  readonly identity: string; // 身份词面（面侧渲染）
+}
 export class PreFlightRows {
   static judge(input: PreFlightRowsInput): readonly RowRefusal[]; // 全部违规格一次报完（不短路）
+  /** `misplaced` 报告的唯一合成点：判据与 `Words#artifactIdentity`（board 夹具的参照
+   *  渲染器）都调它，两个读者因此读同一张表、拼同一个形状，不会各拼一份。 */
+  static artifactReportOf(
+    wording: RowWording["artifact"],
+    facts: ArtifactReportFacts,
+  ): string;
 }
 ```
 
@@ -445,7 +477,7 @@ export interface PreFlightContext {
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`Cli#runWork` 的 `--dry-run` 臂删掉三门镜像与它自己那支拒绝分支，只留五行预报）
 - Modify: `packages/cdd-engine/src-next/face/preview.ts`（三联门块收为五行预报；`artifactBlock` 保留为唯一的拒绝块渲染）
 - Modify: `packages/cdd-engine/src-next/contract/preflight-rows.ts`（命名豁免那一格退场：`naming` 输入删除，引擎写的格只由 `declarations` 上的 `written` 判定；`mode` 概念从判据里消失，一个读点）
-- Modify: `packages/cdd-engine/src-next/face/words.ts`（行合成的第二处与两词闭集的第二处声明随旧入口退场：`Words#dispatchInput`（`[station, segments.join(separator)].join(" · ")` 那一处，判据接管后零调用）· `DispatchInputSegment`（只有它与退场的 `#emptyReasonOf` 读）· `DispatchInputReason`（同名并集的第二处声明，判据那侧的 `ExigibleCell.reason` 是唯一声明处）；`Words#artifactIdentity` **不在此列**——它的两个读者是 `board-view.test.ts` 的夹具，而它读的正是 `CAPSULE_WORDS.artifactIdentity` 那四段（判据经注入的词面读同一张表，因此不是第二份字节之家），本任务只把它的生产调用点换成判据）
+- Modify: `packages/cdd-engine/src-next/face/words.ts`（行合成的第二处与两词闭集的第二处声明随旧入口退场：`Words#dispatchInput`（`[station, segments.join(separator)].join(" · ")` 那一处，判据接管后零调用）· `DispatchInputSegment`（它的唯一读者 #emptyReasonOf 已在 Task 3 随判据搬进 contract 而退场，本任务删这一格）· `DispatchInputReason`（同名并集的第二处声明，判据那侧的 `ExigibleCell.reason` 是唯一声明处）；`Words#artifactIdentity` **不在此列**——它的两个读者是 `board-view.test.ts` 的夹具，而它读的正是 `CAPSULE_WORDS.artifactIdentity` 那四段（判据经注入的词面读同一张表，因此不是第二份字节之家），本任务只把它的生产调用点换成判据）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`
 - Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（仅循环级：`--dry-run` 经 `Cli#runWork` 的循环跑一次，判据一次、镜像零次）
@@ -641,6 +673,7 @@ pre-commit:
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.17 | 2026-11-18 | **实施轮订正（Task 3）**：① **快照带齐 artifact 报告要读的事实**——`ArtifactSnapshotRead` 增 `identity`（面侧 `Words#identityWords` 渲染的身份词面）与 `sidecarKind`（报告首行的 `{kind}`），并把 `path` 的 `misplaced` 语义写明为渲染名；原四格喂不出报告的 `derived:` / `identity:` / `{kind}` 三格，判据就只能把合成推回面侧（F1）；② **词面补齐两格**——`RowWording.artifact` 增 `foundJoin` / `emptyFound`（` · ` 与 `(none)` 是词不是事实，住词面，判据里零字面），与 `CAPSULE_WORDS.artifactIdentity` 同批落家（F2）；③ **报告只有一处合成**——`PreFlightRows.artifactReportOf` 收成公开静态，判据与 `Words#artifactIdentity`（board 夹具的参照渲染器）同调它，两个读者不会各拼一份（F3）；④ **槽语法跟着声明走**——`context-declarations.ts` 增 `ContextSlot`，`TemplateAssembler.slotOf` 委托它；判据要读声明行的槽，自带第二份正则就是第二份语法（F4）；⑤ **`#answeredByNaming` 留在场上、#emptyReasonOf 随判据退场**——前者是四份文档（p40 计划与 spec · p38 spec）的符号 pin，本任务按原指示只换注释 prose，并新增 `#namingAnswer` 把逐声明答案归约成判据的一格；后者的选词搬进 `ExigibleCells`，Task 5 那一行随之订正（F5）；⑥ **`carrier-seal.ts` 的 docstring 同批改述**——`rulings sidecar — ` 的单命中判据在 `infra/carrier-seal.ts` 早有第二处命中，不点它那条 grep 永不成立（F6）；⑦ **源探针跟着定义搬**——`scripts/__tests__/journey-twin.test.ts` 从 `session/faces.ts` 读 `TargetType` 的源探针改读新家，原 Files 清单漏了它（F7）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.16 | 2026-11-18 | 第九轮 fix 轮（F1–F6 全采纳）：① **判词装配写明剥站名**——`PreFlightVerdict.message` 是该行 detail 首行剥掉串首站名后的余下部分，`DispatchAuthority#message` 是唯一把它放回串首的位置；RowWording 的 dispatchInput 因此补齐 station 与 stationJoin 两格（判据按它拼出今天的字节），原句「`message` 已经是 `station · detail` 那一句」删除（F1）；② **快照两臂都有生产者**——Task 4 的 `cli.ts` 一行写明 reviewsPath 三选一之后由既有的无帧缝 `ArtifactReads#read` 判读写、`CarrierMismatchError` 映射成 mismatch 臂（载体事实取自 `CarrierIntegrity` 的 `facts()`），并加一条成对用例喂两臂，Task 5 退役 `#artifactCellOf` 之后它仍是唯一生产者（F2）；③ **判据收 fs 一格**——输入格增 `fs: DocFs`（与 `JudgeContext` 同形），`PreFlight#vet` 把它构造期注入的那一个交下来，判据不 new `NodeFs`，「路径格缺失」用假 fs 就能核（F3）；④ **行合成与闭集的第二处声明退役**——`Words#dispatchInput` · `DispatchInputSegment` · `DispatchInputReason` 进 Task 5 的 files · 零命中 grep · 验收，两词闭集改由 `contract/context-declarations.ts` 的 ExigibleReason 唯一声明，case (o) 搬到契约测试文件并改读该模块，`Words#artifactIdentity` 留下并写明理由（F4）；⑤ **Task 4 的验收回到这一波能证的事**——「同一份输出」改为「与 `#valuesOf` 逐字相同」，单一消费者是 Task 5 的 spy 判据（F5）；⑥ **首稿指针改标 P38**——`ExigibleCells.resolve` 的 docstring 改念 P38 spec §1.3 / §2.2（F6）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.15 | 2026-11-18 | 第八轮 fix 轮（F1–F4 全采纳）：① **判槽的归约变成可观测的一条**——`TemplateAssembler.engineWrittenSlots` 把三处 `written: "engine"` 声明归约成一槽，构造期断言消费它，每个槽的首个载体花掉一条待判项；测试改钉归约本身（三处声明 → `[INPUT_WAVE_BRIEF]`），删掉归约即红（实测：把 Set 换成 push 的副本上该用例 1 failed / 32 passed），原先那条「同槽跨行只判一次」的用例因 `#assertEngineWritten` 首个违例即抛、永不能为它所指的性质转红，随归约的 pin 到位而退役（F1）；② **Step 5 的提交形状补上 plan 回填**——实施提交 `8eb54813` 含第五个路径 `docs/kairos/plans/2026-11-17-engine-doc-tooling-p40.md`（v0.4 回填 +3/−1），判据原写四个路径，与树不符（F2）；③ **重复用例退役其一**——`templates.test.ts` 的拒绝用例与 `context-lines.test.ts` 的 (f) 是同一份；拒绝留在构造期判据 (a)–(g) 的家，`templates.test.ts` 只留 P40 专属的声明覆盖与归约两条（F3）；④ **声明计数按对象钉**——用例 1 的 `>= 3` 按行计（8 行）而其注释按声明计（3 处），现补一条声明对象的计数 pin 并把注释写成实测值（F4）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.14 | 2026-11-18 | 第七轮 fix 轮（F1–F5 全采纳）：① **判据的 `naming` 一格由缝合自答**——Task 4 写明 `PreFlight#vet` 传常量 `{ answered: false }`（`#answeredByNaming` 唯一的读者是预览臂的那道 `mode === "preview"` 守卫，引擎写的格的存在性腿已由 `written: "engine"` 抑制），它不占 context 的第六格：`PreFlightContext` 仍是五格，Step 3 的 checkable 与 Acceptance 因此与实现同形（F1）；② **`join` 规则收窄到路径面**——Task 3 的 Acceptance 与 repoRoot 那条从「`join` 零命中」改为「`path.join` 零命中且无 `node:path` 的 import」，`Array#join` 明确合规（`detail` 的续行与 artifact 两句 `repair` 正要用它，`face/words.ts` 今日同形）（F2）；③ **`details` 收首条之后的各条**——`#renderPreflightBlocked` 先印 `message` 再逐条印 `details`，收全部四条会让首条句子在块里印两遍；Task 4 的 Produces、Step 1 与 Acceptance 改为此形状并钉一条多违纪块的整块字节断言（F3）；④ **Task 9 的三次实测提交搬进临时树**——交付分支只留 Step 7 的一次原子提交，`git worktree` 又被规则禁止，Step 5 因此写明把工作树连 `.git` 复制到临时目录再跑（F4）；⑤ **两处单命中 grep 的 docstring 同批改述**——`#artifactRefusalOf` 与 `CarrierIntegrity` 的 docstring 各自把那条格式再念一遍，进 Task 3 的 Files 与搬家的字面同批改述，单命中判据因此成立（F5）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |

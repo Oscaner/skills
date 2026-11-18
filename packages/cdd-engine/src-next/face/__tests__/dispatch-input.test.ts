@@ -649,7 +649,7 @@ describe("the dispatch-input gate — order and shape (§2.1 · §2.2)", () => {
     expect(gate.inputRefusal(frame)).toBe(
       "dispatch-input · review · INPUT_WAVE_BRIEF · empty-value; review · BASE_BRANCH · empty-value",
     );
-    // The preview exempts ONLY the `preview: "satisfied"` cell, and only its existence
+    // The preview exempts ONLY the engine-written (`written: "engine"`) cell, and only its existence
     // leg: the wave's brief is named by the naming row, while the scope anchor is judged.
     expect(gate.inputRefusal(frame, "preview")).toBe(
       "dispatch-input · review · BASE_BRANCH · empty-value",

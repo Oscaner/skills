@@ -33,6 +33,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { DOC_TYPE_VALUES } from "../contract/declare.ts";
+import { PreFlightRows, type RowWording } from "../contract/preflight-rows.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { PlanReadWords } from "../infra/plan-source.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
@@ -105,6 +106,10 @@ export interface PreflightWords {
   docContract: string;
   /** The plan-ledger BLOCK — the plan and the ledger disagree structurally. */
   planLedger: string;
+  /** The `no-host` row — the dispatch found no supported harness to run a child in
+   *  (P40 §1.3: moved here from the lifecycle's dispatch body, so the row's bytes have
+   *  one home). One sentence, no fill slot. */
+  noHost: string;
 }
 
 /** One `artifact-identity` refusal's facts (spec §2.4) — the kind whose rendered name
@@ -278,6 +283,7 @@ export const CAPSULE_WORDS = {
     docContract: "the target document fails the doc-contract — fix its structural findings first",
     planLedger:
       "the plan and the ledger disagree structurally — fix the plan's task set or the recorded waves first",
+    noHost: "no host harness detected (run cdd from within a supported harness)",
   } as const satisfies PreflightWords,
   /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
    *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
@@ -323,12 +329,18 @@ export const CAPSULE_WORDS = {
   /** The `misplaced = block` report (spec §2.4) — the reason word plus the four
    *  sections: the rendered name, every name found in its place, the identity itself
    *  and the repair the orchestrator owns. Fill slots: {kind} / {derived} /
-   *  {found} / {identity}; the repair sentence is fixed (the engine only refuses). */
+   *  {found} / {identity}; the repair sentence is fixed (the engine only refuses).
+   *  The report's ONE composition is `PreFlightRows.artifactReportOf` — this table
+   *  holds the bytes, the contract plane assembles them, so the gate and the board's
+   *  reference renderer cannot drift. */
   artifactIdentity: {
+    invalid: "rulings sidecar — {reason}",
     reason: "artifact-identity · the round's `{kind}` sidecar sits off its rendered name",
     derived: "  derived:  {derived}",
     found: "  found:    {found}",
     identity: "  identity: {identity}",
+    foundJoin: " · ",
+    emptyFound: "(none)",
     repair: [
       "  repair:   rename the found file to the derived name — the engine never moves,",
       "            rewrites or deletes an artifact; the workspace is yours",
@@ -610,25 +622,46 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return [row.station, segments.join(row.separator)].join(CAPSULE_WORDS.separator);
   }
 
+  /** The four pre-dispatch rows' wording (P40 T3) — the ONE injection point of the
+   *  contract-plane judgment's bytes. The judgment holds no sentence of its own; this
+   *  accessor hands it the rows the table already owns, so a reward here moves the gate
+   *  and the board together. `stationJoin` is the table-wide `·` separator — the
+   *  wording module therefore keeps no second ` · ` literal for the station join. */
+  preflightWording(): RowWording {
+    const dispatch = CAPSULE_WORDS.dispatchInput;
+    return {
+      noHost: CAPSULE_WORDS.preflight.noHost,
+      dispatchInput: {
+        station: dispatch.station,
+        segment: dispatch.segment,
+        separator: dispatch.separator,
+        stationJoin: CAPSULE_WORDS.separator,
+      },
+      artifact: CAPSULE_WORDS.artifactIdentity,
+    };
+  }
+
   /** The `misplaced = block` report (spec §2.4) — the reason word over the four
    *  fact sections. Every candidate is printed (never a first pick) and the identity
    *  section is the SAME identity the rendered name came from, so `derived:` and
-   *  `identity:` can never name two different coordinates. */
+   *  `identity:` can never name two different coordinates. The composition is the
+   *  contract plane's ONE report builder, so this renderer and the pre-flight gate read
+   *  one table and assemble one shape. */
   artifactIdentity(facts: ArtifactIdentityFacts): string {
-    const row = CAPSULE_WORDS.artifactIdentity;
-    return [
-      row.reason.replace("{kind}", facts.kind),
-      row.derived.replace("{derived}", facts.derived),
-      row.found.replace("{found}", facts.found.length === 0 ? "(none)" : facts.found.join(" · ")),
-      row.identity.replace("{identity}", this.#identityWords(facts.identity)),
-      ...row.repair,
-    ].join("\n");
+    return PreFlightRows.artifactReportOf(this.preflightWording().artifact, {
+      sidecarKind: facts.kind,
+      derived: facts.derived,
+      found: facts.found,
+      identity: this.identityWords(facts.identity),
+    });
   }
 
   /** One identity as the report's `identity:` value — the round coordinates with the
    *  renderer's own attempt default (a missing attempt is attempt 1, so the printed
-   *  coordinate never contradicts the rendered name). */
-  #identityWords(identity: Identity): string {
+   *  coordinate never contradicts the rendered name). Public because the pre-flight
+   *  judgment's artifact snapshot carries this rendered fact, not the session-plane
+   *  identity it came from (P40 T3). */
+  identityWords(identity: Identity): string {
     if (identity.domain === "round") {
       const cycle = identity.cycle === undefined ? "" : ` · cycle=${identity.cycle}`;
       return `line=${identity.line} · op=${identity.op}${cycle} · attempt=${identity.attempt ?? 1}`;

@@ -49,6 +49,11 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import {
+  type ContextLine,
+  ContextSlot,
+  type RequiredArm,
+} from "../contract/context-declarations.ts";
 import { CRITERIA, LENS_QUESTIONS, type ReviewKind } from "../contract/review-criteria.ts";
 import { DISPATCH } from "../face/host.ts";
 import { TerminationPolicy } from "../face/termination.ts";
@@ -76,41 +81,12 @@ export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
  *  keyed by `ReviewKey`). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
 
-/** The arm shape of one round-context cell's exigibility declaration (P38 §1.1) —
- *  one arm is a type set, optionally narrowed by a structural precondition, and a
- *  cell may hang several CONJUNCTIVE arms: each is judged on its own, and any hit
- *  makes the cell exigible. `types: []` is the `never` spelling — the cell is never
- *  exigible, which is a legal declaration (not a missing one). */
-export interface RequiredArm {
-  /** The target types this arm covers — `"always"` (the row's whole served set) or a
-   *  subset of it; an empty array names no type at all (`never`). */
-  readonly types: "always" | readonly TargetType[];
-  /** A structural precondition stacked on the same arm (§1.3): the identity document
-   *  declared `program:` / its shape (`doc-type:`) — the DECLARATION, never the
-   *  resolved value the frame carries. */
-  readonly when?: "program" | "identity";
-}
-
-/** One round-context line's declaration (P38 §1.1) — the line with its `{{TOKEN}}`
- *  slot plus the facts a caller must be able to read off it. A line without a slot
- *  (the `## Round context` heading, the separator blank line) carries the `never`
- *  form: it has no value to compare, so it is never exigible and never dropped. */
-export interface ContextLine {
-  /** The rendered line — a heading, a blank line, or a `- \`TOKEN\`: {{TOKEN}}` cell. */
-  readonly line: string;
-  /** The cell's value names a file that must exist — the ONLY bit `target-absent`
-   *  reads (§1.1: read paths are declared, never inferred from an `INPUT_` prefix). */
-  readonly path?: true;
-  /** What absence looks like away from `requiredOn`: drop the whole line, or render
-   *  the bare literal `none`. */
-  readonly absent: "drop" | "none";
-  /** The types the cell is exigible on — one arm, or several conjunctive arms. */
-  readonly requiredOn: readonly RequiredArm[];
-  /** The engine writes this cell's file itself before the child reads it (§1: the
-   *  brief). The name is the whole answer — no path on an engine-written cell ever
-   *  takes an existence read, and `NAMED_BRIEF_CELL` is the ONE slot allowed to say so. */
-  readonly written?: "engine";
-}
+/** The round-context declaration types (P38 §1.1) — the definition lives on the
+ *  CONTRACT plane (`contract/context-declarations.ts`, P40 T3) because the pre-flight
+ *  judgment reads a row's declarations and `contract/` never imports `render/`. They
+ *  are imported back and re-exported here so the declaration table, its selector and
+ *  every existing reader stay in place — zero behaviour moved. */
+export type { ContextLine, RequiredArm };
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
@@ -1180,10 +1156,11 @@ export class TemplateAssembler {
   }
 
   /** The `{{TOKEN}}` slot a declared line carries — `undefined` for a value-less line
-   *  (the heading, the separator blank line). The ONE slot-grammar reader: the gate
-   *  that judges a layout's cells reads it here rather than re-spelling the braces. */
+   *  (the heading, the separator blank line). The grammar's ONE reader lives beside the
+   *  declarations it reads (`ContextSlot.of`, contract plane), so the renderer and the
+   *  pre-flight judgment can never disagree about which slot a line carries. */
   static slotOf(line: string): string | undefined {
-    return /\{\{([A-Z0-9_]+)\}\}/.exec(line)?.[1];
+    return ContextSlot.of(line);
   }
 
   /** The distinct slots declaring `written: "engine"` — ONE entry per slot, never one

@@ -19,25 +19,35 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import type { CarrierFacts } from "../contract/carrier-line.ts";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import type { ContextLine, SceneFacts } from "../contract/context-declarations.ts";
 import { type DocFs, NodeFs } from "../contract/invariants.ts";
 import { PinAudit } from "../contract/pins.ts";
+import {
+  type ArtifactSnapshot,
+  type ArtifactSnapshotRead,
+  PreFlightRows,
+  type PreFlightRowsInput,
+  type RowRefusal,
+  type RowStation,
+} from "../contract/preflight-rows.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
-import type { RepoPath, RepoRoot } from "../infra/root.ts";
+import type { RepoRoot } from "../infra/root.ts";
 import { RoundLog } from "../infra/round-log.ts";
 import type { DocEntry } from "../infra/slug-index.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import type { ContextLine, RequiredArm, TemplateValues, WorkMode } from "../render/templates.ts";
+import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
-import { TargetFaceTable, type TargetType } from "../session/faces.ts";
+import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
@@ -68,7 +78,7 @@ import {
   TerminationPolicy,
   Terminator,
 } from "./termination.ts";
-import { type DispatchInputSegment, FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
+import { FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -161,15 +171,31 @@ type DraftedOutcome = Omit<DispatchOutcome, "status"> & { status: RoundStatus | 
  *  Computed once per dispatch (`#artifactCellOf`), so the two consumers cannot answer
  *  differently across a writer that lands between them (spec §2.3: 一份读取、两个消费者 —
  *  the contract is one value, not one call count). The `mismatch` arm carries the
- *  carrier-integrity refusal a tampered requesting carrier raises INSTEAD of a read: the
- *  sidecar is never judged against bytes that changed. */
+ *  carrier-integrity FACTS a tampered requesting carrier raises INSTEAD of a read: the
+ *  sidecar is never judged against bytes that changed, and the sentence those facts
+ *  print has one home (`contract/carrier-line.ts`), never this cell. */
 type ArtifactCell =
   | { readonly kind: "read"; readonly value: ArtifactReadOf }
-  | { readonly kind: "mismatch"; readonly message: string };
+  | { readonly kind: "mismatch"; readonly carrier: CarrierFacts };
 
 /** The no-sidecar cell — off the fix face, an unattributable carrier, or a matrix
  *  `absent`: the slot stays empty and the gate has nothing to refuse. */
 const NO_ARTIFACT: ArtifactCell = { kind: "read", value: ABSENT_READ };
+
+/** The ONE artifact kind the dispatch gate judges (the fix round's ruling sidecar) —
+ *  named once so the read and the snapshot's `sidecarKind` cannot drift. */
+const RULINGS_KIND: Kind = "rulings";
+
+/** One dispatch's four-row judgment inputs, adapted at the face's call site (P40 T3):
+ *  the frame (the type, the naming answer), the composed values, the ONE artifact cell,
+ *  and the host probe's value. One parameter object — the method's single argument. */
+interface RowJudgment {
+  readonly frame: OpenFrame;
+  readonly values: TemplateValues;
+  readonly artifactCell: ArtifactCell;
+  readonly host: string;
+  readonly naming: boolean;
+}
 
 /**
  * CliLifecycle — the lifecycle's dispatch-seam production default (the split contract's
@@ -692,8 +718,10 @@ export class CliLifecycle {
     this.#logUnavailable = null;
     const host = this.detectHost();
     if (host === "") {
+      // The sentence's ONE home is the words table (P40 §1.3 moved it out of this
+      // method); the channel anchor is the table's `blocked` row, not a second literal.
       this.#io.stderr(
-        "CDD_BLOCKED: no host harness detected (run cdd from within a supported harness)\n",
+        `${this.#words.station("blocked")} ${this.#words.preflightWording().noHost}\n`,
       );
       return { status: "BLOCKED" };
     }
@@ -739,7 +767,7 @@ export class CliLifecycle {
       this.#blocked(inputRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(inputRefusal)] };
     }
-    const artifactRefusal = this.#artifactRefusalOf(artifactCell);
+    const artifactRefusal = this.#artifactRefusalOf(artifactCell, values, frame);
     if (artifactRefusal !== null) {
       this.#sealRoundCarriers(frame);
       this.#blocked(artifactRefusal, false);
@@ -1688,7 +1716,8 @@ export class CliLifecycle {
    *  dry run can never forecast a dispatch the real run would refuse (one read, two
    *  faces). Nothing here writes: the read is the matrix's plus the strict schema's. */
   artifactRefusal(frame: OpenFrame): string | null {
-    return this.#artifactRefusalOf(this.#artifactCellOf(frame));
+    const cell = this.#artifactCellOf(frame);
+    return this.#artifactRefusalOf(cell, this.#valuesOf(frame, cell), frame);
   }
 
   /** The `dispatch-input` gate as a PURE read (P38 §2.1) — whether THIS round can stand
@@ -1707,61 +1736,41 @@ export class CliLifecycle {
 
   /** The dispatch-input judgment over the values about to be rendered (§2.1–§2.3) — the
    *  definition is given by the declaration, never by a second table: the judged cells
-   *  are `layoutOf(values)`, the same row selection the renderer reads. Every failing
-   *  cell becomes one segment, all of them reported in one pass (`; `-joined), so a
-   *  refused round is repaired once instead of one cell per dispatch. */
+   *  are resolved from `layoutOf(values)`, the same row selection the renderer reads.
+   *  The judgment itself lives on the contract plane (P40 T3); this method only selects
+   *  the row it produces. */
   #inputRefusalOf(
     values: TemplateValues,
     frame: OpenFrame,
     mode: "dispatch" | "preview",
   ): string | null {
-    const row = values.ROLE;
-    const segments: DispatchInputSegment[] = [];
+    const rows = this.#rowsOf({
+      frame,
+      values,
+      // The input row reads no artifact fact (the snapshot feeds the artifact gate),
+      // so the no-sidecar value is the truthful input here — one read, one consumer.
+      artifactCell: NO_ARTIFACT,
+      host: this.detectHost(),
+      naming: mode === "preview" && this.#namingAnswer(values, frame),
+    });
+    return CliLifecycle.#firstRowOf(rows, ["dispatch-input"]);
+  }
+
+  /** The dispatch-wide naming answer the judgment's `naming` input carries — ONE
+   *  boolean, because the assembler admits exactly one engine-written slot
+   *  (`NAMED_BRIEF_CELL`), so any declared engine-written cell's answer IS the
+   *  dispatch's answer. The declaration guards stay in `#answeredByNaming`. */
+  #namingAnswer(values: TemplateValues, frame: OpenFrame): boolean {
     for (const decl of this.#template.layoutOf(values)) {
       const token = TemplateAssembler.slotOf(decl.line);
       if (token === undefined) continue;
-      const hits = decl.requiredOn.filter((arm) => this.#armHits(arm, frame));
-      if (hits.length === 0) continue;
-      const satisfied = mode === "preview" && this.#answeredByNaming(decl, token, frame);
-      const value = values[token] ?? "";
-      if (value === "") {
-        if (satisfied) continue;
-        segments.push({ row, token, reason: CliLifecycle.#emptyReasonOf(hits) });
-        continue;
-      }
-      if (decl.path !== true || satisfied) continue;
-      // The value is a repoRoot-relative read path (§1.1) — the ONE erasure point turns
-      // it absolute before the existence read, so a dispatch started from a subdirectory
-      // never reads every landed path as absent.
-      const absolute = this.#repoRootValue().resolve(value as RepoPath);
-      if (!this.#fs.exists(absolute)) segments.push({ row, token, reason: "target-absent" });
+      if (this.#answeredByNaming(decl, token, frame)) return true;
     }
-    return segments.length === 0 ? null : this.#words.dispatchInput({ segments });
+    return false;
   }
 
-  /** Whether one declared arm is exigible on this frame (§1.3) — the type hit plus, when
-   *  the arm carries one, its structural precondition. Both preconditions read the two
-   *  DECLARED scene cells (`program` · `docType`), never the resolved links: a declared
-   *  program whose charter does not resolve and a program never declared are different
-   *  facts, and only the declaration can tell them apart. */
-  #armHits(arm: RequiredArm, frame: OpenFrame): boolean {
-    const typed = arm.types === "always" || arm.types.includes(frame.type as TargetType);
-    if (!typed) return false;
-    if (arm.when === "program") return this.#scene.program != null;
-    if (arm.when === "identity") return this.#scene.docType != null;
-    return true;
-  }
-
-  /** The reason an exigible cell's EMPTY value earns (§2.2's closed set): an arm whose
-   *  precondition is the declared `program:` that hit means the charter the declaration
-   *  names did not resolve (`target-absent`); every other empty value is the engine's own
-   *  omission (`empty-value`). The two `when` legs are told apart by this word alone. */
-  static #emptyReasonOf(hits: readonly RequiredArm[]): DispatchInputSegment["reason"] {
-    return hits.some((arm) => arm.when === "program") ? "target-absent" : "empty-value";
-  }
-
-  /** Whether the preview's naming answer applies to this cell (§2.4) — the ONLY
-   *  reader of `written: "engine"`. The naming line that writes this cell's artifact
+  /** Whether the preview's naming answer applies to this cell (§2.4) — the naming
+   *  exemption's per-cell declaration guard. The naming line that writes this artifact
    *  is the answer's source: the brief is the one cell `renderBrief` writes at dispatch
    *  alone, so a wave that names its task group names its brief, and a wave that names
    *  none falls back to the empty-value arm. The exemption covers the existence leg too:
@@ -1775,6 +1784,94 @@ export class CliLifecycle {
     return tasks !== "" && this.#naming.briefName(tasks) !== "";
   }
 
+  /** The four-row judgment over one dispatch (P40 T3) — the face's ONE adaptation point:
+   *  the flat value record, the row's declarations, the two scene facts as booleans, the
+   *  artifact cell as a plane-legal snapshot and the words table's rows. Every criterion
+   *  the judgment applies lives on the contract plane. */
+  #rowsOf(judgment: RowJudgment): readonly RowRefusal[] {
+    const input: PreFlightRowsInput = {
+      facts: { type: judgment.frame.type, host: judgment.host },
+      values: judgment.values,
+      declarations: this.#template.layoutOf(judgment.values),
+      scene: this.#sceneFacts(),
+      artifact: this.#snapshotOf(judgment.frame, judgment.artifactCell),
+      repoRoot: this.#repoRootValue(),
+      fs: this.#fs,
+      wording: this.#words.preflightWording(),
+      naming: { answered: judgment.naming },
+    };
+    return PreFlightRows.judge(input);
+  }
+
+  /** The two DECLARED scene facts, booleanized at the face (§1.3): the `when` arms read
+   *  the DECLARATION, never the resolved link — a declared program whose charter does
+   *  not resolve and a program never declared are different facts. */
+  #sceneFacts(): SceneFacts {
+    return { program: this.#scene.program != null, docType: this.#scene.docType != null };
+  }
+
+  /** The plane-legal snapshot of this dispatch's artifact cell — the face's adaptation:
+   *  the session-plane read flattened into contract values, every path through the ONE
+   *  basis conversion, the identity words rendered by the words plane and the carrier's
+   *  facts taken from the error instead of its sentence. */
+  #snapshotOf(frame: OpenFrame, cell: ArtifactCell): ArtifactSnapshot {
+    const reviews = this.#reviewsPath(frame);
+    const reviewsPath = reviews === null ? null : this.#rel(reviews);
+    if (cell.kind === "mismatch") {
+      return { kind: "mismatch", reviewsPath, carrier: cell.carrier };
+    }
+    return { kind: "read", reviewsPath, read: this.#snapshotReadOf(cell.value.read) };
+  }
+
+  /** One `ArtifactRead` as the contract value — the four arms flattened, no session type
+   *  crossing the plane. */
+  #snapshotReadOf(read: ArtifactReadOf["read"]): ArtifactSnapshotRead {
+    if (read.kind === "ok") {
+      return {
+        kind: "ok",
+        path: this.#rel(read.path),
+        reason: null,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "invalid") {
+      return {
+        kind: "invalid",
+        path: this.#rel(read.path),
+        reason: read.reason,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "misplaced") {
+      return {
+        kind: "misplaced",
+        path: this.#rel(this.#scene.workspace.resolve(read.derived)),
+        reason: null,
+        found: read.found.map((name) => this.#rel(this.#scene.workspace.resolve(name))),
+        identity: this.#words.identityWords(read.identity),
+        sidecarKind: RULINGS_KIND,
+      };
+    }
+    return {
+      kind: "absent",
+      path: null,
+      reason: null,
+      found: [],
+      identity: null,
+      sidecarKind: null,
+    };
+  }
+
+  /** The detail of the FIRST refusal among the named stations, in the judgment's own
+   *  order — the seam's derived single line, never a second composition. */
+  static #firstRowOf(rows: readonly RowRefusal[], stations: readonly RowStation[]): string | null {
+    return rows.find((row) => stations.includes(row.station))?.detail ?? null;
+  }
+
   /** The dispatch's artifact judgment — computed ONCE, then consumed by the gate and by
    *  the prompt's round-context cell. Off the fix face there is nothing to read (no
    *  requesting carrier, no sidecar), so the cell is the no-sidecar value; otherwise the
@@ -1783,10 +1880,12 @@ export class CliLifecycle {
   #artifactCellOf(frame: OpenFrame): ArtifactCell {
     if (this.#opOf(frame) !== "fix") return NO_ARTIFACT;
     try {
-      return { kind: "read", value: this.#artifactReadOf(frame, "rulings") };
+      return { kind: "read", value: this.#artifactReadOf(frame, RULINGS_KIND) };
     } catch (raw) {
       if (!(raw instanceof CarrierMismatchError)) throw raw;
-      return { kind: "mismatch", message: raw.message };
+      // The FACTS, never the rendered sentence: `CarrierLine` is the one format home,
+      // and the snapshot must not hold a second copy of the same line.
+      return { kind: "mismatch", carrier: raw.facts() };
     }
   }
 
@@ -1804,30 +1903,30 @@ export class CliLifecycle {
   }
 
   /** The pre-dispatch artifact gate over the dispatch's ONE cell — the refusal reason of
-   *  this round's resolved `rulings` kind, or null when the round may proceed (no fix
+   *  this round's resolved sidecar kind, or null when the round may proceed (no fix
    *  face, no resolved carrier, an absent sidecar, or one conforming). A refusal is HARD
    *  and lands before the in-flight record and the child, so a broken ruling set can
    *  never be dispatched unnoticed (§2.4).
    *
-   *  Two refusal shapes, two words: a name that attributes to the identity but is NOT
-   *  its rendered name is `artifact-identity` (the four-section report — every candidate
-   *  listed, never a pick), while a present-but-unreadable file or a schema violation
-   *  keeps today's `rulings sidecar — <reason>` (the reason verbatim from the read).
+   *  The two shapes and their two words live on the contract plane (P40 T3): a name that
+   *  attributes to the identity but is NOT its rendered name is `artifact-identity` (the
+   *  four-section report — every candidate listed, never a pick), while a
+   *  present-but-unreadable file or a schema violation reports the read's reason
+   *  verbatim.
    *
-   *  A `carrier-mismatch` from the sidecar's id read is the integrity refusal, never a
-   *  ruling reason: a tampered carrier is not judged (its id set is not a fact this
-   *  round may read), so the diagnostic names the bytes that changed. */
-  #artifactRefusalOf(cell: ArtifactCell): string | null {
-    if (cell.kind === "mismatch") return cell.message;
-    const read = cell.value.read;
-    if (read.kind === "invalid") return `rulings sidecar — ${read.reason}`;
-    if (read.kind !== "misplaced") return null;
-    return this.#words.artifactIdentity({
-      kind: "rulings",
-      derived: this.#rel(this.#scene.workspace.resolve(read.derived)),
-      found: read.found.map((name) => this.#rel(this.#scene.workspace.resolve(name))),
-      identity: read.identity,
+   *  A carrier mismatch from the sidecar's id read is the integrity refusal (the
+   *  `carrier` station), never a ruling reason: a tampered carrier is not judged (its id
+   *  set is not a fact this round may read), so the diagnostic names the bytes that
+   *  changed. */
+  #artifactRefusalOf(cell: ArtifactCell, values: TemplateValues, frame: OpenFrame): string | null {
+    const rows = this.#rowsOf({
+      frame,
+      values,
+      artifactCell: cell,
+      host: this.detectHost(),
+      naming: false,
     });
+    return CliLifecycle.#firstRowOf(rows, ["carrier", "artifact"]);
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

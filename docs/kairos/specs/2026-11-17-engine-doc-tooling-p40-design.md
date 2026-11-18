@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.17
+version: v0.18
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -90,7 +90,7 @@ author: Oscaner M. · Claude
 
 - 为什么这一行可以直接含 ` · `：这一行只有**一个轮标识**（`{cycle}·a{attempt}`），`station` 取自九值闭集、永远先于第一个 ` · ` 出现，因此行内的 ` · ` 只是「站名 / 原因」与原因自身片段之间的分隔；`crashed:` 的 ` · ` 是**跨轮**分隔符（多个 token 之间），两者的活儿不同。行也不靠切分解析：站名从闭集取，`detail` 是剥掉站名与规范化（2.1）之后剩下的部分。
 - 构造点：两个值、三个消费者，各自说清念哪个。`session/dispatch-authority.ts#DispatchAuthority#message` 在结构腿今天做的就是 `reason · detail` 这件事，而结构腿的 reason 就是行 id；本相位让它念的 reason 与记录里的 `station` 是同一个值。**值一 · 活判词**：`DispatchAuthority#message` 产出的那条多行报文，首行即 `station · detail`，后续行（`derived:` · `found:` · `identity:` · `repair:`）原样跟随——命令面的 `CDD_BLOCKED:` 行与预览的 `refused:` 行渲染这一条，逐字，不改写、不折叠：它们判的是一次活派发，后续行描述的是那次判定没做的工作。**值二 · 记录的对**：tree-refusal 存的两格（`station` + 单行 `detail`，2.1 由活判词首行剥掉前缀派生），board 念这一对。三个面各自只加自己的**外层**（命令面的 `CDD_BLOCKED: …`——`graph` · `plan-ledger` 两行另有 `cdd <verb>: …` 一支，通道归属见 3.3 / 预览的 `  refused:  ` / board 的 `  refused: {op} {cycle}·a{attempt} `）。一份存储、一次派生、三个外层；记录里没有第二份报文，活判词不进文件。
-- 渲染归属：board 只在拒绝事实的 `slug` 与本次观察的工作区相同时渲染它。别的相位工作区的拒绝不是本次观察对象——但它在自己的 board 上照常可见，且被下一次写入覆盖即消失。读取点就在渲染 `in-flight:` 行的同一处（`face/board-view.ts`），不新开第二次扫描。
+- 渲染归属：board 只在拒绝事实的 `slug` 与本次观察的工作区相同时渲染它。别的相位工作区的拒绝不是本次观察对象——但它在自己的 board 上照常可见，且被下一次写入覆盖即消失。读取点在组合根造 `InFlight` 的同一处（`face/cli.ts#Cli#runBoard` 用一次 `session/refusal.ts#PreFlightRefusal#read` 读成三态值、作为 `BoardView.render` 的必填参数交下去，`slug` 过滤在那一处生效），board 只渲染交下来的三态值，不新开第二次扫描。
 
 #### 3.2 站名闭集与穷尽断言
 - 站名闭集就是 structure 腿的行集，九值一张表（`session/preflight.ts#PreFlightGateName`）：
@@ -141,7 +141,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 
 #### 5.1 现状与迁移目标
 - 今天的提交门是两件东西：`.husky/pre-commit` 的一行 `pnpm exec lint-staged`，与项目根的 lint-staged.config.ts（`*.ts` → `biome check`；`*` → `pnpm run precommit`）。`package.json` 以 `prepare: husky` 安装钩子，依赖 `husky` 与 `lint-staged`。
-- 目标：提交门改由 lefthook 承担——`lefthook` 作为 devDependency **加入**（今天不在依赖里，迁移必须一并加），`prepare` 改为 `lefthook install`；`biome check` 仍然**不带** `--write`（一条违规必须让提交失败、且不写回），`pnpm run precommit` 仍然每次提交跑一次。
+- 目标：提交门改由 lefthook 承担——`lefthook` 作为 devDependency **加入**（今天不在依赖里，迁移必须一并加），`prepare` 改为 `lefthook install --reset-hooks-path`；`biome check` 仍然**不带** `--write`（一条违规必须让提交失败、且不写回），`pnpm run precommit` 仍然每次提交跑一次。旗标是设计的一部分，不是习惯：陈旧的 `core.hooksPath`（现行 `prepare: husky` 留下的 `file:.git/config  .husky/_`）按 clone 存在、不在仓库里，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上撞同一个值而失败——重置钩子路径是那次安装自愈的唯一步骤。
 
 #### 5.2 等价性必须逐条断言，不靠「看起来一样」
 - **暂存文件集**：lefthook 与 lint-staged 对**已删除**文件的处理不同——`biome check` 拿到不存在的路径会报错。等价性由**一次真实提交**判定（删除一个 `.ts` 后提交必须不红），不为它新增自动测试文件；不等价则在命令里过滤存在性。
@@ -149,7 +149,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 - **顺序**：`biome check` 先于 `pnpm run precommit`（今天的 lint-staged 任务序），迁移后 must 保持同一顺序，否则一条格式违规会在全量测试跑完之后才被发现。这条不是意图而是被验收钉住的条件：同一次真实提交里放一条格式违规 ⇒ 运行停在 `biome check`，该次提交的日志里**没有** `pnpm run precommit` 的运行记录（提交门等价那一行，见 Acceptance criteria）。顺序因此可核，不靠「看起来一样」。
 
 #### 5.3 移除面与文档面
-- 移除：`.husky/` 目录（含 shim）、lint-staged.config.ts、`husky` 与 `lint-staged` 两个 devDependency；`prepare` 改为 `lefthook install`，`lefthook` 的 devDependency 一面见 5.1。依赖面因此**读两个方向**：两个旧名字零命中，一个新名字有命中。
+- 移除：`.husky/` 目录（含 shim）、lint-staged.config.ts、`husky` 与 `lint-staged` 两个 devDependency；`prepare` 改为 `lefthook install --reset-hooks-path`（旗标与理由见 5.1：陈旧的本机 `core.hooksPath` 按 clone 存在），`lefthook` 的 devDependency 一面见 5.1。依赖面因此**读两个方向**：两个旧名字零命中，一个新名字有命中。
 - 文档面：**不改**。`AGENTS.md` 的两句提交钩子（Commands 下的 `pnpm run precommit` 一行、约定下的 `biome check` 不带 `--write` 一行）只写规则、不写机制名，机制换了它们也不动；规则本身不变（`biome check` 不带 `--write`）。这是可核的事实而不是省略：交付后那两句逐字节不变，且三个机制名 `husky` · `lint-staged` · `lefthook` 在 `AGENTS.md` 里零命中。
 - 本条不产生 changeset：它不改任何 first-party package 的行为，改的是仓库自身的提交门。
 
@@ -163,7 +163,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 - **不可读的拒绝事实**：把 refusal.json 截断或写成非法 JSON ⇒ board 印一条自己的 corrupt 行 `  refused: unreadable refusal record`（**无轮标识**，4.2）、**不**印带轮标识的 standing `refused: {op} {cycle}·a{attempt} …` 行、仍 exit 0，board 其余行不受影响；同一夹具上写回一条合法记录后 `refused:` 行恢复。成对（释放不清不可读的记录）：一条在持有者运行期间写下的 corrupt 记录，在持有者正常结束（释放）之后仍在盘上、board 仍印 corrupt 行——释放点的谓词读不到 `station`，它不动这条记录（2.2）。
 - `--recover` **不认领被拒的派发**：对一次被拒的派发执行 `--recover` ⇒ 不认领、无恢复写入、不写轮记录（`waves[n].rounds` 长度不变）、`cycle` 不推进、无接管戳，且同一拒绝再次出现（`face/cli.ts#Cli#runWork` 在结构腿拒绝上不调 `#recoverRun`，所以既有「无可接管」文案在这条路径上不可达——测的是不认领 + 无恢复写入 + 同一拒绝，不是那句话）；同时 refusal.json 仍在、`station` 与被拒那一刻相同——一条断言一件事，拒绝记录既不否认也不隐藏，也不借 `--recover` 开豁免。`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
 - `lefthook.yml` **提交门等价**：暂存一个格式违规的 `.ts` ⇒ 提交被拦且文件**未被写回**，且同一次提交的日志里**没有** `pnpm run precommit` 的运行记录（违规必须停在 `biome check`，§5.2 的顺序由此成为可核的条件而不是意图）；删除一个 `.ts` 后提交 ⇒ 不红；干净提交通过且日志里出现 `pnpm run precommit` 那一次的运行记录。
-- `lefthook.yml` **移除面与依赖面**：`.husky/` 与 lint-staged.config.ts 不在树上，`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；**且** `lefthook` 在 `package.json` 的 devDependencies 里出现、在 `pnpm-lock.yaml` 里有条目，`prepare` 跑 `lefthook install`（依赖面读两个方向，不只读零命中）；`pnpm run validate` exit 0。
+- `lefthook.yml` **移除面与依赖面**：`.husky/` 与 lint-staged.config.ts 不在树上，`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；**且** `lefthook` 在 `package.json` 的 devDependencies 里出现、在 `pnpm-lock.yaml` 里有条目，`prepare` 跑 `lefthook install --reset-hooks-path`（自愈形态：陈旧的本机 `core.hooksPath` 按 clone 存在，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上失败，§5.1）；`pnpm run validate` exit 0。
 - `.changeset/` **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（具名变更六项，与 Constraints 的 ①–⑥ 同一份清单：① `no-host` · `carrier` · `artifact` 三行的首行多一段站名 · ② `--dry-run` 上的结构腿拒绝改由 stdout 的预览块陈述 · ③ 无 harness 树里 `--dry-run` 的拒绝从预报 exit 0 变为预览块 exit 1 · ④ 跑到四行的有输入面派发 `checked:` 面多四行 · ⑤ board 的两行（`refused:` 行与不可读记录的 corrupt 行）· ⑥ 两腿同时不合格时报文从 line 腿改归结构腿；另记 refusal.json 为新增产物，均为消费面可见）；kairos 未动。
 - `INPUT_WAVE_BRIEF` **是引擎写的格子**：在一个还没有 `tasks-<n>-brief.md` 的全新工作区派发一次 wave 评审 ⇒ 四道门全过（不是 `target-absent`），真跑路径随后渲染出 brief；同一状态下 `cdd implement --type wave` 的首次派发同样不拒（implement 行的声明同改）；同一状态加 `--dry-run` ⇒ 同一裁决（门不因面而换判据）。构造期断言按**槽**判：三行声明同一槽时绿（引擎写的槽集合恰好 `{NAMED_BRIEF_CELL}`），而「另一格也声明引擎写」即红——一个断言点，不是三个计数器。
 - `CDD_BLOCKED` **一行共享 · 两个值 · 一处具名变更**：四道门各拒绝一次，真跑分别念 `CDD_BLOCKED: no-host · no host harness detected (run cdd from within a supported harness)` · `CDD_BLOCKED: carrier · carrier-mismatch · …` · `CDD_BLOCKED: dispatch-input · …` · `CDD_BLOCKED: artifact · artifact-identity · …`；artifact 门的两臂各断言一次前缀：`misplaced` 念 `CDD_BLOCKED: artifact · artifact-identity · …`，活判词后续行（四段：`derived:` · `found:` · `identity:` · `repair:`，`repair:` 占两行）逐字跟随首行；`invalid`（sidecar 在盘上但读不出）念 `CDD_BLOCKED: artifact · rulings sidecar — <原因>`、无续行（3.3）；两臂的记录 `detail` 都只由首行派生，refusal.json 里**没有**那些后续行（2.1）。成对：五行既有行与 `dispatch-input` 一行逐字节同改前，`no-host` · `carrier` · `artifact` 三行的**首行**比改前多一段站名前缀（改前三行不带站名、改后带），且三行的 detail 文本与改前逐字节相同（只加前缀、不改措辞）；board 念记录派生的那一行 `station · detail`（无后续行），三个外层各守自己的形状。
@@ -203,3 +203,4 @@ targetAction: !violations.some(v => v.grade === "hard")
 | v0.15 | 2026-11-18 | 第十三轮评审回填（F1–F6 全采纳）：① §4.2 声明 corrupt 行的完整字节 `  refused: unreadable refusal record`（同一个 `refused:` 词、无轮标识，与 `refusalRows` 的 corrupt 臂一致），验收的否定式改写为「不带轮标识的 standing `refused:` 行不在场」（F1）；② §2.4 的 `--dry-run` 流迁移写实为两个通道（`CDD_BLOCKED:` 与 `cdd <verb>: `），验收补 `graph` · `plan-ledger` 的预览对（F2）；③ §2.4 的保留臂按形状陈述提示——死主与锁在盘上的不可读记录带接管提示、活主不带（F3）；④ artifact 行两臂入册（`misplaced` 四段续行 / `invalid` 无续行），§2.1 · §3.3 · 验收三处同读一份（F4）；⑤ 主机探测的源码断言改为调用形模式，并写明计数单位是「四处调用」、一处注释提及不在此数（F5）；⑥ §2.1 删掉「行内换行折叠为空格」（取首行后已无换行可折），改为「判词若带续行只取首行」（F6） | Oscaner M. · Claude |
 | v0.16 | 2026-11-18 | 第十四轮评审回填（F1–F4 全采纳）：① **`checked:` 面的第二处让位入册（F1）**——`session/preflight.ts#PreFlight#vet` 在任一行失败时即返回，`checked` 只记到那一行为止，因此被第 1–6 行任一行先拒下的派发不判不记这四行（脏树就是这种：它有输入面，却在第 1 行被拒）；§1.1 · §3.3 · Constraints ④ 的「每一个有输入面的派发」/「唯一例外」改为「跑到四行」，验收补拒绝侧成对（`checked:` 的门行只剩 `tree-clean`），章程 D96 · Phase inventory ⑥ · 在册账同格回填；② **章程 P40 验收 ④ 收窄到站名一半（F2）**——「新增一行不给站名或没有 detail 来源即构造期/编译期红」改为「不给站名即编译期红；detail 来源没有构造期守卫、由评审读」，与 §3.2 · 验收 ④ 同读一份；③ **changeset 清单收成六项（F3）**——`.changeset/` 验收行补回具名变更 ① 与 ②（三行站名前缀 · `--dry-run` 的预览块），与 Constraints ①–⑥ 同一份清单；④ **批准侧的 `--dry-run` 流面声明（F4）**——§2.4 的「拒绝块与 checked 面都走 stdout」限定在拒绝路径，并声明批准侧 checked 面在 stderr、五行预报在 stdout 的不对称，验收补批准侧成对 | Oscaner M. · Claude |
 | v0.17 | 2026-11-18 | 第十五轮评审回填（F1 · F2 全采纳）：① **回填括号的第 ④ 项回到同一把尺（F1）**——§1.1 章程回填括号里的「有输入面的派发上 `checked:` 面的新增行」改为「跑到四行的有输入面派发上 `checked:` 面的新增行」，与 Constraints ④ · §3.3 · 验收行 · 章程在册账同读一份：脏树有输入面却在第 1 行被拒，`checked` 只记 `tree-clean` 一枚，旧措辞会把这个正确的面判成回归；② **登记状态与 changeset 内容分句（F2）**——Constraints ④ 的收尾句原写「① · ④ · ⑤ · ⑥ 同批登记…与 changeset」，读作 ② ③ 既不登记也不进 changeset；改为「② · ③ 已在册；① · ④ · ⑤ · ⑥ 本轮新登记；六项同进 changeset」，让在册登记与发布面内容各归各的动词 | Oscaner M. · Claude |
+| v0.18 | 2026-11-18 | **交付回填（Task 8 · 登记轮）**：① **读取归属句按交付后的形面改写**——§3.1 原把那个读取点放在渲染 `in-flight:` 行的同一处（`face/board-view.ts`），而 Task 7 在组合根造 `InFlight` 的同一处读一次三态、把值交给 board（`face/board-view.ts` 零新增 `WorkspaceRoot`），改为「读取点在组合根、board 只渲染交下来的三态值」；不改这一句，一次按 spec 面的一致性读会去渲染面找那个读取点、找不到就把它搬回去，正是 Task 7 禁止的那件事；② **§5 的三句 `prepare` 陈述收成自愈形态**——§5.1 · §5.3 与验收行都写成带重置钩子路径旗标的自愈形态并写出理由：陈旧的本机 hooksPath（现行 husky 的 prepare 留下的 `.husky/_` 指向）按 clone 存在、不在仓库里，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上失败；留一句裸形态在设计记录里，一次 spec 一致性读就会把旗标剥掉；③ 其余按 verify-only 核：§1.1 两处 · §3.3 · 验收 · Constraints ④ 的 `checked:` 例外句与 §3.1 的位置句在 v0.13 / v0.16 / v0.17 已就位，不重写 | Oscaner M. · Claude |

@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -138,16 +138,16 @@ targetAction: !violations.some(v => v.grade === "hard")
 > 本节与 §1–§4 无契约关联，是本相位按用户裁定并入的第二件交付（2026-11-18）。它共用同一个交付分支与同一条门禁，不参与拒绝归属的任何判据。
 
 #### 5.1 现状与迁移目标
-- 今天的提交门是两件东西：`.husky/pre-commit` 的一行 `pnpm exec lint-staged`，与项目根的 `lint-staged.config.ts`（`*.ts` → `biome check`；`*` → `pnpm run precommit`）。`package.json` 以 `prepare: husky` 安装钩子，依赖 `husky` 与 `lint-staged`。
-- 目标：提交门改由 lefthook 承担，`biome check` 仍然**不带** `--write`（一条违规必须让提交失败、且不写回），`pnpm run precommit` 仍然每次提交跑一次。
+- 今天的提交门是两件东西：`.husky/pre-commit` 的一行 `pnpm exec lint-staged`，与项目根的 lint-staged.config.ts（`*.ts` → `biome check`；`*` → `pnpm run precommit`）。`package.json` 以 `prepare: husky` 安装钩子，依赖 `husky` 与 `lint-staged`。
+- 目标：提交门改由 lefthook 承担——`lefthook` 作为 devDependency **加入**（今天不在依赖里，迁移必须一并加），`prepare` 改为 `lefthook install`；`biome check` 仍然**不带** `--write`（一条违规必须让提交失败、且不写回），`pnpm run precommit` 仍然每次提交跑一次。
 
 #### 5.2 等价性必须逐条断言，不靠「看起来一样」
-- **暂存文件集**：lefthook 与 lint-staged 对**已删除**文件的处理不同——`biome check` 拿到不存在的路径会报错。等价性由一条测试判定（删除一个 `.ts` 后提交必须不红），不等价则在命令里过滤存在性。
+- **暂存文件集**：lefthook 与 lint-staged 对**已删除**文件的处理不同——`biome check` 拿到不存在的路径会报错。等价性由**一次真实提交**判定（删除一个 `.ts` 后提交必须不红），不为它新增自动测试文件；不等价则在命令里过滤存在性。
 - **全量那一条**：`pnpm run precommit` 挂在 `*` 上、每次提交跑一次，两套机制都如此；这条等价不需要新判据，但需要一次真实提交证明它确实跑了。
 - **顺序**：`biome check` 先于 `pnpm run precommit`（今天的 lint-staged 任务序），迁移后 must 保持同一顺序，否则一条格式违规会在全量测试跑完之后才被发现。
 
 #### 5.3 移除面与文档面
-- 移除：`.husky/` 目录（含 shim）、`lint-staged.config.ts`、`husky` 与 `lint-staged` 两个 devDependency；`prepare` 改为安装 lefthook。
+- 移除：`.husky/` 目录（含 shim）、lint-staged.config.ts、`husky` 与 `lint-staged` 两个 devDependency；`prepare` 改为 `lefthook install`，`lefthook` 的 devDependency 一面见 5.1。依赖面因此**读两个方向**：两个旧名字零命中，一个新名字有命中。
 - 文档面：`AGENTS.md` 里描述提交钩子的那句随机制更新，**规则不变**（`biome check` 不带 `--write`）。
 - 本条不产生 changeset：它不改任何 first-party package 的行为，改的是仓库自身的提交门。
 
@@ -161,7 +161,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 - **不可读的拒绝事实**：把 refusal.json 截断或写成非法 JSON ⇒ board 印一条自己的 corrupt 行（`unreadable refusal record`）、**不**印 `refused:` 行、仍 exit 0（4.2），board 其余行不受影响；同一夹具上写回一条合法记录后 `refused:` 行恢复。
 - `--recover` **不认领被拒的派发**：对一次被拒的派发执行 `--recover` ⇒ 不认领、无恢复写入、不写轮记录（`waves[n].rounds` 长度不变）、`cycle` 不推进、无接管戳，且同一拒绝再次出现（`face/cli.ts#Cli#runWork` 在结构腿拒绝上不调 `#recoverRun`，所以既有「无可接管」文案在这条路径上不可达——测的是不认领 + 无恢复写入 + 同一拒绝，不是那句话）；同时 refusal.json 仍在、`station` 与被拒那一刻相同——一条断言一件事，拒绝记录既不否认也不隐藏，也不借 `--recover` 开豁免。`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
 - `lefthook.yml` **提交门等价**：暂存一个格式违规的 `.ts` ⇒ 提交被拦且文件**未被写回**；删除一个 `.ts` 后提交 ⇒ 不红；干净提交通过且日志里出现 `pnpm run precommit` 那一次的运行记录。
-- `lefthook.yml` **移除面**：`.husky/` 与 `lint-staged.config.ts` 不在树上，`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中，`prepare` 安装 lefthook；`pnpm run validate` exit 0。
+- `lefthook.yml` **移除面与依赖面**：`.husky/` 与 lint-staged.config.ts 不在树上，`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；**且** `lefthook` 在 `package.json` 的 devDependencies 里出现、在 `pnpm-lock.yaml` 里有条目，`prepare` 跑 `lefthook install`（依赖面读两个方向，不只读零命中）；`pnpm run validate` exit 0。
 - `.changeset/` **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（board 新增两行 · refusal.json 为新增产物 · structure 腿多四行 · `checked:` 面每次派发多四行 · 无 harness 树里 `--dry-run` 的拒绝 · 两腿同时不合格时报文归属改变，均为消费面可见）；kairos 未动。
 - `INPUT_WAVE_BRIEF` **是引擎写的格子**：在一个还没有 `tasks-<n>-brief.md` 的全新工作区派发一次 wave 评审 ⇒ 四道门全过（不是 `target-absent`），真跑路径随后渲染出 brief；同一状态下 `cdd implement --type wave` 的首次派发同样不拒（implement 行的声明同改）；同一状态加 `--dry-run` ⇒ 同一裁决（门不因面而换判据）。构造期断言按**槽**判：三行声明同一槽时绿（引擎写的槽集合恰好 `{NAMED_BRIEF_CELL}`），而「另一格也声明引擎写」即红——一个断言点，不是三个计数器。
 - `CDD_BLOCKED` **一行共享 · 两个值 · 一处具名变更**：四道门各拒绝一次，真跑分别念 `CDD_BLOCKED: no-host · no host harness detected (run cdd from within a supported harness)` · `CDD_BLOCKED: carrier · carrier-mismatch · …` · `CDD_BLOCKED: dispatch-input · …` · `CDD_BLOCKED: artifact · artifact-identity · …`；artifact 门的活判词后续行（四段：`derived:` · `found:` · `identity:` · `repair:`，`repair:` 占两行）逐字跟随首行，而 refusal.json 里**没有**这四行（2.1：记录的 `detail` 只由首行派生）。成对：五行既有行与 `dispatch-input` 一行逐字节同改前，`no-host` · `carrier` · `artifact` 三行的**首行**比改前多一段站名前缀（改前三行不带站名、改后带），且三行的 detail 文本与改前逐字节相同（只加前缀、不改措辞）；board 念记录派生的那一行 `station · detail`（无后续行），三个外层各守自己的形状。
@@ -191,6 +191,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 | v0.5 | 2026-11-18 | 第四轮评审回填（F1–F6 全采纳，F1 / F2 / F3 / F4 四条按裁定落地）：① **两个值 · 三个消费者**——seam 的活判词（多行，首行即 `station · detail`，后续 `derived:` · `found:` · `identity:` · `repair:` 原样跟随）由命令面与预览面逐字渲染；记录的**对**（`station` + 单行 `detail`，由活判词首行剥掉前缀派生）由 board 渲染，后续行不进文件；三个面共享的是那一行，逐字节清单改为逐项列举（F1 · F6）；② no-host 的 `--dry-run` 拒绝登记为具名变更（无 harness 树里从五行预报 + exit 0 变为预览块 + exit 1），主机事实在 composition root 探一次，`#runDispatch` 的 `detectHost()` 调用与那句字面退役、措辞搬进 `face/words.ts`（F2）；③ `checked:` 面的新增行登记进 Constraints · changeset · 章程在册增量，并按门的适用面声明（no-host / dispatch-input / carrier always，artifact fix-only），附改前改后验收（F3）；④ `--recover` 的「无写入」收窄为无恢复写 · 无轮记录 · 无 cycle 推进，并写明被拒派发总是落下那一条拒绝记录（F4）；⑤ 删掉两处关于今日形状的误述（`#assertEngineWritten` 已按槽判、声明表已是 `Record`），只留新不变量（F5） | Oscaner M. · Claude |
 | v0.6 | 2026-11-18 | 第五轮评审回填（F1–F6 全采纳，F1 / F3 / F5 / F6 四条按裁定落地）：① 清除点与写入同住门口——`#runWork` 在 `#vet` 返回后按「`structureRefusal(preflight) === null` 且非 `--dry-run`」清除，不再等派发体（九行全过、随即被 line 腿拒掉的那次也要清），验收补第四条方向（F1）；② 站名只由 `DispatchAuthority#message` 一处补回，`PreFlightVerdict.message` 改为剥掉站名的余下部分（F2）；③ `checked:` 的适用面换成一把尺——门跑过就记一行，故 no-host · carrier · dispatch-input · artifact 四行一律 always，三个面各断言一次行名集合（F3）；④ 主机事实的读者逐一点名（`PreFlightContext` · spawn · `Preview` 的 `child:` 行），`child:` 行的 no-host 字面与钉它的测试一并退役（F4）；⑤ board 的 corrupt 行登记进 Constraints ⑤ 并补验收对（F5）；⑥ 两腿同时不合格时报文从 line 腿改归结构腿，登记为具名变更⑥ 并补成对验收（F6） | Oscaner M. · Claude |
 | v0.7 | 2026-11-18 | 第六轮评审回填（F1–F5 全采纳，F1 / F2 / F3 三条按裁定落地）：① **记录的整段寿命 = 两个到期触发点**——门口的清除（整条结构腿通过）之外补上派发体的释放点（`InFlight#release` 的唯一调用点），于是「持有者已释放、board 仍念一条 `in-flight` 拒绝」不再可表达；§2.3 增第三条不变量，验收补第三条方向（释放即到期），并为「两次调用之间作者 commit 掉 `tree-clean` 成因」写明具名边界——引擎只观测自己跑时的树，不为它造第三条触发点（F1）；② **主机探测的断言收窄到派发事实**——`HostDetect.detect` 的「全树恰好一次」改成「派发路径上一次」，派发路径之外三处读取（`CliGate` 的 `#renderer` · `Cli#runBoard` · `Cli#runWork` 的 `Capsule`）逐一点名并划出界外，`CliLifecycle#detectHost` 随其唯一调用点退役，验收写成交付后仍给出四处匹配（F2）；③ **章程同批回填**——D96 与 Phase inventory P40 记入两个到期触发点 · board 两行（`refused:` 与不可读记录的 corrupt 行）· `checked:` 面四行一律 always（无 fix-only 档）· 两腿同时不合格时报文改归结构腿，changeset 因此只有一份来源（F3）；④ 计数词「四面四行」改为「三面各四行」（F4）；⑤ `#peekNext` 改为公开访问器 `peekNext()`（F5） | Oscaner M. · Claude |
-| v0.10 | 2026-11-18 | **并入第二件交付（用户裁定 · 2026-11-18）**：新增 §5 提交钩子迁移（husky + lint-staged → lefthook），并给出三条等价性断言（暂存文件集的删除语义 · 全量那一条每次一跑 · 顺序先 biome 后 precommit）与移除面；本节与 §1–§4 无契约关联，不参与拒绝归属判据 | Oscaner M. · Claude |
 | v0.8 | 2026-11-18 | 第七轮评审回填（F1–F7 全采纳，F1 / F2 / F5 三条按裁定落地）：① 释放点的清除加谓词——只清 `station: in-flight` 的那条（释放唯一会证伪的树事实），改掉「有记录就清、无条件」与「站着的那一条只可能是 in-flight」的误述，验收补第六条方向（树脏时 B 在 `tree-clean` 被拒、A 释放后记录仍在）（F1）；② §2.4 具名退役派发循环 `--dry-run` 臂的三门镜像——判定收归门口一处，该臂收窄为五行预报，循环侧 `Preview` 构造改收注入的主机值（F2）；③ `renderBrief` 的 pin 改正为 `face/gate.ts#CliGate#renderBrief`，调用点单独提及 `face/cli.ts#Cli#runWork`（F3）；④ §2.3 ③ 的导语句改为「正常结束（释放）之后」（F4）；⑤ 记录 `op` 的来源具名：派发本将消费的那一轮——前沿帧 phase 经 `Ledger#roundCount` + `RoundNaming#attemptOf` 推得，应用于全部九行（F5）；⑥ 三处无路径符号 pin 补齐模块路径（`Ledger#recordRound` · `CliLifecycle#inputRefusalOf` / `#answeredByNaming` / `#sealRoundCarriers`）（F6）；⑦ AC 的活判词后续行计数改为「四段、`repair:` 占两行」（F7） | Oscaner M. · Claude |
 | v0.9 | 2026-11-18 | **符号改名回填（P40 第一波 · fix 轮 F1）**：第一波的 Task 1 把构造期断言改名为 `#assertEngineWritten`，v0.5 行血缘记录里的旧名引用随本轮迁到今日符号名；正文与本轮判据的字节面不变，改的只是让已改名的符号重新可解析（`pins.guard` 的语料扫描因此归零）。 | Oscaner M. · Claude |
+| v0.10 | 2026-11-18 | **并入第二件交付（用户裁定 · 2026-11-18）**：新增 §5 提交钩子迁移（husky + lint-staged → lefthook），并给出三条等价性断言（暂存文件集的删除语义 · 全量那一条每次一跑 · 顺序先 biome 后 precommit）与移除面；本节与 §1–§4 无契约关联，不参与拒绝归属判据 | Oscaner M. · Claude |
+| v0.11 | 2026-11-18 | 第九轮评审回填（F1–F4 全采纳）：① §5 的移除面把要删的文件名写成裸词（lint-staged.config.ts 三处不再成 pin），落地后 pins 守卫的语料扫描不为一个已删路径报红（F1）；② 依赖面双向登记——`lefthook` 作为 devDependency 加入、`prepare` 跑 `lefthook install`，验收新增「新名字有命中」这一方向（F2）；③ §5.2 的暂存文件集等价性改由**一次真实提交**判定，并写明不新增自动测试文件，两种读法只留一种（F3）；④ change-history 行按版本次序排，v0.10 回到 v0.9 之后（F4） | Oscaner M. · Claude |

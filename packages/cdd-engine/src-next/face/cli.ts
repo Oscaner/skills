@@ -91,7 +91,7 @@ import {
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
-import { PreFlightRefusal } from "../session/refusal.ts";
+import { PreFlightRefusal, type RefusalFacts } from "../session/refusal.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
@@ -1512,7 +1512,9 @@ export class Cli {
    *  seam judged — never a second derivation here, so the record names the exact round
    *  the next dispatch will consume. The continuation lines (`derived:` · `found:` ·
    *  `identity:` · `repair:`) describe the work this refusal did not do and never land
-   *  in the file (§2.1: eight cells, one line). */
+   *  in the file (§2.1: eight cells, one line). A publish the tree refuses (a read-only
+   *  root) is reported and swallowed: the record OBSERVES the refusal, it never stands
+   *  between the user and the reason the dispatch refused. */
   async #recordRefusal(parts: {
     scene: WorkScene;
     refusal: DispatchRefusal;
@@ -1520,13 +1522,38 @@ export class Cli {
     type: TargetType;
     identity: DispatchIdentity;
   }): Promise<void> {
+    const facts = this.#refusalFactsOf(parts);
+    if (facts === null) return;
+    try {
+      await this.#refusalOf(parts.scene).write(facts);
+    } catch (error) {
+      // A tree whose root refuses the write (a read-only checkout, a root-owned CI
+      // mount) still gets the diagnosis it asked for: the record is an OBSERVATION
+      // about the refusal and never its precondition, so a failed publish costs ONE
+      // diagnostic line. Rethrowing would trade the station line for a bare errno and
+      // hide the reason the dispatch refused (spec §2.2's write anchor).
+      const reason = error instanceof Error ? error.message : String(error);
+      this.#io.stderr(`cdd: the refusal record was not published — ${reason}\n`);
+    }
+  }
+
+  /** The eight cells the write anchor publishes, or null when the verdict names no
+   *  station (a structure refusal always carries one). Split out so the publish's
+   *  failure arm stays the only branch in `#recordRefusal`. */
+  #refusalFactsOf(parts: {
+    scene: WorkScene;
+    refusal: DispatchRefusal;
+    preflight: PreFlightVerdict;
+    type: TargetType;
+    identity: DispatchIdentity;
+  }): RefusalFacts | null {
     const station = parts.preflight.gate;
-    if (station === undefined) return;
+    if (station === undefined) return null;
     const line = this.#authority.message(parts.refusal, { detail: parts.preflight.message });
     const join = this.#words.preflightWording().dispatchInput.stationJoin;
     const prefix = `${station}${join}`;
     const head = line.split("\n")[0] ?? "";
-    await this.#refusalOf(parts.scene).write({
+    return {
       at: new Date().toISOString(),
       slug: parts.scene.workspace.slug,
       op: parts.identity.op,
@@ -1535,7 +1562,7 @@ export class Cli {
       attempt: parts.identity.attempt,
       station,
       detail: head.startsWith(prefix) ? head.slice(prefix.length) : head,
-    });
+    };
   }
 
   /** Render a refused STRUCTURE-leg verdict — the work command's BLOCK face (P4.1

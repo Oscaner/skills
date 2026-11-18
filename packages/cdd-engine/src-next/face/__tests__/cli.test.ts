@@ -11896,17 +11896,6 @@ class CleanRoundRunner implements ChildRunner {
   }
 }
 
-/** A child that records the prompt it was handed and dies — the identity probe: the
- *  `OUTPUT_*` names in the prompt are the round the dispatch allocated. */
-class PromptProbeRunner implements ChildRunner {
-  calls: ChildRun[] = [];
-
-  async run(run: ChildRun): Promise<ChildOutcome> {
-    this.calls.push(run);
-    return { code: 1, stdout: "", stderr: "probe", termination: null };
-  }
-}
-
 describe("P40 T6 — the refusal record's two anchors and the dry-run refusal exit", () => {
   it("books no round for a refused dispatch — the re-run still consumes review 1·a1", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
@@ -11992,6 +11981,35 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
     }
   });
 
+  it("keeps the refusal face when the tree refuses the record's publication — a read-only root", async () => {
+    // A read-only checkout (a CI mount, a root-owned tree) still gets the engine's
+    // diagnosis: publishing the record is an OBSERVATION about the refusal, never its
+    // precondition, so a failed publish may not replace the station line with an errno.
+    if (process.getuid?.() === 0) return; // root ignores the mode bits
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      dirtyTree(repoRoot);
+      chmodSync(repoRoot, 0o555);
+      let code: number;
+      try {
+        code = await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      } finally {
+        chmodSync(repoRoot, 0o755);
+      }
+      expect(code).toBe(1);
+      // The station line survives the failed publish…
+      expect(io.stderrText).toContain("CDD_BLOCKED: tree-clean · ");
+      // …the publish failure is ONE diagnostic line on the same stream…
+      expect(io.stderrText).toContain("cdd: the refusal record was not published — ");
+      // …and nothing landed on disk (the read-only root refused every write).
+      expect(existsSync(refusalPathOf(repoRoot))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("folds the branch line's verb and the pending attempt into the record (the folded verb, never branch-review)", async () => {
     const { command, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
     try {
@@ -12020,7 +12038,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
   });
 
   it("clears the standing record when the whole structure leg passes", async () => {
-    const { command, io, repoRoot, cleanup } = fixture({
+    const { command, repoRoot, cleanup } = fixture({
       sync: new CleanRoundRunner("tasks-1-implement-1"),
     });
     try {
@@ -12596,6 +12614,14 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         expect(io.stdoutText).toContain(`  ${label}`);
       }
       expect(io.stdoutText).not.toContain("refused:");
+      // …and the CHECKED face rides the OTHER stream (spec §2.4's deliberate asymmetry):
+      // the approved path's `#renderChecked(preflight)` passes no writer, so it lands on
+      // the diagnostic channel while the forecast stays on stdout. A one-line
+      // "consistency" change routing it through `#io.stdout` would merge the two streams
+      // for a legal input, and every other case in this block would stay green.
+      expect(checkedGateRowsOf(io.stderrText)).toEqual([...WAVE_GATE_ROWS]);
+      expect(checkedGateRowsOf(io.stdoutText)).toEqual([]);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
     } finally {
       cleanup();
     }

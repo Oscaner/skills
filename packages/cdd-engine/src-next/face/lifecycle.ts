@@ -104,8 +104,11 @@ export interface CliIo {
 // the harness dispatch (the production dispatch default)
 // ---------------------------------------------------------------------------
 
-/** The environment face the harness dispatch reads its inherited env from (the
- *  composition root's `process.env`; tests inject a recording stand-in). */
+/** The command environment's shape (`name → value | undefined`). Retained for the
+ *  re-export surface only: since P40 T6 the dispatch body reads NO injected
+ *  environment — the child inherits the composition root's own `process.env` (one merge
+ *  point, `termination.ts`), so there is no constructor cell to fill and no stand-in to
+ *  supply. */
 export type ProcessEnvLike = Record<string, string | undefined>;
 
 /** One dispatch scene — the per-invocation composition the work commands assemble
@@ -165,9 +168,10 @@ type DraftedOutcome = Omit<DispatchOutcome, "status"> & { status: RoundStatus | 
  * assembles the dispatch prompt (the render template-contract data plane) from the
  * frame, runs the host harness CLI (the harness-contract rows: cli + invoke flags +
  * the phase's skill-ref slash form) and reads the child's OUTPUT_HANDOFF draft back
- * into the lifecycle's outcome (the child's Return is prose, never parsed). Detection
- * reads the harness-contract detect markers from the injected env — empty host → a
- * BLOCKED outcome over the CDD_BLOCKED channel (never a thrown dispatch).
+ * into the lifecycle's outcome (the child's Return is prose, never parsed). The host id
+ * is INJECTED, not detected here: the composition root's ONE probe reads the
+ * harness-contract detect markers and hands the value over — an empty host → a BLOCKED
+ * outcome over the CDD_BLOCKED channel (never a thrown dispatch).
  */
 export class CliLifecycle {
   /** The workspace-relative directory every round log lands in — built by

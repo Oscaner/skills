@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-11-18
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -564,7 +564,7 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 - Create: `lefthook.yml`
 - Modify: `package.json`（删 `prepare: husky` 与 `husky` / `lint-staged` 两个 devDependency，加 `lefthook` devDependency、`prepare` 改为安装 lefthook）
 - Modify: `pnpm-lock.yaml`（随依赖增删更新）
-- Modify: `AGENTS.md`（提交钩子那一句随机制更新；规则不变：`biome check` 不带 `--write`）
+- `AGENTS.md` **不在改动面**：它两处只讲行为（`pnpm run precommit` 是钩子跑的 · 钩子跑 `biome check` 不带 `--write`），从不指名 husky 或 lint-staged，迁移后两句依然成立。验收里把它作为可核事实断言，而不是去改一句本来正确的话。
 - Modify: `.husky/pre-commit`（删除）· `.husky/_/`（删除整个 shim 目录）
 - Modify: `lint-staged.config.ts`（删除）
 
@@ -590,12 +590,11 @@ pre-commit:
 - **Step 3: 删两处旧机制**（`.husky/` 整目录、`lint-staged.config.ts`） — checkable: 两者在树上都不存在（`ls` 与 `rg --files` 各零命中）
 - **Step 4: 安装钩子** — checkable: `git config core.hooksPath` 不再是 `.husky/_`，且 `.git/hooks/pre-commit` 存在
 - **Step 5: 三条等价性实测**（坏 `.ts` 被拦且文件未被写回 · 删一个 `.ts` 后提交不红 · 干净提交的日志里出现 `pnpm run precommit` 那一次） — checkable: 三次真实提交的 exit code 分别为 1 / 0 / 0，且第一次之后 `git status` 显示该文件仍被修改
-- **Step 6: 更新 AGENTS.md 钩子句** — checkable: 文中出现新机制名，且「不带 `--write`」这条规则仍在
-- **Step 7: 全量门禁** — checkable: `pnpm run validate` exit 0
-- **Step 8: 提交** — checkable: `git show --stat HEAD` 含 lefthook.yml · package.json · pnpm-lock.yaml · AGENTS.md 与两处删除
+- **Step 6: 全量门禁** — checkable: `pnpm run validate` exit 0
+- **Step 7: 提交** — checkable: `git show --stat HEAD` 含 lefthook.yml · package.json · pnpm-lock.yaml 与两处删除
 
 #### Acceptance
-坏格式的 `.ts` 被拦且**未被写回**（`biome check` 不带 `--write`）；删除一个 `.ts` 后提交不红；干净提交通过且日志含 `pnpm run precommit` 的运行；`.husky/` 与 `lint-staged.config.ts` 不在树上、`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；`prepare` 安装 lefthook；`pnpm run validate` exit 0；无 changeset（本任务不改任何 first-party package 的行为）。
+坏格式的 `.ts` 被拦且**未被写回**（`biome check` 不带 `--write`）；删除一个 `.ts` 后提交不红；干净提交通过且日志含 `pnpm run precommit` 的运行；`.husky/` 与 `lint-staged.config.ts` 不在树上、`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；`prepare` 安装 lefthook；`AGENTS.md` 零改动（它不指名机制，规则迁移后仍成立——由 grep `husky\|lint-staged` 在 AGENTS.md 零命中断言）；`pnpm run validate` exit 0；无 changeset（本任务不改任何 first-party package 的行为）。
 
 #### DependsOn
 1, 2, 3, 4, 5, 6, 7, 8
@@ -613,5 +612,6 @@ pre-commit:
 | v0.7 | 2026-11-18 | 第二轮 fix 轮（F1–F6 全采纳）：① **封名退场的谓词改正**——门拒绝分支是三处（carrier · dispatch-input · artifact），非门调用也是三条（`#bookAbort` 的 `#sealRoundCarriersOf` · `#inflight.acquire` 的 catch 封名 · 终止处理器的死亡路径封名），Task 5 的 Step 3 与 Acceptance 去掉「四条 / 两条」计数并逐条点名，Step 1 三条改四条（丢掉锁的那次派发仍封回两条名字）（F1）；② **验收方向补齐**——Task 6 补三条 spec AC③ 的方向（释放即到期 · 持有期间两行并存 · 九行全过而 line 腿拒绝后记录已不在），十条改十四条，Acceptance 同步（F2）；③ **字节面断言归位**——Task 6 新增一条按站名核的真跑字节面断言（四个门各念自己的站名前缀 · 五行既有行与 `dispatch-input` 一行逐字节同改前 · artifact 的四段续行跟随首行而 refusal.json 无续行），spec 的具名变更不再只靠 Task 5 的预览/命令同源那一条（F3）；④ **P38 换向记录进 Task 8**——`docs/kairos/specs/2026-11-17-engine-doc-tooling-p38-design.md` 进 Files，只追加一条指向本相位的换向行并同批 +1，P38 的历史行原样保留（F4）；⑤ **存在性读走路径基值对象**——`PreFlightRows.judge` 的 `repoRoot` 由裸字符串改为 `RepoRoot`，Consumes 补上该值对象，Produces 与 Acceptance 写明存在性读只经 `relativize` / `resolve` 一个转换点、模块内零 `join`（F5）；⑥ **归属订正**——Task 3 的 `#answeredByNaming` 只剩注释 prose（判据已在 Task 1 换成读 `decl.written`），v0.4 行里记在 Task 3 名下的「`mode` 守卫退场」订正为 Task 5 的活（F6）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.8 | 2026-11-18 | 第三轮 fix 轮（F1–F6 全采纳）：① **九行改成按面取行集**——`order` 的行数是面的函数（`graph` 仅 `wave` / `plan` 的 ready 读 · `plan-ledger` 仅 `plan` / `wave` / `branch` · `doc-contract` 仅四个 doc 面），Task 4 的「恒含九行」与 Task 6 的九行 `checked:` 断言改为按面取该面既有行加四新行（wave fixture 八行、`plan` 面九行），always 的只是那四新行（F1）；② **依赖方向判据改为「无新增」**——`session/preflight.ts` 今天已有 type-only 的 `Words` import（`contract/judge.ts` 凭同一豁免），Constraints 与 Task 4 验收的「不得 import `face/`」改为「不新增」并点名既有那一条留存（F2）；③ **四行词面有家了**——`face/words.ts` 与 `session/carrier-integrity.ts` 进 Task 3 Files（`no-host` 那句从 `face/lifecycle.ts` 迁入，spec §1.3；`carrier-mismatch` 模板提成静态常量），judge 改收参数对象 PreFlightRowsInput 并注入 RowWording：第五个输入因此不越参数上限，contract 仍零 import、模块内零句措辞（F3）；④ **循环里的镜像归位**——镜像的家是 `face/cli.ts#Cli#runWork` 的 `--dry-run` 臂，该文件与 `cli.test.ts` 进 Task 5 Files，Step 3 补三个门方法名在该文件的零命中判据，测试补一条经循环跑一次、判据一次/镜像零次的用例（F4）；⑤ **构造器迁移的十八处归位**——四个测试文件（`lifecycle` · `dispatch-input` · `preview` · `reviewed-identity.matrix`）进 Task 6 Files、只迁构造调用而断言零改动，Task 3 的「断言零改动」写明调用由 Task 6 同批迁移，Task 6 Step 4 补 `tsc --noEmit` 门（F5）；⑥ **`#answeredByNaming` 的退场写实**——它本身没有 `mode` 参数（签名 `(decl, token, frame)`），随 per-mode 例外退场的是方法整体（F6）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.9 | 2026-11-18 | 第四轮 fix 轮（F1–F7 全采纳，F1 / F2 / F3 / F5 / F6 / F7 六条按裁定落地）：① **判据的声明输入归位**——判据真正读的声明类型（`ContextLine` · `RequiredArm` · 两个 `when` 臂读的场景事实）与 exigible 格的解析搬进 `contract/` 的声明模块，`render/templates.ts` 反向 import 回来，声明表与它的选取器留在原处；PreFlightRowsInput 增 `declarations` / `scene` / `naming` 三格，声明行上的一处 `decl.written` 使引擎写的格零存在性读，空值那一腿到 Task 5 与声明合一，命名豁免因此有路可退（F1）；② **值的预帧装配成文件**——`face/dispatch-values.ts` 的 composer 无帧、无 workspace，吃声明好的平值吐平值记录，Task 4 Files 收入它并把单源保证写成条件（门判的值与渲染的值是同一次装配），Task 4 因此在组合根探一次宿主并把四格输入交进 context，Task 5 把渲染器接到同一次装配上（F2）；③ **reason 表随门名一起扩**——`session/next.ts` 进 Task 4 Files，`DISPATCH_REASON` 加四条 structure 行（token 即 RowStation 的四个值），Task 4 Step 5 补 `tsc --noEmit` 门，`structureRefusal` 的 `reason: gate` 不再靠 cast（F3）；④ **迁移点进 Files**——生产侧唯一 `vet` 调用（`face/cli.ts`）与 `preflight.test.ts` 的 `waveCtx` / `branchCtx` 及七个调用点进 Task 4，断言零改动，不把新输入改成可选（F4）；⑤ **carrier 那一句只有一处合成**——`RowWording.carrier` 退场，ArtifactSnapshot 的 `mismatch` 臂携带 carrier 事实（路径 + 两个 sha8，由 `CarrierIntegrity` 的事实取出），格式住新建的 carrier 行模块，抛错的 message 与拒绝行念同一条（F5）；⑥ **changeset 逐条登记**——Task 8 正文按 spec Constraints ①–⑥ 六行列举（含 `checked:` 面的字节移动与两腿归属），不再是四项概括（F6）；⑦ **两条 board 断言迁到 Task 7**——「释放即到期」改为按记录 `read()` 核留在 Task 6（十四条改十三条），「两行并存」与「两行同消」进 Task 7 并按记录 API + in-flight 状态驱动（四条改六条），图的声明未动（F7）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
+| v0.12 | 2026-11-18 | **T9 的幻觉工作删除（编排者 plan 写权）**：`AGENTS.md` 从 Files 与 Steps 移出——它从不指名 husky / lint-staged，两处只讲行为，迁移后依然成立；改为验收里的一条零命中断言。教训：清单里每一项都要能回答「不改会怎样」，答不上来的就是幻觉工作 | Oscaner M. · Claude |
 | v0.11 | 2026-11-18 | **并入 Task 9（用户裁定 · 章程 v4.21）**：提交钩子 husky + lint-staged → lefthook，八步、`DependsOn: 1–8`（排在六波之后，与本相位主线无契约关联）。三条等价性写成实测（坏 ts 被拦且不写回 · 删 ts 不红 · 干净提交跑过 precommit），并显式声明本任务不产生 changeset | Oscaner M. · Claude |
 | v0.10 | 2026-11-18 | 第五轮 fix 轮（F1–F4 全采纳，F1 / F2 按裁定落地）：① **composer 的格补齐**——请求载体路径进 ArtifactSnapshot 两臂（composition 的输入格，spec §1.1 ② 把它判给 ArtifactCell），`tasks` 与 `(cycle, attempt)` 进 DispatchIdentity，`compose(identity, scene, artifact)` 三个参数，请求载体路径的无帧推演明写归组合根（`--reviews` 值 · 账本的已记录上游轮载体 · `RoundNaming` 的族名），DispatchInputFacts 不再重复存该值，Task 4 的成对断言因此在 wave 与 fix 两面各跑一次（F1）；② **目标面有自己的 contract 家**——`TargetType` 定义自 `session/faces.ts` 搬进 `contract/target-type.ts`（该文件改为 re-export，既有读者零改动），`ExigibleCells.resolve` 增第三个声明参数 `type`（`judge` 传 `facts.type`），Task 3 的 import 断言与 Step 3 的 grep 同口径写出 `face/` · `render/` · `session/` 三条并新增 `TargetType` 单定义 grep（F2）；③ **三个公开判定入口随门退场**——`carrierRefusal` · `artifactRefusal` · `inputRefusal` 与 `mode` 参数同批消失（留委托壳等于把帧重组挂回公开方法），`face/__tests__/dispatch-input.test.ts` 进 Task 5 Files 并按用例落定：纯判据用例的期望字节搬到契约判据入口并落 `contract/__tests__/preflight-rows.test.ts`，(n) 改在装配的新归属处断言，(p) 的 `mode` 与预览豁免重写，(i) · (m) 的 `step()` 断言 · (o) · 两个 async 用例留原处；Step 1 的第五条 spy 从三个门方法改为 `PreFlightRows.judge` 恰好一次，Step 3 的零命中 grep 从 `cli.ts` 扩展到 `src-next/face`；Task 6 的构造器调用点计数改为按迁移后实况核（F3）；④ **拼写表的第五个登记点是 `Kind`**——`round-artifacts.ts` 的登记点由四个改五个（漏 `Kind` 时 `ENTRIES` 与 `isWorkspaceKind` 编译不过），`round-artifacts.test.ts` 的行集清单进 Task 2 Files，Task 2 的 Step 5 补 `tsc --noEmit` 门与对应验收（F4）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |

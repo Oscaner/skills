@@ -28,7 +28,6 @@ import {
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
-  type ContextLine,
   type ModePromptRow,
   pinLensOf,
   REVIEWS,
@@ -40,8 +39,8 @@ import {
   SEVERITY_RUBRIC_SLOTS,
   TEMPLATE_PROMPT,
   TemplateAssembler,
-  type TemplatePrompt,
 } from "../templates.ts";
+import { contractOf, draftOf } from "./contract-draft.ts";
 
 /** The criteria keys — the five distinct bodies one target type selects among. */
 const CRITERIA_KEYS: readonly ReviewKey[] = ["wave", "branch", "plan", "spec", "overall"];
@@ -462,34 +461,6 @@ describe("P38 T4 — the `none` half-sentence belongs to the two fix shells only
 // says so once, and the construction-time criterion judges the SLOT (one judgment per
 // slot across every row), not the line that happens to carry it.
 // ---------------------------------------------------------------------------
-
-/** A mutable copy of the declared contract — the layout arrays cloned, so a case can
- *  replace one declaration without leaking into the module's own data. */
-interface ContractDraft {
-  readonly modes: Record<string, { roundContext: ContextLine[] }>;
-  readonly reviews: Record<string, { roundContext: ContextLine[] }>;
-  readonly tokens: { name: string; zone: string }[];
-}
-
-const draftOf = (): ContractDraft => ({
-  modes: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.modes).map(([key, row]) => [
-      key,
-      { ...row, roundContext: [...row.roundContext] },
-    ]),
-  ),
-  reviews: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.reviews).map(([key, row]) => [
-      key,
-      { ...row, roundContext: [...row.roundContext] },
-    ]),
-  ),
-  tokens: TEMPLATE_PROMPT.tokens.map((token) => ({ name: token.name, zone: token.zone })),
-});
-
-/** The mutated draft as the injected contract. */
-const contractOf = (draft: ContractDraft): TemplatePrompt =>
-  ({ ...TEMPLATE_PROMPT, ...draft }) as unknown as TemplatePrompt;
 
 /** Every row the assembler can render — the three work rows plus the six review rows. */
 const ROWS: readonly ModePromptRow[] = [

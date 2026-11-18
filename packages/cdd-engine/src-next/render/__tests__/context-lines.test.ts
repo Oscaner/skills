@@ -21,8 +21,8 @@ import {
   type ModePromptRow,
   TEMPLATE_PROMPT,
   TemplateAssembler,
-  type TemplatePrompt,
 } from "../templates.ts";
+import { contractOf, draftOf } from "./contract-draft.ts";
 
 /** The six target types — the review rows' key domain. */
 const TARGET_TYPES: readonly string[] = [
@@ -83,38 +83,6 @@ const SELECTION_SLOTS = new Set<string>(["ROLE", "TARGET_TYPE"]);
 /** The `{{TOKEN}}` slot of a declared line, or undefined for a slot-less line. */
 const slotOf = (decl: ContextLine): string | undefined =>
   /\{\{([A-Z0-9_]+)\}\}/.exec(decl.line)?.[1];
-
-/** A mutable row — the layout as a push-able array, so a case can add one cell. */
-interface MutableRow extends Omit<ModePromptRow, "roundContext"> {
-  roundContext: ContextLine[];
-}
-
-/** A mutable copy of the declared contract — one row per key, its layout cloned, so a
- *  case can mutate one declaration without leaking into the module's own data. */
-interface ContractDraft {
-  readonly modes: Record<string, MutableRow>;
-  readonly reviews: Record<string, MutableRow>;
-  readonly tokens: { name: string; zone: string }[];
-}
-
-const cloneRow = (row: ModePromptRow): MutableRow => ({
-  ...row,
-  roundContext: [...row.roundContext],
-});
-
-const draftOf = (): ContractDraft => ({
-  modes: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.modes).map(([key, row]) => [key, cloneRow(row)]),
-  ),
-  reviews: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.reviews).map(([key, row]) => [key, cloneRow(row)]),
-  ),
-  tokens: TEMPLATE_PROMPT.tokens.map((token) => ({ name: token.name, zone: token.zone })),
-});
-
-/** The mutated draft as the injected contract. */
-const contractOf = (draft: ContractDraft): TemplatePrompt =>
-  ({ ...TEMPLATE_PROMPT, ...draft }) as unknown as TemplatePrompt;
 
 describe("TemplateAssembler — the construction-time declaration criteria (§1.1 · §1.3)", () => {
   it("(a) refuses a dead cell — a type the row never serves, named with the token and the type", () => {

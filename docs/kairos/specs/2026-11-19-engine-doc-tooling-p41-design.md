@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -37,6 +37,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - `contract/invariants.ts` 的 `Finding` 增 `severity: "block" | "warn"`，取值由 `rules.ts` 的行声明——规则表继续是唯一来源。
 - 门判词：存在 block 即拒；warn 不拒。
 - 告警的消费者字节挂在**规则自己的 `checked:` 行**上（`session/preflight.ts#PreFlight` 的规则行渲染，一行一条声明）：声明 `warn` 的规则命中时该行读作 `<rule id>: warned — <n> warning(s)`；未命中读 `passed`，声明 `block` 的规则命中读 `failed`——后两档与既有字节逐字节相同（消费面守恒），告警档是本相位唯一的新增形态。
+- **第三档不是 `passed`**：被判目标是闭合文档时（§1.4 的豁免），六条规则行读 `skipped (closed document)`——规则面自己的契约是「哪条规则跑了」与「它判了什么」不许漂移，一条从未跑过的规则读 `passed` 是在替它作证。无文档目标的派发读 `skipped (no doc target)`：两个原因两个词。
 - 自毁不是豁免层，是**本相位内的一个过渡值**：本相位落的**六条规则行一律 warn 起步**（四类可变量的四条 · `single-home` · 记录面的日期形状行），本相位最后一个任务把这六行的告警位翻成 block，并加一条 pin 断言「当前无一规则声明 warn」。pin 的断言跨全部规则行，故没有「翻了一半」的中间态被登记；`single-home` 的起步档也在这句里，不留给作者猜。
 
 #### 1.4 适用范围由生命周期决定
@@ -52,7 +53,11 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
   - phase-spec：`## Design`（含 `### N.` 与 `#### N.M` 所辖正文）· `### Acceptance criteria` · `## Constraints` 为 decision；`## Deviations` · `## Incremental warning` · `## Notes for downstream` · `## Review record` · `## Change history` 为 record。
   - plan：task 块（`### Task N:` 与其 `####` 字段，含 Steps）· `## Constraints`（含其下的 `###` 子节）为 decision；`## Change history` 为 record。
   - single-spec：`## Background & root cause` · `## Design decisions` · `## Acceptance` · `## Constraints` 为 decision；`## Change history` 为 record。
-- **本相位修自己的章程**：翻位把「总是判」施于 overall 之后，本程序章程自身会在五节被判据面拒——`### Goal` / `### Non-goals` / `### Cross-cutting` / `## Boundary rules` / `## Constraints`，那里把命令清单、例外面与模板形面挂在一个符号上，用的是时序措辞；`### Non-goals` 那一颗子弹还带一处测量字面（`运行时依赖读 package.json#dependencies（今日 13 条：…）`），它是两个文法的交点，不是其中一条的样本。所以本相位有一个具名交付：把这五节改写成条件句，且**两个文法都满足**——时序指示词与测量字面各自零命中，那颗子弹的计数要么删掉、要么写成 `census:<id> = <n>` 的合法形态——并给成对用例（改前必红、改后零拒绝）。五节而不是三节按形状算，不按「已知的坏句」算：`### Cross-cutting` 与 `## Boundary rules` 带的是同一个「把此刻形状写成断言」的句式，只修三节会让翻位之后的章程仍被拒——而「章程自身可评审」正是这条交付的目的。不修而宣布「总是判」，等于让翻位之后章程不可评审。
+- **本相位修自己的章程**：翻位把「总是判」施于 overall 之后，本程序章程自身会在五节被判据面拒——`### Goal` / `### Non-goals` / `### Cross-cutting` / `## Boundary rules` / `## Constraints`，那里把命令清单、例外面与模板形面挂在一个符号上，用的是时序措辞；`### Non-goals` 那一颗子弹还带一处测量字面（`运行时依赖读 package.json#dependencies（今日 13 条：…）`），它是两个文法的交点，不是其中一条的样本。所以本相位有一个具名交付：把这五节改写成条件句，那颗子弹的计数要么删掉、要么写成 `census:<id> = <n>` 的合法形态，并让自修由**三族齐零**收口——两个文法（时序指示词与测量字面）各自零命中，**且** `single-home` 在章程上零命中。第三足不是附赠：章程对闭合域没有格点名 ⇒ 一律被判（上一条），而 `single-home` 的右侧是除本文件外的全部文档、含已闭合文档（§3.2），所以「两个文法齐零」不足以让翻位之后的章程过门。成对用例随之成三足：改回原句 ⇒ 被判据面拒；两个文法修净而重复句留着 ⇒ 被 `single-home` 拒；三族齐零 ⇒ 零拒绝。五节而不是三节按形状算，不按「已知的坏句」算：`### Cross-cutting` 与 `## Boundary rules` 带的是同一个「把此刻形状写成断言」的句式，只修三节会让翻位之后的章程被判——而「章程自身可评审」正是这条交付的目的。
+- 第三族在章程上有两处实账，处置都是**指针**而不是删句：章程把每条判据留一处，写成点名持有者的指针句——不复述原句，因为复述会让右侧的同源文档在 `single-home` 上命中。
+  - 「doc-contract 判定语义不变 · 骨架不是 gate 豁免通道」（章程的 `### Cross-cutting`，`### Non-goals` 与 `## Boundary rules` 另有同源两处）：持有者是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md` 的 `## Constraints` 与 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p4.md` 的 `## Constraints`。三处同源表述收敛成一处指针，指向这四份相位文档。
+  - 「不发布 · changesets 收尾到可发布态即止」（章程的 `## Constraints`，`### Non-goals` 另有同源一处）：持有者是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p13-design.md` 的 `## Constraints`。两处收敛成一处指针。
+- 指针句自身也要过 `single-home`：它与持有者文档不得同形，而「点名持有者」的句子天生没有第二份抄本。**章程的写入由编排者执行**——本相位给判据与措辞面，fix 轮不写章程。
 - **刻意接受**：闭合文档不再被形状门约束。改它就等于改历史，而评审不该因为记录而重开。
 
 #### 1.5 记录面只判日期形状
@@ -64,15 +69,15 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 #### 2.1 字段
 - finding 增 `evidence: { repro, output? }`——嵌套让「有没有证据」成为可判的存在性。
 - **没有 `claim` 字段**：finding 的 `summary` 就是那条断言，再抄一遍是同一事实的第二个住所。
-- `repro` 的语义是**读者能在哪里自己核这条断言**：一条命令，或一个 `doc.md#section` 指针。两者皆可。
+- `repro` 的语义是**读者能在哪里自己核这条断言**：一条命令，或一个 `doc.md#section` 指针。两者皆可，但必须是**非空白串**——存在性判的是 `trim()` 之后非空，与 `impact.scenario` 的 `scenario.trim().length > 0` 同一把尺；一个空白串不是证据。
 - `output` 长时可给路径；要点是字节存在于编排者可读之处。
 - 字段的声明面只有一处：`session/handoff-schema.ts#HandoffSchema` 的 findings 条目，与 `impact` / `contract` 同层。
 
 #### 2.2 强制面
-- `severity: "blocker"` 而缺 evidence ⇒ 载体被拒（`contract-violation`），本轮作废。blocker 是唯一逼人采纳结论的档，一条无法核的 blocker 被采纳的代价高于一轮。
+- `severity: "blocker"` 而缺 evidence ⇒ 载体被拒（`contract-violation`），本轮作废；`evidence.repro` 在场但为空白串 ⇒ 同样被拒——存在性问的是「有没有可核的字节」，不是「有没有那个键」。blocker 是唯一逼人采纳结论的档，一条无法核的 blocker 被采纳的代价高于一轮。
 - warn / nit 留空合法。
 - 适用全部落在**判平面**的派发：`review`，连同它在同一平面上的 wave 与 branch 形态——`session/handoff-schema.ts#HandoffSchema.planeOf` 按 op 取平面，wave 与 branch 是同一平面的两种派发，不是另外的载体。**fix 不在其中**：它是 `work` 平面（可写 `status` · `artifacts` · `notes` · `dispositions`，无 `findings` 槽），fix 草稿写的是按 finding id 挂的裁定，不带 severity，故不欠这条举证。
-- **接缝是既有的那一条，不新起第二条**：判定挂在 `session/handoff-schema.ts#HandoffSchema.gradingViolations` 的同一个草稿回读路径上（`face/lifecycle.ts`），判据本体是 `contract/review-criteria.ts#CRITERIA_ROWS` 的 `evidence-missing` 行。报文首词是判据行 id——`CDD_BLOCKED: evidence-missing:`——正文照 `grading-impact-missing` 那一行的形状，列出每个违规 finding 的 id 与 summary。blocker 档因此有三处举证：`impact.scenario`（P37）· `evidence.repro`（本相位）。该行同时进 `CriteriaRegistry.renderRubric` 的 blocker 片段——即每次 review 派发的 `SEVERITY_RUBRIC` 字节（§4 登记），`contract/__tests__/review-criteria.test.ts` 的 id 名册与 `gate` 档断言同批更新。**语料面随动**：`CRITERIA_ROWS` 多一行即 `criteria.rows` 的测量值由 `5` 变 `6`（`contract/census.ts#censusTableOf` 量的是行数），而 `census:criteria.rows` 这条引用在闭集的 P37 对里声明了四处——`docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md` 三处 · `docs/kairos/plans/2026-11-16-engine-doc-tooling-p37.md` 一处，四处写的都是旧值。这四处与本相位同批改成 `6`（测量值是可核的数，不是历史），`contract/__tests__/census.guard.test.ts` 是它们的门。
+- **接缝是既有的那一条，不新起第二条**：判定挂在 `session/handoff-schema.ts#HandoffSchema.gradingViolations` 的同一个草稿回读路径上（`face/lifecycle.ts`），判据本体是 `contract/review-criteria.ts#CRITERIA_ROWS` 的 `evidence-missing` 行。报文首词是判据行 id——`CDD_BLOCKED: evidence-missing:`——正文照 `grading-impact-missing` 那一行的形状，列出每个违规 finding 的 id 与 summary。blocker 档因此有两处举证：`impact.scenario`（P37）· `evidence.repro`（本相位）。该行同时进 `CriteriaRegistry.renderRubric` 的 blocker 片段——即每次 review 派发的 `SEVERITY_RUBRIC` 字节（§4 登记），`contract/__tests__/review-criteria.test.ts` 的 id 名册与 `gate` 档断言同批更新。**语料面随动**：`CRITERIA_ROWS` 多一行即 `criteria.rows` 的测量值由 `5` 变 `6`（`contract/census.ts#censusTableOf` 量的是行数），而 `census:criteria.rows` 这条引用在闭集的 P37 对里声明了四处——`docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md` 三处 · `docs/kairos/plans/2026-11-16-engine-doc-tooling-p37.md` 一处，四处写的都是旧值。这四处与本相位同批改成 `6`（测量值是可核的数，不是历史），`contract/__tests__/census.guard.test.ts` 是它们的门。
 - **不收窄成「只对树事实强制」**：这需要一个「这条断言是否关于树」的分类器，而机器没有。按档强制不需要分类器。
 
 #### 2.3 裁定侧
@@ -88,7 +93,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - 归一化：去掉行内代码标记、折叠空白、折大小写、丢标点。切句：`。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切；表格行与列表项各自成句。
 - 只抓**抄**，不抓**改**：抄的相似度趋近于一，阈值是安全垫。
 - 报文必须给两侧文件与两侧开头，让人一眼判真假。
-- 豁免：引用块与代码围栏。引用块的边界是结构，`MarkdownTree` 能读；要引判据就摆在引用块里，看得见、审得出。
+- 豁免：引用块与代码围栏，两者都按**行形态**判，不按树节点。引用块是行首 `>` 起的连续块；围栏块按围栏标记判（`contract/pins.ts#PinSpans` 的围栏跳过是同一个判法）。`MarkdownTree` 的 `Walk` 不暴露引用块——它的结构走法只有 frontmatter · heading · table · row · cell · list · taskField · taskStep · graphEdge 九种，故豁免不走树；两种行形态的判定与围栏跳过同住一处，`## Constraints` 的「一处定义」因此不破。要引判据就摆在引用块里，看得见、审得出。
 
 #### 3.2 比较域是单边的
 - 左侧 = 在范围内的文档，右侧 = **除本文件之外**的全部文档。自比不计：右侧若含本文件，它的每一句都和自己同形，判据在任何文档上都恒真——这条排除是判据的一部分，不留给实现者顺手加。漂移的方向永远是「新的抄旧的然后各自演化」；反向不存在。
@@ -100,14 +105,23 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 ### 4. 消费面
 - 新增：`doc-contract` 的六条规则行出现在**每次派发**的 `checked:` 面（`measure-literal` · `line-coordinate` · `live-arithmetic` · `temporal-indicator` · `single-home` · `change-history-date-shape`），且告警档命中时该行读作 `<rule id>: warned — <n> warning(s)`。无文档目标的派发（wave 与 branch 一类没有 `--spec` 的面）读 `skipped (no doc target)`，条数与位置不变——因此 wave / branch 的预览字节同样变，入册面是每一次派发，不是带文档那一档。
+- 新增：闭合文档的六条规则行读 `skipped (closed document)`（§1.3 · §1.4）——闭合让文档被判据面豁免，而规则行不许用 `passed` 替一条从未跑过的规则作证。`skipped (no doc target)` 那一条不动：两个原因两个词。
 - 新增：`SEVERITY_RUBRIC` 的 blocker 片段增一行（`evidence-missing` 的判据行）⇒ 每次 review 派发的 prompt 字节随之变化；`contract/__tests__/review-criteria.test.ts` 的 id 名册与 `gate` 档断言同批更新。同批随动的是语料面：`census:criteria.rows` 的值由 `5` 变 `6`，闭集 P37 对里声明它的四行同批改（§2.2），`contract/__tests__/census.guard.test.ts` 是它们的门。
+- 新增：`packages/kairos/skills/cdd-spec-writer/SKILL.md` 的 `author-spec` 节点三种 claim shape 的表述面（`## Constraints` 的「只改表述不增段落」）——三条各占一行，不多一条段落，每条点名它对应的规则行；段落数与标题面由既有 skill-anatomy 用例守恒。最终措辞就是下面引文，plan 照抄、不另造：
+
+```
+- **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
+- **count** — "N places" · "N rows" · "N modules" is stated as pinned by the named guard or test (`measure-literal`), never as an arithmetic over live counts (`live-arithmetic`); the guard maintains the number
+- **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)
+```
+
 - 新增：`CDD_BLOCKED: evidence-missing:` 一种拒绝报文；finding 的 `evidence` 嵌套键是它的输入面。
 - 新增：rulings 侧车两个可机检键 `verdict`（闭集 `fixed` | `rejected`）与 `probe`。
 - 新增：`schema get overall` 的 json 面——`### 设计决策留存` 补成一个可选 facet 元素（§1.1）：json 面的 `properties` 多一条（该元素带 `valuePattern`）、`shape` 的 facet 组多一条、`slices` 多一行。**骨架面不动**：`--output skeleton` 的字节逐字节不变，投影器只为 `presence: "required"` 的元素发槽位，可选元素没有骨架行；入册面是这三个投影，不是每一个 `--output`。
 - 新增：既有 `doc-contract` 拒绝上的一条 `details` 行——字面「无可用的闭合登记」（§1.4），只在被判目标是文档、且树上一个总体都没有时出现；有总体而没有格点名本文件时不出现（那是未闭合）。拒绝码与其余 `details` 行不变。
 - 新增：`contract/pins.ts#ForwardPaths` 上一条公开的闭合读数（§1.4）——同一个类、同一份材料，供形状门读；不经 `checked:` 面，不改报文。
 - 不动：退出码表 · `CDD_BLOCKED` 通道 · 既有拒绝报文 · `next:` 字面 · 身份与漂移判据 · 分级判收敛 · **board 的任何字节**（§2 不再有可见面交付）。
-- 本相位自身的交付面：把章程的 `### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句，且两个文法都满足（§1.4）——`### Non-goals` 那一颗子弹同时带时序指示词与测量字面，故计数随句改、其余四节只改句式；改的是文档内容，不动报文。
+- 本相位自身的交付面（章程）：把 `### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句，两文法零命中**且** `single-home` 在章程上零命中（§1.4）；`### Non-goals` 那一颗子弹同时带时序指示词与测量字面，故计数随句改、其余四节只改句式。同批落地的是两处重复句的指针处置（§1.4）：gate 判据指向 P3 · P4 · P5 三份 design 与 P4 plan 的 `## Constraints`，发布姿态指向 P13 design 的 `## Constraints`。交付面因此是「五节条件句 + 两处指针」，改的是文档内容，不动报文；章程的写入由编排者执行，本相位只给判据与措辞面。
 - 版本级按 D74：方法论契约不变 ⇒ changeset **minor**。
 
 ### Acceptance criteria
@@ -117,12 +131,13 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - `doc-contract` **行号坐标**：`第 N 行` · `line N` · 路径后接 `:N` 三种形态各成一条用例且各报一次；同一形态落在行内代码段里 ⇒ 零拒绝（本 spec 命名规则自身即依赖这一条）。
 - `doc-contract` **算式与指示词**：各成对——活文件算式 ⇒ 报 `live-arithmetic`，写成「差值由某守卫维持」⇒ 零拒绝；挂在符号上的时序指示词 ⇒ 报 `temporal-indicator`，改写成「必须成立的条件」⇒ 零拒绝；**孤立的副词**（`豁免面清单仍为空` 那一形）⇒ 零拒绝——这一支是反证用例，防闭集误伤散文。
 - `contract/invariants.ts#Finding` **严重度由规则行声明**：一条声明 warn 的规则在违规文档上不拒，且 `checked:` 面**该规则自己那一行**读作 `<rule id>: warned — <n> warning(s)`；把该行翻成 block 后同一文档被拒、该行读作 `<rule id>: failed`（与既有字节相同）；零命中时该行读 `passed`，字节不变。起步档是**六条规则行全 warn**（四类可变量 · `single-home` · 日期形状），本相位末任务同批翻成 block，pin 断言「无一规则声明 warn」为真（自毁面可核，不是承诺）。
-- `doc-contract` **范围按生命周期**：某总体 Phase inventory 的两个命名格（`Design spec` · `Implementation plan`）各是一条用例——该格读 `✔ Done（<file> · <date>）` 且文件名解析到本文件 ⇒ 该文档带任何违例都零拒绝（spec 与 plan 两形各一条），同一内容放进两格都不点名的文件 ⇒ 被拒（成对）。无任何总体时 ⇒ 被拒且报文含「无可用的闭合登记」（该字面住既有 `doc-contract` 拒绝的一条 `details` 行，§1.4 · §4）。格中文件名零命中或多命中 ⇒ 形状门不认这项闭合 ⇒ 被拒（pin 面相反极性由既有用例守住）。single-spec 无格点名 ⇒ 判。
-- **章程自修（本相位交付）**：`### Goal` / `### Non-goals` / `### Cross-cutting` / `## Boundary rules` / `## Constraints` 五节改成条件句后 ⇒ 零拒绝（两个文法都零命中才是这一臂的判据，不是只看时序一条）；改回原句 ⇒ 被拒（成对，同一份夹具只改这五节），命中八处：`### Goal` · `### Cross-cutting` · `## Boundary rules` 各一处 `temporal-indicator`，`## Constraints` 两处 `temporal-indicator`，`### Non-goals` 一节三处——`temporal-indicator` 两处加 `measure-literal` 一处（那颗子弹的 `13 条`）——故这一臂到不了「时序一条全包」。原句的引证走行内代码段，不为新需求开引用块豁免。翻位之后以 `cdd review --type overall` 判本程序章程为同一个用例的终态。
+- `doc-contract` **范围按生命周期**：某总体 Phase inventory 的两个命名格（`Design spec` · `Implementation plan`）各是一条用例——该格读 `✔ Done（<file> · <date>）` 且文件名解析到本文件 ⇒ 该文档带任何违例都零拒绝（spec 与 plan 两形各一条），同一内容放进两格都不点名的文件 ⇒ 被拒（成对）。无任何总体时 ⇒ 被拒且报文含「无可用的闭合登记」（该字面住既有 `doc-contract` 拒绝的一条 `details` 行，§1.4 · §4）。格中文件名零命中或多命中 ⇒ 形状门不认这项闭合 ⇒ 被拒（pin 面相反极性由既有用例守住）。single-spec 无格点名 ⇒ 判。闭合文档的规则行 ⇒ 六行都读 `skipped (closed document)`（成对：同一份违例内容放进未闭合的副本 ⇒ 各行对那几条违例读 `failed`）；`skipped (no doc target)` 的面不受影响。
+- **章程自修（本相位交付）**：`### Goal` / `### Non-goals` / `### Cross-cutting` / `## Boundary rules` / `## Constraints` 五节改成条件句后 ⇒ 零拒绝——**三族齐零**才是这一臂的判据：两个文法（时序指示词与测量字面）各自零命中，**且** `single-home` 在章程上零命中，不是只看时序一条；两个文法修净而重复句留着 ⇒ 被 `single-home` 拒（成对：这一对只改重复句）；改回原句 ⇒ 被拒（成对，同一份夹具只改这五节），命中八处：`### Goal` · `### Cross-cutting` · `## Boundary rules` 各一处 `temporal-indicator`，`## Constraints` 两处 `temporal-indicator`，`### Non-goals` 一节三处——`temporal-indicator` 两处加 `measure-literal` 一处（那颗子弹的 `13 条`）——故这一臂到不了「时序一条全包」。原句的引证走行内代码段，不为新需求开引用块豁免。翻位之后以 `cdd review --type overall --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 判本程序章程为同一个用例的终态。
 - `doc-contract` **记录面日期形状**：历史行的日期格写成 `xxx` ⇒ 该行报 `change-history-date-shape`（成对：改回 ISO 日期 ⇒ 零拒绝，同一份夹具只改那一格）；同一夹具下 `change-history-row-shape` 与 `change-history-header-columns` 都零拒绝——日期不借那两行的判词。同一行不带「测量方式」⇒ 零拒绝（提交信息不是文档）。面图把该节认作 record 的一笔随 §1.4 的逐 docKey 表落。
-- `evidence` **blocker 必填**：带 findings 的载体里 `severity: "blocker"` 而 `evidence` 缺席 ⇒ 载体被拒（`CDD_BLOCKED: evidence-missing`），本轮不推进、不记结论；`warn` 缺席 evidence ⇒ 通过。`repro` 为一条命令与为一个 `doc.md#section` 指针两种形态都通过（判断类 blocker 拿不出命令时不得被迫降档）；fix 草稿带 `dispositions` 而无 `findings` 槽 ⇒ 不欠这条义务（`work` 平面没有 findings）；判据行进 `SEVERITY_RUBRIC` ⇒ `renderRubric` 的 blocker 片段与 `review-criteria.test.ts` 的 id 名册同批更新。
+- `evidence` **blocker 必填**：带 findings 的载体里 `severity: "blocker"` 而 `evidence` 缺席 ⇒ 载体被拒（`CDD_BLOCKED: evidence-missing`），本轮不推进、不记结论；`warn` 缺席 evidence ⇒ 通过。`repro` 为一条命令与为一个 `doc.md#section` 指针两种形态都通过（判断类 blocker 拿不出命令时不得被迫降档），而 `repro` 为空白串 ⇒ 被拒（成对：缺席一形与 `" "` 一形各一条用例，两条都读同一个拒绝报文）；fix 草稿带 `dispositions` 而无 `findings` 槽 ⇒ 不欠这条义务（`work` 平面没有 findings）；判据行进 `SEVERITY_RUBRIC` ⇒ `renderRubric` 的 blocker 片段与 `review-criteria.test.ts` 的 id 名册同批更新。
 - rulings **`probe` 在驳回时必填**：侧车里 `verdict: "rejected"` 而 `probe` 缺席 ⇒ 侧车不被接受；`verdict: "fixed"` 缺席 `probe` ⇒ 通过（改动本身即证据）；不带 `verdict` 的存量侧车 ⇒ 通过。
 - `doc-contract` **一份住所**：同一判据句进两份未闭合文档的正文 ⇒ 两侧文件与两侧开头都被念出；同句搬进引用块 ⇒ 零拒绝；同一句同时出现在一份闭合文档与一份未闭合文档 ⇒ 照报：左侧是那份未闭合文档，右侧把那份闭合文档念出（闭合只让它不被判，不豁免右侧的语料）；本文件与自己的同一句 ⇒ 零拒绝（右侧不含本文件）。
+- `cdd-spec-writer` **claim shape 与规则行对齐（本相位交付）**：该 skill 的 `author-spec` 节点仍为三条（`pin` · `count` · `narrative`），每条点名它对应的规则行——少一条、多一条或某条不点名规则行 ⇒ 红；段落数与标题面由既有 skill-anatomy 用例守（注册表外的标题不被接受）。验收把 §4 的引文与该节点逐字对读，措辞漂一个词即红。
 - `contract/doc-body.ts#DocBodyProjection` **身份面回归**：只追加一条 `## Change history` 行并 bump 版本 ⇒ `doc-revision` 摘要逐字节不变；判据面改一个词 ⇒ 变。本相位不为身份面新增判据，只留这一对回归防止被顺手改动。
 
 ## Constraints
@@ -142,3 +157,4 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 | v0.2 | 2026-11-20 | 首轮评审回填（fix 1）：面图落 `contract/declare.ts` 并补全域角色（`### 设计决策留存` 补成 facet 元素）· 测量字面改成 token 文法且以文法为规范 · 告警字节挂规则自己的 `checked:` 行（`warned` 档）· 闭合读 `contract/pins.ts#ForwardPaths` 并写出与 pin 面相反的极性 · 证据接缝复用 `gradingViolations` 加一条 `CRITERIA_ROWS` 行（`evidence-missing`）· 侧车改 `verdict` 与 `probe` 两键 · 删除 board 可见面整条 · 章程三节自修列为具名交付 · 消费面补五条 `checked:` 行与骨架真值表一行；正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.3 | 2026-11-20 | 第二轮评审回填（fix 2）：日期形状立为 `doc-contract` 的规则行 `change-history-date-shape`（注册元素的模式惰性，故判词由规则行持有，不借 `change-history-row-shape`）· 时序闭集加 `今日` 并把挂载写成文法（同一分句内要有符号候选，孤立副词不报，附反证用例）· 章程自修从三节扩到五节（`### Cross-cutting` 与 `## Boundary rules` 同病）· 面图的域收为「锚以标题字面起头的元素」并补两个 `####` facet · 闭合读两格命名（相位 spec 与 plan 同判）· 六条规则行一律 warn 起步、末任务同批翻 block · 证据面去掉 `fix` 载体（work 平面无 findings）· `SEVERITY_RUBRIC` 与 json 面字节入册 · 重复规则右侧排除本文件 · 正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.4 | 2026-11-20 | 第三轮评审回填（fix 3）：① **骨架面按编排者裁定删净**——`### 设计决策留存` 是可选 facet 元素，投影器只为 `presence: "required"` 的元素发骨架槽位，故 §1.1 · §4 · 验收 ① 同时删去「骨架真值表增一行」，入册改为 json `properties` · `shape` facet 组 · `slices` 三面并写明 `--output skeleton` 字节不变；② **章程自修的判据改成两个文法都满足**——`### Non-goals` 那颗子弹同时带时序指示词与测量字面，原句在五节上命中八处（`## Constraints` 与 `### Non-goals` 各不止一处），验收臂改成逐节点名而非「时序一条全包」，原句引证走行内代码段、不开引用块豁免；③ **无总体时的「无可用的闭合登记」指定通道**——既有 `doc-contract` 拒绝上的一条 `details` 行，触发条件收窄为「被判目标是文档且树上一个总体都没有」，有总体而不点名本文件时不出现；④ **语料随动入册**——`criteria.rows` 由 5 变 6，闭集 P37 对的四处声明同批改，语料守卫是它们的门；⑤ 六条 `checked:` 行改为每次派发（无文档目标读 `skipped (no doc target)`）；⑥ 测量字面的语料比对归语料守卫，门面不增第七条规则行；⑦ 单边比较的验收臂改写成「闭合文档在右侧仍被念出」；⑧ 证据面的载体措辞改为判平面的各形态（wave 与 branch 是同一平面的派发，不是另外的载体）。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
+| v0.5 | 2026-11-20 | 第四轮评审回填（fix 4）：① **章程自修改三族齐零**——两个文法之外补 `single-home` 一足（章程对闭合域无格点名故一律被判，右侧含已闭合文档），两处重复句各处置成一处指针并点名持有者（gate 判据 → P3/P4/P5 三份 design 与 P4 plan 的 `## Constraints`；发布姿态 → P13 design 的 `## Constraints`），验收臂成三足、章程写入归编排者；② **引用块豁免改行形态**——按行首 `>` 连续块判，不按树节点（`MarkdownTree` 的 `Walk` 不暴露引用块），与围栏跳过同住一处；③ **`repro` 补非空白串判据**（与 `impact.scenario` 同一把尺），验收加空白串一形；④ **`cdd-spec-writer` 的 claim shape 入册**——三条各点名其规则行、最终措辞以引文落地、加逐字对读验收臂；⑤ **闭合文档的规则行读 `skipped (closed document)`**（不读 `passed`），验收加闭合与未闭合的成对一臂；⑥ 三处举证改两处；⑦ 章程终态命令补全 `--spec`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |

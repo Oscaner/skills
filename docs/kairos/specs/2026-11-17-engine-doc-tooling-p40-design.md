@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.30
+version: v0.31
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -220,3 +220,4 @@ targetAction: !violations.some(v => v.grade === "hard")
 | v0.28 | 2026-11-19 | 第二十三轮评审回填（F1 采纳）：① **清除的判据读作「结构腿没有拒绝」（F1）**——§2.2 的清除句把让位条件一那一支写进同一处声明：预测批为空的 wave 派发只判五行、`structureRefusal` 为 null，记录陈述的「引擎最近一次判定时这棵树未通过门前判定」不再成立，因此一并清除（同一个谓词 · 同一处门口 · 同一次写，不构成第三个到期触发点），并写明清除不带 `hasInputFace` 守卫的理由；§2.2 的寿命句与 §2.3 ② 同批改写——「门前判定被证明通过」读作九行全过**或**四行让位后五行全过，② 保留九行全过为充分条件、显式点名五行那一支；② **验收补第七条方向（F1）**——站着的 `station: artifact` 记录 + 一次预测批为空的 wave 派发 ⇒ board 不印 `refused:` 行、命令念 line 腿的 `split`；③ **章程 Phase inventory P40 ③ 同批回填（章程 v4.33）**——到期触发点改读「结构腿不拒绝」，清单由六个方向扩到七个 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-19） |
 | v0.29 | 2026-11-19 | 分支评审回填（F1–F7 全采纳，七条全部落地）：① **程序板的作用面写实**（F2）——§3.1 补一条具名边界：`cdd board --spec <overall>` 走 `#programBoard`，它不渲染树级事实块（`in-flight:` 与 `refused:` 都不到它那里），因此一条 slug 等于程序自己的记录只在命令行上露面、并在下一次通过结构腿的门口被清；旁边写明反方向（相位板的 `refused:` 不在程序板上重复）；② **清除的失败面入册**（F6）——§2.2 补一条：`PreFlightRefusal#clear` 是 fail-open（EACCES / EISDIR 不抛出，记录站着等下一次删得动的到期点），理由是两处调用都在成功路径上、清理不得取消派发（与 `InFlight#release` 同一契约），因此 2.3 ② 读作「删得动的时候」；③ 同批回填的还有 plan 侧的四处（Task 2 的九条用例与 fail-open · Task 4 的转换点与证据格判词各一处 · Task 7 的八条用例与程序板边界），与本章程无契约关联 | Oscaner M. · Claude（kairos:branch-fix · 2026-11-19） |
 | v0.30 | 2026-11-19 | 第二十四轮评审回填（F1 · F2 全采纳 · docs-fix 轮）：① **释放点的到期也读作「删得动的时候」（F1）**——§2.3 ③ 与验收第三条方向（释放即到期）原把「释放后不得同时出现 `in-flight: free` 与 `refused: … in-flight · …`」写成绝对句，而释放点的清除走的是与门口同一个 fail-open 的 `session/refusal.ts#PreFlightRefusal#clear`：一棵拒绝删除的树（§2.2 为 `write` 与 `clear` 声明的那种形状）会让持有者的正常释放留下这条 `station: in-flight` 的记录。两句各补上与 ② 同一条前提——`clear` 删得动它，一棵拒绝删除的树把该记录留到下一次删得动的到期点，不构成第三个到期触发点；§2.2 的 fail-open 句随之把这条前提的作用面由 2.3 ② 扩到 ② 与 ③。机制不动，只让两句与已声明的机制一致。② **两处调用的路径写实（F2）**——§2.2 原说 `clear` 的两处调用都跑在「已经通过结构腿的那次派发的成功路径」上，而门口那一支跑在 `session/preflight.ts#PreFlight#vet` 之后、`DispatchAuthority#verdict` 之前，即 line 腿尚未判定，一棵随即被 line 腿拒掉的派发也经过它；改念「一次没有结构腿拒绝的派发上（门口·结构腿通过的那一支 / 释放点）」，理由（清理不得杀死工作）逐字不动。③ 同批回填章程 Phase inventory P40 ③ 的释放即到期方向，两处读同一份措辞 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-19） |
+| v0.31 | 2026-11-19 | **closeout：交付记录**。本 spec 的四组判据全部落地：① 归属（四门并入 structure 腿第 6–9 行，`PreFlightGateName` 九值，`DispatchRefusal` 复用）② 事实（树级一条记录 · 两处到期 · 门与释放的谓词各不相同）③ 露面（`refused:` 行在树级事实块尾 · 四站闭集 + 穷尽断言 · `CDD_BLOCKED` 三行新增站名前缀为登记过的具名变更）④ 边界（`RoundStatus` / `RoundRecord` / `CrashCause` / grade / `#reject` 族 / `--recover` 措辞全部未动）。§5 的钩子迁移同批交付：`lefthook` 接管提交门，`core.hooksPath` 复位，删除语义实测。验收 ①–⑥ 逐条可核 | Oscaner M. · Claude（kairos:cdd-close） |

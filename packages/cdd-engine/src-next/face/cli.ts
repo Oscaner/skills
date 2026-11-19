@@ -93,7 +93,7 @@ import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlightRefusal, type RefusalFacts } from "../session/refusal.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
-import { type RoundArtifact, RoundNaming } from "../session/round-naming.ts";
+import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
@@ -121,16 +121,12 @@ import { Words } from "./words.ts";
 // the re-exported seams + the dispatch production default — the split contract's
 // lifecycle face owns the dispatch/readback plane (face/lifecycle.ts) and the
 // shared seams it rides; the composition root re-exports them here unchanged so
-// the module's public surface never drifts (CliIo · ChildRunner · ProcessEnvLike ·
-// DispatchScene · BaseArtifact · HarnessDispatch).
+// the module's public surface never drifts (CliIo · ChildRunner · DispatchScene ·
+// BaseArtifact · HarnessDispatch).
 // ---------------------------------------------------------------------------
 
 export type { BaseArtifact } from "./artifacts.ts";
-export type {
-  CliIo,
-  DispatchScene,
-  ProcessEnvLike,
-} from "./lifecycle.ts";
+export type { CliIo, DispatchScene } from "./lifecycle.ts";
 export { CliLifecycle as HarnessDispatch } from "./lifecycle.ts";
 export type { ChildOutcome, ChildRun, ChildRunner } from "./termination.ts";
 /** The composition options — every collaborator injectable (tests substitute the
@@ -1436,8 +1432,11 @@ export class Cli {
     const { cycle, attempt } = ConsumedRound.of(scene.ledger, phase, key, folded);
     const identity: DispatchIdentity = { op, type, phase, tasks, cycle, attempt };
     const carrier = { type, key, cycle, tasks };
-    const carrierPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
-    const reviewsPath = carrierPath === null ? null : this.#relativeOf(scene, carrierPath);
+    // The carrier reaches the snapshot as its producer holds it (an absolute workspace
+    // path, or the repo-relative `--reviews` value): the module's OWN basis conversion
+    // is the only one this value takes, so no call site normalizes it twice. The
+    // record's `INPUT_REVIEWS` cell is that same value collapsed by `compose`.
+    const reviewsPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
     const digest = RequestingCarrier.requesterRecord(scene.ledger, carrier)?.carrierDigest ?? null;
     // The snapshot is the assembly's third cell (P40 T5 lifted it beside the composer):
     // ONE read of the sidecar, the same value the seam judges and the record names.
@@ -1468,7 +1467,7 @@ export class Cli {
       workspaceDir: scene.workspace.path,
       workspaceId: scene.workspace.slug,
       reportPath: path.join(scene.workspace.path, RoundNaming.renderName(roundArtifact, "report")),
-      evidencePath: this.#evidencePathOf(scene, phase, type, roundArtifact),
+      evidencePath: scene.ledger.naming().evidencePathOf(roundArtifact, type, phase),
       handoffPath: scene.ledger.handoffPath(op, type, { tasks, round: cycle, attempt }),
       handoffSchema: new HandoffSchema().schemaText(
         plane,
@@ -1476,27 +1475,6 @@ export class Cli {
       ),
     };
     return { identity, values: DispatchValues.compose(identity, sceneFacts, artifact), artifact };
-  }
-
-  /** The test-evidence path of this dispatch — the round's own name on the evidence
-   *  rounds (implement / fix on a non-doc face), "" everywhere else (the doc shapes and
-   *  the review rounds prescribe none). The frame-free twin of `RoundNaming#evidence`. */
-  #evidencePathOf(
-    scene: WorkScene,
-    phase: DispatchPhase,
-    type: TargetType,
-    roundArtifact: RoundArtifact,
-  ): string {
-    if (TargetFaceTable.isDocShape(type)) return "";
-    if (phase !== "implement" && phase !== "fix") return "";
-    return path.join(scene.workspace.path, RoundNaming.renderName(roundArtifact, "evidence"));
-  }
-
-  /** The ONE repo-basis conversion on this root — `RepoRoot.relativize` reads an absolute
-   *  value as itself and a relative value as repoRoot-relative, collapsing both to one
-   *  basis; an empty value stays empty (never a `"."`). */
-  #relativeOf(scene: WorkScene, value: string): string {
-    return value === "" ? "" : scene.workspace.root.basis.relativize(value);
   }
 
   /** The tree's refusal record handle — stateless: the record is the state, so a fresh

@@ -6,10 +6,11 @@
 // frame, the scene facts off the fixture's scene, an artifact snapshot), so the fixture
 // never writes a hand-made map of values.
 //
-// It mirrors the composition root's scene-facts assembly (`Cli#beforeOf`) on purpose:
-// a fixture that hand-wrote the record would stop witnessing what the production
-// assembly produces, and the prompt bytes those tests assert would be the fixture's
-// rather than the engine's.
+// It shares the composition root's scene-facts rules instead of re-spelling them: the
+// evidence cell comes from the naming face's frame-free entry and the carrier cell is
+// handed over as the producer holds it — a fixture that hand-wrote the record would stop
+// witnessing what the production assembly produces, and the prompt bytes those tests
+// assert would be the fixture's rather than the engine's.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
@@ -23,7 +24,6 @@ import {
 } from "../../face/dispatch-values.ts";
 import type { DispatchScene } from "../../face/lifecycle.ts";
 import { Words } from "../../face/words.ts";
-import { TargetFaceTable } from "../../session/faces.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { RoundRecords } from "../../session/ledger.ts";
 import { ArtifactRegistry } from "../../session/round-artifacts.ts";
@@ -86,7 +86,7 @@ export class TestDispatchValues {
       workspace: scene.workspace,
       words: new Words(),
       op: identity.op,
-      reviewsPath: resolved === null ? null : scene.workspace.root.basis.relativize(resolved),
+      reviewsPath: resolved,
       digest: record?.carrierDigest ?? null,
     });
   }
@@ -102,7 +102,6 @@ export class TestDispatchValues {
       attempt: identity.attempt,
     });
     const plane = HandoffSchema.planeOf(identity.op);
-    const evidence = TestDispatchValues.#evidenceName(scene, frame, artifact);
     const docPath =
       frame.target.kind === "plan" || frame.target.kind === "spec" ? frame.target.doc : null;
     return {
@@ -119,7 +118,7 @@ export class TestDispatchValues {
       workspaceDir: scene.workspace.path,
       workspaceId: scene.workspace.slug,
       reportPath: scene.workspace.resolve(RoundNaming.renderName(artifact, "report")),
-      evidencePath: evidence,
+      evidencePath: naming.evidencePathOf(artifact, identity.type, frame.phase),
       handoffPath: scene.ledger.handoffPath(identity.op, identity.type, {
         tasks: identity.tasks,
         round: identity.cycle,
@@ -142,17 +141,5 @@ export class TestDispatchValues {
       cycle: frame.round,
       tasks: frame.params.tasks ?? "",
     });
-  }
-
-  /** The evidence path of this dispatch — "" off the evidence rounds (the doc shapes
-   *  and the review rounds prescribe none), the round's own name on implement / fix. */
-  static #evidenceName(
-    scene: DispatchScene,
-    frame: OpenFrame,
-    artifact: ReturnType<typeof RoundNaming.artifactOf>,
-  ): string {
-    if (TargetFaceTable.isDocShape(frame.type)) return "";
-    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
-    return scene.workspace.resolve(RoundNaming.renderName(artifact, "evidence"));
   }
 }

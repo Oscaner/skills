@@ -36,10 +36,12 @@ Six consumer-visible changes, one per spec constraint:
   has no input face (the whole batch retires and the verdict goes to the line leg), and a
   dispatch refused by whichever row is judged before them never reaches them — `checked:`
   stops at the refusing row, so a dirty tree records `tree-clean` alone.
-- ⑤ `board` gains two lines: the standing `refused: {op} {cycle}·a{attempt} {station} · {detail}`
-  line at the tail of the tree-level fact block (after `in-flight:` · `orphan:` · `crashed:`),
-  and `refused: unreadable refusal record` when the record on disk cannot be read — never
-  silently treated as "no refusal". The new artifact `refusal.json` is the fact behind both.
+- ⑤ `board` gains two lines on the NODE board: the standing
+  `refused: {op} {cycle}·a{attempt} {station} · {detail}` line at the tail of the tree-level
+  fact block (after `in-flight:` · `orphan:` · `crashed:`), and `refused: unreadable refusal
+  record` when the record on disk cannot be read — never silently treated as "no refusal".
+  The program board (`cdd board --spec <overall>`) renders no tree-level fact block, so it
+  shows neither line. The new artifact `refusal.json` is the fact behind both.
 - ⑥ When both legs fail at once, the message now belongs to the structure leg instead of the
   line leg, because the four migrated gates run before it. The line leg's own refusals stay
   reachable after the nine structure rows pass.

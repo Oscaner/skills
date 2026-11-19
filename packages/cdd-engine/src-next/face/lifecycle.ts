@@ -104,13 +104,6 @@ export interface CliIo {
 // the harness dispatch (the production dispatch default)
 // ---------------------------------------------------------------------------
 
-/** The command environment's shape (`name → value | undefined`). Retained for the
- *  re-export surface only: since P40 T6 the dispatch body reads NO injected
- *  environment — the child inherits the composition root's own `process.env` (one merge
- *  point, `termination.ts`), so there is no constructor cell to fill and no stand-in to
- *  supply. */
-export type ProcessEnvLike = Record<string, string | undefined>;
-
 /** One dispatch scene — the per-invocation composition the work commands assemble
  *  (the workspace + ledger the frame's round rides, the plan/brief paths the prompt
  *  references, the base artifact's branch name the branch review's scope anchor

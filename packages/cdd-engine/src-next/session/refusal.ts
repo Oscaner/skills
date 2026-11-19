@@ -134,11 +134,22 @@ export class PreFlightRefusal {
     this.#atomic.write(this.path(), `${JSON.stringify(record, null, 2)}\n`);
   }
 
-  /** Remove the record — idempotent (an absent record is not an error). The caller owns
-   *  the predicate: this class clears what it is told to clear (§2.2's two expiry
-   *  triggers are the writer's and the release point's judgments, not this one's). */
+  /** Remove the record — idempotent and FAIL-OPEN: an absent record is not an error, and
+   *  a tree that refuses the removal (an `EACCES` from a root-owned or read-only
+   *  `.kairos/cdd`, an `EISDIR` when something else took the name) keeps the fact
+   *  standing instead of throwing. The caller owns the predicate: this class clears what
+   *  it is told to clear (§2.2's two expiry triggers are the writer's and the release
+   *  point's judgments, not this one's). The removal rides the success path of a
+   *  dispatch that has already passed the whole structure leg, so it may not cancel that
+   *  dispatch — the same contract `InFlight#release` follows for its own record (a fact
+   *  that outlives its expiry is the truthful observation; a cleanup that kills the work
+   *  is not). */
   clear(): void {
-    rmSync(this.path(), { force: true });
+    try {
+      rmSync(this.path(), { force: true });
+    } catch {
+      // Fail-open: an unremovable record still states what the last judgment found.
+    }
   }
 
   /** The record as THIS workspace sees it: a standing record written by another phase

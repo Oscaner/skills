@@ -15,8 +15,11 @@
 //   · `DispatchSceneFacts` — the line's declared paths, the base branch, the workspace
 //     directory and slug, the engine-written brief's path, the three `OUTPUT_*` paths
 //     and the injected `## Handoff schema` text. The path basis rides in here
-//     (`repoRoot`) so the relativization below is the ONE conversion point — the same
-//     one `#valuesOf`'s `#rel` performs — and never a second conversion at a call site.
+//     (`repoRoot`) so the record's relativization is `DispatchValues.#rel` — the same
+//     conversion `#valuesOf`'s `#rel` performed — while the snapshot's own read paths
+//     are relativized where the snapshot flattens them (`ArtifactSnapshots#readOf`).
+//     One conversion per input cell, both of them in this module, and none at a call
+//     site: the carrier arrives as its producer holds it.
 //   · `ArtifactSnapshot` — the contract plane's snapshot, whose `reviewsPath` is the fix
 //     face's `--reviews` input and whose `read.path` (on `ok`) is `INPUT_RULINGS`'s only
 //     source. The rulings sidecar's path is DERIVED from the carrier there, so it is not
@@ -302,7 +305,11 @@ const RULINGS_KIND = "rulings" as const;
 // biome-ignore lint/complexity/noStaticOnlyClass: the snapshot's single entry — the zero-bare-function discipline admits no standalone functions.
 export class ArtifactSnapshots {
   /** The snapshot of one dispatch: the face's own read, flattened into plane-legal
-   *  values (no `session/` type crosses the plane). */
+   *  values (no `session/` type crosses the plane). `reviewsPath` arrives as its
+   *  producer holds it — an absolute workspace path or the repo-relative `--reviews`
+   *  value; this entry converts nothing on it (`ArtifactReads` resolves either basis
+   *  against the repo root, and `compose` collapses the cell onto the record's ONE
+   *  basis), so no caller normalizes it first. */
   static of(opts: {
     readonly artifacts: ArtifactRegistry;
     readonly workspace: Workspace;
@@ -327,8 +334,9 @@ export class ArtifactSnapshots {
   }
 
   /** One `ArtifactRead` flattened into the contract plane's value — every path on the ONE
-   *  basis, the identity words rendered by the words plane, the `misplaced` report's kind
-   *  word named once. */
+   *  basis (this is where the snapshot's read paths are relativized; the record's cells
+   *  are `DispatchValues.#rel`'s), the identity words rendered by the words plane, the
+   *  `misplaced` report's kind word named once. */
   static #readOf(
     opts: {
       readonly workspace: Workspace;

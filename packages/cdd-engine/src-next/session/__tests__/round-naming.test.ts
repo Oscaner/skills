@@ -212,6 +212,19 @@ describe("RoundNaming — the ONE renderer (every kind, every line, every cycle/
     expect(NAMING.evidence(frame({ type: "wave", phase: "implement" }))).toBe(
       inWorkspace("tasks-1-implement-1-test-evidence.json"),
     );
+    // …and the FRAME-FREE entry the composition root and the sessions fixture call
+    // answers the same name from the same three flat cells: the condition has ONE home,
+    // so a hand-copied second one cannot drift from the read-back gate.
+    const flat = RoundNaming.artifactOf("implement", "wave", { tasks: "1", round: 1, attempt: 1 });
+    expect(RoundNaming.evidenceNameOf(flat, "wave", "implement")).toBe(
+      "tasks-1-implement-1-test-evidence.json",
+    );
+    expect(NAMING.evidencePathOf(flat, "wave", "implement")).toBe(
+      inWorkspace("tasks-1-implement-1-test-evidence.json"),
+    );
+    // the doc shapes and the review phase prescribe none, frame-free alike
+    expect(NAMING.evidencePathOf(flat, "phase-spec", "review")).toBe("");
+    expect(RoundNaming.evidenceNameOf(flat, "wave", "review")).toBe("");
     expect(
       NAMING.evidenceName(
         frame({ type: "wave", phase: "fix", round: 2, params: { tasks: "1", round: 2 } }),

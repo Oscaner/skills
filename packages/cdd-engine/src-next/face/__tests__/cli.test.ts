@@ -12262,6 +12262,39 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
     }
   });
 
+  it("clears the record when the wave's predicted batch is empty — the four rows stand down, the line leg answers", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      await baseSet(command, plan);
+      // Close the plan's ONLY wave (implement + review is the closure pair), so the
+      // next wave dispatch predicts an EMPTY batch — `WAVE` is "" and the four
+      // pre-dispatch rows have no input face to judge.
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      expect(
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      ).toBe(0);
+      // A standing record from one of the four stations (an artifact refusal landed it).
+      plantRefusal(repoRoot, { station: "artifact" });
+      io.stderrText = "";
+      // Five rows pass, `structureRefusal` is null, and the gate's ONE clear predicate
+      // fires WITHOUT a `hasInputFace` guard — the record states "the engine's last
+      // judgment refused this tree", and that judgment no longer refuses anything. The
+      // verdict then belongs to the line leg (no open wave to dispatch).
+      expect(
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("split · next: ");
+      expect(existsSync(refusalPathOf(repoRoot))).toBe(false);
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      expect(io.stdoutText).not.toContain("refused:");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("keeps the record on a refused --recover — the station is the one that refused", async () => {
     const { command, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
     try {

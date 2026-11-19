@@ -11,7 +11,9 @@
 //     regression of a refusal dirtying its own tree);
 //   · the write OVERWRITES, never appends: one tree holds at most one refusal fact;
 //   · a malformed record reads `corrupt` with a reason and never throws;
-//   · `clear()` is idempotent;
+//   · `clear()` is idempotent and fail-open: an absent record is not an error, and a
+//     tree that refuses the removal keeps the fact standing instead of throwing (the
+//     clear rides a passing dispatch's success path, so it cancels no dispatch);
 //   · the two read faces are not one: `read()` answers "is this refusal mine" (a record
 //     another phase workspace wrote reads `absent`), `readRaw()` answers "what stands on
 //     this tree" — pair-asserted on ONE record so the split cannot collapse;
@@ -23,6 +25,7 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -173,6 +176,27 @@ describe("PreFlightRefusal — one record, written and read back", () => {
       expect(refusal.read()).toEqual({ kind: "absent" });
       expect(existsSync(refusal.path())).toBe(false);
     } finally {
+      cleanup();
+    }
+  });
+
+  it("is fail-open — a tree that refuses the removal keeps the fact and cancels nothing", async () => {
+    // Mode bits do not bind root (the CI container runs as root): the fixture would
+    // measure a removal that succeeds, so it says nothing there.
+    if (process.getuid?.() === 0) return;
+    const { root, cleanup } = treeOf();
+    const refusal = new PreFlightRefusal(root, "p40-slug");
+    try {
+      await refusal.write(factsOf());
+      // A read-only directory is the shape a root-owned / read-only CI mount takes:
+      // the record is readable, its removal is not allowed.
+      chmodSync(path.dirname(refusal.path()), 0o500);
+      expect(() => refusal.clear()).not.toThrow();
+      // The fact stands (it is the truthful observation), and the record is intact.
+      expect(refusal.read().kind).toBe("standing");
+      expect(existsSync(refusal.path())).toBe(true);
+    } finally {
+      chmodSync(path.dirname(refusal.path()), 0o755);
       cleanup();
     }
   });

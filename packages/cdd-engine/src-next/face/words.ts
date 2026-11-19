@@ -123,9 +123,9 @@ export type ArtifactIdentityFacts = {
   readonly identity: Identity;
 };
 
-/** The `refused:` row's words — ONE row, TWO faces (spec §3.1: 同词，不是同形). The
- *  token and its two-space value gap live together, so the preview face and the board
- *  read one cell and each adds only its own outer layer: the preview prints
+/** The `refused:` row's words — ONE row, TWO faces (spec §3.1: the same word, not the
+ *  same shape). The token and its two-space value gap live together, so the preview face
+ *  and the board read one cell and each adds only its own outer layer: the preview prints
  *  `  ` + token + gap + the live verdict's first line; the board prints
  *  `  ` + token + ` ` + the recorded identity cells. A second literal in either face
  *  would let the next reword stop at one of them. */

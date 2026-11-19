@@ -534,6 +534,54 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(withAbsent).not.toContain("refused:");
   });
 
+  it("renders no tree-level fact block on the PROGRAM board — the row's surface is the node board", () => {
+    writeNodeDocs();
+    // The strongest input the program board could be handed: a record whose slug IS the
+    // program's own (a doc-face dispatch on the overall document lands it). The program
+    // board renders no tree-level fact block at all — neither the refusal nor the
+    // in-flight fact — so this decision is a pin, not an absent-parameter accident
+    // (spec §3.1's named boundary).
+    const refusal: RefusalState = {
+      kind: "standing",
+      facts: {
+        at: "2026-11-17T09:00:00.000Z",
+        slug: "prog-overall",
+        op: "fix",
+        type: "overall",
+        cycle: 1,
+        attempt: 1,
+        station: "artifact",
+        detail: "artifact-identity · derived: x · found: y",
+      },
+    };
+    const holding: InFlightState = {
+      kind: "held",
+      alive: true,
+      record: {
+        pid: 4242,
+        startedAt: 1_763_000_000_000,
+        command: "cdd fix --type overall",
+        slug: "prog-overall",
+        wave: null,
+        phase: "fix",
+        cycle: 1,
+        attempt: 1,
+        briefHash: null,
+        plan: null,
+        dispatchBase: null,
+        sampledAt: null,
+        verdict: null,
+      },
+    };
+    const text = render("prog-overall", "claude", null, refusal, holding).text;
+    // The program board IS the rendered face (the assertion is not vacuous)…
+    expect(text).toContain("  overall  ");
+    // …and it holds no tree-level fact row: the record and the occupancy are the NODE
+    // board's surface (`cdd board --plan/--spec <phase document>`).
+    expect(text).not.toContain("refused:");
+    expect(text).not.toContain("in-flight:");
+  });
+
   it("lets `in-flight:` and `refused:` stand together — a refusal for work already running", () => {
     writeNodeDocs();
     const holding: InFlightState = {

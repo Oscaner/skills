@@ -689,35 +689,7 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 ### Task 8: changeset · 章程回填 · 全量门禁
 
 #### Objective
-把这一轮的消费面变化登记齐：changeset 一条 `minor`、章程的 P40 design-spec 一格与版本、spec 与 plan 的版本与 change history（P38 spec 上那条换向记录已在位，按 verify-only 核），然后跑全量门禁。版本与历史行是登记。**改前的 grep 与逐格读先划出还活着的编辑面**，而不是按旧稿的清单重写一遍：`rg -n '每一面都被调用|每次派发'` 在 spec 上只余版本历史行与已带例外的句子（那五句 `checked:` 例外已读「有输入面的派发」并带让位例外），§3.1 的位置句已读「树级事实块的块尾」、章程 Phase inventory AC ⑥ 的 `checked:` 让位例外也已读同一口径（章程 v4.22 的回填）——**这一句只覆盖 `checked:` 的让位例外，不覆盖 board 的位置句**：章程 D96 · Phase inventory P40 的 summary ② 格与同一行的**验收 ② 格**当时仍把 `refused:` 行读成 `in-flight:` 的邻居（summary ② 格与 D96 读该义，验收 ② 格逐字读「位置与 `in-flight:` 并列」），而 `BoardView#refusalRows` 排在 `in-flight:` · `orphan:` · `crashed:` 三行之后（本文件 Files 行与 `### Task 10: 让四个真 CLI 预览用例与环境无关
-
-#### Objective
-CI 抓到四个用例只在**装了 harness 的机器**上通过：它们走真 CLI（`runArgv`），而 P40 把 `no-host` 搬进了 preflight 缝——预览共享它，于是「环境里没有 harness ⇒ 预览 exit 1」这条**已声明的产品行为**让这四条用例依赖了运行环境（本地有 pi ⇒ 绿；干净 clone ⇒ 红）。修的是**测试的确定性**，不是产品：真 CLI 的用例必须显式声明它跑在哪个宿主下，而不是继承机器的。
-
-#### Files
-- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（四个真 CLI 用例：`writes nothing` · `consumes no round` · `judges the dispatch ONCE through the loop` · `orphan handoff draft on the reads row`）
-
-#### Consumes
-- `HostDetect` 的探针事实（`face/host.ts`：`CLAUDE_CODE_SESSION_ID` 与 `AI_AGENT` 两条通道）
-- `DispatchAuthority` 的 `no-host` 行（structure 腿第 6 行，P40 T4 交付）
-- 该文件既有的 `preview(host)` 工厂（P40 T6 起 `Preview` 收注入的 host id）
-
-#### Produces
-- 该文件的真 CLI 用例在**任何**宿主环境下都读到同一个 host：由 `beforeEach` 显式设置一条宿主通道并在 `afterEach` 还原，而不是依赖机器上装没装 pi。
-
-#### Steps
-- **Step 1: 写会红的断言**（在设置宿主之前，清掉两条宿主通道，断言四条用例仍 exit 0） — checkable: `CLAUDE_CODE_SESSION_ID= AI_AGENT= pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 报红，且失败行是 `expect(code).toBe(0)` 收到 1
-- **Step 2: 让 fixture 声明宿主**（`beforeEach` 设一条通道、`afterEach` 还原） — checkable: 同一条命令（宿主通道被清空）转为全绿
-- **Step 3: 反向确认不掩盖产品行为**（显式清空宿主时，`no-host` 仍能拒——用一个走真 CLI 的拒绝用例证） — checkable: 该拒绝用例在宿主为空时读得 `no-host` 站名，在宿主存在时不出现
-- **Step 4: 文件级全绿** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 0 failed，且连续两次运行结果一致
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含该测试文件与本 plan 的版本行
-
-#### Acceptance
-四条真 CLI 预览用例在宿主通道被清空与存在两种环境下**都** exit 0 且零写入；显式的拒绝用例仍在宿主为空时拒；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 连跑两次全绿；`pnpm run validate` exit 0。
-
-#### DependsOn
-1, 2, 3, 4, 5, 6, 7, 8, 9
-
+把这一轮的消费面变化登记齐：changeset 一条 `minor`、章程的 P40 design-spec 一格与版本、spec 与 plan 的版本与 change history（P38 spec 上那条换向记录已在位，按 verify-only 核），然后跑全量门禁。版本与历史行是登记。**改前的 grep 与逐格读先划出还活着的编辑面**，而不是按旧稿的清单重写一遍：`rg -n '每一面都被调用|每次派发'` 在 spec 上只余版本历史行与已带例外的句子（那五句 `checked:` 例外已读「有输入面的派发」并带让位例外），§3.1 的位置句已读「树级事实块的块尾」、章程 Phase inventory AC ⑥ 的 `checked:` 让位例外也已读同一口径（章程 v4.22 的回填）——**这一句只覆盖 `checked:` 的让位例外，不覆盖 board 的位置句**：章程 D96 · Phase inventory P40 的 summary ② 格与同一行的**验收 ② 格**当时仍把 `refused:` 行读成 `in-flight:` 的邻居（summary ② 格与 D96 读该义，验收 ② 格逐字读「位置与 `in-flight:` 并列」），而 `BoardView#refusalRows` 排在 `in-flight:` · `orphan:` · `crashed:` 三行之后（本文件 Files 行与 `
 ## Change history` 的 v0.46 行同批改正了 summary ② 格与 D96，**验收 ② 格同一件事没有主**，v0.47 补上；位置自此只由 spec §3.1 与装配处两个来源承担）——因此**活着的编辑面是八处**，Objective · Files · Produces · Step 2 与 Acceptance 读同一份清单、不再各数一套：章程 Phase inventory P40 行的**验收 ② 格**（board 位置句，今天逐字读「位置与 `in-flight:` 并列」）· 同一行的**验收 ③ 格**（它只念三个方向，而 spec 的同一条判据念七个、同一行的 summary 格与 D96 都已读「两个到期触发点」——见 Files 行；交付后的那一格已由章程 v4.33 扩到七个，第七个是「让位条件一那一支也清」，本任务的判据必须与它同名）· 同一行的 **summary ② 格**（board 位置句）· 同一行的 **summary ③ 格**（到期谓词仍读整条腿通过）· **D96 的到期括号**（仍读「整条结构腿通过时 composition root 在门口清」）· **D96 的 board 位置句** · spec §3.1 的**读取归属句**（它仍写「读取点就在渲染 `in-flight:` 行的同一处」）· spec §5 的**三句 `prepare` 陈述**（§5.1 · §5.3 与验收行都还写无旗标的 `lefthook install`，而设计决定是自愈形态——陈旧的本机 `core.hooksPath` 按 clone 存在，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上失败）。同一谓词的三处**代码与用例坐标**（`face/cli.ts` 的门口清除锚点注释 · `session/refusal.ts#PreFlightRefusal#clear` 的 fail-open docstring · `face/__tests__/cli.test.ts` 的一条用例题目）随这批文档同批随动；三处的路径已在 Task 2 / Task 6 的 Files 里，因此只点名，不新立文件行、也不计入那八处。章程 in-register 那一段的行为语义增量账**不在这八处里**：它今天已读「跑到四行的有输入面派发上 `checked:` 面的新增四行（…；两处让位条件住 D96）」（v4.23 的回填），于是那条 grep 在改前就答零行、证不出这一行改过还是没动过；「每一次判了输入面的派发」只作 changeset ④ 自己的排头词，不当章程的通过条件。这八处是纠正，其余几处按 verify-only 处理：重写一句已经正确的句子既证不出差异，也会把一个过了十二轮的措辞再动一次。带日期的 change-history 行是记录，不改写、也不进这批纠正。
 
 #### Files
@@ -798,6 +770,36 @@ pre-commit:
 
 #### DependsOn
 1, 2, 3, 4, 5, 6, 7, 8
+
+
+### Task 10: 让四个真 CLI 预览用例与环境无关
+
+#### Objective
+CI 抓到四个用例只在**装了 harness 的机器**上通过：它们走真 CLI（`runArgv`），而 P40 把 `no-host` 搬进了 preflight 缝——预览共享它，于是「环境里没有 harness ⇒ 预览 exit 1」这条**已声明的产品行为**让这四条用例依赖了运行环境（本地有 pi ⇒ 绿；干净 clone ⇒ 红）。修的是**测试的确定性**，不是产品：真 CLI 的用例必须显式声明它跑在哪个宿主下，而不是继承机器的。
+
+#### Files
+- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（四个真 CLI 用例：`writes nothing` · `consumes no round` · `judges the dispatch ONCE through the loop` · `orphan handoff draft on the reads row`）
+
+#### Consumes
+- `HostDetect` 的探针事实（`face/host.ts`：`CLAUDE_CODE_SESSION_ID` 与 `AI_AGENT` 两条通道）
+- `DispatchAuthority` 的 `no-host` 行（structure 腿第 6 行，P40 T4 交付）
+- 该文件既有的 `preview(host)` 工厂（P40 T6 起 `Preview` 收注入的 host id）
+
+#### Produces
+- 该文件的真 CLI 用例在**任何**宿主环境下都读到同一个 host：由 `beforeEach` 显式设置一条宿主通道并在 `afterEach` 还原，而不是依赖机器上装没装 pi。
+
+#### Steps
+- **Step 1: 写会红的断言**（在设置宿主之前，清掉两条宿主通道，断言四条用例仍 exit 0） — checkable: `CLAUDE_CODE_SESSION_ID= AI_AGENT= pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 报红，且失败行是 `expect(code).toBe(0)` 收到 1
+- **Step 2: 让 fixture 声明宿主**（`beforeEach` 设一条通道、`afterEach` 还原） — checkable: 同一条命令（宿主通道被清空）转为全绿
+- **Step 3: 反向确认不掩盖产品行为**（显式清空宿主时，`no-host` 仍能拒——用一个走真 CLI 的拒绝用例证） — checkable: 该拒绝用例在宿主为空时读得 `no-host` 站名，在宿主存在时不出现
+- **Step 4: 文件级全绿** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 0 failed，且连续两次运行结果一致
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含该测试文件与本 plan 的版本行
+
+#### Acceptance
+四条真 CLI 预览用例在宿主通道被清空与存在两种环境下**都** exit 0 且零写入；显式的拒绝用例仍在宿主为空时拒；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 连跑两次全绿；`pnpm run validate` exit 0。
+
+#### DependsOn
+1, 2, 3, 4, 5, 6, 7, 8, 9
 
 ## Change history
 

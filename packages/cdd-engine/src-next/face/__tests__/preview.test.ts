@@ -102,6 +102,14 @@ describe("the host pin the real-CLI cases inherit", () => {
     // and a pin answering `claude` would make that case's two values equal — so
     // swapping `Preview`'s host for `HostDetect.detect(process.env)` would keep it green
     // and the injection cell would silently lose its gate. `AI_AGENT=pi` answers `pi`.
+    //
+    // The clear half is judged by the same line: claude's row reads its session marker
+    // BEFORE pi's row, so plant that marker first and a `pin()` that only sets
+    // `AI_AGENT` answers `claude` here — this case states the hazard and reds in a clean
+    // environment (CI's arm) instead of depending on a harness session exporting the
+    // marker. `restore()` hands the start-up ambient back afterwards.
+    process.env.CLAUDE_CODE_SESSION_ID = "p40-t6-fixture";
+    hostPin.pin();
     expect(HostDetect.detect(process.env)).toBe("pi");
   });
 });

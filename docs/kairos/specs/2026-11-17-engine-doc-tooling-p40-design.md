@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.31
+version: v0.32
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -190,6 +190,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.32 | 2026-11-19 | **最终交付记录（含 Task 10）**：① §1–§4 的判据全部落地并过 9 轮分支终审（26 条全修）；② 追加 Task 10 修的是一处**测试对环境的依赖**而非产品行为——四个真 CLI 预览用例在干净环境里按 §1.1 已声明的 `no-host` 判据 exit 1，修法是 fixture 显式声明宿主；③ 全量门 2137 tests 绿 · `emit:check` 无漂移 · 三处 typecheck 通过 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.1 | 2026-11-18 | 首稿：S1 归属落定（四门并入 structure 腿 · 拒绝在 recordRound 之前返回 · 树级 refusal 事实 · board 一行 · 四站闭集 · 互斥不变量） | Oscaner M. · Claude |
 | v0.2 | 2026-11-18 | 首轮评审回填（F1–F12 全采纳）：① 站名闭集改为 structure 腿的行集（九值，`session/preflight.ts#PreFlightGateName`），九行一视同仁写事实，互斥不变量换成「最多一条 · 通过即清」；② 四行的判定输入与判定点写成条件（只读推演，不建工作区、不写 brief、不在 `--recover` 之后）；③ `--recover` 按改后形面重述（不认领 · 无写入 · 同一拒绝复发）；④ `detail` 规范化 + `CDD_BLOCKED` 自有渲染分离；⑤ 封回与预览镜像的门数写实（三道 + no-host 例外）；⑥ corrupt 行自成一词；⑦ `RoundStatus` 五值 pin 到 `session/ledger.ts#RoundStatus`；⑧ 腿行集加 pin、三个未落地词写裸词；⑨ AC② 八格 + 跨工作区渲染、AC③ 通过即清、AC④ 九值表、AC⑤ 改后形面 | Oscaner M. · Claude |
 | v0.3 | 2026-11-18 | 第二轮评审回填（F1–F9 全采纳）：① `INPUT_WAVE_BRIEF` 在声明面上改成它真实的意思——`preview: "satisfied"` 换成 `written: "engine"`，#inputRefusalOf 的 `mode` 守卫与 #answeredByNaming 的 per-mode 例外一并退场，任何路径都不做存在性读，构造期断言改证「恰好一格引擎写的」；② 四行的输入补齐第四格（主机探测事实由 composition root 注入，seam 不 import face 的 host 模块）；③ 拒绝写入先发布命名空间 keep-out 标记，并声明发布标记不是「建工作区」；④ `--dry-run` 上的结构腿拒绝统一由预览面渲染（整条腿九行，`refused:` 行字节不动）；⑤ `CDD_BLOCKED` 与 board 行改成「一份事实、两条已声明的渲染」，渲染入口按 `preflight.gate` 取键；⑥ `Cli#step` 改 pin 到 `face/cli.ts#Cli#runWork`；⑦ 「同义、同形」改回「同词」；⑧ dispatch-input 的词 pin 到 `CAPSULE_WORDS.dispatchInput.station`；⑨ 去掉 `detail` 的旧名考古；AC 增三条（引擎写的格子 · `CDD_BLOCKED` 字节 · 命名空间标记） | Oscaner M. · Claude |

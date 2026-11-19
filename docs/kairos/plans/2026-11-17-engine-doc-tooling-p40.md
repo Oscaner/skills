@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.62
+version: v0.63
 date: 2026-11-19
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -816,6 +816,7 @@ CI 抓到四个用例只在装了 harness 的会话里通过：它们走真 CLI�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.63 | 2026-11-19 | **最终交付记录**：九任务八波全部交付（W8 = Task 10）。Task 10 的验收实测：该文件用例 19 → 21 条（判据用例 + 反向用例各一），引擎套件 2135 → 2137；`pnpm run validate` exit 0；分支终审 9 轮 26 条全修，0 驳回。追加工作全程只指向已关闭任务，未改写任何闭块 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.62 | 2026-11-19 | 分支评审第 9 轮 fix 轮（branch-review-9 · docs-fix 轮；F1 采纳；Task id 集与 `DependsOn` 集未动）：① **v0.61 行的量化词收窄到它实际测量的那三处声明面（F1）**——该行原把那次撤回的审计写成「全文件零命中」，而在它自己落地的提交上取那条短语答两处：它本行与 v0.59 行（后者把它当作被撤回的主张引述），于是同一行既承诺零命中、又被自己的两个字节否证，读者跑它邀请的那一条 grep 无从分辨「撤干净了」与「撤了一半」；改写面因此只留「在三处声明面零命中」，并写明零命中面之外剩下的正是那两条带日期的历史行引述（`Files` 行 · `Step 1` · `Acceptance` 三处读「`absent` 零新行」的读数不变，四处 → 三处的计数订正也不变），一条 grep 的两个命中由该行自己解释。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:plan-fix · 2026-11-19） |
 | v0.61 | 2026-11-19 | 计划评审第 37 轮 fix 轮（plan-review-37 · docs-fix 轮；F1 采纳；Task id 集与 `DependsOn` 集未动）：① **计数与它自己的枚列举、与 v0.59 历史行对齐（F1）**——Task 7 的 Produces 缺口段落原写「四处声明因此只写它实际测量的那一句（「`absent` 记录不新增行」），不写「逐字节不变」——Files · Step 1 · Acceptance 三处同批改读」：一句里两个数，同一句自身的枚列举是三个（Files 行 · Step 1 · Acceptance），v0.59 历史行也读「Task 7 在三处（Files 行 · Step 1 · Acceptance）」。实测该主张正好落在三处，被撤回的短语 `既有行逐字节不变` 在三处声明面零命中、只余两条带日期的历史行对它的引述（本行与 v0.59 行）——Task 7 的 Objective 从未带过它，于是这一句本身是那条撤回的可读审计轨迹——它对不上自己的枚列举时，审计只能从 `a53b7287` 的 diff 里重建计数。首词因此改读 `三处声明因此…`：句子、枚列举与历史行三处同一个数；其余字节不动，被撤回的性质早已从每一处声明面消失。 | Oscaner M. · Claude（kairos:plan-fix · 2026-11-19） |
 | v0.60 | 2026-11-19 | 分支评审第 8 轮 fix 轮（branch-review-8 · docs-fix 轮；F1 · F2 全采纳；Task id 集与 `DependsOn` 集未动）：① **absent 那一侧的补救句改成它真正需要的形状（F1）**——Task 7 的 Produces 原写「补一条与 `crashed:` 那条**同形**的比对（滤掉 `refused:` 行与它的分隔空行、逐字节比行表）」，而 `crashed:` 那条用例的 `substance` 助手在两侧都滤掉空行（`filter((row) => row !== crashRow && row !== "")`），照抄过来对第四臂 `refusal.kind !== "absent"` 的变异是盲的：把分隔行无条件推出之后，absent 板多出的那一行在两边同时被滤掉，套件仍绿——一条不会转红的证人不算证据。补救句因此改写成**单侧**比对：只在站立那一张板上滤掉 `refused:` 行与它紧跟的那一行分隔空行，其余行与空行原样留下，再与未改动的那块 absent 板逐字节比，并写明这恰好不是 `crashed:` 那条的形状。② **用例题目按字节写（F2）**——`the crashed row is additive alone` 不是任何一条 `it(` 的题目，它只是 `board-view.test.ts` 里那行比对上方的一句注释（`rg -F` 在该文件上只命中那一处）；Produces · Acceptance 与 v0.59 历史行三处因此改用真实题目 `renders a crashed round in the top fact block without touching the counts or the hop`，题目坐标一次 grep 即命中（历史行那一处按字节改正，不改写该行记录的那一件事）。 | Oscaner M. · Claude（kairos:branch-fix · 2026-11-19） |

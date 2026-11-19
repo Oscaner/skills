@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v4.40
+version: v4.41
 date: 2026-11-19
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
@@ -322,6 +322,7 @@ Legend:
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v4.41 | 2026-11-19 | **P40 最终收口**（spec v0.32 · plan v0.63 · 112 commits · 70 files · +8119/−2612 量级）：八波全绿（W1–W8），分支终审 **9 轮 26 条**全修。追加的 Task 10 解决 CI 抓到的真缺陷——四个真 CLI 预览用例依赖运行环境（`no-host` 搬进 preflight 缝后，干净 clone 里预览按声明行为 exit 1，本地因装 pi 而绿），修法是 fixture 显式声明宿主（清两条通道再钉 `AI_AGENT=pi`）并补一条反向用例。全量门 2137 tests 绿 · PR #502 | Oscaner M. · Claude（kairos:cdd-close · 2026-11-19） |
 | v1.0 | 2026-10-10 | 程序 charter：引擎 doc-tooling 能力面——P1 review face overall 键（consumer 整体契约门禁 · 自「依赖升级与 src 更名」程序 P4 拆出，2026-10-10 用户裁定同属能力类）· P2 schema gen 模板写作（生成式骨架 · 先 gen 后填 · CLAUDE.md「零新子命令」pin 连带修订）· P3 changesets 收尾（cdd-engine 两能力 bump · 不发布）· 硬依赖依赖升级与 src 更名程序 P2 改名树 · 决策 D1–D4 | [human] · Claude Opus 5（依赖升级与 src 更名程序 v1.3 拆出裁定 · 2026-10-10） |
 | v1.1 | 2026-10-11 | **P2 grilling 定案（kairos:cdd-design [P2] 会话）**：Q1→a schema gen 输出 **stdout 纯渲染** · 骨架完整结构 + 占位符提示 · 编排器 `schema gen <type> > specs/<name>.md` 落盘 · 版本脚手架起点 v0.1 · Q2→b **六前提重构许可**扩至整 CLI 面/目录级（Non-goal ④ 改写 · 保行为等价）· Q3→c **CLAUDE.md 去 kairos/引擎流程直接删除**（消费面引导改由 skills 承担）· P2 scope/acceptance 增占位符残留 pin + 去流程化 grep pin | Oscar M. · Claude Opus 5（kairos:cdd-design grilling · 用户裁定） |
 | v1.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 2026-10-11）**：跨程序树依赖 hard pin → **sweep 面关系**（D8）——本程序 P1/P2 引擎改动**先行于现行 `src-next/` 树实现**（不等 rename P2）· rename sweep 全库 grep 随后覆盖本程序新文件面（Q3→b · 豁免面为空）· Constraints/Dependency graph/Boundary/Phase inventory P1/P2 Dependency 列同步（hard → sweep）· 决策 D8 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |

@@ -14,7 +14,7 @@
 // inventing a name:
 //   · the ROUND domain — draft / final / report / log / crash / evidence / the
 //     orchestrator's rulings sidecar (every row rendered from a round coordinate);
-//   · the WORKSPACE domain — `progress` · `base` · `in-flight` (the three
+//   · the WORKSPACE domain — `progress` · `base` · `in-flight` · `refusal` (the four
 //     coordinate-less literals) and `brief`, the one workspace kind carrying a
 //     coordinate;
 //   · the DOC domain — the four DECLARED rows (`overall` · `phase-spec` ·
@@ -24,7 +24,7 @@
 //
 // Three facts this file is the single home of:
 //   · the workspace name SPELLINGS (`progress.json` · `base.json` · `in-flight.json` ·
-//     `tasks-{tasks}-brief.md`) — every read face asks the matrix for the answer
+//     `refusal.json` · `tasks-{tasks}-brief.md`) — every read face asks the matrix for the answer
 //     instead of spelling a literal, so a moved name is one edit and a second spelling
 //     cannot be smuggled back in;
 //   · the matrix's construction (the composition root's command preamble) — zero
@@ -65,6 +65,7 @@ export type Kind =
   | "progress"
   | "base"
   | "in-flight"
+  | "refusal"
   | "brief"
   | "overall"
   | "phase-spec"
@@ -75,8 +76,8 @@ export type Kind =
  *  record and test-evidence file, plus the orchestrator's rulings sidecar. */
 export type RoundKind = "draft" | "final" | "report" | "log" | "crash" | "evidence" | "rulings";
 
-/** The workspace domain's four kinds. */
-export type WorkspaceKind = "progress" | "base" | "in-flight" | "brief";
+/** The workspace domain's five kinds. */
+export type WorkspaceKind = "progress" | "base" | "in-flight" | "refusal" | "brief";
 
 /** Where an artifact's identity comes from — the one source of its name. A rendered
  *  identity is DERIVED (a frame's line / op / cycle / attempt, or a workspace
@@ -95,7 +96,7 @@ export type Identity =
   /** A document's identity — the declared `slug:` and its declared doc type. */
   | { readonly domain: "doc"; readonly slug: string; readonly docType: DocKey }
   /** The workspace domain — `tasks` is the brief's name coordinate and `null` for the
-   *  three coordinate-less literals (`progress` · `base` · `in-flight`). */
+   *  four coordinate-less literals (`progress` · `base` · `in-flight` · `refusal`). */
   | { readonly domain: "workspace"; readonly tasks: string | null };
 
 /** One judgment-time read of an artifact — the ONE discriminated value (spec §2.3).
@@ -612,24 +613,31 @@ export class DocDomain implements IdentityDomain {
 }
 
 // ---------------------------------------------------------------------------
-// the workspace domain — the four workspace rows
+// the workspace domain — the five workspace rows
 // ---------------------------------------------------------------------------
 
 /** The workspace kinds in the matrix's own row order. */
-const WORKSPACE_KINDS: readonly WorkspaceKind[] = ["progress", "base", "in-flight", "brief"];
+const WORKSPACE_KINDS: readonly WorkspaceKind[] = [
+  "progress",
+  "base",
+  "in-flight",
+  "refusal",
+  "brief",
+];
 
-/** The three coordinate-less workspace names — the literals the conservation boundary
+/** The four coordinate-less workspace names — the literals the conservation boundary
  *  pins byte for byte. */
 const WORKSPACE_LITERALS = {
   progress: "progress.json",
   base: "base.json",
   "in-flight": "in-flight.json",
+  refusal: "refusal.json",
 } as const;
 
 /** The ONE workspace name rule — every rendered workspace row and every read face's
  *  literal ask delegate here. The coordinate is part of the identity, so an identity
  *  the kind does not carry is refused rather than rendered into a plausible-looking
- *  wrong name: the three literals take `tasks: null`, the brief a non-empty group. */
+ *  wrong name: the four literals take `tasks: null`, the brief a non-empty group. */
 const workspaceName = (kind: WorkspaceKind, tasks: string | null): string => {
   if (kind === "brief") {
     if (tasks === null || tasks === "")
@@ -657,7 +665,7 @@ const isWorkspaceKind = (kind: Kind): kind is WorkspaceKind =>
  *  is parsed back into its coordinate. */
 const BRIEF_NAME = /^tasks-(.+)-brief\.md$/;
 
-/** The four workspace rows — `sealed` is written out on every row (the matrix leaves no
+/** The five workspace rows — `sealed` is written out on every row (the matrix leaves no
  *  blank for an implementation to invent a default), and no row carries a `policy`:
  *  absence is a read fact, never a row rule — the workspace literals have no
  *  absence-charged face. */
@@ -674,8 +682,8 @@ const ENTRIES: readonly MatrixEntry[] = WORKSPACE_KINDS.map((kind) => ({
 }));
 
 /**
- * WorkspaceDomain — the workspace identity domain: four engine-authored files whose
- * names carry no round coordinate. `tasks: null` addresses the three literal names;
+ * WorkspaceDomain — the workspace identity domain: five engine-authored files whose
+ * names carry no round coordinate. `tasks: null` addresses the four literal names;
  * the brief's own coordinate addresses it. The domain is stateless: the workspace a
  * path resolves inside arrives with each `locate` / `read` call.
  */

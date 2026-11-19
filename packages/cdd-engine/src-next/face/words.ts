@@ -33,6 +33,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { DOC_TYPE_VALUES } from "../contract/declare.ts";
+import { PreFlightRows, type RowWording } from "../contract/preflight-rows.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { PlanReadWords } from "../infra/plan-source.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
@@ -105,6 +106,10 @@ export interface PreflightWords {
   docContract: string;
   /** The plan-ledger BLOCK — the plan and the ledger disagree structurally. */
   planLedger: string;
+  /** The `no-host` row — the dispatch found no supported harness to run a child in
+   *  (P40 §1.3: moved here from the lifecycle's dispatch body, so the row's bytes have
+   *  one home). One sentence, no fill slot. */
+  noHost: string;
 }
 
 /** One `artifact-identity` refusal's facts (spec §2.4) — the kind whose rendered name
@@ -118,23 +123,21 @@ export type ArtifactIdentityFacts = {
   readonly identity: Identity;
 };
 
-/** The two reasons one `dispatch-input` segment can carry (spec §2.2's closed set) —
- *  `empty-value`: the cell was required and the engine supplied nothing; `target-absent`:
- *  the value names a document that is not on disk, or a declared `program:` whose
- *  charter does not resolve. A third reason is not representable: the two row-selector
- *  slots (`ROLE` · review's `TARGET_TYPE`) are the assembler's precondition, and an
- *  undeclared cell has no line to be judged on. */
-export type DispatchInputReason = "empty-value" | "target-absent";
-
-/** One segment of the `dispatch-input` refusal (spec §2.2) — the row the cell sits on,
- *  the cell's `{{TOKEN}}`, and the reason that cell failed. One cell, one segment. */
-export interface DispatchInputSegment {
-  /** The dispatched row's ROLE word (`implement` · `review` · `fix` · `docs-fix`). */
-  readonly row: string;
-  /** The failed cell's token name (`INPUT_OVERALL` · `BASE_BRANCH` · …). */
+/** The `refused:` row's words — ONE row, TWO faces (spec §3.1: the same word, not the
+ *  same shape). The token and its two-space value gap live together, so the preview face
+ *  and the board read one cell and each adds only its own outer layer: the preview prints
+ *  `  ` + token + gap + the live verdict's first line; the board prints
+ *  `  ` + token + ` ` + the recorded identity cells. A second literal in either face
+ *  would let the next reword stop at one of them. */
+export interface RefusalWords {
+  /** The row's token — `refused:`. */
   readonly token: string;
-  /** Why the cell failed — the closed two-word set. */
-  readonly reason: DispatchInputReason;
+  /** The two-space value gap the preview face prints between the token and the verdict's
+   *  first line (today's bytes, unchanged). */
+  readonly gap: string;
+  /** The board's second shape — a record on disk that cannot be read is a fact, never
+   *  "no refusal stands". */
+  readonly corrupt: string;
 }
 
 /** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
@@ -278,6 +281,7 @@ export const CAPSULE_WORDS = {
     docContract: "the target document fails the doc-contract — fix its structural findings first",
     planLedger:
       "the plan and the ledger disagree structurally — fix the plan's task set or the recorded waves first",
+    noHost: "no host harness detected (run cdd from within a supported harness)",
   } as const satisfies PreflightWords,
   /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
    *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
@@ -311,6 +315,14 @@ export const CAPSULE_WORDS = {
    *  spec §3.3): the round still concludes, and this line names what was booked.
    *  Fill slot: {message}. */
   softViolation: "round soft violation: {message}",
+  /** The `refused:` row (P40 T7) — the ONE word the preview block and the board's
+   *  refusal row share. The live verdict's body is the caller's (the preview prints the
+   *  seam's own first line); the board composes its identity cells from the record. */
+  refusal: {
+    token: "refused:",
+    gap: "  ",
+    corrupt: "unreadable refusal record",
+  },
   /** The `dispatch-input` refusal rows (P38 §2.2) — the station word, the one segment
    *  template (`{row} · {token} · {reason}`) and the segment separator. One line names
    *  every failing cell, so a refused round is repaired in one pass instead of one
@@ -323,12 +335,18 @@ export const CAPSULE_WORDS = {
   /** The `misplaced = block` report (spec §2.4) — the reason word plus the four
    *  sections: the rendered name, every name found in its place, the identity itself
    *  and the repair the orchestrator owns. Fill slots: {kind} / {derived} /
-   *  {found} / {identity}; the repair sentence is fixed (the engine only refuses). */
+   *  {found} / {identity}; the repair sentence is fixed (the engine only refuses).
+   *  The report's ONE composition is `PreFlightRows.artifactReportOf` — this table
+   *  holds the bytes, the contract plane assembles them, so the gate and the board's
+   *  reference renderer cannot drift. */
   artifactIdentity: {
+    invalid: "rulings sidecar — {reason}",
     reason: "artifact-identity · the round's `{kind}` sidecar sits off its rendered name",
     derived: "  derived:  {derived}",
     found: "  found:    {found}",
     identity: "  identity: {identity}",
+    foundJoin: " · ",
+    emptyFound: "(none)",
     repair: [
       "  repair:   rename the found file to the derived name — the engine never moves,",
       "            rewrites or deletes an artifact; the workspace is yours",
@@ -560,6 +578,12 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.preflight;
   }
 
+  /** The `refused:` row's words (P40 T7) — the preview block and the board's refusal
+   *  row read this ONE cell and add their own outer layer. */
+  refusalWords(): RefusalWords {
+    return CAPSULE_WORDS.refusal;
+  }
+
   /** The checked-list wording rows — the per-rule outcome vocabulary (single source:
    *  the seam renders these rows, never a CLI literal). */
   checkedWords(): CheckedWords {
@@ -595,40 +619,46 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.softViolation.replace("{message}", message);
   }
 
-  /** The `dispatch-input` refusal (P38 §2.2) — the station word plus every failing
-   *  cell's segment, `; ` between segments and ` · ` inside one. The `CDD_BLOCKED: `
-   *  prefix is the block channel's, never this row's, so a dry-run consumer and a real
-   *  dispatch read the same bytes. */
-  dispatchInput(facts: { segments: readonly DispatchInputSegment[] }): string {
-    const row = CAPSULE_WORDS.dispatchInput;
-    const segments = facts.segments.map((segment) =>
-      row.segment
-        .replace("{row}", segment.row)
-        .replace("{token}", segment.token)
-        .replace("{reason}", segment.reason),
-    );
-    return [row.station, segments.join(row.separator)].join(CAPSULE_WORDS.separator);
+  /** The four pre-dispatch rows' wording (P40 T3) — the ONE injection point of the
+   *  contract-plane judgment's bytes. The judgment holds no sentence of its own; this
+   *  accessor hands it the rows the table already owns, so a reward here moves the gate
+   *  and the board together. `stationJoin` is the table-wide `·` separator — the
+   *  wording module therefore keeps no second ` · ` literal for the station join. */
+  preflightWording(): RowWording {
+    const dispatch = CAPSULE_WORDS.dispatchInput;
+    return {
+      noHost: CAPSULE_WORDS.preflight.noHost,
+      dispatchInput: {
+        station: dispatch.station,
+        segment: dispatch.segment,
+        separator: dispatch.separator,
+        stationJoin: CAPSULE_WORDS.separator,
+      },
+      artifact: CAPSULE_WORDS.artifactIdentity,
+    };
   }
 
   /** The `misplaced = block` report (spec §2.4) — the reason word over the four
    *  fact sections. Every candidate is printed (never a first pick) and the identity
    *  section is the SAME identity the rendered name came from, so `derived:` and
-   *  `identity:` can never name two different coordinates. */
+   *  `identity:` can never name two different coordinates. The composition is the
+   *  contract plane's ONE report builder, so this renderer and the pre-flight gate read
+   *  one table and assemble one shape. */
   artifactIdentity(facts: ArtifactIdentityFacts): string {
-    const row = CAPSULE_WORDS.artifactIdentity;
-    return [
-      row.reason.replace("{kind}", facts.kind),
-      row.derived.replace("{derived}", facts.derived),
-      row.found.replace("{found}", facts.found.length === 0 ? "(none)" : facts.found.join(" · ")),
-      row.identity.replace("{identity}", this.#identityWords(facts.identity)),
-      ...row.repair,
-    ].join("\n");
+    return PreFlightRows.artifactReportOf(this.preflightWording().artifact, {
+      sidecarKind: facts.kind,
+      derived: facts.derived,
+      found: facts.found,
+      identity: this.identityWords(facts.identity),
+    });
   }
 
   /** One identity as the report's `identity:` value — the round coordinates with the
    *  renderer's own attempt default (a missing attempt is attempt 1, so the printed
-   *  coordinate never contradicts the rendered name). */
-  #identityWords(identity: Identity): string {
+   *  coordinate never contradicts the rendered name). Public because the pre-flight
+   *  judgment's artifact snapshot carries this rendered fact, not the session-plane
+   *  identity it came from (P40 T3). */
+  identityWords(identity: Identity): string {
     if (identity.domain === "round") {
       const cycle = identity.cycle === undefined ? "" : ` · cycle=${identity.cycle}`;
       return `line=${identity.line} · op=${identity.op}${cycle} · attempt=${identity.attempt ?? 1}`;

@@ -49,6 +49,11 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import {
+  type ContextLine,
+  ContextSlot,
+  type RequiredArm,
+} from "../contract/context-declarations.ts";
 import { CRITERIA, LENS_QUESTIONS, type ReviewKind } from "../contract/review-criteria.ts";
 import { DISPATCH } from "../face/host.ts";
 import { TerminationPolicy } from "../face/termination.ts";
@@ -76,40 +81,12 @@ export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
  *  keyed by `ReviewKey`). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
 
-/** The arm shape of one round-context cell's exigibility declaration (P38 §1.1) —
- *  one arm is a type set, optionally narrowed by a structural precondition, and a
- *  cell may hang several CONJUNCTIVE arms: each is judged on its own, and any hit
- *  makes the cell exigible. `types: []` is the `never` spelling — the cell is never
- *  exigible, which is a legal declaration (not a missing one). */
-export interface RequiredArm {
-  /** The target types this arm covers — `"always"` (the row's whole served set) or a
-   *  subset of it; an empty array names no type at all (`never`). */
-  readonly types: "always" | readonly TargetType[];
-  /** A structural precondition stacked on the same arm (§1.3): the identity document
-   *  declared `program:` / its shape (`doc-type:`) — the DECLARATION, never the
-   *  resolved value the frame carries. */
-  readonly when?: "program" | "identity";
-}
-
-/** One round-context line's declaration (P38 §1.1) — the line with its `{{TOKEN}}`
- *  slot plus the facts a caller must be able to read off it. A line without a slot
- *  (the `## Round context` heading, the separator blank line) carries the `never`
- *  form: it has no value to compare, so it is never exigible and never dropped. */
-export interface ContextLine {
-  /** The rendered line — a heading, a blank line, or a `- \`TOKEN\`: {{TOKEN}}` cell. */
-  readonly line: string;
-  /** The cell's value names a file that must exist — the ONLY bit `target-absent`
-   *  reads (§1.1: read paths are declared, never inferred from an `INPUT_` prefix). */
-  readonly path?: true;
-  /** What absence looks like away from `requiredOn`: drop the whole line, or render
-   *  the bare literal `none`. */
-  readonly absent: "drop" | "none";
-  /** The types the cell is exigible on — one arm, or several conjunctive arms. */
-  readonly requiredOn: readonly RequiredArm[];
-  /** What `--dry-run` answers for this cell (§2.4): `value` (the default) reads the
-   *  same frame's value; `satisfied` answers "the naming line named it ⇒ satisfied". */
-  readonly preview?: "value" | "satisfied";
-}
+/** The round-context declaration types (P38 §1.1) — the definition lives on the
+ *  CONTRACT plane (`contract/context-declarations.ts`, P40 T3) because the pre-flight
+ *  judgment reads a row's declarations and `contract/` never imports `render/`. They
+ *  are imported back and re-exported here so the declaration table, its selector and
+ *  every existing reader stay in place — zero behaviour moved. */
+export type { ContextLine, RequiredArm };
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
@@ -360,7 +337,7 @@ const REVIEW_CONTEXT: readonly ContextLine[] = [
     path: true,
     absent: "drop",
     requiredOn: [{ types: ["wave"] }],
-    preview: "satisfied",
+    written: "engine",
   },
   {
     line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -428,7 +405,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
         path: true,
         absent: "drop",
         requiredOn: [{ types: "always" }],
-        preview: "satisfied",
+        written: "engine",
       },
       {
         line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
@@ -476,7 +453,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
         path: true,
         absent: "drop",
         requiredOn: [{ types: ["wave"] }],
-        preview: "satisfied",
+        written: "engine",
       },
       {
         line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -991,11 +968,11 @@ export const WORK_MODES: readonly WorkMode[] = ["implement", "fix", "review", "d
  * extraction, and a second home for these five criteria would be a second truth.
  */
 export class TemplateAssembler {
-  /** The ONE cell whose preview answer is its naming line's (§1.1 · §2.4) — the
-   *  brief, the single artifact `renderBrief` writes at dispatch alone. Any other
-   *  cell declaring `preview: "satisfied"` has no naming answer in this engine, so
-   *  the declaration is refused at construction (#assertPreviewAnswer) rather than
-   *  silently read as `value`. */
+  /** The ONE cell the engine writes itself (§1 · §2.4) — the brief, the single
+   *  artifact `renderBrief` writes before the child reads it. Its name is its whole
+   *  answer, so no path is read for existence; any other cell declaring
+   *  `written: "engine"` names a file this engine never writes, so the declaration is
+   *  refused at construction (#assertEngineWritten) rather than silently read as a path. */
   static readonly NAMED_BRIEF_CELL = "INPUT_WAVE_BRIEF";
 
   readonly #contract: TemplatePrompt;
@@ -1078,15 +1055,21 @@ export class TemplateAssembler {
   /** The construction-time declaration criteria (§1.1 · §1.3 · §4.2) — ONE home, run
    *  once per construction over every row: a dead cell (a) · an unregistered slot
    *  (b) · a shell naming a cell its layout never carries (c) · a registered
-   *  round-context token no row carries (d) · a preview answer declared on a cell the
-   *  naming row cannot answer (e). A violation means the assembler cannot be built, so
-   *  no dispatch can ever reach it — the per-render re-run is gone. */
+   *  round-context token no row carries (d) · an engine-written declaration on a cell
+   *  other than the brief (e). A violation means the assembler cannot be built, so no
+   *  dispatch can ever reach it — the per-render re-run is gone. */
   #assertDeclarations(): void {
+    // (e) judges the SLOT, never the row: `engineWrittenSlots` is that reduction, and
+    // each slot's first carrier spends its entry — the brief's three declarations earn
+    // one judgment, and a rogue slot carried by two rows is still refused once.
+    const unjudged = new Set(TemplateAssembler.engineWrittenSlots(this.#rows()));
     for (const row of this.#rows()) {
       for (const decl of row.roundContext) {
         this.#assertServed(row, decl);
         this.#assertRegistered(row, decl);
-        this.#assertPreviewAnswer(row, decl);
+        const slot = decl.written === "engine" ? TemplateAssembler.slotOf(decl.line) : undefined;
+        if (slot !== undefined && !unjudged.delete(slot)) continue;
+        this.#assertEngineWritten(row, decl);
       }
       this.#assertShellCarries(row);
     }
@@ -1142,16 +1125,18 @@ export class TemplateAssembler {
     }
   }
 
-  /** (e) the preview answer — only the brief cell may declare `preview: "satisfied"`.
-   *  The exemption synthesises the one cell whose value the naming row writes
-   *  (`RoundNaming#briefName`), so a second `satisfied` cell would be declared, then
-   *  silently judged as `value`; refusing it at construction keeps the declaration
-   *  error at build time instead of on the one path that happens to take it. */
-  #assertPreviewAnswer(row: ModePromptRow, decl: ContextLine): void {
-    if (decl.preview !== "satisfied") return;
+  /** (e) the engine-written declaration — only the brief slot may declare
+   *  `written: "engine"`. The engine renders that one file itself before the child
+   *  reads it, so the declaration carries exactly one meaning: no existence read on
+   *  any path. A second slot declaring it would claim a file this engine never writes;
+   *  refusing it at construction keeps the declaration error at build time instead of
+   *  on the one path that happens to take it. The caller runs this once per SLOT (the
+   *  `engineWrittenSlots` reduction), never once per declaring row. */
+  #assertEngineWritten(row: ModePromptRow, decl: ContextLine): void {
+    if (decl.written !== "engine") return;
     if (TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL) return;
     throw new Error(
-      `template mode ${row.mode} declares preview "satisfied" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one cell the naming row answers)`,
+      `template mode ${row.mode} declares written "engine" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one artifact the engine writes itself)`,
     );
   }
 
@@ -1171,10 +1156,27 @@ export class TemplateAssembler {
   }
 
   /** The `{{TOKEN}}` slot a declared line carries — `undefined` for a value-less line
-   *  (the heading, the separator blank line). The ONE slot-grammar reader: the gate
-   *  that judges a layout's cells reads it here rather than re-spelling the braces. */
+   *  (the heading, the separator blank line). The grammar's ONE reader lives beside the
+   *  declarations it reads (`ContextSlot.of`, contract plane), so the renderer and the
+   *  pre-flight judgment can never disagree about which slot a line carries. */
   static slotOf(line: string): string | undefined {
-    return /\{\{([A-Z0-9_]+)\}\}/.exec(line)?.[1];
+    return ContextSlot.of(line);
+  }
+
+  /** The distinct slots declaring `written: "engine"` — ONE entry per slot, never one
+   *  per row. The declaration rides three carriers (implement, fix, and the review
+   *  tail's single declaration shared by six review rows), so the row count overcounts
+   *  what the rule judges; the construction-time criterion reads this reduction. */
+  static engineWrittenSlots(rows: readonly ModePromptRow[]): readonly string[] {
+    const slots = new Set<string>();
+    for (const row of rows) {
+      for (const decl of row.roundContext) {
+        if (decl.written !== "engine") continue;
+        const slot = TemplateAssembler.slotOf(decl.line);
+        if (slot !== undefined) slots.add(slot);
+      }
+    }
+    return [...slots];
   }
 
   static #slotsOf(line: string): readonly string[] {

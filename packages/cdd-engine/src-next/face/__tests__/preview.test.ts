@@ -2,14 +2,18 @@
 // P11 T5 — the `--dry-run` preview pins. Two faces:
 //
 //   · the renderer (face/preview.ts) — the §3.3 five-row block, byte for byte, over
-//     the four target faces; the `child:` row's detected-host and no-host forms.
-//     The renderer touches no disk for these (the names are pure path arithmetic),
-//     so the scene is constructed inline and the env is injected.
+//     the four target faces; the `child:` row reads the INJECTED host id (P40 T6 — the
+//     no-host form retired with the branch it printed: the seam's `no-host` row refuses
+//     such a dispatch before a forecast exists). The renderer touches no disk for these
+//     (the names are pure path arithmetic), so the scene is constructed inline.
 //   · the CLI face — the preview's zero-write semantics on a real fixture repo
 //     (`.kairos/` absent, `git status --porcelain` byte-identical, no round
 //     consumed), the pre-flight refusal face's identity with the real run's, the
 //     flag's narrowed scope (exit 2 on the pure commands), and the bootstrap's
-//     preview (the would-run plan at zero spawn).
+//     preview (the would-run plan at zero spawn). These cases run the REAL CLI, so
+//     they declare the host they run under (P40 T10): the seam's `no-host` row
+//     reads the process markers, and a test that inherited the machine's markers
+//     would pass in a harness session and fail in a clean one.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -25,17 +29,90 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
+import { BoardView } from "../board-view.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
+import { DispatchValues } from "../dispatch-values.ts";
+import { HostDetect, type HostId } from "../host.ts";
 import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
+import { Words } from "../words.ts";
+
+// ---------------------------------------------------------------------------
+// the host pin the real-CLI cases run under (P40 T10)
+// ---------------------------------------------------------------------------
+
+/** The host this file's real-CLI cases declare — the fixture's answer to a question the
+ *  seam now asks before a dispatch (`no-host`), and therefore a fact the test states
+ *  rather than inherits from the machine it runs on. */
+class HostPin {
+  /** The markers the detection walks, in `HOST_IDS` order: claude's primary session
+   *  marker (and its `claude-code` prefix arm), then pi's `AI_AGENT` value. */
+  readonly #markers = ["CLAUDE_CODE_SESSION_ID", "AI_AGENT"] as const;
+  /** The start-up ambient, captured once — the file never inherits the host it runs on. */
+  readonly #ambient = new Map<string, string | undefined>();
+
+  /** Drop BOTH markers, remembering the start-up values exactly once. The clear is half
+   *  of the judgment, not hygiene: the walk is `claude` → `pi`, claude's row is judged
+   *  first and detects by the non-empty existence of its session marker (its
+   *  `claude-code` prefix arm also precedes pi's row), so a pinned `AI_AGENT=pi` changes
+   *  nothing while that marker stands — which is the harness-session case this pin is for. */
+  clear(): void {
+    for (const marker of this.#markers) {
+      if (!this.#ambient.has(marker)) this.#ambient.set(marker, process.env[marker]);
+      delete process.env[marker];
+    }
+  }
+
+  /** Declare the host: clear, then pin the one value the detection answers `pi` for. */
+  pin(): void {
+    this.clear();
+    process.env.AI_AGENT = "pi";
+  }
+
+  /** Hand the start-up ambient back, so no marker leaks into the next file on this worker. */
+  restore(): void {
+    for (const [marker, value] of this.#ambient) {
+      if (value === undefined) delete process.env[marker];
+      else process.env[marker] = value;
+    }
+  }
+}
+
+const hostPin = new HostPin();
+beforeEach(() => {
+  hostPin.pin();
+});
+afterEach(() => {
+  hostPin.restore();
+});
+
+describe("the host pin the real-CLI cases inherit", () => {
+  it("detects `pi` — a host no injected cell in this file names", () => {
+    // WHICH channel the pin takes is a judgment, not a taste: the pinned marker must
+    // detect an id no case in this file injects. The child-row case injects `claude`,
+    // and a pin answering `claude` would make that case's two values equal — so
+    // swapping `Preview`'s host for `HostDetect.detect(process.env)` would keep it green
+    // and the injection cell would silently lose its gate. `AI_AGENT=pi` answers `pi`.
+    //
+    // The clear half is judged by the same line: claude's row reads its session marker
+    // BEFORE pi's row, so plant that marker first and a `pin()` that only sets
+    // `AI_AGENT` answers `claude` here — this case states the hazard and reds in a clean
+    // environment (CI's arm) instead of depending on a harness session exporting the
+    // marker. `restore()` hands the start-up ambient back afterwards.
+    process.env.CLAUDE_CODE_SESSION_ID = "p40-t6-fixture";
+    hostPin.pin();
+    expect(HostDetect.detect(process.env)).toBe("pi");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // the renderer's inline scene (no disk)
@@ -68,10 +145,9 @@ const frame = (over: Partial<OpenFrame> = {}): OpenFrame => ({
   ...over,
 });
 
-/** A preview over the inline scene with a pinned env — `{}` detects no host, so
- *  the test process's own markers never leak into the `child:` row. */
-const preview = (env: Record<string, string | undefined> = {}): Preview =>
-  new Preview({ scene: scene(), env });
+/** A preview over the inline scene with a pinned HOST value (P40 T6: the id is
+ *  injected, so the test process's own markers never leak into the `child:` row). */
+const preview = (host: HostId = "claude"): Preview => new Preview({ scene: scene(), host });
 
 describe("Preview — the §3.3 five-row block", () => {
   it("renders the wave review block byte for byte", () => {
@@ -81,7 +157,7 @@ describe("Preview — the §3.3 five-row block", () => {
       "  reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)",
       "  would write: .kairos/cdd/p3/tasks-1-review-1.json · .kairos/cdd/p3/tasks-1-review-1-report.md",
       '  would record: progress.waves["1"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(brief)',
-      "  child:       (no host detected — real run would BLOCK)",
+      "  child:       claude -p --output-format text --dangerously-skip-permissions --exclude-dynamic-system-prompt-sections",
     ]);
   });
 
@@ -153,7 +229,7 @@ describe("Preview — the §3.3 five-row block", () => {
     // The branch leg's plan path is an INPUT of the write-back, not part of the
     // judgment: with no plan fact the real round records nothing, so the preview
     // states no reviewed-revision leg and names no plan document to read.
-    const lines = new Preview({ scene: scene({ planPath: null }), env: {} }).render(
+    const lines = new Preview({ scene: scene({ planPath: null }), host: "" }).render(
       "review",
       frame({
         type: "branch",
@@ -189,10 +265,10 @@ describe("Preview — the §3.3 five-row block", () => {
     );
   });
 
-  it("the child row names the detected host id + the row's invoke string, never the detect marker", () => {
+  it("the child row names the injected host id + the row's invoke string, never the detect marker", () => {
     const lines = new Preview({
       scene: scene(),
-      env: { CLAUDE_CODE_SESSION_ID: "s" },
+      host: "claude",
     }).render("review", frame());
     // the leading token is the HOST ID ("claude"); the harness row's binary name
     // (the `cli` column) is a separate fact and never rides this row
@@ -340,7 +416,97 @@ const baseSet = async (command: Cli, plan: string): Promise<void> => {
 const progressPath = (repoRoot: string): string =>
   path.join(repoRoot, ".kairos", "cdd", "p3", "progress.json");
 
+describe("Preview.artifactBlock — the structure leg's ONE refusal renderer", () => {
+  it("lays the seam's verdict out verbatim under the word table's `refused:` row", () => {
+    const words = new Words();
+    const reason = [
+      "dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
+    ].join("\n");
+    expect(new Preview({ scene: scene(), host: "", words }).artifactBlock("fix", reason)).toEqual([
+      "cdd fix: preview (no repo changes)",
+      "  refused:  dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
+    ]);
+    // ONE word, two faces (§3.1): the token and its two-space gap are the table's own
+    // row — the preview adds nothing but its two-space indent.
+    const row = words.refusalWords();
+    expect(new Preview({ scene: scene(), host: "", words }).artifactBlock("fix", reason)[1]).toBe(
+      `  ${row.token}${row.gap}dispatch-input · docs-fix · INPUT_REVIEWS · empty-value`,
+    );
+  });
+
+  it("keeps the token the board's refusal row reads — same word, each face's own outer layer", () => {
+    const words = new Words();
+    const previewLine = new Preview({ scene: scene(), host: "", words }).artifactBlock(
+      "fix",
+      "x",
+    )[1];
+    const boardLine = BoardView.refusalRows(
+      {
+        kind: "standing",
+        facts: {
+          at: "2026-11-17T00:00:00.000Z",
+          slug: "p3",
+          op: "fix",
+          type: "phase-spec",
+          cycle: 1,
+          attempt: 1,
+          station: "dispatch-input",
+          detail: "docs-fix · INPUT_REVIEWS · empty-value",
+        },
+      },
+      words,
+    )[0];
+    expect(previewLine?.startsWith(`  ${words.refusalWords().token}`)).toBe(true);
+    expect(boardLine?.startsWith(`  ${words.refusalWords().token}`)).toBe(true);
+    // The preview's outer layer is the two-space gap; the board's is the record identity.
+    expect(previewLine).toBe(`  ${words.refusalWords().token}${words.refusalWords().gap}x`);
+    expect(boardLine).toBe(
+      `  ${words.refusalWords().token} fix 1·a1 dispatch-input · docs-fix · INPUT_REVIEWS · empty-value`,
+    );
+  });
+});
+
 describe("cdd <verb> --dry-run — the read-only preview", () => {
+  it("a tree with no harness at all is still refused — the pin never masks the product", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    const noHost = new Words().preflightWords().noHost;
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const argv = ["implement", "--tasks", "1", "--plan", plan];
+      // Telling "cleared" apart from "only the pinned marker dropped" is this case's own
+      // work, and it must not lean on the fixture: `beforeEach` already dropped both
+      // markers, so re-exporting the one the pin never set and dropping only the pinned
+      // one leaves the detection on claude's row — the seam reads a host, the preview
+      // forecasts and exits 0. Written the naive way (drop `AI_AGENT` alone, expect the
+      // refusal) the assertion would be green under a `beforeEach` that never cleared,
+      // which is the harness-session defect this task fixes.
+      process.env.CLAUDE_CODE_SESSION_ID = "p40-t6-fixture";
+      delete process.env.AI_AGENT;
+      expect(HostDetect.detect(process.env)).toBe("claude");
+      expect(await command.runArgv([...argv, "--dry-run"])).toBe(0);
+      expect(io.stdoutText).not.toContain("refused:");
+      // …and with BOTH markers gone the seam refuses: one judgment, two faces. The
+      // station name and its wording come from the word table, never a second copy.
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv([...argv, "--dry-run"])).toBe(1);
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain(`  refused:  no-host · ${noHost}`);
+      expect(io.stdoutText).not.toContain("CDD_BLOCKED:");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+      expect(await command.runArgv(argv)).toBe(1);
+      expect(io.stderrText).toContain(`CDD_BLOCKED: no-host · ${noHost}`);
+      // The pin, not leftovers: the NEXT case's `beforeEach` re-clears and re-pins, so it
+      // reads the pin; the `afterEach` `restore()` is what guards the next file on the worker.
+    } finally {
+      cleanup();
+    }
+  });
+
   it("writes nothing: `.kairos/` stays absent and the tree is byte-identical", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -421,20 +587,61 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
     }
   });
 
-  it("a refused pre-flight renders the real run's refusal face verbatim and prints no preview", async () => {
+  it("judges the dispatch ONCE through the loop — the seam, and no face-side mirror", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    const judge = vi.spyOn(PreFlightRows, "judge");
+    // The composition root's ONE assembly, taken once per dispatch (P40 T5): the gate's
+    // values and the renderer's values are the same object because the composer ran once.
+    const compose = vi.spyOn(DispatchValues, "compose");
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      await baseSet(command, plan);
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      ).toBe(0);
+      // ONE judgment for ONE dispatch (P40 T5): the seam runs the four rows, the
+      // `--dry-run` arm renders the frame and asks nothing. A second count would mean a
+      // second source of truth for the same dispatch.
+      expect(judge).toHaveBeenCalledTimes(1);
+      // …and ONE assembly: a second `compose` call inside the same dispatch would give
+      // the gate and the renderer two equal records instead of one record, which is the
+      // defect `#valuesOf` reads away from.
+      expect(compose).toHaveBeenCalledTimes(1);
+      // …and the preview is the five-row forecast, unchanged by the mirror's retirement
+      // (the `checked:` block the passing verdict renders sits above it, never inside).
+      expect(io.stdoutText).toContain("cdd implement: preview (no repo changes)");
+      for (const label of ["step:", "reads:", "would write:", "would record:", "child:"]) {
+        expect(io.stdoutText).toContain(`  ${label}`);
+      }
+    } finally {
+      judge.mockRestore();
+      compose.mockRestore();
+      cleanup();
+    }
+  });
+
+  it("a refused pre-flight renders the seam's ONE sentence on each face's own channel", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       writeFileSync(path.join(repoRoot, "dirty.txt"), "dirty\n", "utf8");
       const argv = ["implement", "--tasks", "1", "--plan", plan];
+      const reason = new Words().preflightWords().dirtyTree;
+      // P40 T6 — the dry run's refusal rides the PREVIEW face: the block plus the
+      // `refused:` row on stdout, and the `CDD_BLOCKED:` station on neither stream.
       expect(await command.runArgv([...argv, "--dry-run"])).toBe(1);
-      const previewStderr = io.stderrText;
-      expect(io.stdoutText).not.toContain("preview");
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain(`  refused:  tree-clean · ${reason}`);
+      expect(io.stdoutText).not.toContain("CDD_BLOCKED:");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+      // …and the real run prints the SAME sentence behind its own station: one
+      // judgment, two faces (the sentence is the seam's, never a face's).
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(argv)).toBe(1);
-      expect(io.stderrText).toBe(previewStderr);
+      expect(io.stderrText).toContain(`CDD_BLOCKED: tree-clean · ${reason}`);
     } finally {
       cleanup();
     }

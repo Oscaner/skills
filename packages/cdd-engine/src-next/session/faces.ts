@@ -14,16 +14,15 @@
 // Module-level exports are types / the table const / its read face class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import type { TargetType } from "../contract/target-type.ts";
 import type { RoundPhase } from "./ledger.ts";
 
-/** The target types the parameterized lifecycle serves — the CLI `--type` vocabulary,
- *  one word per target shape: the four DOCUMENT shapes (`phase-spec` · `overall` ·
- *  `plan` · `single-spec` — the declared `doc-type:` spellings) and the two NODE
- *  shapes (`wave` · `branch`). `wave` (T26 · the wave-unitary model): the task-graph
- *  face whose dispatch unit is the derived wave — the type name is the UNIT, not the
- *  graph's node granularity (the audit source stays "task-graph" · the plan's task
- *  nodes keep the task name). */
-export type TargetType = "phase-spec" | "overall" | "plan" | "single-spec" | "wave" | "branch";
+/** The target-type vocabulary — the definition lives on the contract plane
+ *  (`contract/target-type.ts`, P40 T3) because the pre-flight judgment resolves
+ *  `requiredOn` arms by type set, and `contract/` never imports `session/`. This
+ *  re-export keeps every session/ and render/ reader unchanged: the edge points
+ *  session → contract, never the other way. */
+export type { TargetType };
 
 /** The dispatch phases a lifecycle drives — the round-carrier phase vocabulary,
  *  single-typed against the ledger's RoundPhase (no second phase union). */

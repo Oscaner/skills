@@ -61,6 +61,7 @@ import {
 } from "../session/ledger.ts";
 import type { DocClassVerdict, NextHop } from "../session/next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
+import type { RefusalState } from "../session/refusal.ts";
 import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
@@ -734,6 +735,31 @@ export class BoardView {
     return rows;
   }
 
+  /** refusalRows(state, words) — the tree's OWN refusal record as board lines (P40 T7,
+   *  spec §3.1's two rows). The record is the tree's fact, so the row names the round
+   *  identity the refused dispatch would have consumed in the SAME spelling the
+   *  `crashed:` row uses (`{cycle}·a{attempt}`), then the station and the record's one
+   *  stored line — two facts of one refusal, never a second history.
+   *
+   *  Three states, three answers: `absent` prints NOTHING (no refusal stands — the
+   *  board's other rows are already the whole truth), a standing record prints its row,
+   *  and a CORRUPT record prints its own line: a record the reader cannot parse is a
+   *  fact about the tree, and rendering it as "no refusal" would swallow exactly the
+   *  damage the record exists to report.
+   *
+   *  The row is an observation only: it joins no aggregation, and the counts, the legend
+   *  and the `next:` hop stay byte-identical with and without it (the same rule the
+   *  `crashed:` row follows). */
+  static refusalRows(state: RefusalState, words: Words): readonly string[] {
+    if (state.kind === "absent") return [];
+    const row = words.refusalWords();
+    if (state.kind === "corrupt") return [`  ${row.token} ${row.corrupt}`];
+    const facts = state.facts;
+    return [
+      `  ${row.token} ${facts.op} ${facts.cycle}·a${facts.attempt} ${facts.station} · ${facts.detail}`,
+    ];
+  }
+
   /** crashedRows(records) — the node's CRASHED rounds as ONE board line, one token per
    *  round: `crashed: {op} {cycle}·a{attempt} {cause} · {op} {cycle}·a{attempt} {cause}`.
    *  A round crashed when its booked verdict withheld the target action AND at least one
@@ -825,6 +851,7 @@ export class BoardView {
     repoRoot: string,
     words: Words,
     host: string,
+    refusal: RefusalState,
     channels: Readonly<Record<string, RouteChannelRow>> = {},
     holding: InFlightState = { kind: "absent" },
     next: NextHop | null = null,
@@ -852,6 +879,7 @@ export class BoardView {
             root,
             words,
             host,
+            refusal,
             channels,
             holding,
             next,
@@ -879,6 +907,7 @@ export class BoardView {
     root: RepoRoot,
     words: Words,
     host: string,
+    refusal: RefusalState,
     channels: Readonly<Record<string, RouteChannelRow>>,
     holding: InFlightState,
     next: NextHop | null,
@@ -907,7 +936,17 @@ export class BoardView {
     // this node's work). `crashedRows` dedupes by round identity itself.
     const crashes = BoardView.crashedRows(BoardView.#nodeRecordsOf(progress));
     for (const row of BoardView.inFlightRows(holding, orphans, words, crashes)) lines.push(row);
-    if (holding.kind !== "absent" || orphans.length > 0 || crashes.length > 0) lines.push("");
+    // The tree-level fact block ends here: the refusal row sits AFTER it (`in-flight:` ·
+    // `orphan:` · `crashed:` are one block, so a crashed round or an orphan draft stands
+    // between the two when it exists) — the assembly position IS the asserted position.
+    for (const row of BoardView.refusalRows(refusal, words)) lines.push(row);
+    if (
+      holding.kind !== "absent" ||
+      orphans.length > 0 ||
+      crashes.length > 0 ||
+      refusal.kind !== "absent"
+    )
+      lines.push("");
 
     // The two identity marks the read-value ladder consults (spec §2.7's first two
     // layers): a non-empty mark keeps the EXISTING `#docCell` accounting and exit 2 —

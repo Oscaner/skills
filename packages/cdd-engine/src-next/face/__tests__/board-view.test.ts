@@ -31,10 +31,11 @@ import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../../session/carrier-integrity.ts";
 import { DispatchAuthority } from "../../session/dispatch-authority.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
-import type { InFlightRecord } from "../../session/inflight.ts";
+import type { InFlightRecord, InFlightState } from "../../session/inflight.ts";
 import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.ts";
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
+import { PreFlightRefusal, type RefusalFacts, type RefusalState } from "../../session/refusal.ts";
 import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { BoardNext, type BoardPipelineFacts, BoardView, LineCarriers } from "../board-view.ts";
@@ -43,6 +44,9 @@ import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
 import { RouteRenderer } from "../route-render.ts";
 import { Words } from "../words.ts";
+
+/** The board's default refusal fact — no record stands on the tree. */
+const NO_REFUSAL: RefusalState = { kind: "absent" };
 
 /** The plan read for one fixture plan — a REAL read through the seam (the value is
  *  never hand-minted: `PlanRead` has no factory), on the fixture repo's own basis so
@@ -159,6 +163,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     entry: DocEntry,
     host = "claude",
     artifacts: ArtifactRegistry | null = null,
+    refusal: RefusalState = NO_REFUSAL,
+    holding: InFlightState = { kind: "absent" },
   ): { text: string; exitCode: number } => {
     const index = SlugIndex.build(repo);
     // The board's `next:` line renders the assembly face's ONE injected `NextHop`
@@ -172,8 +178,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       repo,
       new Words(),
       host,
+      refusal,
       ARGV_CHANNEL,
-      undefined,
+      holding,
       next,
       { registry: artifacts, showAll: false },
     );
@@ -184,7 +191,10 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     slug: string,
     host = "claude",
     artifacts: ArtifactRegistry | null = null,
-  ): { text: string; exitCode: number } => renderEntry(entryFor(slug), host, artifacts);
+    refusal: RefusalState = NO_REFUSAL,
+    holding: InFlightState = { kind: "absent" },
+  ): { text: string; exitCode: number } =>
+    renderEntry(entryFor(slug), host, artifacts, refusal, holding);
 
   /** The board's `next:` value (the `  next:    ` row, the anchor stripped). */
   const nextOf = (slug: string, host = "claude"): string => {
@@ -426,6 +436,239 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(crashed.indexOf(crashRow)).toBeLessThan(crashed.indexOf("  overall "));
     // the legend never advertises the row
     expect(crashed.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
+  });
+
+  // -------------------------------------------------------------------------
+  // P40 T7 — the refusal row: the tree's own record, after the tree-level facts
+  // -------------------------------------------------------------------------
+
+  /** The fixture's node documents (one phase-spec + its plan, one wave block). */
+  const writeNodeDocs = (): void => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+  };
+
+  /** The tree's ONE record, written through the record's own API (the board never
+   *  composes one): the writer is the production seam's, the read is the board's. */
+  const record = (): PreFlightRefusal =>
+    new PreFlightRefusal(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1");
+
+  const REFUSAL_ROW = "  refused: review 1·a1 dispatch-input · review · BASE_BRANCH · empty-value";
+
+  it("prints the standing refusal after the tree-level fact block", async () => {
+    writeNodeDocs();
+    const refusal = record();
+    await refusal.write({
+      at: "2026-11-17T09:00:00.000Z",
+      slug: "prog-p1",
+      op: "review",
+      type: "wave",
+      cycle: 1,
+      attempt: 1,
+      station: "dispatch-input",
+      detail: "review · BASE_BRANCH · empty-value",
+    });
+    const { text, exitCode } = render("prog-p1", "claude", null, refusal.read());
+    expect(exitCode).toBe(0);
+    // No orphan, no crashed round: the refusal is the `in-flight:` row's next line.
+    const rows = text.split("\n");
+    const at = rows.indexOf(REFUSAL_ROW);
+    expect(rows[at - 1]).toContain("  in-flight: free");
+    // …and it stands before the line rows (the tree's facts, then the ledger's).
+    expect(at).toBeLessThan(text.indexOf("  overall "));
+
+    // The record is cleared and the row goes with it — the board renders facts, it does
+    // not clear them.
+    refusal.clear();
+    expect(render("prog-p1", "claude", null, refusal.read()).text).not.toContain("refused:");
+  });
+
+  it("prints the corrupt row and keeps exit 0 — a damaged record is never silence", () => {
+    writeNodeDocs();
+    mkdirSync(path.join(repo, ".kairos", "cdd"), { recursive: true });
+    writeFileSync(path.join(repo, ".kairos", "cdd", PreFlightRefusal.FILE), "{ not json", "utf8");
+    const refusal = record();
+    expect(refusal.read().kind).toBe("corrupt");
+    const { text, exitCode } = render("prog-p1", "claude", null, refusal.read());
+    expect(exitCode).toBe(0);
+    expect(text.split("\n")).toContain(`  refused: ${new Words().refusalWords().corrupt}`);
+  });
+
+  it("leaves the board byte-identical when the record is absent", () => {
+    writeNodeDocs();
+    const withAbsent = render("prog-p1", "claude", null, { kind: "absent" }).text;
+    expect(withAbsent).not.toContain("refused:");
+  });
+
+  it("renders no tree-level fact block on the PROGRAM board — the row's surface is the node board", () => {
+    writeNodeDocs();
+    // The strongest input the program board could be handed: a record whose slug IS the
+    // program's own (a doc-face dispatch on the overall document lands it). The program
+    // board renders no tree-level fact block at all — neither the refusal nor the
+    // in-flight fact — so this decision is a pin, not an absent-parameter accident
+    // (spec §3.1's named boundary).
+    const refusal: RefusalState = {
+      kind: "standing",
+      facts: {
+        at: "2026-11-17T09:00:00.000Z",
+        slug: "prog-overall",
+        op: "fix",
+        type: "overall",
+        cycle: 1,
+        attempt: 1,
+        station: "artifact",
+        detail: "artifact-identity · derived: x · found: y",
+      },
+    };
+    const holding: InFlightState = {
+      kind: "held",
+      alive: true,
+      record: {
+        pid: 4242,
+        startedAt: 1_763_000_000_000,
+        command: "cdd fix --type overall",
+        slug: "prog-overall",
+        wave: null,
+        phase: "fix",
+        cycle: 1,
+        attempt: 1,
+        briefHash: null,
+        plan: null,
+        dispatchBase: null,
+        sampledAt: null,
+        verdict: null,
+      },
+    };
+    const text = render("prog-overall", "claude", null, refusal, holding).text;
+    // The program board IS the rendered face (the assertion is not vacuous)…
+    expect(text).toContain("  overall  ");
+    // …and it holds no tree-level fact row: the record and the occupancy are the NODE
+    // board's surface (`cdd board --plan/--spec <phase document>`).
+    expect(text).not.toContain("refused:");
+    expect(text).not.toContain("in-flight:");
+  });
+
+  it("lets `in-flight:` and `refused:` stand together — a refusal for work already running", () => {
+    writeNodeDocs();
+    const holding: InFlightState = {
+      kind: "held",
+      alive: true,
+      record: {
+        pid: 4242,
+        startedAt: 1_763_000_000_000,
+        command: "cdd implement",
+        slug: "prog-p1",
+        wave: "1",
+        phase: "implement",
+        cycle: 1,
+        attempt: 1,
+        briefHash: null,
+        plan: null,
+        dispatchBase: null,
+        sampledAt: null,
+        verdict: null,
+      },
+    };
+    const refusal: RefusalState = {
+      kind: "standing",
+      facts: {
+        at: "2026-11-17T09:00:00.000Z",
+        slug: "prog-p1",
+        op: "implement",
+        type: "wave",
+        cycle: 1,
+        attempt: 1,
+        station: "tree-clean",
+        detail: "dirty-tree",
+      },
+    };
+    const rows = render("prog-p1", "claude", null, refusal, holding).text.split("\n");
+    const inFlightAt = rows.findIndex((row) => row.startsWith("  in-flight:"));
+    const refusedAt = rows.indexOf("  refused: implement 1·a1 tree-clean · dirty-tree");
+    expect(inFlightAt).toBeGreaterThanOrEqual(0);
+    // The two rows are not mutually exclusive: the tree can be held AND carry a refusal.
+    expect(refusedAt).toBe(inFlightAt + 1);
+
+    // …and the two go together when both facts stop: no holder, no record, no rows.
+    const cleared = render("prog-p1", "claude", null, { kind: "absent" }).text;
+    expect(cleared).not.toContain("refused:");
+    expect(cleared).not.toContain("in-flight: held");
+  });
+
+  it("orders the refusal AFTER a crashed round — the tree-level block ends first", () => {
+    writeNodeDocs();
+    seed("prog-p1", [
+      {
+        wave: "1",
+        rounds: [
+          {
+            op: "implement",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath: null,
+            verdict: { treeClean: true, targetAction: false },
+            violations: [
+              { grade: "hard", cause: "no-commits", message: "the round committed nothing" },
+            ],
+          },
+        ],
+      },
+    ]);
+    const rows = render("prog-p1", "claude", null, {
+      kind: "standing",
+      facts: {
+        at: "2026-11-17T09:00:00.000Z",
+        slug: "prog-p1",
+        op: "review",
+        type: "wave",
+        cycle: 1,
+        attempt: 1,
+        station: "dispatch-input",
+        detail: "review · BASE_BRANCH · empty-value",
+      },
+    }).text.split("\n");
+    const crashedAt = rows.findIndex((row) => row.startsWith("  crashed:"));
+    const refusedAt = rows.indexOf(REFUSAL_ROW);
+    // The two readings ("`in-flight:`'s next line" and "after the tree-level block")
+    // are byte-identical on a board with no crash — only this fixture can tell them
+    // apart, and it says the refusal comes AFTER the crashed row.
+    expect(crashedAt).toBeGreaterThanOrEqual(0);
+    expect(refusedAt).toBe(crashedAt + 1);
   });
 
   it("renders only the NODE's own crashed rounds — the program's failure is not this node's work", () => {
@@ -1384,6 +1627,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
     );
 
     expect(board.lines.join("\n")).toContain("  wave     (none)");
@@ -1501,6 +1745,41 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
       "  crashed: implement 1·a1 contract-violation",
     ]);
     expect(rows.at(-1)).toBe("  crashed: implement 1·a1 contract-violation");
+  });
+});
+
+describe("BoardView.refusalRows — the tree's refusal row (spec §3.1)", () => {
+  const words = new Words();
+  const facts = (over: Partial<RefusalFacts> = {}): RefusalFacts => ({
+    at: "2026-11-17T09:00:00.000Z",
+    slug: "p3",
+    op: "review",
+    type: "wave",
+    cycle: 1,
+    attempt: 1,
+    station: "dispatch-input",
+    detail: "review · BASE_BRANCH · empty-value",
+    ...over,
+  });
+
+  it("prints the record's identity in the `crashed:` row's own spelling", () => {
+    expect(BoardView.refusalRows({ kind: "standing", facts: facts() }, words)).toEqual([
+      "  refused: review 1·a1 dispatch-input · review · BASE_BRANCH · empty-value",
+    ]);
+    // The round identity is the SAME `{cycle}·a{attempt}` the `crashed:` row speaks —
+    // one board, one spelling, never a second coordinate.
+    expect(BoardView.crashedRows([])).toEqual([]);
+    expect(words.refusalWords().token).toBe("refused:");
+  });
+
+  it("prints NOTHING when no record stands — the other rows are the whole truth", () => {
+    expect(BoardView.refusalRows({ kind: "absent" }, words)).toEqual([]);
+  });
+
+  it("prints its own corrupt row — an unreadable record is never `no refusal`", () => {
+    expect(BoardView.refusalRows({ kind: "corrupt", reason: "not JSON" }, words)).toEqual([
+      `  refused: ${words.refusalWords().corrupt}`,
+    ]);
   });
 });
 
@@ -2205,6 +2484,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       host,
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       next,
@@ -2339,6 +2619,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       nextOfEntry(repo, index, entry),
@@ -2382,6 +2663,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
         repo,
         new Words(),
         "claude",
+        NO_REFUSAL,
         ARGV_CHANNEL,
         undefined,
         next,
@@ -2514,6 +2796,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       hop,
@@ -2610,6 +2893,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       host,
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       nextOfEntry(repo, index, entry),
@@ -2846,6 +3130,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
     ).lines;
     expect(lines).toContain("  next:    (none)");
@@ -2875,6 +3160,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       nextOfEntry(repo, index, entry),
@@ -2896,6 +3182,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       nextOfEntry(repo, index, entry),
@@ -2923,6 +3210,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       nextOfEntry(repo, index, entry),
@@ -3039,6 +3327,7 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       BoardNext.of(read, source, index, entry, root),
@@ -3136,6 +3425,7 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       undefined,
       null,
@@ -3169,6 +3459,7 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
         repo,
         new Words(),
         "claude",
+        NO_REFUSAL,
         ARGV_CHANNEL,
         undefined,
         null,
@@ -3526,6 +3817,7 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       { kind: "absent" },
       BoardNext.of(read, source, index, entry, root, projection),
@@ -3597,6 +3889,7 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
       repo,
       new Words(),
       "claude",
+      NO_REFUSAL,
       ARGV_CHANNEL,
       { kind: "absent" },
       // cross-phase never participates in next (spec §6.5) — the program board holds no hop

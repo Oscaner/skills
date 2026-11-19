@@ -20,8 +20,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
-import type { DocFs } from "../../contract/invariants.ts";
+import { type DocFs, NodeFs } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
+import type { ArtifactSnapshotRead } from "../../contract/preflight-rows.ts";
 import type { DocKey } from "../../contract/project.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -29,7 +30,8 @@ import { GitClient } from "../../infra/git.ts";
 import type { PlanRead } from "../../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { targetFaces } from "../faces.ts";
+import { TemplateAssembler } from "../../render/templates.ts";
+import { type TargetType, targetFaces } from "../faces.ts";
 import { InFlight, type InFlightRecord } from "../inflight.ts";
 import { Ledger } from "../ledger.ts";
 import type { PreFlightContext, PreFlightVerdict } from "../preflight.ts";
@@ -130,8 +132,12 @@ const task = (id: number, dependsOn: string): readonly string[] => {
   ];
 };
 
-/** The hermetic PreFlight — real git + the real contract. */
-const preflightOf = (fs?: DocFs): PreFlight => {
+/** The hermetic PreFlight — real git + the real contract. The filesystem defaults to the
+ *  existence-permissive seam: the four pre-dispatch rows read the existence of declared
+ *  paths, and this suite's cases judge the FIVE earlier rows over synthetic documents a
+ *  memory fs serves. Only `exists` is relaxed — reads and scans delegate to the real
+ *  seam, so the doc-contract gate judges the same bytes it always judged. */
+const preflightOf = (fs: DocFs = new ExistingFs()): PreFlight => {
   return new PreFlight({
     git: new GitClient(),
     contract: new Contract(),
@@ -139,6 +145,23 @@ const preflightOf = (fs?: DocFs): PreFlight => {
     fs,
   });
 };
+
+/** The existence-permissive filesystem seam (see `preflightOf`). */
+class ExistingFs implements DocFs {
+  readonly #real = new NodeFs();
+
+  exists(): boolean {
+    return true;
+  }
+
+  read(p: string): string | null {
+    return this.#real.read(p);
+  }
+
+  list(p: string): readonly string[] {
+    return this.#real.list(p);
+  }
+}
 
 /** A memory fs — every path resolves into the judged doc's own content (the
  *  context-seam backstop: chain/sibling reads return the judged content, so the
@@ -271,6 +294,50 @@ const inFlightSnapshot = (repoRoot: string): string => {
  *  carries none. */
 type CaseVerb = "implement" | "review" | "fix";
 
+/** The no-sidecar artifact snapshot — the four pre-dispatch rows' healthy artifact
+ *  cell (off the fix face there is nothing to refuse). */
+const ABSENT_SNAPSHOT: ArtifactSnapshotRead = {
+  kind: "absent",
+  path: null,
+  reason: null,
+  found: [],
+  identity: null,
+  sidecarKind: null,
+};
+
+/** The four pre-dispatch rows' healthy facts — every declared cell supplied, so the
+ *  cases that judge the FIVE earlier rows never trip them (P40 T4 made the seam judge
+ *  all nine rows on every face). The values record is the face's own role record; the
+ *  declarations are the renderer's own row selection over it. */
+const dispatchInputsOf = (
+  type: TargetType,
+): Pick<PreFlightContext, "host" | "values" | "declarations" | "scene" | "artifact"> => {
+  const values: Record<string, string> = {
+    ROLE: type === "wave" ? "implement" : "review",
+    TARGET_TYPE: type === "wave" ? "" : type,
+    WAVE: type === "wave" ? "1" : "",
+    INPUT_WAVE_BRIEF: "tasks-1-brief.md",
+    INPUT_REVIEWS: "carrier.json",
+    INPUT_RULINGS: "rulings.json",
+    INPUT_PLAN: "docs/kairos/plans/preflight.md",
+    INPUT_SPEC: "docs/kairos/specs/x-p3-design.md",
+    INPUT_OVERALL: "docs/kairos/specs/x-overall.md",
+    BASE_BRANCH: "develop",
+    OUTPUT_REPORT: "report.md",
+    OUTPUT_EVIDENCE: "evidence.json",
+    OUTPUT_HANDOFF: "handoff.json",
+    WORKSPACE_DIR: ".kairos/cdd/preflight-slug",
+    WORKSPACE_ID: "preflight-slug",
+  };
+  return {
+    host: "claude",
+    values,
+    declarations: new TemplateAssembler().layoutOf(values),
+    scene: { program: false, docType: false },
+    artifact: { kind: "read", reviewsPath: null, read: ABSENT_SNAPSHOT },
+  };
+};
+
 /** The wave-face context — the plan over a fresh ledger (the seam's graph +
  *  plan-ledger facts; the requested group is the dispatch authority's input). */
 const waveCtx = (
@@ -291,6 +358,7 @@ const waveCtx = (
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),
+    ...dispatchInputsOf("wave"),
   };
 };
 
@@ -303,8 +371,9 @@ const docCtx = (repoRoot: string, docKey: DocKey | null, _verb: CaseVerb): PreFl
     "preflight-slug",
   ).ensure();
   const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+  const type = docKey === "plan" ? "plan" : "phase-spec";
   return {
-    type: docKey === "plan" ? "plan" : "phase-spec",
+    type,
     repoRoot,
     plan: undeclaredPlanOf(repoRoot),
     ledger,
@@ -313,6 +382,7 @@ const docCtx = (repoRoot: string, docKey: DocKey | null, _verb: CaseVerb): PreFl
       path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "phase-spec"}.md` as RepoPath,
     },
     inflight: inflightOf(repoRoot, false),
+    ...dispatchInputsOf(type),
   };
 };
 
@@ -384,7 +454,16 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger"]);
+      expect(verdict.order).toEqual([
+        "tree-clean",
+        "in-flight",
+        "graph",
+        "plan-ledger",
+        "no-host",
+        "carrier",
+        "dispatch-input",
+        "artifact",
+      ]);
       // A genuinely dirty USER file still refuses — the ignore is the workspace's
       // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
@@ -429,7 +508,16 @@ describe("PreFlight — the gate order composition (tree-clean → in-flight →
         waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
       );
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger"]);
+      expect(verdict.order).toEqual([
+        "tree-clean",
+        "in-flight",
+        "graph",
+        "plan-ledger",
+        "no-host",
+        "carrier",
+        "dispatch-input",
+        "artifact",
+      ]);
     } finally {
       cleanup();
     }
@@ -441,7 +529,15 @@ describe("PreFlight — the gate order composition (tree-clean → in-flight →
       const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
+      expect(verdict.order).toEqual([
+        "tree-clean",
+        "in-flight",
+        "doc-contract",
+        "no-host",
+        "carrier",
+        "dispatch-input",
+        "artifact",
+      ]);
     } finally {
       cleanup();
     }
@@ -493,14 +589,24 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
   it("an unreadable target doc skips the doc-contract judgment (no judgment, no BLOCK)", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
+      // The declared input paths exist (the four pre-dispatch rows' existence leg); the
+      // DOC read is the unreadable fact this case judges.
       const preflight = preflightOf({
-        exists: () => false,
+        exists: () => true,
         read: () => null,
         list: () => [],
       });
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
+      expect(verdict.order).toEqual([
+        "tree-clean",
+        "in-flight",
+        "doc-contract",
+        "no-host",
+        "carrier",
+        "dispatch-input",
+        "artifact",
+      ]);
     } finally {
       cleanup();
     }
@@ -679,6 +785,7 @@ const branchCtx = (
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),
+    ...dispatchInputsOf("branch"),
   };
 };
 
@@ -1024,6 +1131,7 @@ const carrierCtx = (
     ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     doc: null,
     inflight: inflightOf(repoRoot, false),
+    ...dispatchInputsOf(type),
   };
 };
 

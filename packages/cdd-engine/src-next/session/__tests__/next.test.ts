@@ -853,7 +853,17 @@ describe("P27 §2.5 — the reason table: 14 non-structure tokens with a leg par
         .filter((row) => row.leg === "structure")
         .map((row) => row.token)
         .sort(),
-    ).toEqual(["doc-contract", "graph", "in-flight", "plan-ledger", "tree-clean"]);
+    ).toEqual([
+      "artifact",
+      "carrier",
+      "dispatch-input",
+      "doc-contract",
+      "graph",
+      "in-flight",
+      "no-host",
+      "plan-ledger",
+      "tree-clean",
+    ]);
   });
 
   it("keeps the NEXT_HOP_REASON spellings verbatim, `brief-drift` included", () => {

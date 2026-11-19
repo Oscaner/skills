@@ -1969,6 +1969,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       repo,
       new Words(),
       "claude",
+      { kind: "absent" },
       ARGV_CHANNEL,
       undefined,
       BoardNext.of(read, planSource, index, entry, root),

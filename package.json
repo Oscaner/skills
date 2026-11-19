@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
-    "prepare": "husky",
+    "prepare": "lefthook install --reset-hooks-path",
     "test": "vitest run"
   },
   "devDependencies": {
@@ -26,8 +26,7 @@
     "@changesets/read": "^1.0.1",
     "@types/node": "^26.6.6",
     "archify": "github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.6.0",
+    "lefthook": "^2.2.2",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",
     "yaml": "^2.9.1"

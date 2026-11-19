@@ -26,6 +26,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { Contract } from "../../contract/judge.ts";
+import type { ArtifactSnapshotRead } from "../../contract/preflight-rows.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -34,6 +35,7 @@ import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { TemplateAssembler } from "../../render/templates.ts";
 import { InFlight } from "../inflight.ts";
 import { Ledger } from "../ledger.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../pipeline.ts";
@@ -42,6 +44,16 @@ import { PreFlight, type PreFlightContext } from "../preflight.ts";
 const SLUG = "prog-p1";
 const SPEC_REL = "docs/kairos/specs/prog-p1-design.md";
 const PLAN_REL = "docs/kairos/plans/prog-p1.md";
+
+/** The no-sidecar artifact snapshot — this suite's dispatch never judges a sidecar. */
+const ABSENT_SNAPSHOT: ArtifactSnapshotRead = {
+  kind: "absent",
+  path: null,
+  reason: null,
+  found: [],
+  identity: null,
+  sidecarKind: null,
+};
 
 /** One task block — the plan grammar's own shape (the block every fixture suite
  *  spells the same way). */
@@ -184,6 +196,7 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
       repo,
       new Words(),
       "claude",
+      { kind: "absent" },
       {},
       undefined,
       BoardNext.of(read, source, index, entry, root),
@@ -243,17 +256,36 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
   };
 
   /** The wave-face pre-flight context over ONE handed-in read — the graph gate's
-   *  input is the value's own `graph()` (§2.5), never a second parse. */
-  const preflightCtxOf = (read: PlanRead): PreFlightContext => ({
-    type: "wave",
-    repoRoot: repo,
-    plan: read,
-    ledger: ledgerOf(),
-    doc: null,
-    inflight: new InFlight(new WorkspaceRoot(repo, ".kairos/cdd"), SLUG, {
-      live: async () => false,
-    }),
-  });
+   *  input is the value's own `graph()` (§2.5), never a second parse. The four
+   *  pre-dispatch rows (P40 T4) get their healthy facts: this suite judges the graph
+   *  gate, not the input face. */
+  const preflightCtxOf = (read: PlanRead): PreFlightContext => {
+    const values: Record<string, string> = {
+      ROLE: "implement",
+      WAVE: "1,2",
+      INPUT_WAVE_BRIEF: "tasks-1,2-brief.md",
+      OUTPUT_REPORT: "report.md",
+      OUTPUT_EVIDENCE: "evidence.json",
+      OUTPUT_HANDOFF: "handoff.json",
+      WORKSPACE_DIR: `.kairos/cdd/${SLUG}`,
+      WORKSPACE_ID: SLUG,
+    };
+    return {
+      type: "wave",
+      repoRoot: repo,
+      plan: read,
+      ledger: ledgerOf(),
+      doc: null,
+      inflight: new InFlight(new WorkspaceRoot(repo, ".kairos/cdd"), SLUG, {
+        live: async () => false,
+      }),
+      host: "claude",
+      values,
+      declarations: new TemplateAssembler().layoutOf(values),
+      scene: { program: false, docType: false },
+      artifact: { kind: "read", reviewsPath: null, read: ABSENT_SNAPSHOT },
+    };
+  };
 
   const preflightOf = (): PreFlight =>
     new PreFlight({ git: new GitClient(), contract: new Contract(), words: new Words() });

@@ -8998,6 +8998,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the fix gate accepts — an injected approving dispatch isolates the gate face
       const fixIo = new CaptureIo();
       const fixCommand = Cli.create({ io: fixIo, dispatch: APPROVING });
+      // The requesting carrier is the review round's FINAL, never the child's draft
+      // (P31 T4): the body's integrity row compares the bytes at `--reviews` against
+      // the digest the record wrote, and the draft is not that payload. The ledger's
+      // own accessor names it, so the fixture spells no tail.
+      const reviews = ledger.resolveHandoffPath("review", "wave", { tasks: "1", round: 1 });
       const fixCode = await fixCommand.runArgv([
         "fix",
         "--type",
@@ -9007,7 +9012,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "--plan",
         plan,
         "--reviews",
-        path.join(workspace.path, "tasks-1-review-1.json"),
+        reviews,
       ]);
       expect(fixIo.stderrText).not.toContain("cannot dispatch a fix round");
       expect(fixCode).toBe(0);
@@ -12366,9 +12371,10 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
     } finally {
       input.cleanup();
     }
-    // ③ carrier: the tampered requesting carrier — the sidecar's own read verifies the
-    //    carrier bytes against the digest the review round recorded, so a carrier
-    //    edited AFTER the round is the `carrier` station's shape.
+    // ③ carrier: the tampered requesting carrier — the queue's integrity read verifies
+    //    the carrier bytes against the digest the review round recorded, BEFORE and
+    //    independently of the ruling sidecar, so a carrier edited AFTER the round is the
+    //    `carrier` station's shape in the ordinary sidecar-less case too.
     const carrier = fixture({ sync: new StubRunner() });
     try {
       gitInit(carrier.repoRoot);
@@ -12389,14 +12395,6 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
       );
       ledger.recordRound("phase-spec", { op: "review", carrierDigest: sealed.digest });
       const carrierPath = workspace.resolve("phase-spec-review-1.c1.json");
-      writeFileSync(
-        workspace.resolve("phase-spec-review-1.c1.rulings.json"),
-        JSON.stringify({
-          carrier: "phase-spec-review-1.c1.json",
-          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
-        }),
-        "utf8",
-      );
       // The tamper: the carrier's bytes move after the round recorded their digest
       // (the seal makes it read-only, so the fixture must open it first).
       chmodSync(carrierPath, 0o644);
@@ -12415,19 +12413,27 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         )}\n`,
         "utf8",
       );
-      expect(
-        await carrier.command.runArgv([
-          "fix",
-          "--type",
-          "phase-spec",
-          "--spec",
-          spec,
-          "--reviews",
-          carrierPath,
-        ]),
-      ).toBe(1);
+      const fixArgv = ["fix", "--type", "phase-spec", "--spec", spec, "--reviews", carrierPath];
+      // The ORDINARY case first: no ruling sidecar was ever recorded for this carrier,
+      // and the tampered bytes must still refuse at the `carrier` station (a guard that
+      // only fires when an unrelated artifact happens to exist is not a guard).
+      expect(await carrier.command.runArgv(fixArgv)).toBe(1);
       const first = blockedLinesOf(carrier.io.stderrText)[0] ?? "";
       expect(first.startsWith("CDD_BLOCKED: carrier · carrier-mismatch · ")).toBe(true);
+      expect(refusalJsonOf(carrier.repoRoot).station).toBe("carrier");
+      // And a sidecar beside the tampered bytes answers the same row.
+      writeFileSync(
+        workspace.resolve("phase-spec-review-1.c1.rulings.json"),
+        JSON.stringify({
+          carrier: "phase-spec-review-1.c1.json",
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      carrier.io.stderrText = "";
+      expect(await carrier.command.runArgv(fixArgv)).toBe(1);
+      const again = blockedLinesOf(carrier.io.stderrText)[0] ?? "";
+      expect(again.startsWith("CDD_BLOCKED: carrier · carrier-mismatch · ")).toBe(true);
     } finally {
       carrier.cleanup();
     }

@@ -292,10 +292,11 @@ const RULINGS_KIND = "rulings" as const;
 
 /**
  * ArtifactSnapshots — this dispatch's artifact judgment as the contract plane's
- * snapshot: the ONE read the seam's `carrier` and `artifact` rows judge, and the cell
- * the value record names (`INPUT_RULINGS`). It lives beside the composer because it is
- * the third of the assembly's input cells, and because two producers need it: the
- * composition root (`Cli#beforeOf`) and a fixture that dispatches a frame.
+ * snapshot: the ONE judgment the seam's `carrier` and `artifact` rows read (the
+ * requesting carrier's integrity verdict, then the sidecar read that names
+ * `INPUT_RULINGS`). It lives beside the composer because it is the third of the
+ * assembly's input cells, and because two producers need it: the composition root
+ * (`Cli#beforeOf`) and a fixture that dispatches a frame.
  *
  * The sidecar is judged on the fix face ALONE (a review round's own context has no
  * sidecar yet), so every other face answers the no-sidecar value. A requesting carrier
@@ -305,11 +306,20 @@ const RULINGS_KIND = "rulings" as const;
 // biome-ignore lint/complexity/noStaticOnlyClass: the snapshot's single entry — the zero-bare-function discipline admits no standalone functions.
 export class ArtifactSnapshots {
   /** The snapshot of one dispatch: the face's own read, flattened into plane-legal
-   *  values (no `session/` type crosses the plane). `reviewsPath` arrives as its
-   *  producer holds it — an absolute workspace path or the repo-relative `--reviews`
-   *  value; this entry converts nothing on it (`ArtifactReads` resolves either basis
-   *  against the repo root, and `compose` collapses the cell onto the record's ONE
-   *  basis), so no caller normalizes it first. */
+   *  values (no `session/` type crosses the plane).
+   *
+   *  Two path bases meet here, and neither is normalized by the caller: `reviewsPath`
+   *  arrives as its producer holds it (an absolute workspace path or the repo-relative
+   *  `--reviews` value), the integrity read resolves that RAW value against the repo
+   *  root (`ArtifactReads`' one erasure), and only the cell the snapshot's `#readOf`
+   *  names is relativized onto the record's basis (`compose` collapses the two onto
+   *  one). The two agree by construction, and the split is what keeps them agreeing
+   *  when a caller's basis changes.
+   *
+   *  The carrier's integrity is judged FIRST, independently of the sidecar: an absent
+   *  ruling sidecar is the ordinary case, and a tampered carrier's id set is not a fact
+   *  this round may read either way. The mismatch arm answers the bytes; the read arm
+   *  answers the sidecar. */
   static of(opts: {
     readonly artifacts: ArtifactRegistry;
     readonly workspace: Workspace;
@@ -320,12 +330,11 @@ export class ArtifactSnapshots {
   }): ArtifactSnapshot {
     const { reviewsPath } = opts;
     if (opts.op !== "fix") return { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT_READ };
+    const reads = new ArtifactReads(opts.artifacts, opts.workspace);
+    const tampered = reads.carrierMismatchOf(reviewsPath, opts.digest);
+    if (tampered !== null) return { kind: "mismatch", reviewsPath, carrier: tampered };
     try {
-      const read = new ArtifactReads(opts.artifacts, opts.workspace).read(
-        RULINGS_KIND,
-        reviewsPath ?? "",
-        opts.digest,
-      );
+      const read = reads.read(RULINGS_KIND, reviewsPath ?? "", opts.digest);
       return { kind: "read", reviewsPath, read: ArtifactSnapshots.#readOf(opts, read.read) };
     } catch (raw) {
       if (!(raw instanceof CarrierMismatchError)) throw raw;

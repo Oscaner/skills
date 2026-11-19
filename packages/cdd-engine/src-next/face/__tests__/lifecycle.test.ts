@@ -1068,9 +1068,12 @@ describe("P31 T2 — the ruling sidecar rides the fix round context", () => {
     );
     expect(seam).toContain("CarrierRulings.verdict(");
     expect(`${seam}\n${snapshot}`).not.toContain("CarrierRulings.read(");
-    // P40 T5 — the ONE read of the dispatch's artifact is the assembly's snapshot
-    // (`ArtifactSnapshots.of`), the value the seam judges and the record names.
-    expect(snapshot).toContain("new ArtifactReads(opts.artifacts, opts.workspace).read(");
+    // P40 T5 — the ONE judgment of the dispatch's artifact is the assembly's snapshot
+    // (`ArtifactSnapshots.of`): the integrity verdict first, then the sidecar read, both
+    // through the one seam — the value the rows judge and the record names.
+    expect(snapshot).toContain("new ArtifactReads(opts.artifacts, opts.workspace)");
+    expect(snapshot).toContain("reads.carrierMismatchOf(reviewsPath, opts.digest)");
+    expect(snapshot).toContain("reads.read(RULINGS_KIND");
   });
 
   it("renders ONE path line and zero body lines — the ruling bodies stay in the sidecar", async () => {
@@ -1115,6 +1118,94 @@ describe("P31 T2 — the ruling sidecar rides the fix round context", () => {
       // a fix round — no sidecar is a fact written as the bare literal `none`, never a
       // dropped line (a dropped line cannot be told apart from a lost path).
       expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: none");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 — the requesting carrier's integrity (design spec §2.1): the `carrier` row judges
+// the bytes this dispatch was asked to fix, BEFORE and independently of the ruling
+// sidecar read. A sidecar-less round is the ordinary case, never a reason to judge a
+// tampered carrier's id set as if the review had written it.
+// ---------------------------------------------------------------------------
+
+describe("P40 — the carrier row's integrity verdict precedes the sidecar read", () => {
+  /** Plant a review round whose record carries the carrier's digest, then tamper the
+   *  carrier as an external writer would (the seal makes it read-only, so the fixture
+   *  opens it first). Returns the carrier path a fix dispatch would name. */
+  const seedTamperedCarrier = (f: Fixture): string => {
+    const sealed = f.scene.ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      CARRIER_BODY,
+    );
+    f.scene.ledger.recordRound("phase-spec", { op: "review", carrierDigest: sealed.digest });
+    chmodSync(sealed.path, 0o644);
+    writeFileSync(
+      sealed.path,
+      JSON.stringify({
+        ...CARRIER_BODY,
+        findings: [...CARRIER_BODY.findings, { id: "F9", severity: "blocker", summary: "x" }],
+      }),
+      "utf8",
+    );
+    return sealed.path;
+  };
+
+  it("answers the mismatch arm when NO sidecar sits beside the carrier", () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = seedTamperedCarrier(f);
+      // The ordinary case: the orchestrator records no ruling for this carrier.
+      expect(existsSync(sidecarOf(f.scene.workspace, carrier))).toBe(false);
+      const snapshot = TestDispatchValues.artifactOf(f.scene, fixFrameOf(carrier), carrier);
+      expect(snapshot.kind).toBe("mismatch");
+      if (snapshot.kind !== "mismatch") return;
+      // The facts are the two digests' difference, read once by `CarrierIntegrity`.
+      expect(snapshot.carrier.line).toBe(carrier);
+      expect(snapshot.carrier.recorded).not.toBe(snapshot.carrier.current);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("answers the same arm with a sidecar beside it — the bytes decide, not the sidecar", () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = seedTamperedCarrier(f);
+      writeFileSync(
+        sidecarOf(f.scene.workspace, carrier),
+        JSON.stringify({
+          carrier: path.basename(carrier),
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      const snapshot = TestDispatchValues.artifactOf(f.scene, fixFrameOf(carrier), carrier);
+      expect(snapshot.kind).toBe("mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("keeps a healthy carrier on the read arm — the guard adds no refusal of its own", () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        CARRIER_BODY,
+      );
+      f.scene.ledger.recordRound("phase-spec", { op: "review", carrierDigest: sealed.digest });
+      const snapshot = TestDispatchValues.artifactOf(f.scene, fixFrameOf(sealed.path), sealed.path);
+      // An absent sidecar stays an absent READ: the integrity verdict is about the
+      // carrier's bytes, never about the ruling file that may not exist yet.
+      expect(snapshot.kind).toBe("read");
+      expect(snapshot.kind === "read" ? snapshot.read.kind : null).toBe("absent");
     } finally {
       f.cleanup();
     }

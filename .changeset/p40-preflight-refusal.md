@@ -11,9 +11,10 @@ pre-flight `DispatchAuthority` structure leg as its rows 6–9, reusing the exis
 re-dispatch reads as the round it would have been. The refusal lands as one tree-level record,
 `.kairos/cdd/refusal.json` — a new artifact, the neighbour of `in-flight.json` — with eight
 cells `{at, slug, op, type, cycle, attempt, station, detail}`, and `board` renders it as one
-`refused:` line. One record per tree, with two expiry triggers: the gate clears it when the
-whole structure leg passes, and the dispatch body clears an `in-flight` record when its holder
-is released.
+`refused:` line. One record per tree, with two expiry triggers: the gate clears it whenever the
+structure leg does not refuse — nine rows passing, or the four pre-dispatch rows standing down
+on a batch-less wave dispatch — and the dispatch body clears an `in-flight` record when its
+holder is released.
 
 Six consumer-visible changes, one per spec constraint:
 

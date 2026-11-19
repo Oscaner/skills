@@ -17,9 +17,9 @@
 //   · REFS      — the per-harness slash reference forms (claude uses the
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
-//   · HostDetect — the module-level host judgment (the detection's single home):
-//     the dispatch face's detectHost delegates here; the delivery face's Capsule wiring
-//     reads the same judgment over process.env.
+//   · HostDetect — the module-level host judgment (the detection's single home): the
+//     composition root probes the dispatch host ONCE through it (P40 T6), and the
+//     delivery face's Capsule wiring reads the same judgment over process.env.
 //
 // P5 lands here: the forbidden parallel-sub-agents prose is deleted from the review
 // dispatch rows (the task/branch rows carry their ref only) and the review

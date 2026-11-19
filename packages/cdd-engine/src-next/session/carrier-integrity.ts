@@ -23,6 +23,7 @@
 // payload rule here is layered over the workspace plane's one digest primitive.
 
 import { readFileSync } from "node:fs";
+import { type CarrierFacts, CarrierLine } from "../contract/carrier-line.ts";
 import { sha256Hex } from "../infra/workspace.ts";
 
 /** The shasum prefix the diagnostic line prints — the `doc-drift` form's recorded /
@@ -30,8 +31,9 @@ import { sha256Hex } from "../infra/workspace.ts";
 const PREFIX_LENGTH = 8;
 
 /** The carrier-read refusal — the bytes at `line` no longer digest to the value the
- *  round recorded. The message IS the diagnostic line (one shape, one station):
- *  `carrier-mismatch · line=<path> · recorded=<sha8> · current=<sha8>`. */
+ *  round recorded. The message IS the diagnostic line, composed by `CarrierLine` (the
+ *  ONE format home): the sentence this error throws and the refusal the pre-flight
+ *  `carrier` row reports can never be two spellings of one fact. */
 export class CarrierMismatchError extends Error {
   /** The carrier's path (absolute, as recorded) — the `line` the message names. */
   readonly line: string;
@@ -42,12 +44,28 @@ export class CarrierMismatchError extends Error {
 
   constructor(line: string, recorded: string, current: string) {
     super(
-      `carrier-mismatch · line=${line} · recorded=${CarrierIntegrity.sha8(recorded)} · current=${CarrierIntegrity.sha8(current)}`,
+      CarrierLine.of({
+        line,
+        recorded: CarrierIntegrity.sha8(recorded),
+        current: CarrierIntegrity.sha8(current),
+      }),
     );
     this.name = "CarrierMismatchError";
     this.line = line;
     this.recorded = recorded;
     this.current = current;
+  }
+
+  /** The same three facts as FLAT values (the carrier path and the two 8-hex
+   *  prefixes) — what a contract-plane snapshot carries instead of the rendered
+   *  sentence. The shortening happens here, once, so a second reader cannot shorten
+   *  the digests differently. */
+  facts(): CarrierFacts {
+    return {
+      line: this.line,
+      recorded: CarrierIntegrity.sha8(this.recorded),
+      current: CarrierIntegrity.sha8(this.current),
+    };
   }
 }
 

@@ -399,6 +399,38 @@ describe("P27 §2.4 — the doc/branch face's rows", () => {
     }
   });
 });
+describe("P40 T4 — the structure leg's nine rows", () => {
+  it("re-expresses every row with the gate's own word — the four pre-dispatch rows included", () => {
+    // The reason is the refusing gate's id, never a second spelling: the four
+    // pre-dispatch rows (`RowStation`) join `PreFlightGateName` and the reason table
+    // together, so this loop compiles with no cast and no extra mapping row.
+    const NINE = [
+      "tree-clean",
+      "in-flight",
+      "graph",
+      "plan-ledger",
+      "doc-contract",
+      "no-host",
+      "carrier",
+      "dispatch-input",
+      "artifact",
+    ] as const;
+    for (const gate of NINE) {
+      expect(
+        authority.structureRefusal({
+          ok: false,
+          gate,
+          message: "a detail",
+          order: [gate],
+          checked: [gate],
+        }),
+      ).toEqual({ allowed: false, leg: "structure", reason: gate, next: null });
+    }
+    // An approved pre-flight refuses nothing — no gate, no row.
+    expect(authority.structureRefusal(STRUCTURE_OK)).toBeNull();
+  });
+});
+
 describe("P27 §2.1/§2.2 — the verdict's shape and the priority chain", () => {
   it("a structure refusal short-circuits the chain: leg `structure`, no next", () => {
     const { ledger, cleanup } = fixture();

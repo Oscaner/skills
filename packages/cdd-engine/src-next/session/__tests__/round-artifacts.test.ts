@@ -3,16 +3,16 @@
 // §2.2 · §2.3 · §2.9). The matrix answers two questions for every artifact kind: WHERE
 // the name comes from (`identityFrom` + the row's own `render`) and WHICH identity it
 // belongs to (`attribute`). This suite pins the ROUND rows (`draft` · `final` · `report`
-// · `log` · `crash` · `evidence` · `rulings`) and the four WORKSPACE rows (`progress` ·
-// `base` · `in-flight` · `brief`), plus the structural facts the matrix is worthless
-// without:
+// · `log` · `crash` · `evidence` · `rulings`) and the five WORKSPACE rows (`progress` ·
+// `base` · `in-flight` · `refusal` · `brief`), plus the structural facts the matrix is
+// worthless without:
 //
 //   · the round trip — `attribute(render(identity, kind))` answers the same identity
 //     and kind, per row, so the two ports cannot drift apart; the rendered names are
 //     byte-equal to today's literals (the conservation boundary: a naming migration
 //     must not rename anything);
 //   · the coordinate guard — an identity a row does not carry (a null `tasks` for the
-//     brief, a task group for the three literals) is refused, never rendered into a
+//     brief, a task group for the four literals) is refused, never rendered into a
 //     plausible-looking wrong name;
 //   · one home — the workspace name literals live in `session/round-artifacts.ts`
 //     alone, and the registry has exactly ONE construction expression in the
@@ -76,8 +76,14 @@ const ROUND_KINDS: readonly RoundKind[] = [
   "rulings",
 ];
 
-/** The four workspace kinds, in the matrix's own row order. */
-const WORKSPACE_KINDS: readonly WorkspaceKind[] = ["progress", "base", "in-flight", "brief"];
+/** The five workspace kinds, in the matrix's own row order. */
+const WORKSPACE_KINDS: readonly WorkspaceKind[] = [
+  "progress",
+  "base",
+  "in-flight",
+  "refusal",
+  "brief",
+];
 
 /** The author / sealed columns each round row declares — the carrier pair is the
  *  engine's sealed set, the sidecar is the orchestrator's unsealed one. */
@@ -104,15 +110,17 @@ const RENDERED: Readonly<Record<WorkspaceKind, string>> = {
   progress: "progress.json",
   base: "base.json",
   "in-flight": "in-flight.json",
+  refusal: "refusal.json",
   brief: "tasks-3-brief.md",
 };
 
-/** The identity each workspace row renders from — the three coordinate-less literals
+/** The identity each workspace row renders from — the four coordinate-less literals
  *  take `tasks: null`, the brief carries its group. */
 const IDENTITY_OF: Readonly<Record<WorkspaceKind, Identity>> = {
   progress: { domain: "workspace", tasks: null },
   base: { domain: "workspace", tasks: null },
   "in-flight": { domain: "workspace", tasks: null },
+  refusal: { domain: "workspace", tasks: null },
   brief: { domain: "workspace", tasks: "3" },
 };
 
@@ -193,7 +201,7 @@ const dirWithFile = (name: string, mode = 0o644): { dir: string; file: string } 
 };
 
 describe("the matrix — the round and workspace rows (spec §2.1)", () => {
-  it("registers the seven round kinds and the four workspace kinds, in row order", () => {
+  it("registers the seven round kinds and the five workspace kinds, in row order", () => {
     const { artifacts, cleanup } = fixture();
     try {
       expect(artifacts.entries().map((entry) => entry.kind)).toEqual([
@@ -461,7 +469,7 @@ describe("the matrix refuses an identity the row does not carry (spec §2.1)", (
     const { artifacts, cleanup } = fixture();
     try {
       const grouped: Identity = { domain: "workspace", tasks: "3" };
-      for (const kind of ["progress", "base", "in-flight"] as const) {
+      for (const kind of ["progress", "base", "in-flight", "refusal"] as const) {
         expect(() => artifacts.render(grouped, kind)).toThrow(/no tasks coordinate/);
         expect(() => ArtifactRegistry.nameOf(kind, "3")).toThrow(/no tasks coordinate/);
       }

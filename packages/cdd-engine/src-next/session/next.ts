@@ -191,6 +191,14 @@ export const DISPATCH_REASON = {
   graph: { token: "graph", leg: "structure" },
   planLedger: { token: "plan-ledger", leg: "structure" },
   docContract: { token: "doc-contract", leg: "structure" },
+  // structure — the four pre-dispatch rows (P40 T4). Their token IS the station word
+  // (`RowStation`), so the structure leg's reason vocabulary stays the pre-flight gate
+  // name set: `DispatchAuthority#structureRefusal` returns `reason: gate` with no cast
+  // and no second spelling.
+  noHost: { token: "no-host", leg: "structure" },
+  carrier: { token: "carrier", leg: "structure" },
+  dispatchInput: { token: "dispatch-input", leg: "structure" },
+  artifact: { token: "artifact", leg: "structure" },
   // line — the wave gate's five rows
   mixedBatch: { token: "mixed-batch", leg: "line" },
   waveTooWide: { token: "wave-too-wide", leg: "line" },

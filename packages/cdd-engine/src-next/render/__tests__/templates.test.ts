@@ -28,6 +28,8 @@ import {
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
+  type ContextLine,
+  type ModePromptRow,
   pinLensOf,
   REVIEWS,
   type ReviewGuides,
@@ -449,5 +451,57 @@ describe("P38 T4 — the `none` half-sentence belongs to the two fix shells only
     for (const type of TARGET_TYPES) {
       expect(assembler.render(frameOf("review", type)), type).not.toContain(NONE_HALF);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 T1 — the brief cell is the ENGINE's own artifact (design spec §1: `written:
+// "engine"`). The cell's name is its whole answer: the file is rendered by the engine
+// before the child reads it, so no path takes an existence read. The declaration face
+// says so once, and the construction-time criterion judges the SLOT (one judgment per
+// slot across every row), not the line that happens to carry it.
+// ---------------------------------------------------------------------------
+
+/** Every row the assembler can render — the three work rows plus the six review rows. */
+const ROWS: readonly ModePromptRow[] = [
+  TEMPLATE_PROMPT.modes.implement,
+  TEMPLATE_PROMPT.modes.fix,
+  TEMPLATE_PROMPT.modes["docs-fix"],
+  ...Object.values(TEMPLATE_PROMPT.reviews),
+];
+
+/** The brief declaration a row carries — the one cell `NAMED_BRIEF_CELL` owns. */
+const briefOf = (row: ModePromptRow): ContextLine | undefined =>
+  row.roundContext.find(
+    (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
+  );
+
+// The refusal leg (an engine-written declaration on any OTHER slot) is pinned by
+// `context-lines.test.ts` (f), where the construction criteria (a)–(g) live; this block
+// owns the P40-specific claims and does not restate it.
+
+describe('P40 T1 — `written: "engine"` marks the one artifact the engine writes itself', () => {
+  it("declares the brief cell engine-written on every row that carries it — the contract builds", () => {
+    const carriers = ROWS.filter((row) => briefOf(row) !== undefined);
+    // three declaration OBJECTS, not three rows: the review tail's declaration is shared
+    // by the six review rows, so the eight carrier rows ride three declarations
+    expect(new Set(carriers.map((row) => briefOf(row))).size).toBe(3);
+    for (const row of carriers) {
+      expect(briefOf(row)?.written, row.mode).toBe("engine");
+    }
+    expect(() => new TemplateAssembler()).not.toThrow();
+  });
+
+  it("reduces the engine-written declarations to ONE slot per SLOT, not one per row", () => {
+    // `engineWrittenSlots` IS the reduction the construction-time criterion consumes:
+    // three declarations answer one slot, so deleting it (per-declaration judgment) turns
+    // this pin red instead of leaving the suite green on a rule nobody guards.
+    expect(TemplateAssembler.engineWrittenSlots(ROWS)).toEqual([
+      TemplateAssembler.NAMED_BRIEF_CELL,
+    ]);
+    const declarations = ROWS.flatMap((row) => row.roundContext).filter(
+      (decl) => decl.written === "engine",
+    );
+    expect(declarations.length).toBeGreaterThanOrEqual(3);
   });
 });

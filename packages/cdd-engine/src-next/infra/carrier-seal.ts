@@ -107,8 +107,8 @@ export class CarrierSeal {
     }
   }
 
-  /** Whether one name is the orchestrator's rulings sidecar — asked of the matrix
-   *  (`attribute` answers the `rulings` kind for every spelling that attributes), so the
+  /** Whether one name is the orchestrator's rulings sidecar (asked of the matrix:
+   *  `attribute` answers the `rulings` kind for every spelling that attributes), so the
    *  sidecar tail has ONE spelling home and the sweep holds no second copy of it. */
   static #isSidecar(name: string, artifacts: ArtifactRegistry | null): boolean {
     return artifacts?.attribute(name)?.kind === "rulings";

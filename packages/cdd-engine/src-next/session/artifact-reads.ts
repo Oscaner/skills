@@ -16,6 +16,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import path from "node:path";
+import type { CarrierFacts } from "../contract/carrier-line.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "./carrier-integrity.ts";
 import { CarrierRulings, type Ruling } from "./carrier-rulings.ts";
@@ -53,6 +54,29 @@ export class ArtifactReads {
   constructor(artifacts: ArtifactRegistry, base: Workspace) {
     this.#artifacts = artifacts;
     this.#base = base;
+  }
+
+  /** The carrier's integrity verdict as flat FACTS — `null` when there is nothing to
+   *  compare (no named carrier, no recorded digest, no file at that path) or the bytes
+   *  still digest to the record; the tampered carrier's facts when they do not. Any
+   *  other read error propagates: a present-but-unreadable carrier is the caller's own
+   *  fact, never a silent absence.
+   *
+   *  This answer is INDEPENDENT of the sidecar read — an absent ruling sidecar is the
+   *  ordinary case, and the dispatch's `carrier` row must judge the bytes the round was
+   *  asked to fix whether or not an unrelated artifact exists. `read` composes the
+   *  opposite order because its second consumer (the board's `art:` projection) reports
+   *  a mismatch as the sidecar's `invalid` arm, which a sidecar-less round never
+   *  reaches — so the two orderings are named separately rather than folded into one. */
+  carrierMismatchOf(carrier: string | null, digest: string | null): CarrierFacts | null {
+    if (carrier === null || carrier === "" || digest === null) return null;
+    try {
+      CarrierIntegrity.read(this.#carrierPathOf(carrier), digest);
+      return null;
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return raw.facts();
+    }
   }
 
   /** The ONE read of this `kind` — matrix `read` × schema `verdict`, composed once. */

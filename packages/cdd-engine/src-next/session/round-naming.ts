@@ -17,7 +17,7 @@
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
 
 import type { Workspace } from "../infra/workspace.ts";
-import { TargetFaceTable, type TargetType } from "./faces.ts";
+import { type DispatchPhase, TargetFaceTable, type TargetType } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
 import { ArtifactRegistry, renderRound } from "./round-artifacts.ts";
 import type { OpenFrame } from "./run.ts";
@@ -129,13 +129,32 @@ export class RoundNaming {
     return name === "" ? "" : this.#workspace.resolve(name);
   }
 
+  /** The prescribed test-evidence path of ONE dispatch, frame-free — the resolution of
+   *  `evidenceNameOf`'s answer against this workspace (the empty answer stays empty).
+   *  The composition root's pre-frame composer reads this entry: it holds the same flat
+   *  identity cells the frame would carry and no frame at all. */
+  evidencePathOf(artifact: RoundArtifact, type: TargetType, phase: DispatchPhase): string {
+    const name = RoundNaming.evidenceNameOf(artifact, type, phase);
+    return name === "" ? "" : this.#workspace.resolve(name);
+  }
+
   /** The test-evidence file NAME of a work frame — the shared stem with
    *  `-test-evidence.json`. "" off the evidence rounds — the doc shapes (phase-spec ·
    *  overall · plan · single-spec) and the review phase prescribe none. */
   evidenceName(frame: OpenFrame): string {
-    if (TargetFaceTable.isDocShape(frame.type)) return "";
-    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
-    return RoundNaming.renderName(this.#artifact(frame), "evidence");
+    return RoundNaming.evidenceNameOf(this.#artifact(frame), frame.type, frame.phase);
+  }
+
+  /** The evidence-name CONDITION and its rendered name, frame-free — the ONE home the
+   *  three readers share: this class's `evidenceName(frame)` (the dispatch body's
+   *  write-back), the composition root's pre-frame composer, and the sessions' fixture
+   *  (`__tests__/support/dispatch-values.ts`). A hand-copied second condition is how a
+   *  prompt's `OUTPUT_EVIDENCE` and the read-back gate stop agreeing on which dispatch
+   *  prescribes an evidence file at all. */
+  static evidenceNameOf(artifact: RoundArtifact, type: TargetType, phase: DispatchPhase): string {
+    if (TargetFaceTable.isDocShape(type)) return "";
+    if (phase !== "implement" && phase !== "fix") return "";
+    return RoundNaming.renderName(artifact, "evidence");
   }
 
   /** The attempt number a dispatch of one op/cycle would take — the max attempt

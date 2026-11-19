@@ -3,8 +3,8 @@
 //
 // Two faces under test, and they must stay two: the CONSTRUCTION-time criteria
 // (a dead cell · a shell naming a cell its layout never carries · an unregistered
-// slot · a registered round-context token no row carries · a preview answer on a cell
-// the naming row cannot answer) and the RENDER-time truth table (a value renders; an
+// slot · a registered round-context token no row carries · an engine-written declaration
+// on a cell other than the brief) and the RENDER-time truth table (a value renders; an
 // absent `drop` cell disappears whole; an absent `none` cell renders the bare literal
 // `none`). The rendering layer has three states, never a fourth: exigibility is judged
 // upstream by the dispatch-input gate, so the "empty but required" branch is not
@@ -21,8 +21,8 @@ import {
   type ModePromptRow,
   TEMPLATE_PROMPT,
   TemplateAssembler,
-  type TemplatePrompt,
 } from "../templates.ts";
+import { contractOf, draftOf } from "./contract-draft.ts";
 
 /** The six target types — the review rows' key domain. */
 const TARGET_TYPES: readonly string[] = [
@@ -84,38 +84,6 @@ const SELECTION_SLOTS = new Set<string>(["ROLE", "TARGET_TYPE"]);
 const slotOf = (decl: ContextLine): string | undefined =>
   /\{\{([A-Z0-9_]+)\}\}/.exec(decl.line)?.[1];
 
-/** A mutable row — the layout as a push-able array, so a case can add one cell. */
-interface MutableRow extends Omit<ModePromptRow, "roundContext"> {
-  roundContext: ContextLine[];
-}
-
-/** A mutable copy of the declared contract — one row per key, its layout cloned, so a
- *  case can mutate one declaration without leaking into the module's own data. */
-interface ContractDraft {
-  readonly modes: Record<string, MutableRow>;
-  readonly reviews: Record<string, MutableRow>;
-  readonly tokens: { name: string; zone: string }[];
-}
-
-const cloneRow = (row: ModePromptRow): MutableRow => ({
-  ...row,
-  roundContext: [...row.roundContext],
-});
-
-const draftOf = (): ContractDraft => ({
-  modes: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.modes).map(([key, row]) => [key, cloneRow(row)]),
-  ),
-  reviews: Object.fromEntries(
-    Object.entries(TEMPLATE_PROMPT.reviews).map(([key, row]) => [key, cloneRow(row)]),
-  ),
-  tokens: TEMPLATE_PROMPT.tokens.map((token) => ({ name: token.name, zone: token.zone })),
-});
-
-/** The mutated draft as the injected contract. */
-const contractOf = (draft: ContractDraft): TemplatePrompt =>
-  ({ ...TEMPLATE_PROMPT, ...draft }) as unknown as TemplatePrompt;
-
 describe("TemplateAssembler — the construction-time declaration criteria (§1.1 · §1.3)", () => {
   it("(a) refuses a dead cell — a type the row never serves, named with the token and the type", () => {
     const draft = draftOf();
@@ -170,17 +138,17 @@ describe("TemplateAssembler — the construction-time declaration criteria (§1.
     expect(() => new TemplateAssembler()).not.toThrow();
   });
 
-  it("(f) refuses a `satisfied` preview answer on any cell but the brief — and names the permitted one", () => {
+  it('(f) refuses a `written: "engine"` declaration on any cell but the brief — and names the permitted one', () => {
     const draft = draftOf();
     const row = draft.reviews["phase-spec"];
     // A REPLACEMENT declaration, never an in-place mutation: `draftOf` clones the
     // layout arrays, so the declaration objects themselves are the module's own.
     row.roundContext = row.roundContext.map((decl) =>
-      decl.line.includes("INPUT_SPEC") ? { ...decl, preview: "satisfied" as const } : decl,
+      decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl,
     );
-    // The exemption has exactly one answer (the naming row writes the brief, nothing
-    // else): a second `satisfied` cell would be declared and then silently judged as
-    // `value`, so the declaration is refused where the assembler is built.
+    // The declaration has exactly one answer (the engine writes the brief, nothing
+    // else): a second engine-written cell names a file this engine never writes, so the
+    // declaration is refused where the assembler is built.
     expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_SPEC/);
     expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_WAVE_BRIEF/);
   });
@@ -259,15 +227,15 @@ describe("TemplateAssembler — the declaration table's own shape (§1.4)", () =
     }
   });
 
-  it("keeps `INPUT_RULINGS` the only `none` cell and `INPUT_WAVE_BRIEF` the only preview", () => {
+  it("keeps `INPUT_RULINGS` the only `none` cell and `INPUT_WAVE_BRIEF` the only engine-written one", () => {
     const noneCells = new Set(
       CELLS.filter((cell) => cell.decl.absent === "none").map((cell) => slotOf(cell.decl)),
     );
     expect([...noneCells]).toEqual(["INPUT_RULINGS"]);
-    const previews = new Set(
-      CELLS.filter((cell) => cell.decl.preview === "satisfied").map((cell) => slotOf(cell.decl)),
+    const engineWritten = new Set(
+      CELLS.filter((cell) => cell.decl.written === "engine").map((cell) => slotOf(cell.decl)),
     );
-    expect([...previews]).toEqual(["INPUT_WAVE_BRIEF"]);
+    expect([...engineWritten]).toEqual(["INPUT_WAVE_BRIEF"]);
   });
 
   it("hangs the `never` form on `INPUT_RULINGS` (both fix rows) and docs-fix's `WAVE` — nowhere else", () => {

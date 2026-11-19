@@ -261,7 +261,8 @@ export class DispatchAuthority {
 
   /** The structure leg's verdict — the seam's refusal re-expressed as this chain's
    *  first row. Its token is the refusing gate's own id (the table's structure rows:
-   *  `tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`), never a
+   *  `tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract` plus the four
+   *  pre-dispatch rows `no-host` · `carrier` · `dispatch-input` · `artifact`), never a
    *  new spelling. Public because the lifecycle re-states a seam refusal (the
    *  structurally unreachable dispatch-entry path) through the same shape. */
   structureRefusal(preflight: PreFlightVerdict): DispatchRefusal | null {

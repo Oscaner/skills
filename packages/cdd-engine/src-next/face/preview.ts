@@ -13,19 +13,20 @@
 // write-back and read-back share (T4): the preview and the real dispatch name the
 // same files by one rule. The `child:` row is the harness contract's own data
 // (face/host.ts) — the host id + the row's invoke argument string — never a
-// detection-dependent spawn.
+// detection-dependent spawn. The host id is INJECTED (P40 T6): the composition root
+// probes once and hands the one value to the seam, the lifecycle and this renderer, so a
+// preview can never forecast against a harness the other two did not see.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import process from "node:process";
 import type { RepoRoot } from "../infra/root.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { ReviewedIdentity, type ReviewedLeg } from "../session/reviewed-identity.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { OpenFrame } from "../session/run.ts";
 import type { CliVerb } from "./declare.ts";
-import { HOSTS, HostDetect, type HostId } from "./host.ts";
-import type { DispatchScene, ProcessEnvLike } from "./lifecycle.ts";
+import { HOSTS, type HostId } from "./host.ts";
+import type { DispatchScene } from "./lifecycle.ts";
 import { Words } from "./words.ts";
 
 /** The preview row's label column width — `  ` + the label padded to this width +
@@ -35,26 +36,26 @@ const LABEL_WIDTH = 12;
 
 /**
  * Preview — the `--dry-run` read-only preview renderer. One instance renders one
- * invocation's block over the scene the work command already assembled; the host is
- * detected once at construction (the injectable-env adapter over the harness
- * contract's own judgment). Nothing in this class writes, dispatches or records.
+ * invocation's block over the scene the work command already assembled; the host id is
+ * the value the composition root's ONE probe answered. Nothing in this class writes,
+ * dispatches or records.
  */
 export class Preview {
   readonly #scene: DispatchScene;
   /** The round-naming single source (P11 T4) — the same derivations the lifecycle's
    *  write-back and read-back read, so the preview never invents a name. */
   readonly #naming: RoundNaming;
-  /** The detected host id ("" when no harness marker matched) — read by the `child:`
-   *  row only. */
+  /** The host id the composition root's ONE probe answered ("" when no harness marker
+   *  matched) — read by the `child:` row only. */
   readonly #host: HostId | "";
   /** The held-face wording rows (the lock row + the takeover hint) — the SAME rows
    *  the pre-flight gate and the board fill, never a preview-only paraphrase. */
   readonly #words: Words;
 
-  constructor(opts: { scene: DispatchScene; env?: ProcessEnvLike; words?: Words }) {
+  constructor(opts: { scene: DispatchScene; host: HostId | ""; words?: Words }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
-    this.#host = HostDetect.detect(opts.env ?? process.env);
+    this.#host = opts.host;
     this.#words = opts.words ?? new Words();
   }
 
@@ -89,16 +90,22 @@ export class Preview {
     return lines;
   }
 
-  /** The read-only refusal block for a pre-dispatch gate — one of the three the real
-   *  dispatch applies before the round exists REFUSED this dispatch (a `carrier-mismatch`
-   *  on a tampered requesting carrier; a dispatch-input cell the frame requires but left
-   *  empty or absent; a `misplaced` sidecar / unreadable one / a schema violation), so the
-   *  preview prints the gate's OWN reason verbatim: one read, two faces, and a dry run can
-   *  never forecast a dispatch the real run would refuse. Exit 1 at the caller; nothing is
-   *  written, moved or deleted (the repair is the orchestrator's). */
+  /** The read-only refusal block — the STRUCTURE leg's ONE refusal renderer: it prints
+   *  the reason it is handed, verbatim, and judges nothing itself (the pre-flight seam
+   *  owns the judgment; this class only lays the sentence out). One renderer, two faces:
+   *  the command face prints the same seam verdict on `CDD_BLOCKED`, so a dry run can
+   *  never forecast a dispatch the real run would refuse. The row's token and its
+   *  two-space value gap are the words table's ONE cell (the board's refusal row reads
+   *  the same one, each face adding only its own outer layer). Exit 1 at the caller;
+   *  nothing is written, moved or deleted (the repair is the orchestrator's). */
   artifactBlock(verb: CliVerb, reason: string): readonly string[] {
+    const row = this.#words.refusalWords();
     const [head, ...sections] = reason.split("\n");
-    return [`cdd ${verb}: preview (no repo changes)`, `  refused:  ${head ?? ""}`, ...sections];
+    return [
+      `cdd ${verb}: preview (no repo changes)`,
+      `  ${row.token}${row.gap}${head ?? ""}`,
+      ...sections,
+    ];
   }
 
   /** The `lock:` row's value — the holder's identity facts, the lock-without-record
@@ -194,11 +201,12 @@ export class Preview {
 
   /** The child invocation the real run would spawn — `<HostId> <invoke>`: the host
    *  id then the harness row's invoke argument string verbatim (the binary name is a
-   *  separate row column and never rides the invoke value). With no host detected the
-   *  real run would BLOCK before any spawn — the row states that literal rather than
-   *  indexing an absent host row. */
+   *  separate row column and never rides the invoke value). A host-less tree never
+   *  reaches a forecast at all — the seam's `no-host` row refuses that dispatch before
+   *  any step exists (P40 T6) — so the row reads the host table directly, with no
+   *  second sentence for the empty probe. */
   #childOf(): string {
-    if (this.#host === "") return "(no host detected — real run would BLOCK)";
+    if (this.#host === "") return "";
     return `${this.#host} ${HOSTS[this.#host].invoke}`;
   }
 

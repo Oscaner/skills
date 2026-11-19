@@ -10,7 +10,8 @@
 // this module only formats what it is handed.
 
 /** The three facts the line names — the carrier's path and the recorded / current
- *  digests already shortened to their 8-hex diagnostic prefix. */ export interface CarrierFacts {
+ *  digests already shortened to their 8-hex diagnostic prefix. */
+export interface CarrierFacts {
   /** The carrier's path, as recorded. */
   readonly line: string;
   /** The digest the round's record carries (the 8-hex prefix). */

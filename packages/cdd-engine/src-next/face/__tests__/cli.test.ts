@@ -6696,7 +6696,7 @@ describe("cdd <verb> --dry-run — the dispatch-input gate (P38 T3)", () => {
     }
   });
 
-  it("is satisfied by the brief's NAMING — a preview never reds the brief it would have rendered itself", async () => {
+  it("passes on the ENGINE-WRITTEN brief cell — a preview never reds the brief it would have rendered itself", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
     try {
       gitInit(repoRoot);

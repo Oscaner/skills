@@ -1,0 +1,22 @@
+# lefthook.yml — the commit gate.
+#
+# Two commands, run once per commit, in this order: `biome check` first, then
+# `pnpm run precommit`. The order is a contract, not a preference — a formatting
+# violation must stop the commit at the formatter instead of surfacing after the full
+# tree-independent suite has run. `piped: true` is what makes the order observable:
+# commands run one after another and a failing command ends the hook, so a formatter
+# failure leaves no `pnpm run precommit` run in that commit's log.
+#
+# `biome check` runs WITHOUT `--write`: a surviving violation exits non-zero and the
+# file is never written back, so the author fixes it. `precommit` is the catch-all —
+# it covers every file, not just the staged `.ts` set.
+
+pre-commit:
+  parallel: false
+  piped: true
+  commands:
+    biome:
+      glob: "*.ts"
+      run: pnpm exec biome check {staged_files}
+    precommit:
+      run: pnpm run precommit

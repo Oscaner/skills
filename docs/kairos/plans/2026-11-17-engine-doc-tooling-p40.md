@@ -689,8 +689,7 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 ### Task 8: changeset · 章程回填 · 全量门禁
 
 #### Objective
-把这一轮的消费面变化登记齐：changeset 一条 `minor`、章程的 P40 design-spec 一格与版本、spec 与 plan 的版本与 change history（P38 spec 上那条换向记录已在位，按 verify-only 核），然后跑全量门禁。版本与历史行是登记。**改前的 grep 与逐格读先划出还活着的编辑面**，而不是按旧稿的清单重写一遍：`rg -n '每一面都被调用|每次派发'` 在 spec 上只余版本历史行与已带例外的句子（那五句 `checked:` 例外已读「有输入面的派发」并带让位例外），§3.1 的位置句已读「树级事实块的块尾」、章程 Phase inventory AC ⑥ 的 `checked:` 让位例外也已读同一口径（章程 v4.22 的回填）——**这一句只覆盖 `checked:` 的让位例外，不覆盖 board 的位置句**：章程 D96 · Phase inventory P40 的 summary ② 格与同一行的**验收 ② 格**当时仍把 `refused:` 行读成 `in-flight:` 的邻居（summary ② 格与 D96 读该义，验收 ② 格逐字读「位置与 `in-flight:` 并列」），而 `BoardView#refusalRows` 排在 `in-flight:` · `orphan:` · `crashed:` 三行之后（本文件 Files 行与 `
-## Change history` 的 v0.46 行同批改正了 summary ② 格与 D96，**验收 ② 格同一件事没有主**，v0.47 补上；位置自此只由 spec §3.1 与装配处两个来源承担）——因此**活着的编辑面是八处**，Objective · Files · Produces · Step 2 与 Acceptance 读同一份清单、不再各数一套：章程 Phase inventory P40 行的**验收 ② 格**（board 位置句，今天逐字读「位置与 `in-flight:` 并列」）· 同一行的**验收 ③ 格**（它只念三个方向，而 spec 的同一条判据念七个、同一行的 summary 格与 D96 都已读「两个到期触发点」——见 Files 行；交付后的那一格已由章程 v4.33 扩到七个，第七个是「让位条件一那一支也清」，本任务的判据必须与它同名）· 同一行的 **summary ② 格**（board 位置句）· 同一行的 **summary ③ 格**（到期谓词仍读整条腿通过）· **D96 的到期括号**（仍读「整条结构腿通过时 composition root 在门口清」）· **D96 的 board 位置句** · spec §3.1 的**读取归属句**（它仍写「读取点就在渲染 `in-flight:` 行的同一处」）· spec §5 的**三句 `prepare` 陈述**（§5.1 · §5.3 与验收行都还写无旗标的 `lefthook install`，而设计决定是自愈形态——陈旧的本机 `core.hooksPath` 按 clone 存在，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上失败）。同一谓词的三处**代码与用例坐标**（`face/cli.ts` 的门口清除锚点注释 · `session/refusal.ts#PreFlightRefusal#clear` 的 fail-open docstring · `face/__tests__/cli.test.ts` 的一条用例题目）随这批文档同批随动；三处的路径已在 Task 2 / Task 6 的 Files 里，因此只点名，不新立文件行、也不计入那八处。章程 in-register 那一段的行为语义增量账**不在这八处里**：它今天已读「跑到四行的有输入面派发上 `checked:` 面的新增四行（…；两处让位条件住 D96）」（v4.23 的回填），于是那条 grep 在改前就答零行、证不出这一行改过还是没动过；「每一次判了输入面的派发」只作 changeset ④ 自己的排头词，不当章程的通过条件。这八处是纠正，其余几处按 verify-only 处理：重写一句已经正确的句子既证不出差异，也会把一个过了十二轮的措辞再动一次。带日期的 change-history 行是记录，不改写、也不进这批纠正。
+把这一轮的消费面变化登记齐：changeset 一条 `minor`、章程的 P40 design-spec 一格与版本、spec 与 plan 的版本与 change history（P38 spec 上那条换向记录已在位，按 verify-only 核），然后跑全量门禁。版本与历史行是登记。**改前的 grep 与逐格读先划出还活着的编辑面**，而不是按旧稿的清单重写一遍：`rg -n '每一面都被调用|每次派发'` 在 spec 上只余版本历史行与已带例外的句子（那五句 `checked:` 例外已读「有输入面的派发」并带让位例外），§3.1 的位置句已读「树级事实块的块尾」、章程 Phase inventory AC ⑥ 的 `checked:` 让位例外也已读同一口径（章程 v4.22 的回填）——**这一句只覆盖 `checked:` 的让位例外，不覆盖 board 的位置句**：章程 D96 · Phase inventory P40 的 summary ② 格与同一行的**验收 ② 格**当时仍把 `refused:` 行读成 `in-flight:` 的邻居（summary ② 格与 D96 读该义，验收 ② 格逐字读「位置与 `in-flight:` 并列」），而 `BoardView#refusalRows` 排在 `in-flight:` · `orphan:` · `crashed:` 三行之后（本文件 Files 行与 `## Change history` 的 v0.46 行同批改正了 summary ② 格与 D96，**验收 ② 格同一件事没有主**，v0.47 补上；位置自此只由 spec §3.1 与装配处两个来源承担）——因此**活着的编辑面是八处**，Objective · Files · Produces · Step 2 与 Acceptance 读同一份清单、不再各数一套：章程 Phase inventory P40 行的**验收 ② 格**（board 位置句，今天逐字读「位置与 `in-flight:` 并列」）· 同一行的**验收 ③ 格**（它只念三个方向，而 spec 的同一条判据念七个、同一行的 summary 格与 D96 都已读「两个到期触发点」——见 Files 行；交付后的那一格已由章程 v4.33 扩到七个，第七个是「让位条件一那一支也清」，本任务的判据必须与它同名）· 同一行的 **summary ② 格**（board 位置句）· 同一行的 **summary ③ 格**（到期谓词仍读整条腿通过）· **D96 的到期括号**（仍读「整条结构腿通过时 composition root 在门口清」）· **D96 的 board 位置句** · spec §3.1 的**读取归属句**（它仍写「读取点就在渲染 `in-flight:` 行的同一处」）· spec §5 的**三句 `prepare` 陈述**（§5.1 · §5.3 与验收行都还写无旗标的 `lefthook install`，而设计决定是自愈形态——陈旧的本机 `core.hooksPath` 按 clone 存在，无旗标的 `prepare` 会让每个既有 clone 的 `pnpm install` 在根 prepare 上失败）。同一谓词的三处**代码与用例坐标**（`face/cli.ts` 的门口清除锚点注释 · `session/refusal.ts#PreFlightRefusal#clear` 的 fail-open docstring · `face/__tests__/cli.test.ts` 的一条用例题目）随这批文档同批随动；三处的路径已在 Task 2 / Task 6 的 Files 里，因此只点名，不新立文件行、也不计入那八处。章程 in-register 那一段的行为语义增量账**不在这八处里**：它今天已读「跑到四行的有输入面派发上 `checked:` 面的新增四行（…；两处让位条件住 D96）」（v4.23 的回填），于是那条 grep 在改前就答零行、证不出这一行改过还是没动过；「每一次判了输入面的派发」只作 changeset ④ 自己的排头词，不当章程的通过条件。这八处是纠正，其余几处按 verify-only 处理：重写一句已经正确的句子既证不出差异，也会把一个过了十二轮的措辞再动一次。带日期的 change-history 行是记录，不改写、也不进这批纠正。
 
 #### Files
 - Create: `.changeset/p40-preflight-refusal.md`
@@ -771,35 +770,35 @@ pre-commit:
 #### DependsOn
 1, 2, 3, 4, 5, 6, 7, 8
 
-
 ### Task 10: 让四个真 CLI 预览用例与环境无关
 
 #### Objective
-CI 抓到四个用例只在**装了 harness 的机器**上通过：它们走真 CLI（`runArgv`），而 P40 把 `no-host` 搬进了 preflight 缝——预览共享它，于是「环境里没有 harness ⇒ 预览 exit 1」这条**已声明的产品行为**让这四条用例依赖了运行环境（本地有 pi ⇒ 绿；干净 clone ⇒ 红）。修的是**测试的确定性**，不是产品：真 CLI 的用例必须显式声明它跑在哪个宿主下，而不是继承机器的。
+CI 抓到四个用例只在装了 harness 的机器上通过：它们走真 CLI，而 P40 把 `no-host` 搬进了 preflight 缝——预览共享它，于是「环境里没有 harness ⇒ 预览 exit 1」这条已声明的产品行为让这四条用例依赖了运行环境（本地有 pi ⇒ 绿；干净 clone ⇒ 红）。修的是测试的确定性，不是产品：真 CLI 用例必须显式声明它跑在哪个宿主下，而不是继承机器的。
 
 #### Files
-- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（四个真 CLI 用例：`writes nothing` · `consumes no round` · `judges the dispatch ONCE through the loop` · `orphan handoff draft on the reads row`）
+- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（四个真 CLI 用例：writes nothing · consumes no round · judges the dispatch ONCE through the loop · orphan handoff draft on the reads row）
 
 #### Consumes
-- `HostDetect` 的探针事实（`face/host.ts`：`CLAUDE_CODE_SESSION_ID` 与 `AI_AGENT` 两条通道）
+- `HostDetect` 的两条宿主通道（`face/host.ts`：`CLAUDE_CODE_SESSION_ID` 与 `AI_AGENT`）
 - `DispatchAuthority` 的 `no-host` 行（structure 腿第 6 行，P40 T4 交付）
 - 该文件既有的 `preview(host)` 工厂（P40 T6 起 `Preview` 收注入的 host id）
 
 #### Produces
-- 该文件的真 CLI 用例在**任何**宿主环境下都读到同一个 host：由 `beforeEach` 显式设置一条宿主通道并在 `afterEach` 还原，而不是依赖机器上装没装 pi。
+- 该文件的真 CLI 用例在任何宿主环境下读到同一个 host：`beforeEach` 显式设置一条宿主通道、`afterEach` 还原，而不是依赖机器上装没装 pi。
 
 #### Steps
-- **Step 1: 写会红的断言**（在设置宿主之前，清掉两条宿主通道，断言四条用例仍 exit 0） — checkable: `CLAUDE_CODE_SESSION_ID= AI_AGENT= pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 报红，且失败行是 `expect(code).toBe(0)` 收到 1
-- **Step 2: 让 fixture 声明宿主**（`beforeEach` 设一条通道、`afterEach` 还原） — checkable: 同一条命令（宿主通道被清空）转为全绿
-- **Step 3: 反向确认不掩盖产品行为**（显式清空宿主时，`no-host` 仍能拒——用一个走真 CLI 的拒绝用例证） — checkable: 该拒绝用例在宿主为空时读得 `no-host` 站名，在宿主存在时不出现
-- **Step 4: 文件级全绿** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 0 failed，且连续两次运行结果一致
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含该测试文件与本 plan 的版本行
+- **Step 1: 先让它在清空通道时红** — checkable: `CLAUDE_CODE_SESSION_ID= AI_AGENT= pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 报红，失败行是 `expect(code).toBe(0)` 收到 1
+- **Step 2: fixture 声明宿主**（设一条通道、还原） — checkable: 同一条命令转为全绿
+- **Step 3: 反向确认不掩盖产品行为**（显式清空宿主时 `no-host` 仍能拒） — checkable: 该拒绝用例在宿主为空时读得 `no-host` 站名，宿主存在时不再出现
+- **Step 4: 文件级全绿且可重复** — checkable: 该命令连跑两次均 0 failed
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含该测试文件与本 plan 两处改动
 
 #### Acceptance
-四条真 CLI 预览用例在宿主通道被清空与存在两种环境下**都** exit 0 且零写入；显式的拒绝用例仍在宿主为空时拒；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 连跑两次全绿；`pnpm run validate` exit 0。
+四条真 CLI 预览用例在宿主通道被清空与存在两种环境下都 exit 0 且零写入；显式拒绝用例在宿主为空时仍拒；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 连跑两次全绿；`pnpm run validate` exit 0。
 
 #### DependsOn
 1, 2, 3, 4, 5, 6, 7, 8, 9
+
 
 ## Change history
 
@@ -807,9 +806,9 @@ CI 抓到四个用例只在**装了 harness 的机器**上通过：它们走真 
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.49 | 2026-11-19 | **追加 Task 10（CI 抓到的真缺陷）**：四个真 CLI 预览用例依赖运行环境——P40 把 `no-host` 搬进 preflight 缝后，干净环境里的预览按已声明的行为 exit 1，本地因装了 pi 而绿。修测试确定性（fixture 显式声明宿主），不改产品。`DependsOn: 1–9`，追加工作只指向已关闭任务 | Oscaner M. · Claude |
 | v0.47 | 2026-11-19 | 计划评审第 30 轮 fix 轮（plan-review-30 · docs-fix 轮；F1 · F2 · F3 全采纳；Task id 集与 `DependsOn` 集未动）：① **章程 Phase inventory P40 的验收 ② 格进编辑面（F1）**——那一格仍逐字读「位置与 `in-flight:` 并列」，而同一行的 summary ② 格、D96 与 spec §3.1 读的是树级事实块的块尾；Task 8 的 Objective · Files · Produces · Step 2 与 Acceptance 同批收下它，四种位置句一律改读「树级事实块的块尾（块里没有 `orphan:` 与 `crashed:` 时它才是 `in-flight:` 的下一行）」，并把 `face/__tests__/board-view.test.ts` 的「orders the refusal AFTER a crashed round」用例点为该格的失败面；该格写进本行而不是回头改写 v0.46 那一行——带日期的历史行是记录，不改写。② **编辑面计数收成一份（F2）**——Objective 原把编辑面数成三处、Step 2 与 Acceptance 各数成四处，三处各数一套；现统一成**八处**并在 Objective · Files · Produces · Step 2 · Acceptance 上逐字同形列举（章程六处：验收 ② 格 · 验收 ③ 格 · summary ② 格 · summary ③ 格 · D96 的到期括号 · D96 的 board 位置句；spec 两处：§3.1 的读取归属句 · §5 的三句 `prepare` 陈述），同一谓词的三处代码与用例坐标只点名、不新立文件行；改前的 grep 随之读作「grep 与逐格读」，因为 D96 的到期括号与 board 位置句本来就不落在那条 grep 上。③ **v0.45 的来源轮改正（F3）**——该行原与 v0.46 共用同一个分支评审轮次的标号，而它的三条发现来自计划波，写入它的提交是 `186f21d4`（apply plan-review-29 findings）；改标「第二十九轮 fix 轮（计划波 · plan-review-29）」并写明三条都是计划波的发现；那个分支评审轮次的标号自此只余 v0.46 一行。 | Oscaner M. · Claude（kairos:plan-fix · 2026-11-19） |
 | v0.48 | 2026-11-19 | **closeout：九任务七波全部交付**（W1{1} · W2{3} · W3{2,4} · W4{5,7} · W5{6} · W6{8} · W7{9}）。每波走过 implement →（必要时 plan doc-drift 对账）→ wave 评审 → fix 的完整链；分支终审 4 轮。交付实测：`contract/preflight-rows.ts` 自足形状（零 face import，`journey-twin` 随 `TargetType` 搬家）· `session/refusal.ts` 三态读 + 裸读访问器 · `PreFlight#hasInputFace` 空批次退场 · `DispatchValues.compose` 无帧装配（门与渲染同一次）· 组合根写/清两处 · board 两行 · lefthook 接管提交门。九任务无 rewrite，闭块只对齐不重发 | Oscaner M. · Claude（kairos:cdd-close） |
-| v0.49 | 2026-11-19 | **追加 Task 10（CI 抓到的真缺陷）**：四个真 CLI 预览用例依赖运行环境——P40 把 `no-host` 搬进 preflight 缝后，干净环境里的预览按已声明的行为 exit 1，而本地因装了 pi 而绿。修的是测试确定性（fixture 显式声明宿主），不是产品。`DependsOn: 1–9`，追加工作按既有规矩只指向已关闭任务 | Oscaner M. · Claude |
 | v0.46 | 2026-11-19 | 分支评审第 3 轮 fix 轮（F1 · F2 采纳 · docs-fix 轮；Task id 集与 `DependsOn` 集未动）：① **章程 Phase inventory P40 的 summary ③ 格进编辑面（F1）**——该格仍把门口的到期谓词写成整条腿通过，与 D96（章程 v4.35）、验收 ③ 与 spec §2.2 相左；改读「结构腿不拒绝时在门口清——九行全过，或四行按让位条件一让位后五行全过」，Task 8 的 Files · Produces 与 Objective 同批补上这一格。② **board 的位置句进编辑面（F2）**——D96 与 summary ② 格把 `refused:` 行读成 `in-flight:` 的邻居，而 `BoardView#refusalRows` 排在 `in-flight:` · `orphan:` · `crashed:` 之后（spec §3.1 与本相 changeset ⑤ 早已这么读）：两处改读「树级事实块的块尾」，Task 8 的 Objective 原句把「章程的 D96 与 Phase inventory AC ⑥ 也已读同一口径」收窄到它真正覆盖的 `checked:` 让位例外——AC ⑥ 记的是 `checked:` 面的在册增量，与 board 的位置是两件事。③ **同一谓词的三处代码与用例坐标点名**——`face/cli.ts` 的门口清除锚点注释 · `session/refusal.ts#PreFlightRefusal#clear` 的 fail-open docstring（它不再把这次清除读成一次「已通过结构腿的派发」的成功路径：该锚点在 `vet` 返回之后、`--recover` 的接管判定之前，紧随其后的 line 腿拒绝不影响这次清除）与 `face/__tests__/cli.test.ts` 的一条用例题目；三处所属文件已在 Task 2 / Task 6 的 Files 里，本任务不新立文件行。章程随之 v4.36。 | Oscaner M. · Claude（kairos:branch-fix · 2026-11-19） |
 | v0.45 | 2026-11-19 | 第二十九轮 fix 轮（计划波 · plan-review-29；F1 · F2 · F3 全采纳，三条都是计划波的发现——写入本行的提交是 `186f21d4`（apply plan-review-29 findings），与分支波无关；Task id 集与 `DependsOn` 集未动）：① **`carrier` 行完整性判据的回归面按交付写实**（F1）——`1ed5cd51` 在 `face/__tests__/lifecycle.test.ts` 落下的 `P40 — the carrier row's integrity verdict precedes the sidecar read` 一块三例（侧车缺席的 mismatch · 侧车在场的同一臂 · 健康载体仍走 `read` 臂）与同文件 P31 T2 的两段源断言此前没有任务拥有（Task 6 的文件行读作「仅迁构造调用，断言零改动」）：该行改记这四段并按标题点名，Step 5 的 `--stat` 补 `face/__tests__/lifecycle.test.ts`，v0.44 的历史行同批补记；同一发现把 Task 4 的验收从「两臂各喂一次」收到**侧车缺席与侧车在场两种形状**（一份恰好带侧车的单一夹具正是把缺陷藏住的形状）；② **`mismatch` 臂的生产者归位**（F2）——Task 4 的 `cli.ts` 行改记常规生产者是 `ArtifactReads#carrierMismatchOf` 交回的事实（`ArtifactSnapshots.of` 先取这一格），`read` 之后那次 `catch (CarrierMismatchError)` 只是读竞态的兜底；原行把兜底写成生产者，与它上面 `session/artifact-reads.ts` 那一行的次序互斥；③ **本表按版本倒序**（F3）——v0.44 行原被追加在表尾（v0.1 之后），现移回表头并在标题下写明排列规则，下表不再有两种追加读法 | Oscaner M. · Claude |
 | v0.44 | 2026-11-19 | 分支评审第 2 轮 fix 轮（F1 · F2 · F3 · F4 全采纳，四条全部落地；Task id 集与 `DependsOn` 集未动）：① **`carrier` 行在侧车缺席时也拒**（F1）——`ArtifactSnapshots.of` 现在先取载体完整性这一格（`ArtifactReads#carrierMismatchOf`），再读侧车，于是被篡改的请求载体在任何一次 fix 派发上都在 spawn 之前拒成 `carrier · carrier-mismatch · …`，而不是落到读回面的 `CDD_BLOCKED: carrier-mismatch · …`（无 `refusal.json`、无站名）；Task 4 的 Files 因此多一行 `session/artifact-reads.ts`，「先 identity、后侧车」的 `read` 次序不动（board 的 `art:` 投影读它）；同批一处**夹具**改正：`cli.test.ts` 的 promoted-round 夹具把 `--reviews` 从子草稿改读该轮的 FINAL（`ledger.resolveHandoffPath`），草稿的字节不是记录写下的 payload，而注入的派发面此前跳过了这道判据；② **章程 D96 的到期括号**（F2）与 ③ **changeset 的记录寿命句**（F3）改成与 ③ 格、spec §2.2 同一个谓词（「结构腿不拒绝时」），章程随之 v4.35；④ 同批改了 `ArtifactSnapshots.of` 的 docstring（F4：两条路径基的分工——digest 读判的是生产者原样的值，记录的格才在 `#readOf` 处收成 relative）；⑤ **同提交在 `face/__tests__/lifecycle.test.ts` 落下的回归面**——`P40 — the carrier row's integrity verdict precedes the sidecar read` 一块三例（侧车缺席的 mismatch · 侧车在场的同一臂 · 健康载体仍走 `read` 臂）与同文件 P31 T2 从 `new ArtifactReads(...).read(` 改写成 `reads.carrierMismatchOf(` + `reads.read(` 两段的源断言；本行原先只记了 `cli.test.ts` 的 promoted-round 夹具与 docstring，那四段因此没有任务拥有（Task 6 的文件行当时读作「仅迁构造调用，断言零改动」，v0.45 补记）；⑥ **本行原被追加在表尾**（v0.1 之后）——本表按版本倒序排列，v0.45 把它移回表头并在标题下写明排列规则：字节未改，位置改了 | Oscaner M. · Claude |

@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -103,6 +103,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 #### 3.2 比较域是单边的
 - 左侧 = 在范围内的文档，右侧 = **除本文件之外**的全部文档。自比不计：右侧若含本文件，它的每一句都和自己同形，判据在任何文档上都恒真——这条排除是判据的一部分，不留给实现者顺手加。漂移的方向永远是「新的抄旧的然后各自演化」；反向不存在。
+- **同一 run 的一对不互比**：`slug:` 相同的 spec 与 plan 是同一份设计的两面——plan 的 `#### Acceptance` 本来就是 spec 判据的可核形态，判它们互抄等于判死每一份 plan。故比较按 `slug:` 分组：一份文档只与**不同 slug** 的文档比。这条不收窄评审面实测到的那一类：章程与相位文档的 slug 各不相同（章程的 slug 是程序名，相位文档的是 `<date>-<program>-pN-design`），所以章程对相位文档的复述照旧被判。
 - 这是 `doc-contract` 的一条规则行（重复规则那一行），不是新腿——同一扇门、同一张规则表。
 
 #### 3.3 不判什么
@@ -159,6 +160,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.8 | 2026-11-20 | **plan 阶段回填（backfill-design）**：起草 plan 时撞到一处设计缺口——`single-home` 的比对面会让**同一份设计的 spec 与 plan 互判**，而 plan 的 `#### Acceptance` 本来就是 spec 判据的可核形态，那会把每一份 plan 判成违规。⇒ §3.2 增同 slug 豁免：一篇只与**不同 slug** 的文档比。评审面实测到的章程那一类不受影响（章程与各相位文档 slug 互不相同），故这条是缺口补全，不是收紧判据 | [human] · Claude（kairos:cdd-plan · backfill-design） |
 | v0.1 | 2026-11-20 | 首版：四组与验收。grilling Q1–Q17 落定的设计树——形状面（面图 / 四类可变量 / 严重度与自毁 / 生命周期范围 / 记录面正面形状）· 证据面（嵌套字段 / blocker 强制 / 裁定侧 probe / read 行尾）· 一份住所（3-gram 单边比 / 引用块豁免 / 不判行级事实）· 消费面（minor）。实测依据记在注册提交信息里，正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.2 | 2026-11-20 | 首轮评审回填（fix 1）：面图落 `contract/declare.ts` 并补全域角色（`### 设计决策留存` 补成 facet 元素）· 测量字面改成 token 文法且以文法为规范 · 告警字节挂规则自己的 `checked:` 行（`warned` 档）· 闭合读 `contract/pins.ts#ForwardPaths` 并写出与 pin 面相反的极性 · 证据接缝复用 `gradingViolations` 加一条 `CRITERIA_ROWS` 行（`evidence-missing`）· 侧车改 `verdict` 与 `probe` 两键 · 删除 board 可见面整条 · 章程三节自修列为具名交付 · 消费面补五条 `checked:` 行与骨架真值表一行；正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.3 | 2026-11-20 | 第二轮评审回填（fix 2）：日期形状立为 `doc-contract` 的规则行 `change-history-date-shape`（注册元素的模式惰性，故判词由规则行持有，不借 `change-history-row-shape`）· 时序闭集加 `今日` 并把挂载写成文法（同一分句内要有符号候选，孤立副词不报，附反证用例）· 章程自修从三节扩到五节（`### Cross-cutting` 与 `## Boundary rules` 同病）· 面图的域收为「锚以标题字面起头的元素」并补两个 `####` facet · 闭合读两格命名（相位 spec 与 plan 同判）· 六条规则行一律 warn 起步、末任务同批翻 block · 证据面去掉 `fix` 载体（work 平面无 findings）· `SEVERITY_RUBRIC` 与 json 面字节入册 · 重复规则右侧排除本文件 · 正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |

@@ -95,6 +95,70 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 ### Acceptance criteria
 
+- `contract/faces.ts` **面图即声明**：同一行文案只落在 `## Change history` ⇒ 零拒绝；同一行搬进判据面 ⇒ 该行报 `line-coordinate`（成对，同一份夹具只改位置）。overall 面：`## Constraints` 带坐标 ⇒ 被拒，设计决策留存里同一形态 ⇒ 零拒绝。节名由 `ElementRegistry` 派生——手写第二个节名清单在该用例上必红。
+- `doc-contract` **测量字面**：判据面裸写一个测量 ⇒ 报；改写成 `census:<id> = <n>` 且值与登记行相等 ⇒ 零拒绝；值不等 ⇒ 由 `Census` 既有的比对报出，报文与该形状行的不同（两条判据不许挤成一条）。
+- `doc-contract` **行号坐标**：`第 N 行` · `line N` · 路径后接 `:N` 三种形态各成一条用例且各报一次；同一形态落在行内代码段里 ⇒ 零拒绝（本 spec 命名规则自身即依赖这一条）。
+- `doc-contract` **算式与指示词**：各成对——活文件算式 ⇒ 报，写成「差值由某守卫维持」⇒ 零拒绝；挂在路径上的时序指示词 ⇒ 报，改写成「必须成立的条件」⇒ 零拒绝。
+- `contract/invariants.ts#Finding` **严重度由规则行声明**：一条声明 warn 的规则在违规文档上不拒，且 `checked:` 面 `doc-contract` 那一行读作 ` — <n> warning(s)`；把该行翻成 block 后同一文档被拒、且 `checked:` 面字节回到零告警形态。本相位末任务的 pin 断言「无一规则声明 warn」为真（自毁面可核，不是承诺）。
+- `doc-contract` **范围按生命周期**：某总体 Phase inventory 有格点名某文档且读 `✔ Done` ⇒ 该文档带任何违例都零拒绝；同一内容换一个未被点名的 slug ⇒ 被拒（成对）。无任何总体时 ⇒ 被拒且报文含「无可用的闭合登记」。single-spec 无格点名 ⇒ 判。
+- `change-history-row-shape` **记录面不新增规则**：历史行缺前导 ISO 日期 ⇒ 仍由既有规则报（本相位不新增第二条）；同一行不带「测量方式」⇒ 零拒绝（提交信息不是文档）。面图把该节认作 record 是唯一增量。
+- `evidence` **blocker 必填**：带 findings 的载体里 `severity: "blocker"` 而 `evidence` 缺席 ⇒ 载体被拒（`contract-violation`），本轮不推进、不记结论；`warn` 缺席 evidence ⇒ 通过。`repro` 为一条命令与为一个 `doc.md#section` 指针两种形态都通过（判断类 blocker 拿不出命令时不得被迫降档）。
+- rulings **`probe` 在驳回时必填**：侧车里 `status: "rejected"` 而 `probe` 缺席 ⇒ 侧车不被接受；`status: "fixed"` 缺席 `probe` ⇒ 通过（改动本身即证据）。
+- `face/board-view.ts` **`read:` 行尾**：带 findings 的一轮里该行以 ` · evidence <with>/<total>` 收尾，`with` 与带 evidence 的 finding 数相等；无 findings 的轮里该行字节不变（消费面守恒）。不新增行。
+- `doc-contract` **一份住所**：同一判据句进两份未闭合文档的正文 ⇒ 两侧文件与两侧开头都被念出；同句搬进引用块 ⇒ 零拒绝；左侧闭合、右侧未闭合而含同一句 ⇒ 仍报（单边比较）。
+- `contract/doc-body.ts#DocBodyProjection` **身份面回归**：只追加一条 `## Change history` 行并 bump 版本 ⇒ `doc-revision` 摘要逐字节不变；判据面改一个词 ⇒ 变。本相位不为身份面新增判据，只留这一对回归防止被顺手改动。
+
+## Constraints` 为 decision，两张 inventory 与设计决策留存为 registration。
+- **刻意接受**：闭合文档不再被形状门约束。改它就等于改历史，而评审不该因为记录而重开。
+
+#### 1.5 记录面不加新规则
+- 「前导 ISO 日期」**已由既有的 `change-history-row-shape` 覆盖**，本相位不为它加第二条规则——一处定义，两个说法会各自漂移。
+- 「这条读数是怎么取的」**不进文档**：住 fix 轮的提交信息。加第五列是 schema 破坏（表头列集门 + 全部存量文档 + 骨架模板三处同改），而提交信息本身就是痕，且不占文档字节。
+- 因此 record 面在本相位里唯一的增量是**它被面图认出来**（从而豁免），不是它被加了约束。
+
+### 2. 证据面
+#### 2.1 字段
+- finding 增 `evidence: { repro, output? }`——嵌套让「有没有证据」成为可判的存在性。
+- **没有 `claim` 字段**：finding 的 `summary` 就是那条断言，再抄一遍是同一事实的第二个住所。
+- `repro` 的语义是**读者能在哪里自己核这条断言**：一条命令，或一个 `doc.md#section` 指针。两者皆可。
+- `output` 长时可给路径；要点是字节存在于编排者可读之处。
+
+#### 2.2 强制面
+- `severity: "blocker"` 而缺 evidence ⇒ 载体被拒（`contract-violation`），本轮作废。blocker 是唯一逼人采纳结论的档，一条无法核的 blocker 被采纳的代价高于一轮。
+- warn / nit 留空合法。
+- 适用全部携带 findings 的载体：review · fix · wave · branch。
+- **不收窄成「只对树事实强制」**：这需要一个「这条断言是否关于树」的分类器，而机器没有。按档强制不需要分类器。
+
+#### 2.3 裁定侧
+- rulings 侧车按 finding id 挂 `probe`，与 finding 的 `repro` 对称。
+- `status: "rejected"` 时 `probe` 必填：驳回是唯一「我说评审错了」的动作，它必须带可复核的路径。`fixed` 不需要——改动本身就是证据。
+
+#### 2.4 可见面
+- board 的 `read:` 行尾追加 ` · evidence <with>/<total>`，`with` 为带 `evidence` 的 finding 数。不新增行：board 的五行预报与树级事实块的位置已经排满。
+
+### 3. 一份住所
+#### 3.1 判据
+- 句子级**字符 3-gram Jaccard ≥ 0.6**，且两侧句子的归一化长度**均 ≥ 40 字符** ⇒ 两份文档陈述了同一条判据。
+- 归一化：去掉行内代码标记、折叠空白、折大小写、丢标点。切句：`。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切；表格行与列表项各自成句。
+- 只抓**抄**，不抓**改**：抄的相似度趋近于一，阈值是安全垫。命中两侧必须给文件与开头，让人一眼判真假。
+- 报文必须给两侧文件与两侧开头，让人一眼判真假。
+- 豁免：引用块与代码围栏。引用块的边界是结构，`MarkdownTree` 能读；要引判据就摆在引用块里，看得见、审得出。
+
+#### 3.2 比较域是单边的
+- 左侧 = 在范围内的文档，右侧 = 全部文档。漂移的方向永远是「新的抄旧的然后各自演化」；反向不存在。
+- 这是 `doc-contract` 的第五行，不是新腿——同一扇门、同一张规则表。
+
+#### 3.3 不判什么
+- 不判行级事实（`- Create:` / `- Modify:` 与载具表点名同一个文件）。那是**两件事**：一个是时间面，一个是归属面；判它等于判死现行模板。
+- 不判「同一条判据的两种不同说法」：那需要一个语义判据，机器没有。
+
+### 4. 消费面
+- 新增：`doc-contract` 的五个报文类（四类形状 + 一类重复）· findings 的一个嵌套键 · rulings 侧车的一个可选键 · board 的 `read:` 行尾一段。
+- 不动：退出码表 · `CDD_BLOCKED` 通道 · 既有拒绝报文 · `next:` 字面 · 身份与漂移判据 · 分级判收敛。
+- 版本级按 D74：方法论契约不变 ⇒ changeset **minor**。
+
+### Acceptance criteria
+
 - 面图面：喂一份只在 `## Change history` 里带行号坐标的文档 ⇒ 零拒绝；同一行搬进判据面 ⇒ 该行报 `line-coordinate`。两侧成对。
 - 测量字面面：判据面写裸测量 ⇒ 报；改写成 `census:<id> = <n>` 且值与登记表相等 ⇒ 零拒绝；值与登记表不等 ⇒ 由既有 census 判定报出，报文与形状门的不同。
 - 算式面与指示词面：各一对（违规 ⇒ 报，成条件句 ⇒ 零拒绝）。

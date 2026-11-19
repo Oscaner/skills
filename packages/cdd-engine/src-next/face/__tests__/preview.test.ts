@@ -10,7 +10,10 @@
 //     (`.kairos/` absent, `git status --porcelain` byte-identical, no round
 //     consumed), the pre-flight refusal face's identity with the real run's, the
 //     flag's narrowed scope (exit 2 on the pure commands), and the bootstrap's
-//     preview (the would-run plan at zero spawn).
+//     preview (the would-run plan at zero spawn). These cases run the REAL CLI, so
+//     they declare the host they run under (P40 T10): the seam's `no-host` row
+//     reads the process markers, and a test that inherited the machine's markers
+//     would pass in a harness session and fail in a clean one.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -26,7 +29,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -38,10 +41,70 @@ import { BoardView } from "../board-view.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
 import { DispatchValues } from "../dispatch-values.ts";
-import type { HostId } from "../host.ts";
+import { HostDetect, type HostId } from "../host.ts";
 import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
 import { Words } from "../words.ts";
+
+// ---------------------------------------------------------------------------
+// the host pin the real-CLI cases run under (P40 T10)
+// ---------------------------------------------------------------------------
+
+/** The host this file's real-CLI cases declare — the fixture's answer to a question the
+ *  seam now asks before a dispatch (`no-host`), and therefore a fact the test states
+ *  rather than inherits from the machine it runs on. */
+class HostPin {
+  /** The markers the detection walks, in `HOST_IDS` order: claude's primary session
+   *  marker (and its `claude-code` prefix arm), then pi's `AI_AGENT` value. */
+  readonly #markers = ["CLAUDE_CODE_SESSION_ID", "AI_AGENT"] as const;
+  /** The start-up ambient, captured once — the file never inherits the host it runs on. */
+  readonly #ambient = new Map<string, string | undefined>();
+
+  /** Drop BOTH markers, remembering the start-up values exactly once. The clear is half
+   *  of the judgment, not hygiene: the walk is `claude` → `pi`, claude's row is judged
+   *  first and detects by the non-empty existence of its session marker (its
+   *  `claude-code` prefix arm also precedes pi's row), so a pinned `AI_AGENT=pi` changes
+   *  nothing while that marker stands — which is the harness-session case this pin is for. */
+  clear(): void {
+    for (const marker of this.#markers) {
+      if (!this.#ambient.has(marker)) this.#ambient.set(marker, process.env[marker]);
+      delete process.env[marker];
+    }
+  }
+
+  /** Declare the host: clear, then pin the one value the detection answers `pi` for. */
+  pin(): void {
+    this.clear();
+    process.env.AI_AGENT = "pi";
+  }
+
+  /** Hand the start-up ambient back, so no marker leaks into the next file on this worker. */
+  restore(): void {
+    for (const [marker, value] of this.#ambient) {
+      if (value === undefined) delete process.env[marker];
+      else process.env[marker] = value;
+    }
+  }
+}
+
+const hostPin = new HostPin();
+beforeEach(() => {
+  hostPin.pin();
+});
+afterEach(() => {
+  hostPin.restore();
+});
+
+describe("the host pin the real-CLI cases inherit", () => {
+  it("detects `pi` — a host no injected cell in this file names", () => {
+    // WHICH channel the pin takes is a judgment, not a taste: the pinned marker must
+    // detect an id no case in this file injects. The child-row case injects `claude`,
+    // and a pin answering `claude` would make that case's two values equal — so
+    // swapping `Preview`'s host for `HostDetect.detect(process.env)` would keep it green
+    // and the injection cell would silently lose its gate. `AI_AGENT=pi` answers `pi`.
+    expect(HostDetect.detect(process.env)).toBe("pi");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // the renderer's inline scene (no disk)
@@ -398,6 +461,43 @@ describe("Preview.artifactBlock — the structure leg's ONE refusal renderer", (
 });
 
 describe("cdd <verb> --dry-run — the read-only preview", () => {
+  it("a tree with no harness at all is still refused — the pin never masks the product", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    const noHost = new Words().preflightWords().noHost;
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const argv = ["implement", "--tasks", "1", "--plan", plan];
+      // Telling "cleared" apart from "only the pinned marker dropped" is this case's own
+      // work, and it must not lean on the fixture: `beforeEach` already dropped both
+      // markers, so re-exporting the one the pin never set and dropping only the pinned
+      // one leaves the detection on claude's row — the seam reads a host, the preview
+      // forecasts and exits 0. Written the naive way (drop `AI_AGENT` alone, expect the
+      // refusal) the assertion would be green under a `beforeEach` that never cleared,
+      // which is the harness-session defect this task fixes.
+      process.env.CLAUDE_CODE_SESSION_ID = "p40-t6-fixture";
+      delete process.env.AI_AGENT;
+      expect(HostDetect.detect(process.env)).toBe("claude");
+      expect(await command.runArgv([...argv, "--dry-run"])).toBe(0);
+      expect(io.stdoutText).not.toContain("refused:");
+      // …and with BOTH markers gone the seam refuses: one judgment, two faces. The
+      // station name and its wording come from the word table, never a second copy.
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv([...argv, "--dry-run"])).toBe(1);
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain(`  refused:  no-host · ${noHost}`);
+      expect(io.stdoutText).not.toContain("CDD_BLOCKED:");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+      expect(await command.runArgv(argv)).toBe(1);
+      expect(io.stderrText).toContain(`CDD_BLOCKED: no-host · ${noHost}`);
+      // The NEXT case reads the file-level pin and exits 1 on a marker set leaked here.
+    } finally {
+      cleanup();
+    }
+  });
+
   it("writes nothing: `.kairos/` stays absent and the tree is byte-identical", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

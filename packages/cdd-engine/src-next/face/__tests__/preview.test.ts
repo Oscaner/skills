@@ -492,7 +492,8 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
       expect(io.stderrText).not.toContain("CDD_BLOCKED:");
       expect(await command.runArgv(argv)).toBe(1);
       expect(io.stderrText).toContain(`CDD_BLOCKED: no-host · ${noHost}`);
-      // The NEXT case reads the file-level pin and exits 1 on a marker set leaked here.
+      // The pin, not leftovers: the NEXT case's `beforeEach` re-clears and re-pins, so it
+      // reads the pin; the `afterEach` `restore()` is what guards the next file on the worker.
     } finally {
       cleanup();
     }

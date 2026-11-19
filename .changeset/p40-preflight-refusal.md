@@ -34,8 +34,8 @@ Six consumer-visible changes, one per spec constraint:
   the existing `checked:` bytes therefore moves; that is the named change, not a regression. The
   four rows stand down in two places, both named: a wave dispatch whose predicted batch is empty
   has no input face (the whole batch retires and the verdict goes to the line leg), and a
-  dispatch refused by rows 1–6 never reaches them — `checked:` stops at the refusing row, so a
-  dirty tree records `tree-clean` alone.
+  dispatch refused by whichever row is judged before them never reaches them — `checked:`
+  stops at the refusing row, so a dirty tree records `tree-clean` alone.
 - ⑤ `board` gains two lines: the standing `refused: {op} {cycle}·a{attempt} {station} · {detail}`
   line at the tail of the tree-level fact block (after `in-flight:` · `orphan:` · `crashed:`),
   and `refused: unreadable refusal record` when the record on disk cannot be read — never

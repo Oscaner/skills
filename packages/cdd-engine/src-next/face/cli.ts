@@ -960,11 +960,14 @@ export class Cli {
 
     // THE GATE-CLEAR anchor (P40 §2.2's first expiry trigger) — an anchor, not a span:
     // it sits AFTER `vet` returned and BEFORE the `--recover` takeover judgment below,
-    // because a dispatch whose nine rows all pass has invalidated every structure
-    // refusal this tree carried (the record names a fact that no longer holds). Putting
-    // the clear after the verdict would leave a `tree-clean` record standing through a
-    // dispatch that passed the whole structure leg and only failed to find a takeover —
-    // the record would then outlive the fact it stated.
+    // because a dispatch the structure leg did not refuse has invalidated every
+    // structure refusal this tree carried (the record names a fact that no longer
+    // holds). That predicate is not "nine rows passed": a batch-less wave dispatch
+    // stands the four pre-dispatch rows down and answers the same `null`, and it clears
+    // at this one gate too. Putting the clear after the verdict would leave a
+    // `tree-clean` record standing through a dispatch that did not refuse on the
+    // structure leg and only failed to find a takeover — the record would then outlive
+    // the fact it stated.
     const structure = this.#authority.structureRefusal(preflight);
     if (structure === null && !parsed.dryRun) this.#refusalOf(scene).clear();
 

@@ -12042,7 +12042,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
     }
   });
 
-  it("clears the standing record when the whole structure leg passes", async () => {
+  it("clears the standing record when the structure leg does not refuse", async () => {
     const { command, repoRoot, cleanup } = fixture({
       sync: new CleanRoundRunner("tasks-1-implement-1"),
     });

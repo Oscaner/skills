@@ -139,11 +139,13 @@ export class PreFlightRefusal {
    *  `.kairos/cdd`, an `EISDIR` when something else took the name) keeps the fact
    *  standing instead of throwing. The caller owns the predicate: this class clears what
    *  it is told to clear (§2.2's two expiry triggers are the writer's and the release
-   *  point's judgments, not this one's). The removal rides the success path of a
-   *  dispatch that has already passed the whole structure leg, so it may not cancel that
-   *  dispatch — the same contract `InFlight#release` follows for its own record (a fact
-   *  that outlives its expiry is the truthful observation; a cleanup that kills the work
-   *  is not). */
+   *  point's judgments, not this one's). The removal rides a dispatch the structure leg
+   *  did not refuse, and it rides it at the GATE — after `vet` returned, before the
+   *  `--recover` takeover judgment and before the line leg is judged — so a dispatch a
+   *  line-leg row refuses straight after still cleared, and the cleanup may never cancel
+   *  that dispatch — the same contract `InFlight#release` follows for its own record (a
+   *  fact that outlives its expiry is the truthful observation; a cleanup that kills the
+   *  work is not). */
   clear(): void {
     try {
       rmSync(this.path(), { force: true });

@@ -265,10 +265,11 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DocOutcome` 的 `judged` 增 `closed`；`#ruleRows` 按声明渲染——`skipWhenClosed` 且 `closed` ⇒ `skipped (closed document)`，其余行按档位；拒绝判词改成「存在 block 命中」；`doc-contract` 拒绝的 `details` 过滤到 block；无总体时追加那条 `details` 行——触发键是门内已建的那份 `SlugIndex`（`entries` 里有一项 `docType` 为 `overall` 即登记可用），门只多一次列表读、不另列一次语料，也不经端口；构造面只增一个单方法的闭合端口 `provenClosed?: (rel: string) => boolean`，缺省 `() => false`（没有真实访问器时没有任何文档算「已证明闭合」，故未供端口的构造站点零改动，`session/__tests__/plan-read-consistency.test.ts` 不进本任务的改动面；组装点恒供端口，缺省值只服务不判闭合的构造站点）；渲染面不另收行表——它读契约实例的 `ruleRows()`，而判定用的注册表由构造面既有的 `contract` 项注入，故档位与渲染读同一条清单，`session/` 面不起第二份规则集）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（`checkedWords()` 增 `warned` 与 `skippedClosedDocument` 两个词）
 - Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`ForwardPaths` 暴露 `provenClosed(rel)`：两个命名格任一 `✔ Done` 且 `basename` 恰一份命中 ⇒ 闭合；`PinAudit` 上一条同名访问器把它交出去——形状门不自己 new 一个 `ForwardPaths`，也不新起第二份材料）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（组装点持那条按首次使用构造的审计访问器——`PinAudit` 的一次派发唯一构造处，并把同一个访问器交给 `PreFlight`（闭合端口）与 `CliLifecycle`（`contract.path` 回读）：一次 review 派发的形状门与回读落在同一份审计上，wave 与 branch 派发一次语料扫描都不付；`PreFlight` 只收访问器、不自己 new，而 `vet` 跑在 `#lifecycleOf` 之前，读数在那一刻已可取）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（组装点持那条按首次使用构造的审计访问器——`PinAudit` 的一次派发唯一构造处，并把同一个访问器交给 `PreFlight`（闭合端口）与 `CliLifecycle`（`contract.path` 回读）：一次 review 派发的形状门与回读落在同一份审计上，wave 与 branch 派发一次语料扫描都不付；`PreFlight` 只收访问器、不自己 new，而 `vet` 跑在 `#lifecycleOf` 之前，读数在那一刻已可取；三条按 root 记忆化的接缝（身份索引 · 审计 · 生产 `PreFlight`）共用一处 memo 形，失效点只住那里，不成三对 `#...Root` 字段）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#pinAudit()` 改成读组装点注入的审计访问器——本条生命周期不再自己 new 一个 `PinAudit`，两条语料面（被判文档的正文与 `contract.path` 回读）落在同一份上；构造面增一个可缺省项 `pinAudit?: () => PinAudit`，缺省回落到本条自己的按首次使用构造的那份（即既有的 `#pinIndex` 派发），故未供该访问器的十一处构造站点——`face/__tests__/lifecycle.test.ts` 九处与 `face/__tests__/dispatch-input.test.ts` 两处——零改动）
 - Test: `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/pins-guard-closure.test.ts`
+- Modify: `docs/diagrams/src/architecture.en.json` · `docs/diagrams/src/architecture.zh-CN.json`（引擎 CLI 那一格的 `cli.ts` 坐标随字段搬进声明块重取——两格指的仍是同一条命令装配壳，JSON 手维、HTML 由 `pnpm run emit` 重出）
 
 #### Consumes
 - `Finding.severity`（Task 1）与六条规则行（Task 2 · Task 3 · Task 4）——闭合豁免只盖带 `skipWhenClosed` 的六行，其余行照判

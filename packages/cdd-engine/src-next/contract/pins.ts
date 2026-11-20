@@ -65,7 +65,7 @@ import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
-import { docTypeParsers, type OverallParsed } from "./doc.ts";
+import { type ChainPhase, docTypeParsers, type OverallParsed } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 
 /** Which of the three pin shapes failed to resolve (§7.1). A member reference is
@@ -139,6 +139,32 @@ interface DocHead {
   readonly head: FrontMatterHead;
   readonly body: string;
 }
+
+/** The ONE reading of a `✔ Done（`file` · date）` cell: the file name the cell writes,
+ *  resolved by `path.basename` against the indexed documents. `absent` is no
+ *  registration at all; `unique` is exactly one indexed document; `ambiguous` is zero
+ *  or several. The two readers apply their own polarity to the raw reading — the pin
+ *  face (`#closedBy`) counts `ambiguous` as closed, because a dead `✔ Done` row must
+ *  not buy a silent pin skip; the shape gate (`provenClosed`) closes only on `unique`
+ *  naming the judged document, so it never inherits that tolerance. */
+type CellResolution =
+  | { readonly kind: "absent" }
+  | { readonly kind: "unique"; readonly head: DocHead }
+  | { readonly kind: "ambiguous" };
+
+/** One Phase-inventory row's two named cells, read through that one grammar. The names
+ *  are kept apart because the two readers surface different cells: the shape gate asks
+ *  both (a spec and its plan are two faces of one registration), the pin face asks the
+ *  plan cell alone. */
+interface NamedCells {
+  readonly design: CellResolution;
+  readonly plan: CellResolution;
+}
+
+/** The `✔ Done（`file` · date）` grammar — the registration form both named cells of a
+ *  Phase-inventory row write, read here ONCE so a later change to the form moves one
+ *  regex rather than two readers. */
+const DONE_CELL = /✔ Done（`(?<file>[^`]+)`/;
 
 /** The retired workspace name that no matrix row owns any more — vocabulary, never a
  *  coordinate (§7.1 exclusion ②). Every LIVE artifact name is answered by the matrix
@@ -689,7 +715,8 @@ export class ForwardPaths {
    *  This is deliberately the OPPOSITE polarity of the private `#closedBy` (whose zero /
    *  several reading counts as closed, because a dead `✔ Done` row must not buy a silent
    *  pin skip): the two names never collide, and the shape gate never inherits the pin
-   *  face's tolerance. */
+   *  face's tolerance. Both read the cells through `#namedCellsOf`, so the registration
+   *  grammar is one spelling and only the polarity differs. */
   provenClosed(rel: string): boolean {
     const judged = PinIndex.normalize(rel);
     for (const charter of this.#headsOf()) {
@@ -700,24 +727,40 @@ export class ForwardPaths {
       ) as OverallParsed;
       if (parsed.tables["Phase inventory"].headerRow === null) continue;
       for (const phase of parsed.chain.phases) {
-        if (this.#namedCellsClose([phase.designCell, phase.planCell], judged)) return true;
+        const cells = this.#namedCellsOf(phase);
+        if ([cells.design, cells.plan].some((cell) => ForwardPaths.#namesDoc(cell, judged))) {
+          return true;
+        }
       }
     }
     return false;
   }
 
-  /** Whether any of one Phase-inventory row's NAMED cells proves the judged document
-   *  closed — the `✔ Done（`file` · date）` form, resolved by file name to exactly one
-   *  indexed document, that document being the judged one. */
-  #namedCellsClose(cells: readonly string[], judged: string): boolean {
-    for (const cell of cells) {
-      const done = /✔ Done（`(?<file>[^`]+)`/.exec(cell)?.groups?.file;
-      if (done === undefined) continue;
-      const hits = this.#headsOf().filter((head) => path.basename(head.rel) === done);
-      if (hits.length !== 1) continue;
-      if (hits[0]?.rel === judged) return true;
-    }
-    return false;
+  /** The two NAMED cells of one Phase-inventory row, each read through the ONE
+   *  registration grammar: `Design spec` and `Implementation plan` both name the
+   *  document whose basename the `✔ Done（`file` · date）` cell writes, so a phase spec
+   *  and its plan answer the same way. Callers apply their own polarity on top — see
+   *  `CellResolution`. */
+  #namedCellsOf(phase: ChainPhase): NamedCells {
+    return { design: this.#resolveCell(phase.designCell), plan: this.#resolveCell(phase.planCell) };
+  }
+
+  /** One cell's name resolved to the indexed documents that carry it — the reading a
+   *  closure registration and a shape-gate exemption both stand on. */
+  #resolveCell(cell: string): CellResolution {
+    const named = DONE_CELL.exec(cell)?.groups?.file;
+    if (named === undefined) return { kind: "absent" };
+    const hits = this.#headsOf().filter((head) => path.basename(head.rel) === named);
+    const [head] = hits;
+    return hits.length === 1 && head !== undefined
+      ? { kind: "unique", head }
+      : { kind: "ambiguous" };
+  }
+
+  /** Whether one cell's reading names the judged document — the shape gate's positive
+   *  half: only a `unique` hit on the judged document itself closes. */
+  static #namesDoc(cell: CellResolution, judged: string): boolean {
+    return cell.kind === "unique" && cell.head.rel === judged;
   }
 
   /** The pending paths of one judged document — one table per identity, memoized, so a
@@ -751,10 +794,11 @@ export class ForwardPaths {
    *  written `✔ Done（`file` · date）` and that FILE NAME resolves to exactly one
    *  indexed document whose `slug:` is the plan's. Zero or several hits read as CLOSED —
    *  a registration that no longer resolves cannot establish "not closed", so a dead
-   *  `✔ Done` row never buys a silent skip. */
+   *  `✔ Done` row never buys a silent skip. The cell reading is `#namedCellsOf`'s; only
+   *  the polarity (`ambiguous` ⇒ closed) and the plan-cell-only surface are this
+   *  reader's own. */
   #closedBy(program: string, slug: string): boolean {
-    const heads = this.#headsOf();
-    const charter = heads.find(
+    const charter = this.#headsOf().find(
       (head) => head.head.slug === program && head.head.docType === "overall",
     );
     if (charter === undefined) return false;
@@ -764,10 +808,9 @@ export class ForwardPaths {
     ) as OverallParsed;
     if (parsed.tables["Phase inventory"].headerRow === null) return false;
     for (const phase of parsed.chain.phases) {
-      const done = /✔ Done（`(?<file>[^`]+)`/.exec(phase.planCell)?.groups?.file;
-      if (done === undefined) continue;
-      const hits = heads.filter((head) => path.basename(head.rel) === done);
-      if (hits.length !== 1 || hits[0]?.head.slug === slug) return true;
+      const cell = this.#namedCellsOf(phase).plan;
+      if (cell.kind === "ambiguous") return true;
+      if (cell.kind === "unique" && cell.head.head.slug === slug) return true;
     }
     return false;
   }

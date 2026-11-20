@@ -243,6 +243,31 @@ const RECOVER_NOTHING =
   | { readonly kind: "allowed" }
   | { readonly kind: "blocked"; readonly message: string };
 
+/** One memo keyed by repo root — the ONE memo shape every `Cli` seam over the doc
+ *  corpus shares (`#index` · `#audit` · the production pre-flight). A `Cli` may serve
+ *  several commands and a fixture several repos, so the key is the root: a read for the
+ *  root that built the value answers it, and a read for any other root rebuilds. The
+ *  invalidation therefore lives HERE, not in a `#...Root` companion every seam has to
+ *  remember to pair. `reset` drops the memo when a command boundary says the snapshot
+ *  is stale. */
+class RootMemo<T> {
+  #value: T | null = null;
+  #root: string | null = null;
+
+  read(root: string, build: (root: string) => T): T {
+    if (this.#value !== null && this.#root === root) return this.#value;
+    const value = build(root);
+    this.#value = value;
+    this.#root = root;
+    return value;
+  }
+
+  reset(): void {
+    this.#value = null;
+    this.#root = null;
+  }
+}
+
 /** The pre-frame value assembly's inputs. One object rather than five positionals: the
  *  assembly reads exactly these five facts and its only caller writes them at one call
  *  site. `folded` is the round `--recover` is about to book — the recovery legs run after
@@ -334,10 +359,16 @@ export class Cli {
   readonly #matrix: ArtifactRegistry;
   /** The command's ONE identity index — built once per repo root at `#indexOf`, so no
    *  two read faces of a command scan the doc roots twice. */
-  #index: SlugIndex | null = null;
-  /** The repo root `#index` was built over — the memo's key (a Cli may serve several
-   *  commands, and a fixture several repos). */
-  #indexRoot: string | null = null;
+  readonly #index = new RootMemo<SlugIndex>();
+  /** The dispatch's ONE pin audit (design spec §1.4) — constructed on first use by the
+   *  accessor handed to BOTH the pre-flight closure port and the lifecycle's
+   *  `contract.path` read-back, so one dispatch scans the doc roots once. A wave /
+   *  branch dispatch never asks the closure port (no doc target) and a work-plane round
+   *  never reads a pin, so those dispatches construct none. */
+  readonly #audit = new RootMemo<PinAudit>();
+  /** The production pre-flight seam, memoized per repo root (the closure port's memo
+   *  key) — built at the assembly point so its port names THIS invocation's audit. */
+  readonly #preflight = new RootMemo<PreFlight>();
   /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
    *  install/update sequence face. */
   readonly #init: CliInit;
@@ -421,8 +452,7 @@ export class Cli {
       // call points — the command preamble and the scene — must read one snapshot),
       // and the next invocation re-scans. A memo carried across commands would answer
       // from a snapshot taken before the documents this command writes or observes.
-      this.#index = null;
-      this.#indexRoot = null;
+      this.#index.reset();
       await this.#program.parseAsync([...raw], { from: "user" });
       return this.#exitCode;
     } catch (err) {
@@ -549,25 +579,12 @@ export class Cli {
    *  the lifecycle and the board all keep holding it, so a doc read can not fall on a
    *  table that never learned the index. */
   #indexOf(repoRoot: string): SlugIndex {
-    if (this.#index !== null && this.#indexRoot === repoRoot) return this.#index;
-    const index = SlugIndex.build(repoRoot);
-    this.#index = index;
-    this.#indexRoot = repoRoot;
-    this.#matrix.bindDocIndex(index);
-    return index;
+    return this.#index.read(repoRoot, (root) => {
+      const index = SlugIndex.build(root);
+      this.#matrix.bindDocIndex(index);
+      return index;
+    });
   }
-
-  /** The dispatch's ONE pin audit (design spec §1.4) — constructed on first use by the
-   *  accessor handed to BOTH the pre-flight closure port and the lifecycle's
-   *  `contract.path` read-back, so one dispatch scans the doc roots once. A wave /
-   *  branch dispatch never asks the closure port (no doc target) and a work-plane round
-   *  never reads a pin, so those dispatches construct none. */
-  #pinAudit: PinAudit | null = null;
-  #pinAuditRoot: string | null = null;
-  /** The production pre-flight seam, memoized per repo root (the closure port's memo
-   *  key) — built at the assembly point so its port names THIS invocation's audit. */
-  #preflightBuilt: PreFlight | null = null;
-  #preflightRoot: string | null = null;
 
   /** The invocation's pin audit — constructed on first use, memoized per repo root. The
    *  ONE construction point of that material (design spec §1.4): the pre-flight closure
@@ -575,11 +592,7 @@ export class Cli {
    *  review dispatch reads the doc roots once, and a wave / branch dispatch (no doc
    *  target, no pin read) reads them zero times. */
   #auditOf(repoRoot: string): PinAudit {
-    if (this.#pinAudit !== null && this.#pinAuditRoot === repoRoot) return this.#pinAudit;
-    const audit = new PinAudit(repoRoot);
-    this.#pinAudit = audit;
-    this.#pinAuditRoot = repoRoot;
-    return audit;
+    return this.#audit.read(repoRoot, (root) => new PinAudit(root));
   }
 
   /** The pre-flight seam of one dispatch — the caller's injected seam when there is one,
@@ -587,18 +600,16 @@ export class Cli {
    *  invocation's audit. Memoized per repo root (the port's memo key). */
   #preflightOf(repoRoot: string): PreFlight {
     if (this.#preflightInjected !== null) return this.#preflightInjected;
-    if (this.#preflightBuilt !== null && this.#preflightRoot === repoRoot) {
-      return this.#preflightBuilt;
-    }
-    const seam = new PreFlight({
-      git: this.#git,
-      contract: this.#contract,
-      words: this.#words,
-      provenClosed: (rel) => this.#auditOf(repoRoot).provenClosed(rel),
-    });
-    this.#preflightBuilt = seam;
-    this.#preflightRoot = repoRoot;
-    return seam;
+    return this.#preflight.read(
+      repoRoot,
+      (root) =>
+        new PreFlight({
+          git: this.#git,
+          contract: this.#contract,
+          words: this.#words,
+          provenClosed: (rel) => this.#auditOf(root).provenClosed(rel),
+        }),
+    );
   }
 
   /** `cdd board --plan <path> / --spec <path>` — the entry document's progress board

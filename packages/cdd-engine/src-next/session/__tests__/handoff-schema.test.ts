@@ -437,7 +437,7 @@ describe("the status rollup + the findings normalization", () => {
 });
 
 describe("P37 T3 — the blocker evidence slot and the grading predicate", () => {
-  it("declares `impact` / `regrade` / `contract` as optional columns on the shared finding row", () => {
+  it("declares `impact` / `regrade` / `contract` / `evidence` as optional columns on the shared finding row", () => {
     const row = schema.planeSchema("judge").properties?.findings?.items;
     expect(Object.keys(row?.properties ?? {})).toEqual([
       "id",
@@ -450,6 +450,7 @@ describe("P37 T3 — the blocker evidence slot and the grading predicate", () =>
       "impact",
       "regrade",
       "contract",
+      "evidence",
     ]);
     // optional on the shape face: warn / nit owe no scenario, so a required slot would
     // BLOCK legal drafts — the blocker obligation is the grading predicate's
@@ -465,6 +466,11 @@ describe("P37 T3 — the blocker evidence slot and the grading predicate", () =>
       properties: { path: { type: "string" }, anchor: { type: "string" } },
     });
     expect(row?.properties?.regrade).toEqual({ type: "string" });
+    expect(row?.properties?.evidence).toEqual({
+      type: "object",
+      required: ["repro"],
+      properties: { repro: { type: "string" }, output: { type: "string" } },
+    });
   });
 
   it("reads a populated impact / regrade / contract without refusing the draft", () => {
@@ -497,20 +503,36 @@ describe("P37 T3 — the blocker evidence slot and the grading predicate", () =>
 
   it("refuses every blocker without a scenario, listing each one's id and summary", () => {
     const violations = schema.gradingViolations([
-      { id: "F1", severity: "blocker", lens: "spec", summary: "drift" },
-      { id: "F2", severity: "blocker", lens: "code", summary: "the guard is gone" },
+      {
+        id: "F1",
+        severity: "blocker",
+        lens: "spec",
+        summary: "drift",
+        evidence: { repro: "pnpm test" },
+      },
+      {
+        id: "F2",
+        severity: "blocker",
+        lens: "code",
+        summary: "the guard is gone",
+        evidence: { repro: "docs/x.md#design" },
+      },
       { id: "F3", severity: "warn", lens: "code", summary: "typo" },
     ]);
     expect(violations).toEqual([
-      { id: "F1", summary: "drift" },
-      { id: "F2", summary: "the guard is gone" },
+      { criterion: "grading-impact-missing", id: "F1", summary: "drift" },
+      { criterion: "grading-impact-missing", id: "F2", summary: "the guard is gone" },
     ]);
   });
 
   it("accepts a blocker with a non-blank scenario and ignores warn / nit rows", () => {
     expect(
       schema.gradingViolations([
-        { severity: "blocker", impact: { scenario: "a legal input → 500 → expected 404" } },
+        {
+          severity: "blocker",
+          impact: { scenario: "a legal input → 500 → expected 404" },
+          evidence: { repro: "pnpm test" },
+        },
         { severity: "warn", summary: "debt nobody verifies" },
         { severity: "nit", impact: { scenario: "   " } },
       ]),
@@ -519,17 +541,74 @@ describe("P37 T3 — the blocker evidence slot and the grading predicate", () =>
 
   it("reads a blank scenario as missing and a non-array payload as nothing to judge", () => {
     expect(
-      schema.gradingViolations([{ severity: "blocker", summary: "x", impact: { scenario: "  " } }]),
-    ).toEqual([{ summary: "x" }]);
+      schema.gradingViolations([
+        {
+          severity: "blocker",
+          summary: "x",
+          impact: { scenario: "  " },
+          evidence: { repro: "docs/x.md#design" },
+        },
+      ]),
+    ).toEqual([{ criterion: "grading-impact-missing", summary: "x" }]);
     expect(schema.gradingViolations(undefined)).toEqual([]);
     expect(schema.gradingViolations({ severity: "blocker" })).toEqual([]);
   });
 
   it("leaves the rollup untouched — the refusal is a separate, colocated predicate", () => {
-    const findings = [{ severity: "blocker", summary: "no scenario" }];
+    const findings = [
+      { severity: "blocker", summary: "no scenario", evidence: { repro: "pnpm test" } },
+    ];
     expect(schema.gradingViolations(findings)).toHaveLength(1);
     expect(schema.rollup(findings)).toBe("CHANGES_REQUESTED");
     expect(schema.rollup([])).toBe("APPROVED");
+  });
+
+  it("refuses a blocker whose evidence is absent or blank, and passes a warn that names none", () => {
+    // Absence and a blank string are the SAME fact: is there a readable byte?
+    expect(schema.gradingViolations([{ severity: "blocker", summary: "no repro" }])).toEqual([
+      { criterion: "grading-impact-missing", summary: "no repro" },
+      { criterion: "evidence-missing", summary: "no repro" },
+    ]);
+    expect(
+      schema.gradingViolations([
+        {
+          severity: "blocker",
+          summary: "blank repro",
+          impact: { scenario: "a legal input → 500 → expected 404" },
+          evidence: { repro: " " },
+        },
+      ]),
+    ).toEqual([{ criterion: "evidence-missing", summary: "blank repro" }]);
+    // A warn owes nothing: the absence is legal there.
+    expect(schema.gradingViolations([{ severity: "warn", summary: "debt" }])).toEqual([]);
+  });
+
+  it("accepts both legal `repro` forms — a command and a `doc.md#section` pointer", () => {
+    const blocker = (repro: string) => ({
+      severity: "blocker",
+      summary: "digest",
+      impact: { scenario: "a legal input → 500 → expected 404" },
+      evidence: { repro },
+    });
+    expect(schema.gradingViolations([blocker("pnpm -C packages/cdd-engine test")])).toEqual([]);
+    expect(schema.gradingViolations([blocker("docs/kairos/specs/p41-design.md#2.2")])).toEqual([]);
+  });
+
+  it("returns both criteria in ONE mixed payload, each row tagged with its own word", () => {
+    const violations = schema.gradingViolations([
+      { id: "F1", severity: "blocker", summary: "no scenario", evidence: { repro: "pnpm test" } },
+      {
+        id: "F2",
+        severity: "blocker",
+        summary: "no repro",
+        impact: { scenario: "a legal input → 500 → expected 404" },
+        evidence: { repro: "   " },
+      },
+    ]);
+    expect(violations).toEqual([
+      { criterion: "grading-impact-missing", id: "F1", summary: "no scenario" },
+      { criterion: "evidence-missing", id: "F2", summary: "no repro" },
+    ]);
   });
 });
 

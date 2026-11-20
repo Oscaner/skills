@@ -1220,7 +1220,7 @@ describe("governance greps (the engine-zero criterion)", () => {
       expect(source, name).not.toContain("self-bounded-id-not-in-lineage");
     }
     for (const docKey of ["plan", "phase-spec", "single-spec", "overall"] as const) {
-      const names = Contract.policy()[docKey].map((strategy) => strategy.name);
+      const names = Contract.policy()[docKey].map((binding) => binding.strategy.name);
       expect(names, docKey).not.toContain("change-history-version-ascending");
       expect(names, docKey).not.toContain("front-matter-version-matches-last-row");
     }
@@ -1811,11 +1811,17 @@ describe("P26 §4.4 — a Phase-inventory row's Design spec must be a phase-spec
     // reaching `cdd review --type overall` is the registry row itself, never a
     // second registration.
     const policy = Contract.policy();
-    expect(policy.overall.map((rule) => rule.name)).toContain("phase-design-spec-is-phase-spec");
+    expect(policy.overall.map((binding) => binding.strategy.name)).toContain(
+      "phase-design-spec-is-phase-spec",
+    );
     for (const key of ["plan", "phase-spec", "single-spec"] as const) {
-      expect(policy[key].map((rule) => rule.name)).not.toContain("phase-design-spec-is-phase-spec");
+      expect(policy[key].map((binding) => binding.strategy.name)).not.toContain(
+        "phase-design-spec-is-phase-spec",
+      );
     }
-    expect(Contract.ruleRows().map((row) => row.id)).toContain("phase-design-spec-is-phase-spec");
+    expect(new Contract().ruleRows().map((row) => row.id)).toContain(
+      "phase-design-spec-is-phase-spec",
+    );
   });
 
   it("is not judged on a doc type it does not declare", () => {

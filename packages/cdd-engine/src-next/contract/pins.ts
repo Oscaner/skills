@@ -65,7 +65,7 @@ import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
-import { docTypeParsers, type OverallParsed } from "./doc.ts";
+import { type ChainPhase, docTypeParsers, type OverallParsed } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 
 /** Which of the three pin shapes failed to resolve (§7.1). A member reference is
@@ -139,6 +139,32 @@ interface DocHead {
   readonly head: FrontMatterHead;
   readonly body: string;
 }
+
+/** The ONE reading of a `✔ Done（`file` · date）` cell: the file name the cell writes,
+ *  resolved by `path.basename` against the indexed documents. `absent` is no
+ *  registration at all; `unique` is exactly one indexed document; `ambiguous` is zero
+ *  or several. The two readers apply their own polarity to the raw reading — the pin
+ *  face (`#closedBy`) counts `ambiguous` as closed, because a dead `✔ Done` row must
+ *  not buy a silent pin skip; the shape gate (`provenClosed`) closes only on `unique`
+ *  naming the judged document, so it never inherits that tolerance. */
+type CellResolution =
+  | { readonly kind: "absent" }
+  | { readonly kind: "unique"; readonly head: DocHead }
+  | { readonly kind: "ambiguous" };
+
+/** One Phase-inventory row's two named cells, read through that one grammar. The names
+ *  are kept apart because the two readers surface different cells: the shape gate asks
+ *  both (a spec and its plan are two faces of one registration), the pin face asks the
+ *  plan cell alone. */
+interface NamedCells {
+  readonly design: CellResolution;
+  readonly plan: CellResolution;
+}
+
+/** The `✔ Done（`file` · date）` grammar — the registration form both named cells of a
+ *  Phase-inventory row write, read here ONCE so a later change to the form moves one
+ *  regex rather than two readers. */
+const DONE_CELL = /✔ Done（`(?<file>[^`]+)`/;
 
 /** The retired workspace name that no matrix row owns any more — vocabulary, never a
  *  coordinate (§7.1 exclusion ②). Every LIVE artifact name is answered by the matrix
@@ -347,22 +373,56 @@ export class PinSpans {
   /** Every inline code span of one markdown body, in document order. */
   static tokensOf(text: string): readonly string[] {
     const tokens: string[] = [];
-    let fenced = false;
-    for (const line of text.split("\n")) {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
-        continue;
-      }
-      if (fenced) continue;
-      for (const span of PinSpans.#spansIn(line)) tokens.push(span);
+    for (const line of PinSpans.proseOf(text)) {
+      for (const span of PinSpans.#spansIn(line)) tokens.push(span.text);
     }
     return tokens;
   }
 
-  /** The inline spans of one line — a run of `n` backticks closed by the next run of
-   *  the same length; an unmatched run ends the line's scan (never an invented span). */
-  static #spansIn(line: string): readonly string[] {
-    const spans: string[] = [];
+  /** Every prose line of one markdown body, in document order, with its 1-based line
+   *  number — the lines OUTSIDE fenced blocks, fence delimiters dropped. The ONE
+   *  fence-aware line read: span extraction, the shape rules' prose-line splitting and
+   *  the sentence index all walk this, so a fence keeps a single judgment. */
+  static proseEntriesOf(text: string): readonly { readonly line: number; readonly text: string }[] {
+    const entries: { line: number; text: string }[] = [];
+    let fenced = false;
+    text.split("\n").forEach((line, index) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+        return;
+      }
+      if (fenced) return;
+      entries.push({ line: index + 1, text: line });
+    });
+    return entries;
+  }
+
+  /** The prose line TEXTS of one markdown body — the string projection of the entry
+   *  face above, for a caller that needs the lone fence judgment and no coordinates:
+   *  span extraction (`tokensOf`) and the fence arm of the shape suite read it.
+   *  `ProseLines` reads the entries (it has to carry line numbers), and both arrive on
+   *  the ONE walk, so the shape rules and the sentence index hold no second reading. */
+  static proseOf(text: string): readonly string[] {
+    return PinSpans.proseEntriesOf(text).map((entry) => entry.text);
+  }
+
+  /** One line with every inline code span blanked to spaces of the same width — the
+   *  column-preserving read the recognized-form grammars judge, so a claim quoted in
+   *  a code span is a citation and never a violation. */
+  static blankedOf(line: string): string {
+    const out = line.split("");
+    for (const span of PinSpans.#spansIn(line)) {
+      for (let at = span.from; at < span.to; at += 1) out[at] = " ";
+    }
+    return out.join("");
+  }
+
+  /** The inline spans of one line, as skip-able ranges — a run of `n` backticks closed
+   *  by the next run of the same length; an unmatched run ends the line's scan (never
+   *  an invented span). The range INCLUDES both delimiters, so a blanked read hides the
+   *  code fully while preserving the column positions. */
+  static #spansIn(line: string): readonly { from: number; to: number; text: string }[] {
+    const spans: { from: number; to: number; text: string }[] = [];
     let index = 0;
     while (index < line.length) {
       const open = line.indexOf("`", index);
@@ -371,7 +431,11 @@ export class PinSpans {
       while (line[open + width] === "`") width += 1;
       const closer = line.indexOf("`".repeat(width), open + width);
       if (closer === -1) break;
-      spans.push(line.slice(open + width, closer));
+      spans.push({
+        from: open,
+        to: closer + width,
+        text: line.slice(open + width, closer),
+      });
       index = closer + width;
     }
     return spans;
@@ -640,6 +704,65 @@ export class ForwardPaths {
     );
   }
 
+  /** Whether the judged document is PROVEN closed by a phase inventory's named cells
+   *  (design spec §1.4) — the positive reading. The two cells that name a file
+   *  (`Design spec` · `Implementation plan`) are judged alike: a phase spec and its plan
+   *  are two faces of one closure registration, so reading only the plan cell would keep
+   *  every closed spec judged forever. `rel` is the judged document's repo-relative path
+   *  and the cell's file name is compared against `path.basename(rel)`; a cell whose name
+   *  resolves to zero or several indexed documents proves nothing, so it never closes.
+   *
+   *  This is deliberately the OPPOSITE polarity of the private `#closedBy` (whose zero /
+   *  several reading counts as closed, because a dead `✔ Done` row must not buy a silent
+   *  pin skip): the two names never collide, and the shape gate never inherits the pin
+   *  face's tolerance. Both read the cells through `#namedCellsOf`, so the registration
+   *  grammar is one spelling and only the polarity differs. */
+  provenClosed(rel: string): boolean {
+    const judged = PinIndex.normalize(rel);
+    for (const charter of this.#headsOf()) {
+      if (charter.head.docType !== "overall") continue;
+      const parsed = docTypeParsers.overall.parse(
+        charter.body.split("\n"),
+        charter.head,
+      ) as OverallParsed;
+      if (parsed.tables["Phase inventory"].headerRow === null) continue;
+      for (const phase of parsed.chain.phases) {
+        const cells = this.#namedCellsOf(phase);
+        if ([cells.design, cells.plan].some((cell) => ForwardPaths.#namesDoc(cell, judged))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** The two NAMED cells of one Phase-inventory row, each read through the ONE
+   *  registration grammar: `Design spec` and `Implementation plan` both name the
+   *  document whose basename the `✔ Done（`file` · date）` cell writes, so a phase spec
+   *  and its plan answer the same way. Callers apply their own polarity on top — see
+   *  `CellResolution`. */
+  #namedCellsOf(phase: ChainPhase): NamedCells {
+    return { design: this.#resolveCell(phase.designCell), plan: this.#resolveCell(phase.planCell) };
+  }
+
+  /** One cell's name resolved to the indexed documents that carry it — the reading a
+   *  closure registration and a shape-gate exemption both stand on. */
+  #resolveCell(cell: string): CellResolution {
+    const named = DONE_CELL.exec(cell)?.groups?.file;
+    if (named === undefined) return { kind: "absent" };
+    const hits = this.#headsOf().filter((head) => path.basename(head.rel) === named);
+    const [head] = hits;
+    return hits.length === 1 && head !== undefined
+      ? { kind: "unique", head }
+      : { kind: "ambiguous" };
+  }
+
+  /** Whether one cell's reading names the judged document — the shape gate's positive
+   *  half: only a `unique` hit on the judged document itself closes. */
+  static #namesDoc(cell: CellResolution, judged: string): boolean {
+    return cell.kind === "unique" && cell.head.rel === judged;
+  }
+
   /** The pending paths of one judged document — one table per identity, memoized, so a
    *  corpus scan pays one computation rather than one per token. */
   #pendingOf(judged: string): readonly string[] {
@@ -671,10 +794,11 @@ export class ForwardPaths {
    *  written `✔ Done（`file` · date）` and that FILE NAME resolves to exactly one
    *  indexed document whose `slug:` is the plan's. Zero or several hits read as CLOSED —
    *  a registration that no longer resolves cannot establish "not closed", so a dead
-   *  `✔ Done` row never buys a silent skip. */
+   *  `✔ Done` row never buys a silent skip. The cell reading is `#namedCellsOf`'s; only
+   *  the polarity (`ambiguous` ⇒ closed) and the plan-cell-only surface are this
+   *  reader's own. */
   #closedBy(program: string, slug: string): boolean {
-    const heads = this.#headsOf();
-    const charter = heads.find(
+    const charter = this.#headsOf().find(
       (head) => head.head.slug === program && head.head.docType === "overall",
     );
     if (charter === undefined) return false;
@@ -684,10 +808,9 @@ export class ForwardPaths {
     ) as OverallParsed;
     if (parsed.tables["Phase inventory"].headerRow === null) return false;
     for (const phase of parsed.chain.phases) {
-      const done = /✔ Done（`(?<file>[^`]+)`/.exec(phase.planCell)?.groups?.file;
-      if (done === undefined) continue;
-      const hits = heads.filter((head) => path.basename(head.rel) === done);
-      if (hits.length !== 1 || hits[0]?.head.slug === slug) return true;
+      const cell = this.#namedCellsOf(phase).plan;
+      if (cell.kind === "ambiguous") return true;
+      if (cell.kind === "unique" && cell.head.head.slug === slug) return true;
     }
     return false;
   }
@@ -786,6 +909,15 @@ export class PinAudit {
     return this.#index.textOf(entry);
   }
 
+  /** The PROVEN-closure reading of the judged document (design spec §1.4) — the shape
+   *  gate's single port onto this audit's own `ForwardPaths` material. The audit is the
+   *  one construction point per dispatch, so the closure port and the lifecycle's
+   *  `contract.path` read-back judge the SAME index rather than scanning the doc roots
+   *  twice. */
+  provenClosed(rel: string): boolean {
+    return this.#forward.provenClosed(rel);
+  }
+
   /** The four census readings (§8.2) — one scan and one file listing, so `total` is
    *  that scan's length rather than a second count and `files` is the corpus volume.
    *  The roots are the caller's already-resolved corpus (`corpusOf(root)`); this class
@@ -837,8 +969,15 @@ export class PinAudit {
    *  anchor owns the line, the gate owns the coordinate). §7.3's time face applies
    *  here too: a pending `Create:` declaration of the JUDGED document's own plan is
    *  not dead — `null` judged (a wave / branch round) has no subject for that
-   *  condition, so a pending path stays a finding there. */
+   *  condition, so a pending path stays a finding there.
+   *
+   *  The pin DEFINITION gates this corpus as it gates the other two: a token the three
+   *  §7.1 exclusions leave out (product vocabulary such as `.kairos/cdd/<workspace>/
+   *  tasks-1-brief.md`, an ephemeral `.changeset/*.md`) names no tree coordinate, so
+   *  there is nothing to resolve. Without that screen a round that anchors a finding on
+   *  its own brief reads a dead pin for every such finding. */
   pathResolves(pinPath: string, judged: string | null): boolean {
+    if (!PinVocabulary.isPin(pinPath)) return true;
     const form = PinVocabulary.pathOf(pinPath);
     const path = form?.path ?? pinPath;
     if (this.#index.resolve(path).kind === "resolved") return true;

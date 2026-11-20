@@ -111,9 +111,11 @@ export const regradeNote = (owing: number, reasons: readonly string[]): string |
 };
 
 /**
- * The declared criteria table. Every tier owes at least one row; the `warn` tier
- * carries two (the debt boundary and the pin parseability gate of §7.4), and the
- * `nit` tier carries two (the expression boundary and the downgrade mark of §5.2).
+ * The declared criteria table. Every tier owes at least one row; the `blocker` tier
+ * carries two (the functional-impact boundary and the reproduction gate of §2.2), the
+ * `warn` tier carries two (the debt boundary and the pin parseability gate of §7.4),
+ * and the `nit` tier carries two (the expression boundary and the downgrade mark of
+ * §5.2).
  */
 export const CRITERIA_ROWS: readonly CriteriaRow[] = [
   {
@@ -123,6 +125,15 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
     duty: "A blocker owes a reproducible scenario: the legal input or condition → what actually happens → what was expected, one sentence the next reviewer can refute on the spot.",
     counterExample:
       "A deviation you can describe but cannot back with a scenario (which legal input → what actually happens → what was expected) is a warn, not a blocker: an unrefutable deviation is not yet a functional impact, so the finding is graded by the consequence its own description states.",
+    face: "gate",
+  },
+  {
+    id: "evidence-missing",
+    tier: "blocker",
+    body: "A finding is missing evidence when it is graded blocker yet names no place its claim can be re-run: `evidence.repro` must carry a command or a `doc.md#section` pointer, and a blank string is as absent as a missing key. The blocker tier is the only one that forces a decision, so it is the only one that owes readable bytes — an unreadable blocker is adopted on trust.",
+    duty: "A blocker owes a non-blank `evidence.repro`: the reader re-runs it and either confirms or refutes the finding. An absent one refuses the round, and every offending row is named at once.",
+    counterExample:
+      "A warn or a nit may leave `evidence` out — nobody adopts its conclusion on its word — so the absence is legal there, while the same absence on a blocker ships a decision nobody can check.",
     face: "gate",
   },
   {

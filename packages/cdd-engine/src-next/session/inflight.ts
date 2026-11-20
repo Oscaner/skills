@@ -255,14 +255,23 @@ export class InFlight {
     } catch {
       // Fail-open: an unremovable record is still the truthful postmortem fact.
     }
+    await this.dropLock();
+  }
+
+  /** Drop the lock ALONE, keeping the record — the round-ended path. The record is the
+   *  postmortem fact a rejected round keeps, while the lock is only mutual exclusion:
+   *  once the round is over nothing may hold it, and a `proper-lockfile` handle that
+   *  outlived its round refreshes a lock directory that may be gone (the timer would
+   *  then surface a compromised lock nobody asked for). Idempotent: the normal end's
+   *  `release()` has already dropped it, and a round that never acquired holds none. */
+  async dropLock(): Promise<void> {
     const unlock = this.#unlock;
     this.#unlock = null;
-    if (unlock !== null) {
-      try {
-        await unlock();
-      } catch {
-        // The library's own exit hook removes it as well; never throw on cleanup.
-      }
+    if (unlock === null) return;
+    try {
+      await unlock();
+    } catch {
+      // The library's own exit hook removes it as well; never throw on cleanup.
     }
   }
 

@@ -28,6 +28,7 @@
 
 import type { FindingDraft, Invariant, JudgeContext } from "./invariants.ts";
 import {
+  ChangeHistoryDateShapeInvariant,
   ChangeHistoryHeaderColumnsInvariant,
   ChangeHistoryLatestMatchesFrontMatterInvariant,
   ChangeHistoryRowShapeInvariant,
@@ -41,8 +42,11 @@ import {
   HollowInvariant,
   LedgerLayeringRule,
   LedgerTaskSetRule,
+  LineCoordinateInvariant,
   LinkShapeInvariant,
   ListMarkerInvariant,
+  LiveArithmeticInvariant,
+  MeasureLiteralInvariant,
   PhaseDesignSpecIsPhaseSpecInvariant,
   PhaseIdUniqueInvariant,
   PresenceInvariant,
@@ -51,8 +55,10 @@ import {
   SectionOrderInvariant,
   SectionScopedDomainInvariant,
   SiblingScanInvariant,
+  SingleHomeInvariant,
   SlugRefInvariant,
   TaskIdUniqueInvariant,
+  TemporalIndicatorInvariant,
   WaveWidthInvariant,
 } from "./invariants.ts";
 import type { LedgerFacts } from "./judge.ts";
@@ -99,7 +105,9 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
-/** The rule registry — doc scope 24 rows + ledger scope 2 rows = 26. */
+/** The rule registry — doc scope 30 rows + ledger scope 2 rows = 32. The six shape
+ *  rows (the four variable classes · single-home · the record face's date shape) are
+ *  P41's additions; they start at `warn` and sit beside the pre-existing block rows. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   {
     scope: "doc",
@@ -292,6 +300,56 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     severity: "block",
     skipWhenClosed: false,
     create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
+  },
+  // P41's shape gate — six rows, all `warn` at landing: the flip to `block` is the
+  // phase's own last action, so no half-flipped state is ever registered.
+  {
+    scope: "doc",
+    id: "measure-literal",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new MeasureLiteralInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "line-coordinate",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new LineCoordinateInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "live-arithmetic",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new LiveArithmeticInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "temporal-indicator",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new TemporalIndicatorInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "single-home",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new SingleHomeInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "change-history-date-shape",
+    docKeys: "all",
+    severity: "warn",
+    skipWhenClosed: true,
+    create: () => new ChangeHistoryDateShapeInvariant(),
   },
   {
     scope: "ledger",

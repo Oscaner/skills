@@ -190,7 +190,7 @@ describe("P41 T1 — the strategy hands back a draft; the declaration stamps the
 
   it("reports the registry it judged through, so the `checked:` face cannot drift", () => {
     // The injected set is the one both the judgment and the row face report; the
-    // production construction keeps the shipped twenty-six rows.
+    // production construction keeps the shipped rows.
     expect(new Contract([probeDeclaration("warn")]).ruleRows().map((row) => row.id)).toEqual([
       "probe-rule",
     ]);

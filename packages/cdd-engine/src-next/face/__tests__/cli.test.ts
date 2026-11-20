@@ -57,6 +57,7 @@ import {
 } from "../../contract/completion-criterion.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { Contract } from "../../contract/judge.ts";
+import { RULE_REGISTRY } from "../../contract/rules.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
@@ -91,6 +92,10 @@ import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
+
+/** The doc-scope declaration rows — the `skipped (no doc target)` row count, read off
+ *  the registry instead of copied into a literal. */
+const DOC_RULE_ROWS = RULE_REGISTRY.filter((row) => row.scope === "doc").length;
 
 /** The dispatch's value record for one fixture (P40 T5) — the SAME pre-frame assembly
  *  the composition root hands the lifecycle, composed from the fixture scene and the
@@ -4460,7 +4465,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(24);
+      ).toHaveLength(DOC_RULE_ROWS);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");

@@ -43,11 +43,11 @@ const HARDENED_RULE_IDS = [
 ] as const;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 26 rows: 24 doc-scope + 2 ledger-scope", () => {
+  it("declares 32 rows: 30 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(26);
-    expect(doc).toHaveLength(24);
+    expect(RULE_REGISTRY).toHaveLength(32);
+    expect(doc).toHaveLength(30);
     expect(ledger).toHaveLength(2);
   });
 

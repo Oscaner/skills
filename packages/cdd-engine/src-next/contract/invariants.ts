@@ -14,6 +14,9 @@
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
+//                 the shape gate (P41) — measure-literal · line-coordinate ·
+//                  live-arithmetic · temporal-indicator · single-home ·
+//                  change-history-date-shape;
 //   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
 //                  tasks (a `LedgerRule`, judged with the ledger fact bundle).
 // Each doc strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; each
@@ -27,7 +30,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
-import type { ElementRegistry, RegistryElement } from "./declare.ts";
+import { CensusGate } from "./census.ts";
+import { type DocFace, type ElementRegistry, FaceMap, type RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
   DesignGroup,
@@ -41,6 +45,7 @@ import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 import type { LedgerFacts } from "./judge.ts";
 import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
+import { PinSpans } from "./pins.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 import type { LedgerRule } from "./rules.ts";
 import { RowSource, type Translator } from "./translate.ts";
@@ -154,6 +159,12 @@ export interface JudgeContext {
    *  strategies resolve their elements' declared selectors against it, never a raw
    *  line scan. */
   tree: MarkdownTree;
+  /** The row source's canonicalized BODY text (front matter excluded) — the ONE read
+   *  face of the shape rules and the sentence index (P41 §1.2 · §3.1). Reading the
+   *  document through `fs.read(path)` instead would also judge the front-matter lines,
+   *  which sit under no registered section and would land as face gaps: a document
+   *  with a clean body would be refused for its own data head. */
+  text: string;
   /** The row-source translator — the SAME canonicalize seam the judged document's
    *  lines went through. A strategy that has to parse a FOREIGN on-disk document
    *  (the chain lineage) reads it through this instance, so one alias registration
@@ -1811,4 +1822,603 @@ export class WaveWidthInvariant extends Invariant {
     }
     return findings;
   }
+}
+
+// ---------------------------------------------------------------------------
+// the shape-gate family (P41 §1.2 · §1.5 · §3.1)
+// ---------------------------------------------------------------------------
+
+/** The closed measurement-unit set of the `measure-literal` grammar (§1.2). A count
+ *  unit is a WORD: a bare integer beside one of these states a measurement in prose.
+ *  The closed set IS the grammar — a unit outside it is not a judgment. */
+const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows", "行", "处", "条"] as const;
+
+/** The `measure-literal` token grammar — an independent decimal integer, one space,
+ *  one word of the closed unit set. "Independent" is the two lookarounds: a decimal's
+ *  fractional part and the number inside a dotted id are not integers; "word" is the
+ *  right lookahead, which also refuses a Chinese unit embedded in a longer compound. */
+const MEASURE_LITERAL = new RegExp(
+  `(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
+  "g",
+);
+
+/** The three `line-coordinate` shapes (§1.2): `第 N 行` · `line N` · a path followed
+ *  by `:N`. */
+const LINE_COORDINATES: readonly RegExp[] = [
+  /第\s*\d+\s*行/g,
+  /\blines?\s+\d+/gi,
+  /[\w./-]+\.\w+:\d+/g,
+];
+
+/** The `live-arithmetic` token grammar (§1.2) — integer, optional spaces, one operator
+ *  glyph of the closed set (`−` U+2212 · `-` ASCII · `–` en dash, all one verdict),
+ *  optional spaces, integer, `=`, integer. Where the operands come from is NOT part of
+ *  the grammar: the shape alone is the violation. */
+const LIVE_ARITHMETIC = /(?<![\w.])\d+\s*[−–-]\s*\d+\s*=\s*\d+(?![\w.])/g;
+
+/** The `temporal-indicator` closed set (§1.2) — the words that state the tree as it
+ *  stands. The word alone is not a violation; the clause must also carry a symbol. */
+const TEMPORAL = /\btoday\b|\bcurrently\b|今天|今日|仍/i;
+
+/** The clause delimiters of the `temporal-indicator` mount grammar (§1.2). A clause
+ *  ends at a Chinese comma / semicolon / full stop / middle dot, or at a DOUBLE em
+ *  dash: a single `—` is not a delimiter, so a loose `—+` reading is never admissible. */
+const CLAUSE_DELIMITERS = "，；。·";
+
+/** One prose line of the judged document with the face the map places it in. */
+interface ProseLineRecord {
+  /** The 1-based line number in the body text (fence lines still count). */
+  readonly line: number;
+  /** The line verbatim — the symbol-candidate read face. */
+  readonly raw: string;
+  /** The same line with every inline code span blanked — the token-grammar read face,
+   *  so a claim quoted in a code span is a citation and never a violation. */
+  readonly blanked: string;
+  /** The heading the line sits under ("" before the first heading). */
+  readonly heading: string;
+  /** The face the map places the line in; `unmapped` is the map's own gap. */
+  readonly role: DocFace | "unmapped";
+}
+
+/**
+ * ProseLines — the prose-line split of one document body (P41 §1.2): the lines a
+ * shape grammar can judge. Fenced lines never arrive (the fence state is `PinSpans`'s
+ * one judgment — this class holds no second copy), and each returned line has its
+ * inline code spans stripped to equal-width blanks so the column positions survive.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the prose-line split is a declared static reader set — the repo's zero-bare-function discipline admits no standalone splitter.
+export class ProseLines {
+  /** The prose lines of one body, each stripped of its inline code spans. */
+  static of(content: string): readonly string[] {
+    return PinSpans.proseOf(content).map((line) => PinSpans.blankedOf(line));
+  }
+
+  /** Whether a line opens a block quote — the ONE quote-form judgment (§3.1), read on
+   *  the line's shape (a `>` opener), never on a tree node: the tree exposes no quote
+   *  walk. */
+  static isQuoted(line: string): boolean {
+    return /^\s*>/.test(line);
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the heading-stack prose walk is a declared static reader set — the repo's zero-bare-function discipline admits no standalone walker.
+class ProseWalk {
+  /** Every non-blank prose line of the judged body with its face role — the ONE
+   *  heading-stack advance behind the four shape grammars and the shared sentence
+   *  read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
+   *  innermost-first, so a `#### 7.5.1` item inherits the role of the `### 7.` group
+   *  above it. */
+  static of(ctx: JudgeContext): readonly ProseLineRecord[] {
+    const records: ProseLineRecord[] = [];
+    const stack: string[] = [];
+    for (const entry of PinSpans.proseEntriesOf(ctx.text)) {
+      const level = ProseWalk.#levelOf(entry.text);
+      if (level > 0) {
+        while (stack.length > 0 && ProseWalk.#levelOf(stack[stack.length - 1] ?? "") >= level) {
+          stack.pop();
+        }
+        stack.push(entry.text);
+      }
+      if (entry.text.trim() === "") continue;
+      records.push({
+        line: entry.line,
+        raw: entry.text,
+        blanked: PinSpans.blankedOf(entry.text),
+        heading: stack[stack.length - 1] ?? "",
+        role: FaceMap.roleOf(ctx.docKey, entry.text, [...stack].reverse()),
+      });
+    }
+    return records;
+  }
+
+  /** The ATX heading level of a line (0 when it is not a heading). */
+  static #levelOf(line: string): number {
+    const hashes = /^#{1,6}\s/.exec(line);
+    return hashes === null ? 0 : hashes[0].trim().length;
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the shared shape-rule frame is a declared static walk frame — the repo's zero-bare-function discipline admits no standalone frame.
+class ProseFace {
+  /** The shared evaluation frame of the four shape grammars: only a DECISION-face line
+   *  is judged. A line whose heading the map cannot place is not a token question — it
+   *  is the map's own gap, reported once by `gaps()`. */
+  static judge(
+    ctx: JudgeContext,
+    judgeLine: (record: ProseLineRecord) => readonly FindingDraft[],
+  ): FindingDraft[] {
+    const findings: FindingDraft[] = [];
+    for (const record of ProseWalk.of(ctx)) {
+      if (record.role !== "decision") continue;
+      findings.push(...judgeLine(record));
+    }
+    return findings;
+  }
+
+  /** The gap verdict — ONE finding per heading the map cannot place (the `unmapped`
+   *  face cannot be judged for a token, so the gap itself is the verdict, never a
+   *  silence). It is produced by the family's first row alone: the gap is a property of
+   *  the face, so the same gap under four grammars must not report four times, and the
+   *  reporting row has to be a declared one — a kind no declaration owns would leave the
+   *  `checked:` face with a finding no row accounts for. */
+  static gaps(ctx: JudgeContext, kind: string): FindingDraft[] {
+    const findings: FindingDraft[] = [];
+    const reported = new Set<string>();
+    for (const record of ProseWalk.of(ctx)) {
+      if (record.role !== "unmapped") continue;
+      if (reported.has(record.heading)) continue;
+      reported.add(record.heading);
+      findings.push({
+        path: ctx.path,
+        field: ProseFace.fieldOf(record),
+        message: `this line sits under a heading with no declared face (${record.heading === "" ? "the document head" : record.heading}), so the shape gate cannot place it`,
+        fix: "declare the section's role once in the doc-face map; the gap is the verdict, never a silence",
+        kind,
+      });
+    }
+    return findings;
+  }
+
+  /** The finding field of a walked line — the heading it sits under, or the document
+   *  head when no heading places it. */
+  static fieldOf(record: ProseLineRecord): string {
+    return record.heading === "" ? "(document head)" : record.heading;
+  }
+}
+
+/** measure-literal — the decision face states no bare count (P41 §1.2). A count is
+ *  legal in exactly one form: a `census:<id> = <n>` reference, supplied by the census
+ *  registry and compared by `CensusGate`. The grammar is a token shape, never a
+ *  semantic class: the gate has no classifier for "is this claim about the live
+ *  tree", so the shape itself is the judgment. */
+export class MeasureLiteralInvariant extends Invariant {
+  readonly name = "measure-literal";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    // The family's first row owns the map's gap verdict (one gap, one finding — see
+    // `ProseFace.gaps`), so the other three grammars judge the decision face alone.
+    return [
+      ...ProseFace.gaps(ctx, this.name),
+      ...ProseFace.judge(ctx, (record) => this.#literalsOf(ctx, record)),
+    ];
+  }
+
+  /** The bare literals of one decision-face line — a `census` reference's own number
+   *  is the reference, not a bare count (the span read rides `CensusGate`'s grammar). */
+  #literalsOf(ctx: JudgeContext, record: ProseLineRecord): FindingDraft[] {
+    const findings: FindingDraft[] = [];
+    const references = MeasureLiteralInvariant.#referenceSpans(record.blanked, ctx.path);
+    for (const match of record.blanked.matchAll(MEASURE_LITERAL)) {
+      const at = match.index ?? 0;
+      // The integer's POSITION is the read: a unit written right after a census
+      // reference's number still belongs to that reference.
+      if (references.some((span) => at >= span.from && at < span.to)) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          ProseFace.fieldOf(record),
+          `the decision face states a bare measurement: ${match[0]}`,
+          "state the count as census:<id> = <n> (the census registry supplies the value) or drop the number",
+        ),
+      );
+    }
+    return findings;
+  }
+
+  /** The `census:<id> = <n>` spans of one line — read through the gate's own reference
+   *  grammar, so an illegal form is prose about the form and carries no span. */
+  static #referenceSpans(line: string, source: string): readonly { from: number; to: number }[] {
+    const spans: { from: number; to: number }[] = [];
+    let cursor = 0;
+    for (const reference of CensusGate.referencesOf(line, source)) {
+      const at = line.indexOf(reference.text, cursor);
+      if (at === -1) continue;
+      spans.push({ from: at, to: at + reference.text.length });
+      cursor = at + reference.text.length;
+    }
+    return spans;
+  }
+}
+
+/** line-coordinate — the decision face cites no line number (P41 §1.2). A claim
+ *  cites a module path plus a symbol name; a line coordinate is not a pin. */
+export class LineCoordinateInvariant extends Invariant {
+  readonly name = "line-coordinate";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    return ProseFace.judge(ctx, (record) => {
+      const findings: FindingDraft[] = [];
+      for (const pattern of LINE_COORDINATES) {
+        for (const match of record.blanked.matchAll(pattern)) {
+          findings.push(
+            this.finding(
+              ctx,
+              ProseFace.fieldOf(record),
+              `the decision face carries a line coordinate: ${match[0]}`,
+              "cite the module path and the symbol name instead of a line number",
+            ),
+          );
+        }
+      }
+      return findings;
+    });
+  }
+}
+
+/** live-arithmetic — the decision face states no arithmetic over counts (P41 §1.2).
+ *  The rule is a token grammar, not a semantic one: the operands' provenance is absent
+ *  from it, and the three operator glyphs carry one verdict. */
+export class LiveArithmeticInvariant extends Invariant {
+  readonly name = "live-arithmetic";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    return ProseFace.judge(ctx, (record) => {
+      const findings: FindingDraft[] = [];
+      for (const match of record.blanked.matchAll(LIVE_ARITHMETIC)) {
+        findings.push(
+          this.finding(
+            ctx,
+            ProseFace.fieldOf(record),
+            `the decision face carries an arithmetic over counts: ${match[0]}`,
+            "restate the claim as the condition a guard maintains, never as an operation over counts",
+          ),
+        );
+      }
+      return findings;
+    });
+  }
+}
+
+/** temporal-indicator — the decision face states no present-tense description of the
+ *  tree as it stands (P41 §1.2). The mount is a grammar: the indicator alone is not a
+ *  violation, the clause must also carry a symbol candidate (an inline code span or a
+ *  bare token carrying `/`, `.` or `#`), so an isolated adverb is never misread. */
+export class TemporalIndicatorInvariant extends Invariant {
+  readonly name = "temporal-indicator";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    return ProseFace.judge(ctx, (record) => this.#clausesOf(ctx, record));
+  }
+
+  /** The clauses of one line that both carry an indicator and mount it on a symbol. */
+  #clausesOf(ctx: JudgeContext, record: ProseLineRecord): FindingDraft[] {
+    const findings: FindingDraft[] = [];
+    for (const clause of TemporalIndicatorInvariant.#clauses(record)) {
+      if (!TEMPORAL.test(clause.blanked)) continue;
+      if (!TemporalIndicatorInvariant.#hasSymbol(clause)) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          ProseFace.fieldOf(record),
+          `the decision face states the tree as it stands: ${clause.raw.trim()}`,
+          "restate the clause as the condition that must hold",
+        ),
+      );
+    }
+    return findings;
+  }
+
+  /** The clause split of one line — the offsets come off the BLANKED read (so a
+   *  delimiter quoted in a code span never splits) and slice the raw line, which keeps
+   *  the code span available as a symbol candidate. */
+  static #clauses(record: ProseLineRecord): readonly { blanked: string; raw: string }[] {
+    const clauses: { blanked: string; raw: string }[] = [];
+    let from = 0;
+    let at = 0;
+    while (at < record.blanked.length) {
+      const pair = record.blanked.startsWith("——", at);
+      if (!pair && !CLAUSE_DELIMITERS.includes(record.blanked[at] ?? "")) {
+        at += 1;
+        continue;
+      }
+      clauses.push({
+        blanked: record.blanked.slice(from, at),
+        raw: record.raw.slice(from, at),
+      });
+      at += pair ? 2 : 1;
+      from = at;
+    }
+    clauses.push({ blanked: record.blanked.slice(from), raw: record.raw.slice(from) });
+    return clauses;
+  }
+
+  /** Whether a clause carries a symbol candidate — an inline code span, or a bare token
+   *  carrying a path separator, a fragment marker or an internal dot. */
+  static #hasSymbol(clause: { blanked: string; raw: string }): boolean {
+    if (PinSpans.blankedOf(clause.raw) !== clause.raw) return true;
+    for (const token of clause.blanked.split(/[\s，；。·、：！？!?()（）「」『』【】"'`]+/)) {
+      if (token === "") continue;
+      if (token.includes("/") || token.includes("#")) return true;
+      if (/\w\.\w/.test(token)) return true;
+    }
+    return false;
+  }
+}
+
+/** change-history-date-shape — the Change-history date cell is an ISO date (P41
+ *  §1.5). The registry's `Change history date` element declares the pattern, and its
+ *  selector matches on that same pattern — so a violation never reaches the selector
+ *  and `DomainInvariant` can never report it. This rule judges the cell directly, and
+ *  the element's `valuePattern` stays the ONE source of the value shape. */
+export class ChangeHistoryDateShapeInvariant extends Invariant {
+  readonly name = "change-history-date-shape";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const pattern = this.elementOf(ctx, "Change history date")?.valuePattern;
+    if (pattern === undefined) return [];
+    const iso = new RegExp(pattern);
+    const findings: FindingDraft[] = [];
+    for (const row of this.changeHistory(ctx).rows) {
+      const cell = (row[1] ?? "").trim();
+      if (iso.test(cell)) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          "Change history",
+          `the Change history date cell is not an ISO date: ${cell === "" ? "(empty)" : cell}`,
+          "write the date cell as an ISO date (YYYY-MM-DD) — the Change history date element's declared valuePattern",
+        ),
+      );
+    }
+    return findings;
+  }
+}
+
+/**
+ * SentenceIndex — the sentence split and comparison faces of `single-home` (P41 §3.1):
+ * one normalized sentence per unit, the character 3-gram set of a sentence, and the
+ * Jaccard similarity of two such sets. The split reads prose only: fenced lines never
+ * arrive (`PinSpans`'s one fence judgment) and a quoted line is exempt (`ProseLines`'s
+ * one quote-form judgment). A table row and a list item are each ONE sentence — a cell
+ * is never its own claim.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the sentence split is a declared static reader set — the repo's zero-bare-function discipline admits no standalone splitter.
+export class SentenceIndex {
+  /** The normalized-length floor a compared sentence must clear (§3.1). */
+  static readonly MIN_LENGTH = 40;
+  /** The 3-gram Jaccard threshold at which two sentences state the same criterion. */
+  static readonly THRESHOLD = 0.6;
+
+  /** The normalized sentences of one BODY text (front matter excluded) with the line
+   *  each starts on. */
+  static of(content: string): readonly { readonly text: string; readonly line: number }[] {
+    const sentences: { text: string; line: number }[] = [];
+    for (const entry of PinSpans.proseEntriesOf(content)) {
+      if (ProseLines.isQuoted(entry.text)) continue;
+      for (const unit of SentenceIndex.#unitsOf(entry.text)) {
+        const text = SentenceIndex.#normalize(unit);
+        if (text === "") continue;
+        sentences.push({ text, line: entry.line });
+      }
+    }
+    return sentences;
+  }
+
+  /** The character 3-grams of one normalized sentence. */
+  static trigrams(text: string): ReadonlySet<string> {
+    const grams = new Set<string>();
+    for (let at = 0; at + 3 <= text.length; at += 1) grams.add(text.slice(at, at + 3));
+    return grams;
+  }
+
+  /** The Jaccard similarity of two gram sets — 0 when either side is empty. */
+  static jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+    if (a.size === 0 || b.size === 0) return 0;
+    let shared = 0;
+    for (const gram of a) if (b.has(gram)) shared += 1;
+    return shared / (a.size + b.size - shared);
+  }
+
+  /** Whether two gram sets state the same criterion — the threshold read, and a cheaper
+   *  one than a full `jaccard` on an UNRELATED pair: the shared count a `THRESHOLD`
+   *  Jaccard needs follows from the two sizes alone (`shared >= t(a+b)/(1+t)`), so the
+   *  scan stops as soon as the grams left cannot reach it. The threshold itself stays
+   *  the one declared constant. */
+  static sameCriterion(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+    if (a.size === 0 || b.size === 0) return false;
+    const small = a.size <= b.size ? a : b;
+    const large = a.size <= b.size ? b : a;
+    const required = Math.ceil(
+      (SentenceIndex.THRESHOLD * (small.size + large.size)) / (1 + SentenceIndex.THRESHOLD) -
+        // The threshold is a float, so an exactly-on-the-line pair can land a hair above
+        // its integer requirement; the tolerance keeps `≥ THRESHOLD` meaning `≥`.
+        1e-9,
+    );
+    if (small.size < required) return false;
+    let shared = 0;
+    let seen = 0;
+    for (const gram of small) {
+      seen += 1;
+      if (large.has(gram)) shared += 1;
+      if (shared + (small.size - seen) < required) return false;
+    }
+    return shared >= required;
+  }
+
+  /** The sentence units of one prose line — a table row and a list item are one
+   *  sentence; any other line splits at `。` `！` `？` `!` `?` and at a `.` a space
+   *  follows. The terminator offsets come off the BLANKED read, so a terminator quoted
+   *  in a code span never splits the sentence. */
+  static #unitsOf(line: string): readonly string[] {
+    if (/^\s*\|/.test(line)) return [line];
+    if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) return [line];
+    const blind = PinSpans.blankedOf(line);
+    const units: string[] = [];
+    let from = 0;
+    for (let at = 0; at < blind.length; at += 1) {
+      const char = blind[at] ?? "";
+      const terminal =
+        char === "。" ||
+        char === "！" ||
+        char === "？" ||
+        char === "!" ||
+        char === "?" ||
+        (char === "." && /\s/.test(blind[at + 1] ?? " "));
+      if (!terminal) continue;
+      units.push(line.slice(from, at));
+      from = at + 1;
+    }
+    units.push(line.slice(from));
+    return units;
+  }
+
+  /** The comparison form: inline-code markers dropped (the span's text stays),
+   *  whitespace folded, case folded, punctuation dropped. */
+  static #normalize(text: string): string {
+    return text
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+}
+
+/**
+ * single-home — one criterion lives in one document (P41 §3.2). The left domain is the
+ * judged document's decision face; the right domain is every other document under the
+ * three doc roots EXCEPT this file and its same-slug siblings (a design's spec and plan
+ * are the two faces of one document, and a plan's Acceptance is the checkable form of
+ * its spec's criteria). The right domain is NOT filtered by closure: a closed document
+ * is still a place a criterion may have been copied into. Two sentences state the same
+ * criterion at a 3-gram Jaccard of `SentenceIndex.THRESHOLD` with both sides at least
+ * `SentenceIndex.MIN_LENGTH` normalized characters long — the rule catches copying, not
+ * paraphrase.
+ */
+export class SingleHomeInvariant extends Invariant {
+  readonly name = "single-home";
+
+  /** The right-domain corpus, per workspace root — built ONCE per instance. A corpus
+   *  sweep judges every document against every other one, so listing, reading and
+   *  front-matter-parsing the neighbours on each judgment would make the sweep quadratic
+   *  in FILE READS, not just in comparisons. Instance state, never module state. */
+  readonly #domains = new Map<string, readonly NeighbourDocument[]>();
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const left = this.#decisionSentences(ctx);
+    if (left.length === 0) return [];
+    const self = path.resolve(ctx.root, ctx.path);
+    const slug = ctx.head.slug;
+    const findings: FindingDraft[] = [];
+    const reported = new Set<string>();
+    for (const neighbour of this.#domainOf(ctx)) {
+      if (neighbour.absolute === self) continue;
+      if (slug !== null && neighbour.slug === slug) continue;
+      for (const own of left) {
+        const home = SingleHomeInvariant.#matchOf(own, neighbour);
+        if (home === null) continue;
+        const key = `${neighbour.path}\u0000${own.text}`;
+        if (reported.has(key)) continue;
+        reported.add(key);
+        findings.push(
+          this.finding(
+            ctx,
+            "Sentence",
+            `the criterion at "${SingleHomeInvariant.#openingOf(own.text)}" is also stated in ${neighbour.path} at "${SingleHomeInvariant.#openingOf(home.text)}" (line ${home.line})`,
+            "keep the criterion in one document and point at its holder from the other — a repeated criterion drifts twice",
+          ),
+        );
+      }
+    }
+    return findings;
+  }
+
+  /** The judged document's decision-face sentences that clear the length floor — the
+   *  left domain. The face facts come from the SAME heading-stack walk the shape rules
+   *  read, joined by line number. */
+  #decisionSentences(ctx: JudgeContext): readonly SentenceIndexedSentence[] {
+    const face = new Map<number, DocFace | "unmapped">(
+      ProseWalk.of(ctx).map((record) => [record.line, record.role]),
+    );
+    return SentenceIndex.of(ctx.text)
+      .filter((sentence) => sentence.text.length >= SentenceIndex.MIN_LENGTH)
+      .filter((sentence) => face.get(sentence.line) === "decision")
+      .map((sentence) => ({ ...sentence, grams: SentenceIndex.trigrams(sentence.text) }));
+  }
+
+  /** The right domain of one workspace root — every readable document under the three doc
+   *  roots. The self file and the same-slug siblings are filtered per judgment, never
+   *  here: the corpus is shared by every document the instance judges. Closure is
+   *  deliberately NOT read: a closed document is still a place a criterion was copied
+   *  into. */
+  #domainOf(ctx: JudgeContext): readonly NeighbourDocument[] {
+    const cached = this.#domains.get(ctx.root);
+    if (cached !== undefined) return cached;
+    const documents: NeighbourDocument[] = [];
+    for (const dir of Object.values(ENGINE_DOC_ROOTS)) {
+      for (const name of ctx.fs.list(path.join(ctx.root, dir))) {
+        if (!name.endsWith(".md")) continue;
+        const absolute = path.resolve(ctx.root, dir, name);
+        const content = ctx.fs.read(absolute);
+        if (content === null) continue;
+        const { head, body } = FrontMatterExtractor.split(content);
+        const indexed = SentenceIndex.of(body)
+          .filter((sentence) => sentence.text.length >= SentenceIndex.MIN_LENGTH)
+          .map((sentence) => ({ ...sentence, grams: SentenceIndex.trigrams(sentence.text) }));
+        documents.push({
+          absolute,
+          path: path.join(dir, name),
+          slug: head.slug,
+          sentences: indexed,
+        });
+      }
+    }
+    this.#domains.set(ctx.root, documents);
+    return documents;
+  }
+
+  /** The first characters of a sentence — the message's opening, so a report names both
+   *  sides without restating either whole. */
+  static #openingOf(text: string): string {
+    return text.length <= 48 ? text : `${text.slice(0, 48)}…`;
+  }
+
+  /** The first neighbour sentence that states the same criterion as `own`, or null. */
+  static #matchOf(
+    own: SentenceIndexedSentence,
+    right: NeighbourDocument,
+  ): SentenceIndexedSentence | null {
+    for (const candidate of right.sentences) {
+      if (!SentenceIndex.sameCriterion(own.grams, candidate.grams)) continue;
+      return candidate;
+    }
+    return null;
+  }
+}
+
+/** One right-domain document with its identity and its indexed sentences. */
+interface NeighbourDocument {
+  /** The absolute path — the self-file filter's comparison surface. */
+  readonly absolute: string;
+  /** The repo-relative path the report names. */
+  readonly path: string;
+  /** The document's `slug:` — a same-slug sibling is the same design, never a copy. */
+  readonly slug: string | null;
+  readonly sentences: readonly SentenceIndexedSentence[];
+}
+
+/** One indexed sentence with its 3-gram set — the comparison record of `single-home`. */
+interface SentenceIndexedSentence {
+  readonly text: string;
+  readonly line: number;
+  readonly grams: ReadonlySet<string>;
 }

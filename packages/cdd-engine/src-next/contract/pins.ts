@@ -347,22 +347,52 @@ export class PinSpans {
   /** Every inline code span of one markdown body, in document order. */
   static tokensOf(text: string): readonly string[] {
     const tokens: string[] = [];
-    let fenced = false;
-    for (const line of text.split("\n")) {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
-        continue;
-      }
-      if (fenced) continue;
-      for (const span of PinSpans.#spansIn(line)) tokens.push(span);
+    for (const entry of PinSpans.proseEntriesOf(text)) {
+      for (const span of PinSpans.#spansIn(entry.text)) tokens.push(span.text);
     }
     return tokens;
   }
 
-  /** The inline spans of one line — a run of `n` backticks closed by the next run of
-   *  the same length; an unmatched run ends the line's scan (never an invented span). */
-  static #spansIn(line: string): readonly string[] {
-    const spans: string[] = [];
+  /** Every prose line of one markdown body, in document order, with its 1-based line
+   *  number — the lines OUTSIDE fenced blocks, fence delimiters dropped. The ONE
+   *  fence-aware line read: span extraction, the shape rules' prose-line splitting and
+   *  the sentence index all walk this, so a fence keeps a single judgment. */
+  static proseEntriesOf(text: string): readonly { readonly line: number; readonly text: string }[] {
+    const entries: { line: number; text: string }[] = [];
+    let fenced = false;
+    text.split("\n").forEach((line, index) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+        return;
+      }
+      if (fenced) return;
+      entries.push({ line: index + 1, text: line });
+    });
+    return entries;
+  }
+
+  /** The prose line texts of one markdown body (the `proseEntriesOf` line face). */
+  static proseOf(text: string): readonly string[] {
+    return PinSpans.proseEntriesOf(text).map((entry) => entry.text);
+  }
+
+  /** One line with every inline code span blanked to spaces of the same width — the
+   *  column-preserving read the recognized-form grammars judge, so a claim quoted in
+   *  a code span is a citation and never a violation. */
+  static blankedOf(line: string): string {
+    const out = line.split("");
+    for (const span of PinSpans.#spansIn(line)) {
+      for (let at = span.from; at < span.to; at += 1) out[at] = " ";
+    }
+    return out.join("");
+  }
+
+  /** The inline spans of one line, as skip-able ranges — a run of `n` backticks closed
+   *  by the next run of the same length; an unmatched run ends the line's scan (never
+   *  an invented span). The range INCLUDES both delimiters, so a blanked read hides the
+   *  code fully while preserving the column positions. */
+  static #spansIn(line: string): readonly { from: number; to: number; text: string }[] {
+    const spans: { from: number; to: number; text: string }[] = [];
     let index = 0;
     while (index < line.length) {
       const open = line.indexOf("`", index);
@@ -371,7 +401,11 @@ export class PinSpans {
       while (line[open + width] === "`") width += 1;
       const closer = line.indexOf("`".repeat(width), open + width);
       if (closer === -1) break;
-      spans.push(line.slice(open + width, closer));
+      spans.push({
+        from: open,
+        to: closer + width,
+        text: line.slice(open + width, closer),
+      });
       index = closer + width;
     }
     return spans;

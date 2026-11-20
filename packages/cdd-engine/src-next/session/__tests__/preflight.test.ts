@@ -24,6 +24,7 @@ import { type DocFs, NodeFs } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
 import type { ArtifactSnapshotRead } from "../../contract/preflight-rows.ts";
 import type { DocKey } from "../../contract/project.ts";
+import { RULE_REGISTRY } from "../../contract/rules.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
@@ -789,8 +790,13 @@ const branchCtx = (
   };
 };
 
+/** The doc-scope declaration rows — the `skipped (no doc target)` row count, read off
+ *  the registry instead of copied into a literal (a new rule row never re-anchors this
+ *  file). */
+const DOC_RULE_ROWS = RULE_REGISTRY.filter((row) => row.scope === "doc").length;
+
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 24 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists every doc-scope skip (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -798,7 +804,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        24,
+        DOC_RULE_ROWS,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -854,13 +860,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 24 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        24,
+        DOC_RULE_ROWS,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {

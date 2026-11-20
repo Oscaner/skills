@@ -263,6 +263,7 @@ export class Contract {
       parsed,
       head,
       tree,
+      text,
       path: input.path,
       root: input.root,
       slices: this.#projector.slices()[input.docKey],

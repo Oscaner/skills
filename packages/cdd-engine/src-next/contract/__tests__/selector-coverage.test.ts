@@ -19,9 +19,20 @@ import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
 import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
 import { Projector } from "../project.ts";
+import { RULE_REGISTRY } from "../rules.ts";
 import { Translator } from "../translate.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
+
+/** The shape-gate rule ids (P41, derived from the registry's own closed-document
+ *  exemption — the six rows that skip a closed document ARE the shape family). They
+ *  are excluded from the assertion below because this file covers the SELECTOR read
+ *  against historical corpus prose, and the shape rows judge the charter's own wording:
+ *  the charter's clause-by-clause self-repair, and therefore its shape-clean state, is
+ *  the shape gate's own acceptance arm (`contract/__tests__/shape-rules.test.ts`). */
+const SHAPE_RULE_IDS: ReadonlySet<string> = new Set(
+  RULE_REGISTRY.filter((row) => row.skipWhenClosed).map((row) => row.id),
+);
 
 /** The fixture document of one doc type — the repository's own doc, canonicalized
  *  through the same translation face the judgment plane applies. */
@@ -178,6 +189,7 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(
       findings
         .filter((finding) => finding.kind !== "change-history-row-shape")
+        .filter((finding) => !SHAPE_RULE_IDS.has(finding.kind))
         .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
       "the canonical charter's non-shape rules judge clean",
     ).toEqual([]);

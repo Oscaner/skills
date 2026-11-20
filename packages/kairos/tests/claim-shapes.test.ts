@@ -31,7 +31,7 @@ const PLAN_SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 const CLAIM_SHAPES = [
   "- **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)",
   "- **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form",
-  "- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: the `path:line` citation belongs to the plan, the condition that must hold to the spec; restate such a description as that condition (`temporal-indicator`)",
+  "- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: what belongs to the plan is the work item (`- Modify: <path>`), never a prose `path:line`; the condition that must hold belongs to the spec; restate such a description as that condition (`temporal-indicator` · `line-coordinate`)",
 ] as const;
 
 /** The four rule rows the three lines point at — the count line names two of them

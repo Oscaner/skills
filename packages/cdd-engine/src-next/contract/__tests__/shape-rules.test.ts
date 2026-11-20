@@ -117,6 +117,38 @@ const overallDoc = (decision: readonly string[], registration: readonly string[]
     "| v1.0 | 2026-11-20 | init | [human] |",
   ].join("\n");
 
+/** A plan carrier whose `#### Steps` — a DECISION face — carries the given lines. The
+ *  plan face is the one the shape rows had no carrier for: `line-coordinate` declares
+ *  `docKeys: "all"`, and a plan owns its work item (`- Modify: <path>`), never a prose
+ *  coordinate (P41 §4). */
+const planStepsDoc = (lines: readonly string[]): string =>
+  [
+    "---",
+    "title: Steps Fixture",
+    "doc-type: plan",
+    "version: v1.0",
+    "date: 2026-11-20",
+    "slug: x-steps",
+    "---",
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    "### Task 1: task",
+    "- **DependsOn**: none",
+    "",
+    "#### Steps",
+    "",
+    ...lines,
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    "| v1.0 | 2026-11-20 | init | [human] |",
+  ].join("\n");
+
 /** A plan carrier whose single Change-history row carries `date` in its date cell. */
 const planDoc = (date: string): string =>
   [
@@ -253,6 +285,38 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
     );
     expect(findings).toHaveLength(3);
     for (const finding of findings) expect(finding.message).toContain("line coordinate");
+  });
+
+  it("reports a prose `path:line` on a plan's `#### Steps` — the plan face is not exempt", () => {
+    // The plan owns the work item, not a coordinate (P41 §4): `line-coordinate` is
+    // declared `docKeys: "all"` and a plan's `#### Steps` is a decision face, so the
+    // sentence a spec may not carry is refused in a plan too. This is the plan-face
+    // carrier the arms above never built — `phase-spec` and `overall` only.
+    const findings = findingsOf(
+      planStepsDoc(["对照 face/cli.ts:120 的现有读法。"]),
+      "line-coordinate",
+      "plan",
+      "docs/kairos/plans/x-steps.md",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("face/cli.ts:120");
+  });
+
+  it("leaves the plan's work item and an inline-coded coordinate alone (the pair)", () => {
+    const path = "docs/kairos/plans/x-steps.md";
+    // The form the plan does own: a work item naming the file, with no line number.
+    expect(
+      findingsOf(planStepsDoc(["- Modify: face/cli.ts 的读法。"]), "line-coordinate", "plan", path),
+    ).toEqual([]);
+    // The same coordinate inside an inline code span is a citation, not a claim.
+    expect(
+      findingsOf(
+        planStepsDoc(["对照 `face/cli.ts:120` 的现有读法。"]),
+        "line-coordinate",
+        "plan",
+        path,
+      ),
+    ).toEqual([]);
   });
 
   it("reports nothing when the same coordinates sit on a record section (the pair)", () => {

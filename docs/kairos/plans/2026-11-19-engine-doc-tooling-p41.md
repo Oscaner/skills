@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -230,7 +230,7 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 #### Steps
 - 写 `SentenceIndex.of`（实参是 `ctx.text`——正文面，front-matter 头不在其中）：切句按 `。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切，表格行与列表项各自成句；归一化去行内代码标记、折空白、折大小写、丢标点 — checkable: 一对夹具给出两条句子，其中表格行仍成一条
 - 写 `trigrams` 与 `jaccard` — checkable: 同一句 ⇒ 1.0；只差标点与空白 ⇒ 1.0；两个不相干句 ⇒ 低于 0.3
-- 写规则：左域取被判文档的判据面句子（≥ 40 字符），且**工作项行不进域**：行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:` 的行在两侧都被跳过（`- Modify: <path>` 归一化后每份 plan 逐字相同，比它等于判死模板）；右域同样跳过这一形状，并**经 `ctx.translator` 归一化后再切句**（两侧必须读同一个归一化面），右域扫 `DocFs.list` 覆盖的 spec/plan/overall 三 root，跳过同 slug 文档与本文件，逐对算 Jaccard — checkable: 两份不同 slug 的夹具各带同一句 ⇒ 一条 finding 念两侧文件与两侧开头；同句搬进引用块 ⇒ 零报；工作项成对：两份不同 slug 各带同一行 `- Modify:` 指向同一文件 ⇒ 零报，去掉列表标记写成判据句 ⇒ 报
+- 写规则：左域取被判文档的判据面句子（≥ 40 字符，且门槛按**去掉行内代码段后**的散文计——点名一条路径的指针句因此不进域），且**工作项行不进域**：行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:` 的行在两侧都被跳过（`- Modify: <path>` 归一化后每份 plan 逐字相同，比它等于判死模板）；右域同样跳过这一形状，并**经 `ctx.translator` 归一化后再切句**（两侧必须读同一个归一化面），右域扫 `DocFs.list` 覆盖的 spec/plan/overall 三 root，跳过同 slug 文档与本文件，逐对算 Jaccard — checkable: 两份不同 slug 的夹具各带同一句 ⇒ 一条 finding 念两侧文件与两侧开头；同句搬进引用块 ⇒ 零报；工作项成对：两份不同 slug 各带同一行 `- Modify:` 指向同一文件 ⇒ 零报，去掉列表标记写成判据句 ⇒ 报
 - 同 slug 豁免一对：把同一句放进同 slug 的 spec 与 plan ⇒ 零报 — checkable: 断言零 finding
 - 右域的闭合臂一对：同一句同时出现在一份**已闭合**的文档与一份不同 slug 的未闭合文档上 ⇒ 照报——左侧是那份未闭合文档，右侧把那份闭合文档念出（右域不按闭合过滤）；成对——把同一句搬进引用块 ⇒ 零报 — checkable: 两条断言同时通过，报文念出闭合那份的文件名
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
@@ -434,7 +434,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.6 | 2026-11-20 | **W2 wave 评审回填（F1 · F2）**：① 工作项行（`- Modify:` 一类）在 `single-home` 的两侧都不进域——它是文件点名不是判据，而同一份模板让每份 plan 逐字相同，比它等于判死模板；② 两侧必须读同一个归一化面（右域经 `ctx.translator`），否则含别名的中文判据永不命中。两条都进了 Task 4 的 Step 与 Acceptance | [human] · Claude（kairos:cdd-dev） |
+| v0.7 | 2026-11-20 | **W2 wave 评审回填（F1 · F2）**：① 工作项行（`- Modify:` 一类）在 `single-home` 的两侧都不进域——它是文件点名不是判据，而同一份模板让每份 plan 逐字相同，比它等于判死模板；② 两侧必须读同一个归一化面（右域经 `ctx.translator`），否则含别名的中文判据永不命中；③ **长度下界按散文计**（去掉行内代码段之后），因为规则上线后判本文件时报出的两处里有一处是「两句各抄同一条路径」——路径不是散文。两条都进了 Task 4 的 Step 与 Acceptance | [human] · Claude（kairos:cdd-dev） |
 | v0.6 | 2026-11-20 | 第五轮评审回填（plan fix 5）：① 本文件自身的三处时序措辞退到无符号分句——`## Constraints` 声明的「无挂符号的时序指示词」现由本文件满足（祖先栈的空读法写作「读作缺口」、无参构造写作「回到默认注册表」）；② Task 2 的散文扫描步骤补标题栈——扫描器把 `[...ancestors].reverse()` 交给 `FaceMap.roleOf` 的第三个参数，并补继承臂（`### 7.` 下的 `#### 7.5.1` 判作 `decision`）与两参形态的反证；③ Task 5 的构造面两项都声明缺省形态——闭合端口 `provenClosed?` 缺省 `() => false`（未供端口的构造站点零改动），行表 `ruleRows?` 缺省读 `Contract.ruleRows()`。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.5 | 2026-11-20 | 第四轮评审回填（plan fix 4）：① Task 6 的单判据句改写，分句切分口径钉在双写 `——` 上——Task 2 的文法声明与 Acceptance 补同一条读法（单写的一个 `—` 不切分句）；② 三处计数钉住的用例入册：`rules.test.ts` 随 Task 2 · 3 · 4 各改一次（批后终态 `toHaveLength(32)` · `30` · `2`），`preflight.test.ts` 的两处与 `cli.test.ts` 的一处随 Task 5 改到 `30`；③ `selector-coverage.test.ts` 的两处元素总数随 Task 1 的 facet 元素加一（`expect(total).toBe(112)`）；④ `handoff-schema.test.ts` 入 Task 6 的测试面，并点名两条带 `criterion` 的 `toEqual` 与一条混合载荷臂；⑤ 闭合端口收成单方法 `provenClosed`——「登记可用」由门读自己那份 `SlugIndex` 回答，审计的唯一构造处上移到组装点 `face/cli.ts`，`PreFlight` 与 `CliLifecycle` 收同一个访问器；⑥ 渲染面多一张可注入的规则行表（`PreFlight` 构造面的 `ruleRows`），五条档位成对臂建在它上面，翻位不改。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.4 | 2026-11-20 | 第三轮评审回填（plan fix 3）：① Task 8 的 changeset 记两层——`@oscaner-skills/cdd-engine` 与 `@oscaner-skills/kairos` 各 minor，两个 skill 节点是交付的 kairos 一半（`.changeset/README.md` 对 `packages/kairos/` 的改动同样要求 changeset），Acceptance 与 Objective 同改；② 扫描面的输入点名为 `JudgeContext.text`（行源交出的正文，YAML 头不在其中），`contract/judge.ts` 入 Task 2 与 Task 4 的改动面，并补 front-matter 臂（头里的测量字面与坐标零报）；③ Task 1 的改动面补 `judge.test.ts` · `declare.test.ts` 与两张 overall 快照，`.name` 改读 `binding.strategy.name`；④ `GradingViolation` 增 `criterion` 判别键，`#gradingRefusal` 按词分组逐段渲染并补混合轮臂；⑤ 闭合读数的构造处收在 `face/lifecycle.ts` 的记忆化访问器上（`face/lifecycle.ts` 入 Task 5 的改动面），并补 review 派发的计数臂；⑥ 闭合端口增 `closureProvable()`，无总体那条 `details` 行有了唯一触发键；⑦ `roleOf` 的第二个参数改名 `heading`；⑧ 「唯一盖章点」限定为已声明规则。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |

@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -103,6 +103,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - 报文必须给两侧文件与两侧开头，让人一眼判真假。
 - 豁免：引用块与代码围栏，两者都按**行形态**判，不按树节点。引用块是行首 `>` 起的连续块；围栏块按围栏标记判（`contract/pins.ts#PinSpans` 的围栏跳过是同一个判法）。`MarkdownTree` 的 `Walk` 不暴露引用块——它的结构走法只有 frontmatter · heading · table · row · cell · list · taskField · taskStep · graphEdge 九种，故豁免不走树；两种行形态的判定与围栏跳过同住一处，`## Constraints` 的「一处定义」因此不破。要引判据就摆在引用块里，看得见、审得出。
 - **工作项不进比较域**：一行工作项（行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:`）不是一条判据——它点名一个文件，而同一份模板让每一份 plan 都点名那个文件，比它等于判死模板本身（与 §3.3 对行级事实的理由同源）。故两侧都跳过这一形状：左域不取它，右域也不取它。这条收窄的是**域**，不是阈值：判据句照旧按 3-gram 比。
+- **下界按散文计，不按路径计**：长度门槛量的是**去掉行内代码段之后**的散文——一条判据要有四十个字符的散文才成其为判据，而一个 `path` 或一条 `slug` 不是散文。于是「点名一条路径的指针句」不进域：两句话各自抄同一条长路径时，路径的 3-gram 会让它们越过阈值，而它们陈述的并不是同一条判据。这条同样收窄**域**：进了域的句子照旧按 3-gram 比。
 
 #### 3.2 比较域是单边的
 - 左侧 = 在范围内的文档，右侧 = **除本文件之外**的全部文档。自比不计：右侧若含本文件，它的每一句都和自己同形，判据在任何文档上都恒真——这条排除是判据的一部分，不留给实现者顺手加。漂移的方向永远是「新的抄旧的然后各自演化」；反向不存在。
@@ -147,7 +148,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - `doc-contract` **记录面日期形状**：历史行的日期格写成 `xxx` ⇒ 该行报 `change-history-date-shape`（成对：改回 ISO 日期 ⇒ 零拒绝，同一份夹具只改那一格）；同一夹具下 `change-history-row-shape` 与 `change-history-header-columns` 都零拒绝——日期不借那两行的判词。同一行不带「测量方式」⇒ 零拒绝（提交信息不是文档）。面图把该节认作 record 的一笔随 §1.4 的逐 docKey 表落。
 - `evidence` **blocker 必填**：带 findings 的载体里 `severity: "blocker"` 而 `evidence` 缺席 ⇒ 载体被拒（`CDD_BLOCKED: evidence-missing`），本轮不推进、不记结论；`warn` 缺席 evidence ⇒ 通过。`repro` 为一条命令与为一个 `doc.md#section` 指针两种形态都通过（判断类 blocker 拿不出命令时不得被迫降档），而 `repro` 为空白串 ⇒ 被拒（成对：缺席一形与 `" "` 一形各一条用例，两条都读同一个拒绝报文）；fix 草稿带 `dispositions` 而无 `findings` 槽 ⇒ 不欠这条义务（`work` 平面没有 findings）；判据行进 `SEVERITY_RUBRIC` ⇒ `renderRubric` 的 blocker 片段与 `review-criteria.test.ts` 的 id 名册同批更新。
 - rulings **`probe` 在驳回时必填**：侧车里 `verdict: "rejected"` 而 `probe` 缺席 ⇒ 侧车不被接受；`verdict: "fixed"` 缺席 `probe` ⇒ 通过（改动本身即证据）；不带 `verdict` 的存量侧车 ⇒ 通过。
-- `doc-contract` **一份住所**：同一判据句进两份**不同 slug**、都未闭合的文档正文 ⇒ 两侧文件与两侧开头都被念出；同一句同时出现在一份闭合文档与一份**不同 slug** 的未闭合文档 ⇒ 照报：左侧是那份未闭合文档，右侧把那份闭合文档念出（闭合只让它不被判，不豁免右侧的语料）；**同 slug 的负向对照**：两份 `slug:` 相同的文档（一份 spec 与它的 plan）各带同一句、且该句越过判据的长度与相似度门 ⇒ 零拒绝——这条是分组缺席时的红灯，不写分组的实现在它上面必红，而上面那条不同 slug 的正向臂要求同句照报（两侧成对，只改一侧的 `slug:`）；同句搬进引用块 ⇒ 零拒绝；本文件与自己的同一句 ⇒ 零拒绝（右侧不含本文件）；工作项不进域：两份不同 slug 的文档各带同一行 `- Modify:` 指向同一文件 ⇒ 零 finding（成对：同一行去掉列表标记写成判据句 ⇒ 报）
+- `doc-contract` **一份住所**：同一判据句进两份**不同 slug**、都未闭合的文档正文 ⇒ 两侧文件与两侧开头都被念出；同一句同时出现在一份闭合文档与一份**不同 slug** 的未闭合文档 ⇒ 照报：左侧是那份未闭合文档，右侧把那份闭合文档念出（闭合只让它不被判，不豁免右侧的语料）；**同 slug 的负向对照**：两份 `slug:` 相同的文档（一份 spec 与它的 plan）各带同一句、且该句越过判据的长度与相似度门 ⇒ 零拒绝——这条是分组缺席时的红灯，不写分组的实现在它上面必红，而上面那条不同 slug 的正向臂要求同句照报（两侧成对，只改一侧的 `slug:`）；同句搬进引用块 ⇒ 零拒绝；本文件与自己的同一句 ⇒ 零拒绝（右侧不含本文件）；工作项不进域：两份不同 slug 的文档各带同一行 `- Modify:` 指向同一文件 ⇒ 零 finding（成对：同一行去掉列表标记写成判据句 ⇒ 报）；指针句不进域：两句各抄同一条长路径 ⇒ 零 finding（成对：同一路径两侧各配四十字符以上的散文 ⇒ 报）
 - `cdd-spec-writer` · `cdd-plan` **claim shape 与规则行对齐（本相位交付）**：两个 skill 的 `author-spec` 与 `author-plan` 节点各为三条（`pin` · `count` · `narrative`），每条点名它对应的规则行——少一条、多一条或某条不点名规则行 ⇒ 红；标题面由既有 skill-anatomy 用例守（注册表外的标题不被接受），三行本身由逐字对读守住（既有用例不数段落）。验收把 §4 的同一段引文与两个节点逐字对读，任一节点措辞漂一个词即红。
 - `contract/doc-body.ts#DocBodyProjection` **身份面回归**：只追加一条 `## Change history` 行并 bump 版本 ⇒ `doc-revision` 摘要逐字节不变；判据面改一个词 ⇒ 变。本相位不为身份面新增判据，只留这一对回归防止被顺手改动。
 
@@ -164,6 +165,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.11 | 2026-11-20 | **W2 回填第二笔（规则自身的第二次域误报）**：规则上线后判本相位自己的 plan，报出两处——其一真（Task 7 与章程各抄同一条路径），其二暴露了域的第二个缺口：长度下界把路径字节也算进散文，于是两句「点名同一条长路径」被判成同一条判据。⇒ §3.1 增「下界按散文计」：门槛量的是去掉行内代码段之后的散文。收窄域，不动阈值 | [human] · Claude（kairos:cdd-dev · W2 回填） |
 | v0.10 | 2026-11-20 | **W2 wave 评审回填（F1 · 编排者面）**：`single-home` 的左域把 plan 的 `#### Files` 子弹也算成判据句，而 `- Modify: <path>` 归一化后每一份 plan 都逐字相同 ⇒ 本相位自己的 plan 被量出六十三条、其中六十二条是子弹，翻位之后每一份 plan 都会被自己的模板判死。⇒ §3.1 增「工作项不进比较域」（两侧都跳），验收加一对：同一行 `- Modify:` 跨两个 slug 零报，去掉列表标记写成判据句则报。这不是调阈值，是收窄域 | [human] · Claude（kairos:cdd-dev · W2 回填） |
 | v0.9 | 2026-11-20 | 第七轮评审回填（fix 7）：① **同 slug 例外补上自己的验收臂**——一份住所的正臂收窄到不同 slug，另加一条负向对照（同 slug 两份带同一句 ⇒ 零拒绝），不写分组的实现在负臂必红；② **章程验收 ⑥ 的回填写进交付面**——同 slug 例外在章程 `## Phase inventory` 重述并记一行变更史（⑥ 住注册节，五节自修够不到它，而章程自己的规矩是先回填再实现），§3.2 同批点名这条登记面；③ **§2.2 补实现前窗口**——本相位自己的 plan 是语料的一行，`criteria.rows` 与 `pin.total` 的新值不得在行落地前写成活引用（引用类失配随实现自愈），而语料规模常量是判断不是引用、随 plan 同批上调，验收臂补窗口终态成对；④ **§1.1 补角色的三维判词**——六条规则只判 `decision`，`record` 上只有日期形状一行，`registration` 不判，使 172 处注册节命中不被误判。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.8 | 2026-11-20 | **plan 阶段回填（backfill-design）**：起草 plan 时撞到一处设计缺口——`single-home` 的比对面会让**同一份设计的 spec 与 plan 互判**，而 plan 的 `#### Acceptance` 本来就是 spec 判据的可核形态，那会把每一份 plan 判成违规。⇒ §3.2 增同 slug 豁免：一篇只与**不同 slug** 的文档比。评审面实测到的章程那一类不受影响（章程与各相位文档 slug 互不相同），故这条是缺口补全，不是收紧判据 | [human] · Claude（kairos:cdd-plan · backfill-design） |

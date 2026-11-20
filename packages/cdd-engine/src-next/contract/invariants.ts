@@ -2414,8 +2414,8 @@ export class SingleHomeInvariant extends Invariant {
         // resolved off the RAW content (a `slug:` is identity data, never translated),
         // and its line count becomes the sentence index's offset: the coordinate this
         // rule PRINTS names the line of the file a reader opens, not a body line.
-        const { head, text } = new RowSource(ctx.translator).read(content);
-        const from = content.split("\n").length - text.split("\n").length;
+        const { head, text, lines } = new RowSource(ctx.translator).read(content);
+        const from = content.split("\n").length - lines.length;
         const indexed = SentenceIndex.of(text, from)
           .filter((sentence) => sentence.prose >= SentenceIndex.MIN_LENGTH)
           .map((sentence) => ({

@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -124,7 +124,7 @@ none
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（四个新 `Invariant` 子类 + 散文行切开基元 `ProseLines`：只做切行与行内代码段剥离，围栏跳过调 `contract/pins.ts#PinSpans`；`JudgeContext` 增 `text` 一条——行源交出的正文，YAML 头不在其中，四条文法只读它）
-- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinSpans` 长出一条围栏感知的散文行读 `proseOf(text)`——围栏外的每一行；围栏状态与 `tokensOf` 同一次走读，`tokensOf` 改成在它上面取 span，不起第二份判法）
+- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinSpans` 长出围栏感知的散文行读一对——`proseEntriesOf(text)` 交围栏外的每一行连同它的源文本行号，`proseOf(text)` 是同一走读的字符串投影；围栏状态与 `tokensOf` 同一次走读，`tokensOf` 与 `ProseLines` 各读一条投影取 span、取行，不起第二份判法）
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`（四条 `doc` 行，`severity: "warn"`，`skipWhenClosed: true`）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（`RULE_REGISTRY` 的计数断言随本任务的四条新行改到本任务的批后取值——总数 `toHaveLength(30)`、doc 面 `28`、ledger 面 `2`；Task 3 与 Task 4 各再改一次，批后终态是 `toHaveLength(32)` · `30` · `2`）
 - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`#contextOf` 把行源已交出的正文一并交进 `JudgeContext.text`——不多一次读、不新起第二条接缝，也不让策略改读 `ctx.fs.read(ctx.path)`）
@@ -133,16 +133,21 @@ none
 #### Consumes
 - `FaceMap.roleOf`（Task 1）——规则只扫 `decision` 面，第三个参数收散文扫描器的标题栈（最内层在前，故交入时把入栈序翻一次）
 - `CensusGate` / `CensusTable`（既有，`contract/census.ts`）——`measure-literal` 的合法形态判定
-- `PinSpans`（既有，`contract/pins.ts`）——围栏跳过这一处定义的持有者；本任务给它加一条围栏感知的散文行读 `proseOf(text)`，`ProseLines` 在它上面取行，不新起第二份判法
+- `PinSpans`（既有，`contract/pins.ts`）——围栏跳过这一处定义的持有者；本任务给它加围栏感知的散文行读一对：`proseEntriesOf(text)`（带行号，`ProseLines` 在它上面取行）与 `proseOf(text)`（它的字符串面，`tokensOf` 在它上面取 span），不新起第二份判法
 - 行源 `#rowSource`（既有，`contract/judge.ts`）——正文的唯一来处；`ProseLines.of` 的实参就是它交出的那段正文（经 `JudgeContext.text` 到位），与 `tree` 同一批归一字节
 
 #### Produces
 ```ts
-// contract/pins.ts — 围栏跳过只有一条走读，散文行切分与 span 取读都在它上面
-// 新增：`PinSpans.proseOf(text): readonly string[]`——围栏外的每一行，围栏状态与 `tokensOf` 同源
-// 共享的散文行切开：围栏跳过读 `PinSpans#proseOf`，本类只切行、剥行内代码段
+// contract/pins.ts — 围栏跳过只有一条走读，两条散文行读都是它的投影
+// 新增：`PinSpans.proseEntriesOf(text)`（围栏外的每一行连同它的 1 起行号）与它的字符串面 `proseOf(text)`
+// 共享的散文行切开：围栏跳过读 `PinSpans#proseEntriesOf`，本类只切行、剥行内代码段
+export interface ProseLine {
+  readonly line: number;    // 源文本里的 1 起行号，围栏行照数
+  readonly raw: string;     // 行逐字节原文——符号候选的读面
+  readonly blanked: string; // 同一行把行内代码段换成等长空白——token 文法的读面
+}
 export class ProseLines {
-  static of(content: string): readonly string[];      // 每行已剥离行内代码段；围栏内的行不进来
+  static of(content: string): readonly ProseLine[];   // 围栏内的行不进来；每行两条读面齐备
   static isQuoted(line: string): boolean;             // 行首 `>` —— 引用块的唯一判法
 }
 export class MeasureLiteralInvariant extends Invariant { readonly name = "measure-literal"; }
@@ -152,7 +157,7 @@ export class TemporalIndicatorInvariant extends Invariant { readonly name = "tem
 ```
 
 #### Steps
-- 写 `ProseLines`：围栏跳过调 `PinSpans#proseOf`（围栏状态住 `contract/pins.ts`，本类不另写一份），把每行里的行内代码段替换为等长空白（保列位），`isQuoted` 判行首 `>` — checkable: 一对断言——围栏里的 `第 41 行` 不在返回行里，围栏外的同一串在
+- 写 `ProseLines`：围栏跳过调 `PinSpans#proseEntriesOf`（围栏状态住 `contract/pins.ts`，本类不另写一份；行号随条目一并到位，不另数一遍），把每行里的行内代码段替换为等长空白（保列位），`isQuoted` 判行首 `>` — checkable: 一对断言——围栏里的 `第 41 行` 不在返回行里，围栏外的同一串在；第二条——`line` 读的是源文本坐标（围栏行照数）
 - 把扫描面定在 `ctx.text` 上：`JudgeContext` 增 `text`（行源交出的正文，YAML 头不在其中），`#contextOf` 一并交进上下文，四条文法只读它——**不**取 `ctx.fs.read(ctx.path)`：那条路把 front-matter 行也扫进来，而 front-matter 行没有所属的注册节，会以 `unmapped` 落判，一份正文干净的文档就此被拒 — checkable: `shape-rules.test.ts` 的 front-matter 臂——头里同时带一处测量字面与一处坐标的夹具零 finding；成对——同一串搬进 `## Design` ⇒ 报
 - `measure-literal` 文法：十进制整数、一个空格、闭集单位（`passed` · `failed` · `tests` · `files` · `rows` · `行` · `处` · `条`），整数两侧须独立成词——小数的小数部分与带点编号里的数字都不是整数——且该串不在 `census:<id> = <n>` 的引用里 — checkable: `shape-rules.test.ts` 五条断言——`97 passed` 报；`census:<id> = <n>` 零报（占位形态不是引用：id 不是点分小写而 `<n>` 不是十进制整数）；`七处` 零报（中文数词不是整数）；`0.5 rows` 零报（小数的小数部分不是整数）；`v1.2 rows` 零报（带点编号里的数字不是整数）。夹具里的非零读数写在测试文件内，本文件的例子只用占位形态
 - `line-coordinate` 文法：`第 N 行` · `line N` · 路径后接 `:N` — checkable: 三种形态各报一条 finding，`kind` 均为 `line-coordinate`
@@ -163,7 +168,7 @@ export class TemporalIndicatorInvariant extends Invariant { readonly name = "tem
 - 提交 — checkable: 四条规则行在 `RULE_REGISTRY` 里出现，且各带 `severity: "warn"` 与 `skipWhenClosed: true`
 
 #### Acceptance
-四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；继承面同判——`### 7.` 下的 `#### 7.5.1` 判作 `decision`、违例的 `kind` 是规则自己的名字（成对：不交标题栈即落缺口判词，`kind` 不再是那个名字）；围栏跳过只有一处定义（`PinSpans#proseOf`），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 在 `## Constraints` 声明的那两处窗口红之外绿——`pins.guard.test.ts` 的零命中臂与 `census.guard.test.ts` 的 `pin.total` 不属本任务的判据，P37 对里那两处 `= 0` 声明一字不动（改写它们等于替一扇尚未存在的门记账）。
+四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；继承面同判——`### 7.` 下的 `#### 7.5.1` 判作 `decision`、违例的 `kind` 是规则自己的名字（成对：不交标题栈即落缺口判词，`kind` 不再是那个名字）；围栏跳过只有一处定义（`PinSpans#proseEntriesOf`，`proseOf` 是它的字符串面），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 在 `## Constraints` 声明的那两处窗口红之外绿——`pins.guard.test.ts` 的零命中臂与 `census.guard.test.ts` 的 `pin.total` 不属本任务的判据，P37 对里那两处 `= 0` 声明一字不动（改写它们等于替一扇尚未存在的门记账）。
 
 #### DependsOn
 1
@@ -218,9 +223,19 @@ export class ChangeHistoryDateShapeInvariant extends Invariant { readonly name =
 #### Produces
 ```ts
 export class SentenceIndex {
-  static of(content: string): readonly { text: string; line: number }[];  // 归一化后的句子
+  // 归一化后的句子，连同它的散文长度（去掉行内代码段后）与源文本行号；
+  // `from` 把行号搬到邻接文档的文件坐标——报文里念的是读者打开的那一行
+  static of(
+    content: string,
+    from?: number,
+  ): readonly { readonly text: string; readonly prose: number; readonly line: number }[];
+  // 行首列表标记后接四个声明动词之一——工作项行，两侧都不进比较域
+  static isWorkItem(line: string): boolean;
   static trigrams(text: string): ReadonlySet<string>;
+  // 相似度面：阈值以它陈述（同句 1.0）
   static jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number;
+  // 判定面：生产上唯一读的那条，按两侧大小先算所需的共享数、扫到一半即可退出
+  static sameCriterion(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean;
   static readonly MIN_LENGTH = 40;
   static readonly THRESHOLD = 0.6;
 }
@@ -229,7 +244,7 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 
 #### Steps
 - 写 `SentenceIndex.of`（实参是 `ctx.text`——正文面，front-matter 头不在其中）：切句按 `。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切，表格行与列表项各自成句；归一化去行内代码标记、折空白、折大小写、丢标点 — checkable: 一对夹具给出两条句子，其中表格行仍成一条
-- 写 `trigrams` 与 `jaccard` — checkable: 同一句 ⇒ 1.0；只差标点与空白 ⇒ 1.0；两个不相干句 ⇒ 低于 0.3
+- 写 `trigrams`、`jaccard` 与判定面 `sameCriterion`（阈值只取 `THRESHOLD` 一处，判定式按两侧大小先算所需的共享数、扫到一半即可退出）— checkable: 同一句 ⇒ 1.0；只差标点与空白 ⇒ 1.0；两个不相干句 ⇒ 低于 0.3；成对——同一对的 `sameCriterion` 为真，不相干那对为假
 - 写规则：左域取被判文档的判据面句子（≥ 40 字符，且门槛按**去掉行内代码段后**的散文计——点名一条路径的指针句因此不进域），且**工作项行不进域**：行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:` 的行在两侧都被跳过（`- Modify: <path>` 归一化后每份 plan 逐字相同，比它等于判死模板）；右域同样跳过这一形状，并**经 `ctx.translator` 归一化后再切句**（两侧必须读同一个归一化面），右域扫 `DocFs.list` 覆盖的 spec/plan/overall 三 root，跳过同 slug 文档与本文件，逐对算 Jaccard — checkable: 两份不同 slug 的夹具各带同一句 ⇒ 一条 finding 念两侧文件与两侧开头；同句搬进引用块 ⇒ 零报；工作项成对：两份不同 slug 各带同一行 `- Modify:` 指向同一文件、且两半都在行内代码段之外带四十字符以上的散文 ⇒ 零报，去掉列表标记写成判据句 ⇒ 报（两半唯一的差别是列表标记，故第二半红是因为它不再是工作项）；指针句成对：两句各抄同一条长路径、两侧散文都不足下界 ⇒ 零报，同一路径两侧各配四十字符以上的散文 ⇒ 报（两半唯一的差别是散文量，故第一半绿是因为路径不计入下界）
 - 同 slug 豁免一对：把同一句放进同 slug 的 spec 与 plan ⇒ 零报 — checkable: 断言零 finding
 - 右域的闭合臂一对：同一句同时出现在一份**已闭合**的文档与一份不同 slug 的未闭合文档上 ⇒ 照报——左侧是那份未闭合文档，右侧把那份闭合文档念出（右域不按闭合过滤）；成对——把同一句搬进引用块 ⇒ 零报 — checkable: 两条断言同时通过，报文念出闭合那份的文件名
@@ -434,6 +449,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.9 | 2026-11-20 | **W2 第三轮 wave 评审回填（F1）**：① Task 2 与 Task 4 的 `#### Produces` 改成已落地的形状——Task 2 补字面面 `ProseLine`（行号 · 原文 · 剥段后三读）与 `ProseLines.of(content): readonly ProseLine[]`，`PinSpans` 的两条散文行读入册（`proseEntriesOf` 带行号、`proseOf` 是它的字符串面，`tokensOf` 读后者）；Task 4 补 `of` 的第二参 `from` 与三键返回（`text` · `prose` · `line`）、工作项判式 `isWorkItem` 与判定面 `sameCriterion`，`jaccard` 保留为阈值陈述的面；② 两处任务的 Files · Consumes · Steps · Acceptance 随同改口，围栏跳过一处定义改读 `PinSpans#proseEntriesOf`。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-dev · docs-fix） |
 | v0.8 | 2026-11-20 | 第六轮评审回填（plan fix 6）：① **章程验收回填入 Task 7**——`## Phase inventory` 的 P41 验收 ③ 改成下界量散文、⑥ 补工作项例外（同 slug 例外已由章程 v4.47 登记，本轮只补未登记的两处），并在章程的 `## Change history` 记一行、同批 bump 章程版本；Task 7 的 Objective · Files · Steps · Acceptance 四处同改；② **Task 4 补两条可判成对**：指针句（两句各抄同一条长路径 ⇒ 零报，同一路径两侧各配四十字符以上的散文 ⇒ 报）与工作项两半的散文括注（两半的唯一差别是列表标记）；③ **预期红窗口的终点改挂 Task 5**——四个未解析的 pin 名字全由 Task 5 声明，Task 8 的全量门只做翻位；④ Task 2 的 Acceptance 点名那两处窗口红不受判，P37 对里的 `= 0` 声明一字不动；⑤ Task 5 的两条计数臂逐条点名派发平面（零构造只对工作平面成立，判平面的 wave review 照构造一份）；⑥ Task 5 的派发类型臂与 single-spec 臂的行表经构造面注入成 block，`failed` 的读法不随翻位；⑦ `preflight.test.ts` 与 `cli.test.ts` 的计数从 `RULE_REGISTRY` 派生，两文件零 diff、用例标题无数词。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.7 | 2026-11-20 | **W2 wave 评审回填（F1 · F2）**：① 工作项行（`- Modify:` 一类）在 `single-home` 的两侧都不进域——它是文件点名不是判据，而同一份模板让每份 plan 逐字相同，比它等于判死模板；② 两侧必须读同一个归一化面（右域经 `ctx.translator`），否则含别名的中文判据永不命中；③ **长度下界按散文计**（去掉行内代码段之后），因为规则上线后判本文件时报出的两处里有一处是「两句各抄同一条路径」——路径不是散文。两条都进了 Task 4 的 Step 与 Acceptance | [human] · Claude（kairos:cdd-dev） |
 | v0.6 | 2026-11-20 | 第五轮评审回填（plan fix 5）：① 本文件自身的三处时序措辞退到无符号分句——`## Constraints` 声明的「无挂符号的时序指示词」现由本文件满足（祖先栈的空读法写作「读作缺口」、无参构造写作「回到默认注册表」）；② Task 2 的散文扫描步骤补标题栈——扫描器把 `[...ancestors].reverse()` 交给 `FaceMap.roleOf` 的第三个参数，并补继承臂（`### 7.` 下的 `#### 7.5.1` 判作 `decision`）与两参形态的反证；③ Task 5 的构造面两项都声明缺省形态——闭合端口 `provenClosed?` 缺省 `() => false`（未供端口的构造站点零改动），行表 `ruleRows?` 缺省读 `Contract.ruleRows()`。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |

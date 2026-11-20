@@ -347,8 +347,8 @@ export class PinSpans {
   /** Every inline code span of one markdown body, in document order. */
   static tokensOf(text: string): readonly string[] {
     const tokens: string[] = [];
-    for (const entry of PinSpans.proseEntriesOf(text)) {
-      for (const span of PinSpans.#spansIn(entry.text)) tokens.push(span.text);
+    for (const line of PinSpans.proseOf(text)) {
+      for (const span of PinSpans.#spansIn(line)) tokens.push(span.text);
     }
     return tokens;
   }
@@ -372,7 +372,8 @@ export class PinSpans {
   }
 
   /** The prose line TEXTS of one markdown body — the string projection of the entry
-   *  face above, for a caller that needs the lone fence judgment and no coordinates.
+   *  face above, for a caller that needs the lone fence judgment and no coordinates:
+   *  span extraction (`tokensOf`) and the fence arm of the shape suite read it.
    *  `ProseLines` reads the entries (it has to carry line numbers), and both arrive on
    *  the ONE walk, so the shape rules and the sentence index hold no second reading. */
   static proseOf(text: string): readonly string[] {

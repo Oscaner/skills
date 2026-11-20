@@ -10511,25 +10511,24 @@ describe("cdd <verb> — the in-flight acquire race", () => {
     };
     /** A pre-flight that approves, then lets a competitor claim the tree — the exact
      *  gate→acquire window (the gate judged `absent`, the lock is held by the time
-     *  the real dispatch acquires). */
+     *  the real dispatch acquires). The competitor handle is the TEST's (not the
+     *  gate's), so this case can drop the lock it took: a handle that outlived the
+     *  case would keep refreshing a lock directory the teardown removed. */
     class RacingPreFlight extends PreFlight {
-      readonly #repoRoot: string;
+      readonly #competitor: InFlight;
       readonly #record: InFlightRecord;
-      constructor(repoRoot: string, record: InFlightRecord) {
+      constructor(competitor: InFlight, record: InFlightRecord) {
         super({ git: new GitClient(), contract: new Contract(), words: new Words() });
-        this.#repoRoot = repoRoot;
+        this.#competitor = competitor;
         this.#record = record;
       }
       override async vet(): Promise<PreFlightVerdict> {
-        const competitor = new InFlight(
-          new WorkspaceRoot(this.#repoRoot, ".kairos/cdd"),
-          "competitor",
-        );
-        await competitor.acquire(this.#record);
+        await this.#competitor.acquire(this.#record);
         return { ok: true, order: ["tree-clean", "in-flight"], checked: [] };
       }
     }
     const { repoRoot, cleanup } = fixture({ sync });
+    const competitor = new InFlight(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "competitor");
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
@@ -10537,7 +10536,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       const racing = Cli.create({
         io,
         sync,
-        preflight: new RacingPreFlight(repoRoot, competitorRecord),
+        preflight: new RacingPreFlight(competitor, competitorRecord),
       });
       const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
@@ -10560,6 +10559,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       expect(recordBytes!).toBe(`${JSON.stringify(competitorRecord, null, 2)}\n`);
       expect(sync.calls).toEqual([]);
     } finally {
+      await competitor.release();
       cleanup();
     }
   });

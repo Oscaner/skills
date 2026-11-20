@@ -36,7 +36,11 @@ import type { TemplateValues } from "../render/templates.ts";
 import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
-import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
+import type {
+  CarrierPlane,
+  GradingViolation,
+  GradingViolationCriterion,
+} from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
@@ -88,6 +92,45 @@ const ABORT_INTERRUPTED = RoundViolation.hard(
   "the dispatch was interrupted outside the engine — its in-flight record named a dead holder at takeover, so the round concluded nothing (the same command re-offers it)",
   "interrupted",
 );
+
+/** The blocker-evidence refusals, one per refusal criterion — the `#gradingRefusal`
+ *  segments in rendering order (the criteria table's own order: the functional-impact
+ *  scenario first, the reproduction second). The head strings are LITERALS: the gate's
+ *  pin is the printed byte, not an import of the registry. */
+/** The blocker-evidence refusal (design spec §2.2 · P41 §2.2): ONE segment per
+ *  criterion that refused, in the table's order — the first word after
+ *  `CDD_BLOCKED:` is that criterion row's `id` — and each segment lists every
+ *  offending finding of ITS criterion by `id` and `summary` (all of them, never one
+ *  of two). A single-criterion round renders exactly the bytes it always did; a mixed
+ *  round renders one labelled segment per criterion, so no row is attributed to a word
+ *  it did not break. The composition is a module-level const so the byte face is
+ *  testable without driving a dispatch — the round reads it, the test pins it. */
+export const gradingRefusalOf = (violations: readonly GradingViolation[]): string => {
+  const segments: string[] = [];
+  for (const refusal of GRADING_REFUSALS) {
+    const labels = violations
+      .filter((violation) => violation.criterion === refusal.criterion)
+      .map((violation) => {
+        const summary = violation.summary?.trim() ?? "";
+        const quoted = summary.length === 0 ? "" : ` "${summary}"`;
+        return `${violation.id ?? "unkeyed"}${quoted}`;
+      });
+    if (labels.length === 0) continue;
+    segments.push(`${refusal.head} — ${labels.join("; ")}`);
+  }
+  return segments.join("; ");
+};
+
+const GRADING_REFUSALS: readonly { criterion: GradingViolationCriterion; head: string }[] = [
+  {
+    criterion: "grading-impact-missing",
+    head: "grading-impact-missing: finding(s) graded blocker carry no `impact.scenario`",
+  },
+  {
+    criterion: "evidence-missing",
+    head: "evidence-missing: finding(s) graded blocker carry no `evidence.repro`",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -1333,17 +1376,10 @@ export class CliLifecycle {
     return this.#pinIndex;
   }
 
-  /** The blocker-evidence refusal (design spec §2.2): the first word after
-   *  `CDD_BLOCKED:` is the criteria row's `id` — written as a LITERAL here, because the
-   *  gate's pin is the printed byte, not an import of the registry — followed by every
-   *  offending finding's `id` and `summary` (all of them, never one of two). */
+  /** The blocker-evidence refusal — the module-level composition below, read through
+   *  one call so the round's message and the pinned byte never diverge. */
   #gradingRefusal(violations: readonly GradingViolation[]): string {
-    const labels = violations.map((violation) => {
-      const summary = violation.summary?.trim() ?? "";
-      const quoted = summary.length === 0 ? "" : ` "${summary}"`;
-      return `${violation.id ?? "unkeyed"}${quoted}`;
-    });
-    return `grading-impact-missing: finding(s) graded blocker carry no \`impact.scenario\` — ${labels.join("; ")}`;
+    return gradingRefusalOf(violations);
   }
 
   /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED

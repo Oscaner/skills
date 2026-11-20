@@ -564,6 +564,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
           impact: {
             scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
           },
+          evidence: BLOCKER_EVIDENCE,
         },
         { severity: "warn", lens: "scope", summary: "typo" },
       ]);
@@ -593,6 +594,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
           impact: {
             scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
           },
+          evidence: BLOCKER_EVIDENCE,
         },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
@@ -608,6 +610,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
         impact: {
           scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
         },
+        evidence: BLOCKER_EVIDENCE,
       });
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
@@ -693,6 +696,9 @@ const IMPACT = {
   scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
 };
 
+/** The blocker's second paid cell (P41 §2.2) — where a reader re-runs the claim. */
+const BLOCKER_EVIDENCE = { repro: "pnpm -C packages/cdd-engine test" };
+
 describe("P37 T3 — the grading gate refuses a blocker that owes its scenario", () => {
   it("blocks the round and lists the criterion row plus every violating finding's id and summary", async () => {
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
@@ -723,7 +729,13 @@ describe("P37 T3 — the grading gate refuses a blocker that owes its scenario",
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {
       const runner = new ReviewDraftRunner([
-        { severity: "blocker", lens: "spec", summary: "drift", impact: IMPACT },
+        {
+          severity: "blocker",
+          lens: "spec",
+          summary: "drift",
+          impact: IMPACT,
+          evidence: BLOCKER_EVIDENCE,
+        },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
       expect(outcome.status).toBe("CHANGES_REQUESTED");

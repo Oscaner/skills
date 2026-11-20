@@ -62,8 +62,11 @@ const DOC_ROOT_SEGMENTS = Object.values(ENGINE_DOC_ROOTS)
   .map((dir) => path.basename(dir))
   .join("/");
 
-/** One contract finding — a single invariant violation, bound to a doc + field. */
-export interface Finding {
+/** One finding DRAFT — what a strategy hands back: a single invariant violation bound
+ *  to a doc + field. The tier is deliberately ABSENT: a strategy judges whether a
+ *  condition holds, the rule declaration says what a hit costs (design spec §1.3), and
+ *  only the coordinator's `Contract.stamped` joins the two. */
+export interface FindingDraft {
   /** The doc file the finding refers to. */
   path: string;
   /** The anchored field the finding refers to (an anchor token or a section name). */
@@ -74,6 +77,12 @@ export interface Finding {
   fix: string;
   /** The invariant class name that produced the finding. */
   kind: string;
+}
+
+/** One STAMPED contract finding — a draft plus the tier its rule declaration carries.
+ *  The gate refuses on `block` and annotates on `warn`; nothing else reads the tier. */
+export interface Finding extends FindingDraft {
+  readonly severity: "block" | "warn";
 }
 
 /** The filesystem seam the context-seam invariants read through (test-injectable). */
@@ -180,10 +189,10 @@ export abstract class Invariant extends MarkdownPrimitives {
   /** The invariant's name — the finding attribution label. */
   abstract readonly name: string;
   /** Run the strategy — the single evaluation entry. */
-  abstract evaluate(ctx: JudgeContext): Finding[];
+  abstract evaluate(ctx: JudgeContext): FindingDraft[];
 
   /** The single finding-construction point. */
-  protected finding(ctx: JudgeContext, field: string, message: string, fix: string): Finding {
+  protected finding(ctx: JudgeContext, field: string, message: string, fix: string): FindingDraft {
     return { path: ctx.path, field, message, fix, kind: this.name };
   }
 
@@ -371,10 +380,10 @@ const PRESENCE_HOMES = new Set([
 export abstract class LedgerRuleBase implements LedgerRule {
   abstract readonly name: string;
   /** Run the rule over the doc judgment context + the ledger fact bundle. */
-  abstract evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
+  abstract evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 
   /** The single finding-construction point (one home per scope). */
-  protected finding(ctx: JudgeContext, field: string, message: string, fix: string): Finding {
+  protected finding(ctx: JudgeContext, field: string, message: string, fix: string): FindingDraft {
     return { path: ctx.path, field, message, fix, kind: this.name };
   }
 }
@@ -391,8 +400,8 @@ export abstract class LedgerRuleBase implements LedgerRule {
 export class LedgerLayeringRule extends LedgerRuleBase {
   readonly name = "closed-wave-fits-depends-on-layers";
 
-  evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const wave of ledger.openWaves) {
       if (wave.length === 0) continue;
       const fits = ledger.layers.some((layer) => wave.every((id) => layer.includes(id)));
@@ -422,8 +431,8 @@ export class LedgerLayeringRule extends LedgerRuleBase {
 export class LedgerTaskSetRule extends LedgerRuleBase {
   readonly name = "planned-tasks-vs-recorded-tasks";
 
-  evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const planned = new Set(ledger.planTasks);
     for (const id of ledger.recordedTasks) {
       if (planned.has(id)) continue;
@@ -451,8 +460,8 @@ export class LedgerTaskSetRule extends LedgerRuleBase {
 export class PresenceInvariant extends Invariant {
   readonly name = "presence";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const element of this.elementsOf(ctx)) {
       if (element.presence !== "required") continue;
       if (PRESENCE_HOMES.has(element.home) === false) continue;
@@ -499,8 +508,8 @@ export class PresenceInvariant extends Invariant {
   }
 
   /** Heading-style anchors: a duplicated heading line text is a duplicate registration. */
-  private headingUniqueness(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  private headingUniqueness(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const seenLine = new Set<string>();
     for (const element of this.elementsOf(ctx)) {
       if (!element.anchor.startsWith("#")) continue;
@@ -562,9 +571,9 @@ export class PresenceInvariant extends Invariant {
   }
 
   /** The per-task-block field surface — every required task-field key of a plan. */
-  private taskFieldPresence(ctx: JudgeContext): Finding[] {
+  private taskFieldPresence(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "plan") return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const block of ctx.tree.tasks()) {
       const keys = new Set(block.fields.map((field) => field.key));
       for (const key of this.#requiredFieldKeys(ctx)) {
@@ -588,8 +597,8 @@ export class PresenceInvariant extends Invariant {
 export class ChangeHistoryVersionUniqueInvariant extends Invariant {
   readonly name = "change-history-version-unique";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const seenVersions = new Set<string>();
     for (const version of this.historyVersions(ctx)) {
       if (seenVersions.has(version)) {
@@ -614,11 +623,11 @@ export class ChangeHistoryVersionUniqueInvariant extends Invariant {
 export class ChangeHistoryRowShapeInvariant extends Invariant {
   readonly name = "change-history-row-shape";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const table = this.changeHistory(ctx);
     const width = table.headerRow?.length ?? 0;
     if (width === 0) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const row of table.rows) {
       if (row.length === width) continue;
       findings.push(
@@ -647,7 +656,7 @@ export const CHANGE_HISTORY_COLUMNS = ["Version", "date", "summary", "author"] a
 export class ChangeHistoryHeaderColumnsInvariant extends Invariant {
   readonly name = "change-history-header-columns";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const header = this.changeHistory(ctx).headerRow;
     if (header === null || header.length === 0) return [];
     const cells = header.map((cell) => cell.trim());
@@ -672,7 +681,7 @@ export class ChangeHistoryHeaderColumnsInvariant extends Invariant {
 export class ChangeHistoryLatestMatchesFrontMatterInvariant extends Invariant {
   readonly name = "change-history-latest-matches-front-matter";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const headerVersion = ctx.head.version;
     if (headerVersion === null) return [];
     const versions = this.historyVersions(ctx);
@@ -696,9 +705,9 @@ export class ChangeHistoryLatestMatchesFrontMatterInvariant extends Invariant {
 export class TaskIdUniqueInvariant extends Invariant {
   readonly name = "task-id-unique";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "plan") return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const seenIds = new Set<number>();
     for (const block of ctx.tree.tasks()) {
       if (seenIds.has(block.id)) {
@@ -721,10 +730,10 @@ export class TaskIdUniqueInvariant extends Invariant {
 export class PhaseIdUniqueInvariant extends Invariant {
   readonly name = "phase-id-unique";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const data = this.record(ctx, "overall");
     if (data === null) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const seenPhases = new Set<string>();
     for (const phase of data.chain.phases) {
       const lower = phase.id.toLowerCase();
@@ -748,8 +757,8 @@ export class PhaseIdUniqueInvariant extends Invariant {
 export class DomainInvariant extends Invariant {
   readonly name = "domain";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const element of this.elementsOf(ctx)) {
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
@@ -838,17 +847,17 @@ export class DomainInvariant extends Invariant {
 export class CrosslinkInvariant extends Invariant {
   readonly name = "crosslink";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey === "overall") return this.overallCrosslinks(ctx);
     if (ctx.docKey === "plan") return this.planCrosslinks(ctx);
     return [];
   }
 
   /** The overall's in-doc reference surfaces: issue rows + graph edges + dependency cells. */
-  private overallCrosslinks(ctx: JudgeContext): Finding[] {
+  private overallCrosslinks(ctx: JudgeContext): FindingDraft[] {
     const data = this.record(ctx, "overall");
     if (data === null) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const ids = new Set(data.chain.phases.map((phase) => phase.id.toLowerCase()));
     // Issue-inventory rows: the Phase column must be a registered inventory id.
     for (const row of data.tables["Issue inventory"].rows) {
@@ -909,9 +918,9 @@ export class CrosslinkInvariant extends Invariant {
   /** The plan's in-doc reference surfaces: the DependsOn ids — the single structural
    *  reference gate. Prose task mentions are NOT consumed here (T6): the WARN-only
    *  observation belongs to the reference-lint pass, never a hard finding. */
-  private planCrosslinks(ctx: JudgeContext): Finding[] {
+  private planCrosslinks(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "plan") return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const blocks = ctx.tree.tasks();
     const ids = new Set(blocks.map((block) => block.id));
     for (const block of blocks) {
@@ -955,8 +964,8 @@ export class CrosslinkInvariant extends Invariant {
 export class SectionOrderInvariant extends Invariant {
   readonly name = "section-order";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const anchors = this.elementsOf(ctx)
       .filter((element) => element.anchor.startsWith("## "))
       .map((element) => element.anchor);
@@ -1002,17 +1011,17 @@ export class SectionOrderInvariant extends Invariant {
 export class ContinuityInvariant extends Invariant {
   readonly name = "continuity";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey === "plan") return this.taskContinuity(ctx);
     if (ctx.docKey === "phase-spec") return this.groupContinuity(ctx);
     return [];
   }
 
   /** Plan task ids must be exactly 1..N. */
-  private taskContinuity(ctx: JudgeContext): Finding[] {
+  private taskContinuity(ctx: JudgeContext): FindingDraft[] {
     const blocks = ctx.tree.tasks();
     if (blocks.length === 0) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     blocks.forEach((block, index) => {
       const expected = index + 1;
       if (block.id !== expected) {
@@ -1030,10 +1039,10 @@ export class ContinuityInvariant extends Invariant {
   }
 
   /** Phase-spec design groups (and their items) must be 1-indexed and contiguous. */
-  private groupContinuity(ctx: JudgeContext): Finding[] {
+  private groupContinuity(ctx: JudgeContext): FindingDraft[] {
     const data = this.record(ctx, "phase-spec");
     if (data === null || data.design.length === 0) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     data.design.forEach((group, index) => {
       if (Number(group.number) !== index + 1) {
         findings.push(
@@ -1054,7 +1063,7 @@ export class ContinuityInvariant extends Invariant {
     ctx: JudgeContext,
     group: DesignGroup,
     groupNumber: string,
-    findings: Finding[],
+    findings: FindingDraft[],
   ): void {
     group.items.forEach((item, index) => {
       if (item.number !== `${groupNumber}.${index + 1}`) {
@@ -1075,8 +1084,8 @@ export class ContinuityInvariant extends Invariant {
 export class ResidueInvariant extends Invariant {
   readonly name = "residue";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const elements = this.elementsOf(ctx);
     let owner: string | null = null;
     for (const element of elements) {
@@ -1108,15 +1117,15 @@ export class ResidueInvariant extends Invariant {
 export class HollowInvariant extends Invariant {
   readonly name = "hollow";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const findings = [...this.tableHollow(ctx), ...this.taskHollow(ctx), ...this.designHollow(ctx)];
     return findings;
   }
 
   /** The overall's three tables: a present table section with zero data rows is hollow. */
-  private tableHollow(ctx: JudgeContext): Finding[] {
+  private tableHollow(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "overall") return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const anchor of this.overallTableHeadings(ctx)) {
       const headings = this.occurrenceNodes(ctx, anchor);
       if (headings.length === 0) continue;
@@ -1137,9 +1146,9 @@ export class HollowInvariant extends Invariant {
   }
 
   /** A task block that carries no keyed fields is a hollow shell. */
-  private taskHollow(ctx: JudgeContext): Finding[] {
+  private taskHollow(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "plan") return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const block of ctx.tree.tasks()) {
       if (block.fields.length === 0) {
         findings.push(
@@ -1156,10 +1165,10 @@ export class HollowInvariant extends Invariant {
   }
 
   /** The phase-spec skeleton: a present Design with no groups (or an empty conditional section). */
-  private designHollow(ctx: JudgeContext): Finding[] {
+  private designHollow(ctx: JudgeContext): FindingDraft[] {
     const data = this.record(ctx, "phase-spec");
     if (data === null) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const designSlice = this.sliceOf(ctx, "## Design");
     if (
       designSlice !== undefined &&
@@ -1205,7 +1214,7 @@ export class HollowInvariant extends Invariant {
 export class FrontMatterVersionInLineageInvariant extends Invariant {
   readonly name = "front-matter-version-in-lineage";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const headerVersion = ctx.head.version;
     if (headerVersion === null) return [];
     const membership = this.membershipVersions(ctx);
@@ -1228,8 +1237,8 @@ export class FrontMatterVersionInLineageInvariant extends Invariant {
 export class RowHomeInvariant extends Invariant {
   readonly name = "change-history-row-not-in-other-table";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const section of ctx.parsed.sections) {
       const slice = this.sliceOf(ctx, "## Change history");
       if (slice?.valuePattern?.test(section.heading) === true) continue;
@@ -1265,7 +1274,7 @@ export class RowHomeInvariant extends Invariant {
 export class ListMarkerInvariant extends Invariant {
   readonly name = "list-marker-not-doubled";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     return ctx.tree
       .doubledMarkerItems()
       .map((node) =>
@@ -1326,8 +1335,8 @@ export class LinkTargetShape {
 export class FileExistenceInvariant extends Invariant {
   readonly name: string = "file-existence";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
       const shape = LinkTargetShape.of(link.target);
@@ -1410,8 +1419,8 @@ export class FileExistenceInvariant extends Invariant {
 export class LinkShapeInvariant extends FileExistenceInvariant {
   readonly name = "link-shape";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
       const shape = LinkTargetShape.of(link.target);
@@ -1433,8 +1442,8 @@ export class LinkShapeInvariant extends FileExistenceInvariant {
 export class SiblingScanInvariant extends FileExistenceInvariant {
   readonly name = "sibling-scan";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     const baseline = new Set<string>();
     for (const root of SiblingScanInvariant.#scanRoots(ctx.root, ctx.path)) {
       for (const entry of ctx.fs.list(root)) {
@@ -1495,11 +1504,11 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
 export class PhaseDesignSpecIsPhaseSpecInvariant extends Invariant {
   readonly name = "phase-design-spec-is-phase-spec";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "overall") return [];
     const data = this.record(ctx, "overall");
     if (data === null) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const phase of data.chain.phases) {
       const docType = this.#targetDocType(ctx, phase.designCell);
       // `undefined` = not judged (no judgeable target); `null` = the target declares
@@ -1551,8 +1560,8 @@ export class PhaseDesignSpecIsPhaseSpecInvariant extends Invariant {
 export class SlugRefInvariant extends Invariant {
   readonly name = "slug-ref";
 
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const findings: FindingDraft[] = [];
     for (const element of this.elementsOf(ctx)) {
       if (element.refKind !== "slug-ref" || element.home !== "frontmatter") continue;
       const value = ctx.head.value(element.anchor);
@@ -1588,14 +1597,14 @@ export class SlugRefInvariant extends Invariant {
 export class CrossDocChainInvariant extends Invariant {
   readonly name = "cross-doc-chain";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey === "overall") return this.overallChain(ctx);
     if (ctx.docKey === "plan") return this.planChain(ctx);
     return this.specChain(ctx);
   }
 
   /** The overall chain-root face: a dispatch phase must be registered in the inventory. */
-  private overallChain(ctx: JudgeContext): Finding[] {
+  private overallChain(ctx: JudgeContext): FindingDraft[] {
     if (ctx.phaseId === undefined || ctx.phaseId === null) return [];
     const data = this.record(ctx, "overall");
     if (data === null) return [];
@@ -1619,7 +1628,7 @@ export class CrossDocChainInvariant extends Invariant {
    *  identity fact that is missing its pair). The positive half is any identity
    *  document (overall / phase-spec / single-spec) carrying the same slug — a
    *  single-spec pair carries no program, so the chain simply ends there. */
-  private planChain(ctx: JudgeContext): Finding[] {
+  private planChain(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "plan") return [];
     const slug = ctx.head.slug;
     // A placeholder or missing slug is presence's surface, never this arm's.
@@ -1648,10 +1657,10 @@ export class CrossDocChainInvariant extends Invariant {
    *  belong to the overall it names. The reference's own resolution (the slug
    *  naming an on-disk overall) is the `slug-ref` strategy's judgment; this arm
    *  only judges the version facts once the target is resolved. */
-  private specChain(ctx: JudgeContext): Finding[] {
+  private specChain(ctx: JudgeContext): FindingDraft[] {
     const data = this.record(ctx, "phase-spec");
     if (data === null) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const programLink = data.chain.programLink;
     if (programLink === null) return findings;
     const program = this.#overallOf(ctx, programLink.target);
@@ -1705,7 +1714,7 @@ export class CrossDocChainInvariant extends Invariant {
 export class SectionScopedDomainInvariant extends Invariant {
   readonly name = "section-scoped-domain";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey === "overall") return this.issueScopedRefs(ctx);
     if (ctx.docKey === "phase-spec") return this.designScoping(ctx);
     return [];
@@ -1713,11 +1722,11 @@ export class SectionScopedDomainInvariant extends Invariant {
 
   /** Issue-ref forms are judged only within `## Issue inventory` (a content-wide rule
    *  would misfire on legacy `## Requirement inventory` tables whose ref cells are prose). */
-  private issueScopedRefs(ctx: JudgeContext): Finding[] {
+  private issueScopedRefs(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "overall") return [];
     const slice = this.sliceOf(ctx, "Issue ref cell");
     if (slice?.valuePattern === undefined) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     const issueHead = this.occurrenceNodes(ctx, "## Issue inventory")[0];
     const table = issueHead === undefined ? null : ctx.tree.tableUnder(issueHead.text);
     for (const row of table?.body ?? []) {
@@ -1738,13 +1747,13 @@ export class SectionScopedDomainInvariant extends Invariant {
   }
 
   /** `### N.` design-group headings may appear only inside `## Design`. */
-  private designScoping(ctx: JudgeContext): Finding[] {
+  private designScoping(ctx: JudgeContext): FindingDraft[] {
     if (ctx.docKey !== "phase-spec") return [];
     const element = this.elementOf(ctx, "### N. group heading");
     if (element === undefined || element.valuePattern === undefined) return [];
     const design = this.occurrenceNodes(ctx, "## Design")[0];
     const section = ctx.tree.sections().find((entry) => entry.line === design?.line);
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const heading of ctx.tree.headings()) {
       if (!ctx.tree.matches(element.selector, heading.text)) continue;
       // A group heading inside the Design section is the surface's own content; the
@@ -1784,10 +1793,10 @@ export class SectionScopedDomainInvariant extends Invariant {
 export class WaveWidthInvariant extends Invariant {
   readonly name = "wave-width-at-most-three";
 
-  evaluate(ctx: JudgeContext): Finding[] {
+  evaluate(ctx: JudgeContext): FindingDraft[] {
     const layers = ctx.taskLayers;
     if (layers === undefined) return [];
-    const findings: Finding[] = [];
+    const findings: FindingDraft[] = [];
     for (const layer of layers) {
       if (layer.length <= MAX_TASKS_PER_WAVE) continue;
       const ids = [...layer].sort((left, right) => left - right);

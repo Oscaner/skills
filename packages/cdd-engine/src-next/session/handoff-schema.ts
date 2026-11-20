@@ -84,6 +84,16 @@ const FINDING: SchemaNode = {
       required: ["path", "anchor"],
       properties: { path: { type: "string" }, anchor: { type: "string" } },
     },
+    // P41 §2.1 — the blocker's reproduction slot: where a reader re-runs the claim
+    // (a command, or a `doc.md#section` pointer). Declared OPTIONAL on the shape face
+    // for the same reason `impact` is: warn / nit owe nothing, so a required slot
+    // would BLOCK legal drafts. A blocker's obligation is judged by
+    // `gradingViolations` (`evidence-missing`), never by this shape walk.
+    evidence: {
+      type: "object",
+      required: ["repro"],
+      properties: { repro: { type: "string" }, output: { type: "string" } },
+    },
   },
 };
 
@@ -155,6 +165,14 @@ const EVIDENCE: SchemaNode = {
   },
 };
 
+/** One finding's reproduction (P41 §2.1) — where a reader re-runs the claim. `repro`
+ *  is a command or a `doc.md#section` pointer and must be non-blank; `output` names
+ *  the bytes when they are too long to inline. */
+export interface FindingEvidence {
+  readonly repro: string;
+  readonly output?: string;
+}
+
 /** The carrier value-type mapping — every declared carrier field's value type. This
  *  is the ONE hand-maintained byte table (the type-level twin of the schema property
  *  values); `Carrier` maps each declared key through it. A wrong entry reads as a
@@ -182,6 +200,9 @@ export type CarrierValue = {
     /** P37 §2.3 — the optional repair anchor (a contract document path + a section /
      *  AC / rule id). */
     contract?: { path: string; anchor: string };
+    /** P41 §2.1 — the blocker's reproduction: a non-blank `repro` the reader can
+     *  re-run, with an optional `output` locator. */
+    evidence?: FindingEvidence;
   }[];
 };
 
@@ -194,10 +215,16 @@ export type Carrier = {
   -readonly [K in keyof (typeof CARRIER)["properties"]]: CarrierValue[K];
 };
 
+/** The criteria row a grading refusal comes from — one refusal carries its own word,
+ *  so a round with two refusals renders two labelled segments and a round with one is
+ *  byte-identical to the single-criterion message it always printed. */
+export type GradingViolationCriterion = "grading-impact-missing" | "evidence-missing";
+
 /** One finding the grading gate refuses — the identifying cells the failure face
  *  prints (`id` is the engine-written key or absent on a legacy carrier; `summary` is
- *  the description, absent when the draft carried none). */
+ *  the description, absent when the draft carried none) and the criterion it broke. */
 export interface GradingViolation {
+  readonly criterion: GradingViolationCriterion;
   readonly id?: string;
   readonly summary?: string;
 }
@@ -332,9 +359,12 @@ export class HandoffSchema {
     return blockers > 0 ? "CHANGES_REQUESTED" : findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
   }
 
-  /** P37 §2.2 — the blocker evidence gate, a PURE predicate colocated with `rollup`.
-   *  A finding graded `blocker` owes a non-blank `impact.scenario`; every blocker that
-   *  lacks one is returned so the failure face can list them all (never one of two).
+  /** P37 §2.2 · P41 §2.2 — the blocker evidence gate, a PURE predicate colocated with
+   *  `rollup`. A finding graded `blocker` owes TWO things: a non-blank
+   *  `impact.scenario` (the legal input → actual → expected shape) and a non-blank
+   *  `evidence.repro` (where a reader re-runs the claim). Every blocker that lacks
+   *  either is returned, tagged with the criterion it broke, so the failure face can
+   *  list them all (never one of two) under the words their own criterion prints.
    *  Warn / nit findings owe nothing here, and the predicate never judges severity —
    *  the tier is the child's call, this gate only asks whether a blocker paid its
    *  evidence. `rollup` deliberately does not call it: a review conclusion is not a
@@ -348,16 +378,27 @@ export class HandoffSchema {
         id?: unknown;
         summary?: unknown;
         impact?: { scenario?: unknown };
+        evidence?: { repro?: unknown };
       } | null;
       if (row?.severity !== "blocker") continue;
-      const scenario = row.impact?.scenario;
-      if (typeof scenario === "string" && scenario.trim().length > 0) continue;
-      violations.push({
+      const cells = {
         ...(typeof row.id === "string" && row.id.length > 0 ? { id: row.id } : {}),
         ...(typeof row.summary === "string" ? { summary: row.summary } : {}),
-      });
+      };
+      if (!HandoffSchema.#nonBlank(row.impact?.scenario)) {
+        violations.push({ criterion: "grading-impact-missing", ...cells });
+      }
+      if (!HandoffSchema.#nonBlank(row.evidence?.repro)) {
+        violations.push({ criterion: "evidence-missing", ...cells });
+      }
     }
     return violations;
+  }
+
+  /** A cell's non-blank test — the ONE ruler `impact.scenario` and `evidence.repro`
+   *  share, so "present but blank" reads as absent on both faces. */
+  static #nonBlank(value: unknown): boolean {
+    return typeof value === "string" && value.trim().length > 0;
   }
 
   /** The draft findings presented as round findings — unknown severities dropped

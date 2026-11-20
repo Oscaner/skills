@@ -398,3 +398,55 @@ describe("the `rulings` row's one read (P36 T6 · §2.3 · §4.5)", () => {
     }
   });
 });
+
+describe("P41 T6 — the two machine-readable ruling cells (`verdict` · `probe`)", () => {
+  /** One ruling over the carrier's own finding, with the cells a case varies. */
+  const rulingWith = (cells: Record<string, unknown>) => ({
+    carrier: CARRIER,
+    rulings: [{ finding: "F4", ruling: "the finding was wrong", ...cells }],
+  });
+
+  it('accepts `verdict: "fixed"` without a `probe` — the change itself is the evidence', () => {
+    const verdict = verdictOf(rulingWith({ verdict: "fixed" }));
+    expect(verdict.kind).toBe("ok");
+    if (verdict.kind !== "ok") return;
+    expect(verdict.rulings[0]?.verdict).toBe("fixed");
+    expect(verdict.rulings[0]).not.toHaveProperty("probe");
+  });
+
+  it('refuses the WHOLE sidecar when `verdict: "rejected"` carries no `probe`', () => {
+    for (const probe of [undefined, "", "   "]) {
+      const verdict = verdictOf(
+        rulingWith(probe === undefined ? { verdict: "rejected" } : { verdict: "rejected", probe }),
+      );
+      expect(verdict.kind, `probe ${JSON.stringify(probe)}`).toBe("invalid");
+      if (verdict.kind !== "invalid") return;
+      expect(verdict.reason).toContain("`rejected` but carries no `probe`");
+    }
+  });
+
+  it('accepts `verdict: "rejected"` with a non-blank `probe` and hands both cells back', () => {
+    const verdict = verdictOf(
+      rulingWith({ verdict: "rejected", probe: "pnpm test -- the-cited-case" }),
+    );
+    expect(verdict.kind).toBe("ok");
+    if (verdict.kind !== "ok") return;
+    expect(verdict.rulings[0]?.verdict).toBe("rejected");
+    expect(verdict.rulings[0]?.probe).toBe("pnpm test -- the-cited-case");
+  });
+
+  it("accepts a sidecar carrying neither cell — a legacy sidecar owes no migration", () => {
+    const verdict = verdictOf(rulingWith({}));
+    expect(verdict.kind).toBe("ok");
+    if (verdict.kind !== "ok") return;
+    expect(verdict.rulings[0]).not.toHaveProperty("verdict");
+    expect(verdict.rulings[0]).not.toHaveProperty("probe");
+  });
+
+  it("refuses a `verdict` outside the closed set — one word, never a synonym", () => {
+    const verdict = verdictOf(rulingWith({ verdict: "dismissed", probe: "pnpm test" }));
+    expect(verdict.kind).toBe("invalid");
+    if (verdict.kind !== "invalid") return;
+    expect(verdict.reason).toContain("`verdict` outside fixed | rejected");
+  });
+});

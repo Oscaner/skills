@@ -2,7 +2,7 @@
   "docType": "overall",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "overall document structure",
-  "description": "Derived JSON Schema — 42 declared elements · 33 required",
+  "description": "Derived JSON Schema — 43 declared elements · 33 required",
   "type": "object",
   "properties": {
     "title": {
@@ -104,6 +104,11 @@
       "type": "string",
       "pattern": "^### Cross-cutting",
       "description": "presence: required · home: facet · ref: none"
+    },
+    "### 设计决策留存": {
+      "type": "string",
+      "pattern": "^### 设计决策留存",
+      "description": "presence: optional · home: facet · ref: none"
     },
     "#### [MFRBEN] group": {
       "type": "string",

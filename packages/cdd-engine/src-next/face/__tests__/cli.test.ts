@@ -7364,6 +7364,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
               },
+              evidence: { repro: "sed -n '1,40p' docs/kairos/specs/p32-design.md" },
             },
           ],
         }),
@@ -7409,6 +7410,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
               scenario:
                 "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
             },
+            evidence: { repro: "sed -n '1,40p' docs/kairos/specs/p32-design.md" },
           },
         ],
       });
@@ -7460,17 +7462,27 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         cleanup();
       }
     };
-    const refused = await run(draftOf({}));
+    const repro = { repro: "pnpm -C packages/cdd-engine test" };
+    const refused = await run(draftOf({ evidence: repro }));
     expect(refused.code).toBe(1);
     expect(refused.io.stderrText).toContain("CDD_BLOCKED: grading-impact-missing");
     expect(refused.io.stderrText).toContain("drift");
     expect(refused.carrier).toBeUndefined();
     const accepted = await run(
-      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" } }),
+      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" }, evidence: repro }),
     );
     expect(accepted.code).toBe(0);
     expect(accepted.io.stderrText).not.toContain("CDD_BLOCKED");
     expect(accepted.io.stderrText).not.toContain("grading-impact-missing");
+    // P41 §2.2 — the second blocker duty rides the SAME read-back path: a blocker that
+    // states its scenario but names no reproduction refuses the round under its own word.
+    const unreproducible = await run(
+      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" } }),
+    );
+    expect(unreproducible.code).toBe(1);
+    expect(unreproducible.io.stderrText).toContain("CDD_BLOCKED: evidence-missing");
+    expect(unreproducible.io.stderrText).toContain("drift");
+    expect(unreproducible.carrier).toBeUndefined();
   });
 
   it("a task review appends the review skill ref — the object {ref} row's slash form", async () => {
@@ -8621,6 +8633,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),
@@ -8687,6 +8700,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),
@@ -8717,6 +8731,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             scenario:
               "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
           },
+          evidence: { repro: "pnpm -C packages/cdd-engine test" },
         },
       ]);
     } finally {
@@ -8979,6 +8994,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),

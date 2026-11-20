@@ -115,6 +115,11 @@
           "refKind": "none"
         },
         {
+          "anchor": "### 设计决策留存",
+          "presence": "optional",
+          "refKind": "none"
+        },
+        {
           "anchor": "#### [MFRBEN] group",
           "presence": "optional",
           "refKind": "none"

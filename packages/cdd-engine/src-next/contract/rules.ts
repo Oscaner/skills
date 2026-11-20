@@ -26,7 +26,7 @@
 // Module-level exports are types / the declared data — zero behavior-carrying bare
 // functions.
 
-import type { Finding, Invariant, JudgeContext } from "./invariants.ts";
+import type { FindingDraft, Invariant, JudgeContext } from "./invariants.ts";
 import {
   ChangeHistoryHeaderColumnsInvariant,
   ChangeHistoryLatestMatchesFrontMatterInvariant,
@@ -58,137 +58,255 @@ import {
 import type { LedgerFacts } from "./judge.ts";
 import type { DocKey } from "./project.ts";
 
-/** A doc-scope declaration: the factory yields an `Invariant` (`evaluate(ctx)`). */
-export interface DocRuleDeclaration {
-  readonly scope: "doc";
+/** The cells both scopes declare: identity, applicability, tier and the closed-document
+ *  exemption. A rule's tier is DECLARED here, beside the rule, so "does a hit refuse
+ *  the round or only warn" has exactly one home — the rule table (design spec §1.3). */
+export interface RuleDeclarationBase {
   /** The rule id (kebab) — the strategy's `name` and the `checked` row's label. */
   readonly id: string;
   /** The applicable doc keys ("all" = the same judgment on all four doc types). */
   readonly docKeys: DocKey[] | "all";
+  /** The tier a hit carries: `block` refuses the round, `warn` only annotates it. The
+   *  value is stamped onto every finding this row produces (never filled by a strategy). */
+  readonly severity: "block" | "warn";
+  /** Whether a CLOSED document exempts this row (design spec §1.4): the six shape
+   *  rules do, the long-standing structural rules do not. */
+  readonly skipWhenClosed: boolean;
+}
+
+/** A doc-scope declaration: the factory yields an `Invariant` (`evaluate(ctx)`). */
+export interface DocRuleDeclaration extends RuleDeclarationBase {
+  readonly scope: "doc";
   /** Declaration-as-factory: the policy composition instantiates ONLY here. */
   readonly create: () => Invariant;
 }
 
 /** A ledger-scope declaration: the factory yields a `LedgerRule` (`evaluate(ctx, ledger)`). */
-export interface LedgerRuleDeclaration {
+export interface LedgerRuleDeclaration extends RuleDeclarationBase {
   readonly scope: "ledger";
-  readonly id: string;
   /** Must include `"plan"` (a ledger rule has no target on a doc-less dispatch other
    *  than the plan it judges against). */
-  readonly docKeys: DocKey[] | "all";
   readonly create: () => LedgerRule;
 }
 
 /** One rule declaration — the union of the two scopes. */
 export type RuleDeclaration = DocRuleDeclaration | LedgerRuleDeclaration;
 
-/** The ledger-scope judgment entry — two arguments, one per fact source. */
+/** The ledger-scope judgment entry — two arguments, one per fact source. It hands
+ *  back DRAFTS: the tier is stamped by the coordinator, never filled here. */
 export interface LedgerRule {
   readonly name: string;
-  evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
+  evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
 /** The rule registry — doc scope 24 rows + ledger scope 2 rows = 26. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
-  { scope: "doc", id: "presence", docKeys: "all", create: () => new PresenceInvariant() },
+  {
+    scope: "doc",
+    id: "presence",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new PresenceInvariant(),
+  },
   {
     scope: "doc",
     id: "change-history-version-unique",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new ChangeHistoryVersionUniqueInvariant(),
   },
   {
     scope: "doc",
     id: "change-history-row-shape",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new ChangeHistoryRowShapeInvariant(),
   },
   {
     scope: "doc",
     id: "change-history-header-columns",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new ChangeHistoryHeaderColumnsInvariant(),
   },
   {
     scope: "doc",
     id: "change-history-latest-matches-front-matter",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new ChangeHistoryLatestMatchesFrontMatterInvariant(),
   },
-  { scope: "doc", id: "task-id-unique", docKeys: "all", create: () => new TaskIdUniqueInvariant() },
+  {
+    scope: "doc",
+    id: "task-id-unique",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new TaskIdUniqueInvariant(),
+  },
   {
     scope: "doc",
     id: "phase-id-unique",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new PhaseIdUniqueInvariant(),
   },
-  { scope: "doc", id: "domain", docKeys: "all", create: () => new DomainInvariant() },
-  { scope: "doc", id: "crosslink", docKeys: "all", create: () => new CrosslinkInvariant() },
-  { scope: "doc", id: "section-order", docKeys: "all", create: () => new SectionOrderInvariant() },
+  {
+    scope: "doc",
+    id: "domain",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new DomainInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "crosslink",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new CrosslinkInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "section-order",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new SectionOrderInvariant(),
+  },
   {
     scope: "doc",
     id: "front-matter-version-in-lineage",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new FrontMatterVersionInLineageInvariant(),
   },
-  { scope: "doc", id: "continuity", docKeys: "all", create: () => new ContinuityInvariant() },
-  { scope: "doc", id: "residue", docKeys: "all", create: () => new ResidueInvariant() },
-  { scope: "doc", id: "hollow", docKeys: "all", create: () => new HollowInvariant() },
-  { scope: "doc", id: "link-shape", docKeys: "all", create: () => new LinkShapeInvariant() },
+  {
+    scope: "doc",
+    id: "continuity",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new ContinuityInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "residue",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new ResidueInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "hollow",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new HollowInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "link-shape",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new LinkShapeInvariant(),
+  },
   {
     scope: "doc",
     id: "file-existence",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new FileExistenceInvariant(),
   },
-  { scope: "doc", id: "sibling-scan", docKeys: "all", create: () => new SiblingScanInvariant() },
-  { scope: "doc", id: "slug-ref", docKeys: "all", create: () => new SlugRefInvariant() },
+  {
+    scope: "doc",
+    id: "sibling-scan",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new SiblingScanInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "slug-ref",
+    docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
+    create: () => new SlugRefInvariant(),
+  },
   {
     scope: "doc",
     id: "cross-doc-chain",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new CrossDocChainInvariant(),
   },
   {
     scope: "doc",
     id: "section-scoped-domain",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new SectionScopedDomainInvariant(),
   },
   {
     scope: "doc",
     id: "change-history-row-not-in-other-table",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new RowHomeInvariant(),
   },
   {
     scope: "doc",
     id: "list-marker-not-doubled",
     docKeys: "all",
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new ListMarkerInvariant(),
   },
   {
     scope: "doc",
     id: "wave-width-at-most-three",
     docKeys: ["plan"],
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new WaveWidthInvariant(),
   },
   {
     scope: "doc",
     id: "phase-design-spec-is-phase-spec",
     docKeys: ["overall"],
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
   },
   {
     scope: "ledger",
     id: "closed-wave-fits-depends-on-layers",
     docKeys: ["plan"],
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new LedgerLayeringRule(),
   },
   {
     scope: "ledger",
     id: "planned-tasks-vs-recorded-tasks",
     docKeys: ["plan"],
+    severity: "block",
+    skipWhenClosed: false,
     create: () => new LedgerTaskSetRule(),
   },
 ];

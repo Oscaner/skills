@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
+import { gradingRefusalOf } from "../../face/lifecycle.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { HandoffSchema } from "../handoff-schema.ts";
@@ -152,5 +153,41 @@ describe("P36 T8 — the retired spellings are gone (spec §3)", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
+  });
+});
+
+describe("P41 T6 — the evidence plane: where the reproduction duty applies and how it reads", () => {
+  it("④ owes the duty on the judge plane only — a fix draft carries dispositions, not findings", () => {
+    // `planeOf` is the ONE derivation: the fix round is `work`, and the work projection
+    // declares no `findings` slot at all — so a fix draft has nothing to grade).
+    expect(HandoffSchema.planeOf("fix")).toBe("work");
+    expect(HandoffSchema.planeOf("review")).toBe("judge");
+    const work = new HandoffSchema().planeSchema("work");
+    expect(work.properties ?? {}).not.toHaveProperty("findings");
+    expect(work.properties ?? {}).toHaveProperty("dispositions");
+  });
+
+  it("⑤ renders one segment per refusal criterion, and a single criterion byte-identically", () => {
+    // The single-criterion message is the byte the gate has always printed.
+    expect(
+      gradingRefusalOf([{ criterion: "grading-impact-missing", id: "F1", summary: "drift" }]),
+    ).toBe(
+      'grading-impact-missing: finding(s) graded blocker carry no `impact.scenario` — F1 "drift"',
+    );
+    // A mixed round names both words, each with the labels of ITS OWN segment.
+    const mixed = gradingRefusalOf([
+      { criterion: "grading-impact-missing", id: "F1", summary: "no scenario" },
+      { criterion: "evidence-missing", id: "F2", summary: "no repro" },
+    ]);
+    expect(mixed).toBe(
+      'grading-impact-missing: finding(s) graded blocker carry no `impact.scenario` — F1 "no scenario"; ' +
+        'evidence-missing: finding(s) graded blocker carry no `evidence.repro` — F2 "no repro"',
+    );
+    // Rendering order is the table's, never the input's: the evidence segment stays last.
+    const reversed = gradingRefusalOf([
+      { criterion: "evidence-missing", id: "F2", summary: "no repro" },
+      { criterion: "grading-impact-missing", id: "F1", summary: "no scenario" },
+    ]);
+    expect(reversed).toBe(mixed);
   });
 });

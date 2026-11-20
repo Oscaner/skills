@@ -391,8 +391,8 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     );
   });
 
-  it("reconciles the post-migration element totals against the §2.3 arithmetic (42/28/26/15)", () => {
-    expect(declaredRegistries.overall.elements.length).toBe(42);
+  it("reconciles the post-migration element totals against the §2.3 arithmetic (43/28/26/15)", () => {
+    expect(declaredRegistries.overall.elements.length).toBe(43);
     expect(declaredRegistries.plan.elements.length).toBe(28);
     expect(declaredRegistries["phase-spec"].elements.length).toBe(26);
     expect(declaredRegistries["single-spec"].elements.length).toBe(15);

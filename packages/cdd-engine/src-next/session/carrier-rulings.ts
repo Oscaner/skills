@@ -27,17 +27,31 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ArtifactRegistry, type IdentifierVocabulary } from "./round-artifacts.ts";
 
-/** One recorded ruling — the finding it answers and the ruling's own text. */
+/** One recorded ruling — the finding it answers and the ruling's own text, plus the
+ *  two machine-readable cells (P41 §2.3): the verdict and, when the reviewer is
+ *  overruled, the probe that shows why. */
 export interface Ruling {
   /** The carrier finding id the ruling answers (`F1`, `F2` …). */
   readonly finding: string;
   /** The ruling verdict / reasoning, verbatim. */
   readonly ruling: string;
+  /** The machine-readable verdict (P41 §2.3) — `fixed` or `rejected`. Absent on a
+   *  legacy sidecar, which stays legal: no migration is owed. */
+  readonly verdict?: Verdict;
+  /** The reproduction a `rejected` verdict owes (P41 §2.3) — the finding's own
+   *  `repro` counter-part: where a reader re-checks that the review was wrong. */
+  readonly probe?: string;
   /** When the ruling was recorded (optional, the orchestrator's stamp). */
   readonly at?: string;
   /** Who recorded the ruling (optional). */
   readonly by?: string;
 }
+
+/** The verdict's closed set (P41 §2.3) — one word, never a synonymous third key. */
+export type Verdict = "fixed" | "rejected";
+
+/** The declared verdict values, in the order a refusal names them. */
+const VERDICTS: readonly Verdict[] = ["fixed", "rejected"];
 
 /** The sidecar's three-state read: no file / a schema-conforming file / a refusal. */
 export type RulingVerdict =
@@ -48,11 +62,12 @@ export type RulingVerdict =
 /** The top-level keys the schema declares — anything else is refused. */
 const TOP_KEYS: ReadonlySet<string> = new Set(["carrier", "rulings"]);
 
-/** The ruling schema's NON-identifier fields — the verdict text and the orchestrator's
- *  optional stamp. The identifier field is deliberately absent from this list: its
- *  acceptance set is the artifact matrix's `rulings` row declaration alone (§2.8), so
- *  `finding` / `id` are never enumerated a second time here. */
-const RULING_FIELDS: readonly string[] = ["ruling", "at", "by"];
+/** The ruling schema's NON-identifier fields — the verdict text, the orchestrator's
+ *  optional stamp and the two machine-readable cells (`verdict` / `probe`, P41 §2.3).
+ *  The identifier field is deliberately absent from this list: its acceptance set is the
+ *  artifact matrix's `rulings` row declaration alone (§2.8), so `finding` / `id` are
+ *  never enumerated a second time here. */
+const RULING_FIELDS: readonly string[] = ["ruling", "at", "by", "verdict", "probe"];
 
 /** A parsed-but-not-yet-judged file: present facts only. */
 type ParsedSidecar =
@@ -179,7 +194,7 @@ export class CarrierRulings {
     const spelling = CarrierRulings.#identifierKeyOf(record, index, vocabulary);
     if (typeof spelling !== "string") return spelling.reason;
     const finding = record[spelling];
-    const { ruling, at, by } = record;
+    const { ruling, at, by, verdict, probe } = record;
     if (typeof finding !== "string") {
       return `ruling #${index + 1} carries no string \`${vocabulary.canonical}\``;
     }
@@ -190,15 +205,45 @@ export class CarrierRulings {
     if (by !== undefined && typeof by !== "string") {
       return `ruling #${index + 1} carries a non-string \`by\``;
     }
+    const verdictRefusal = CarrierRulings.#verdictRefusal(index, verdict, probe);
+    if (verdictRefusal !== null) return verdictRefusal;
     if (!findingIds.has(finding)) {
       return `ruling #${index + 1} answers ${finding}, which is not a finding of the carrier`;
     }
     return {
       finding,
       ruling,
+      ...(typeof verdict === "string" ? { verdict: verdict as Verdict } : {}),
+      ...(typeof probe === "string" ? { probe } : {}),
       ...(at === undefined ? {} : { at }),
       ...(by === undefined ? {} : { by }),
     };
+  }
+
+  /** The `verdict` / `probe` pair's refusal (P41 §2.3) — null when it passes. The
+   *  verdict is a closed set; a `rejected` verdict OWES its `probe` (rejecting is the
+   *  one "the review was wrong" move, so it must carry a re-checkable path), while
+   *  `fixed` needs none (the change itself is the evidence) and a sidecar with no
+   *  verdict owes nothing (legacy free text stays legal). A probe WITHOUT a verdict is
+   *  legal: `probe` is an optional cell, not a verdict-dependent one. */
+  static #verdictRefusal(index: number, verdict: unknown, probe: unknown): string | null {
+    if (verdict === undefined) {
+      if (probe !== undefined && typeof probe !== "string") {
+        return `ruling #${index + 1} carries a non-string \`probe\``;
+      }
+      return null;
+    }
+    if (typeof verdict !== "string" || !VERDICTS.includes(verdict as Verdict)) {
+      return `ruling #${index + 1} carries a \`verdict\` outside ${VERDICTS.join(" | ")}`;
+    }
+    if (probe !== undefined && typeof probe !== "string") {
+      return `ruling #${index + 1} carries a non-string \`probe\``;
+    }
+    if (verdict !== "rejected") return null;
+    if (typeof probe !== "string" || probe.trim().length === 0) {
+      return `ruling #${index + 1} is \`rejected\` but carries no \`probe\``;
+    }
+    return null;
   }
 
   /** The identifier key ONE ruling carries — exactly one of the accepted spellings
@@ -245,11 +290,13 @@ export class CarrierRulings {
       const spelling = CarrierRulings.#identifierKeyOf(row, rulings.length, vocabulary);
       if (typeof spelling !== "string") return null;
       const finding = row[spelling];
-      const { ruling, at, by } = row;
+      const { ruling, at, by, verdict, probe } = row;
       if (typeof finding !== "string" || typeof ruling !== "string") return null;
       rulings.push({
         finding,
         ruling,
+        ...(typeof verdict === "string" ? { verdict: verdict as Verdict } : {}),
+        ...(typeof probe === "string" ? { probe } : {}),
         ...(typeof at === "string" ? { at } : {}),
         ...(typeof by === "string" ? { by } : {}),
       });

@@ -39,7 +39,7 @@
 import type { ContextLine, SceneFacts } from "../contract/context-declarations.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
-import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
+import type { Contract, ContractInput, LedgerFacts } from "../contract/judge.ts";
 import {
   type ArtifactSnapshot,
   PreFlightRows,
@@ -47,7 +47,8 @@ import {
   type RowStation,
 } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
-import type { Words } from "../face/words.ts";
+import type { RuleDeclaration } from "../contract/rules.ts";
+import type { CheckedWords, Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
@@ -98,6 +99,11 @@ type DocOutcome =
   | {
       readonly kind: "judged";
       readonly findings: readonly Finding[];
+      /** Whether the judged document is PROVEN closed by its program's phase
+       *  inventory (design spec §1.4) — the shape rules carrying `skipWhenClosed`
+       *  never ran, and their `checked:` rows say so. The judgment itself still ran:
+       *  closure adds no kind and exempts no other rule. */
+      readonly closed: boolean;
       readonly layersUnavailable?: boolean;
     }
   | { readonly kind: "no-doc-target" }
@@ -215,12 +221,24 @@ export class PreFlight {
   readonly #words: Words;
   /** The filesystem seam the doc-contract gate reads (defaults to node:fs). */
   readonly #fs: DocFs;
+  /** The closure port (design spec §1.4) — the ONE method the gate asks, so the
+   *  closure material has one construction point (the composition root's audit
+   *  accessor). The default proves nothing: a construction site that supplies no
+   *  accessor therefore has no closed document, and owes no edit. */
+  readonly #provenClosed: (rel: string) => boolean;
 
-  constructor(opts: { git: GitClient; contract: Contract; words: Words; fs?: DocFs }) {
+  constructor(opts: {
+    git: GitClient;
+    contract: Contract;
+    words: Words;
+    fs?: DocFs;
+    provenClosed?: (rel: string) => boolean;
+  }) {
     this.#git = opts.git;
     this.#contract = opts.contract;
     this.#words = opts.words;
     this.#fs = opts.fs ?? new NodeFs();
+    this.#provenClosed = opts.provenClosed ?? (() => false);
   }
 
   /** vet(ctx) — the single seam call: tree-clean → in-flight → plan-carrier → graph
@@ -424,18 +442,26 @@ export class PreFlight {
         // (`TaskGraph#batches()` — the ONE width authority), so the plan-scope rules
         // judge exactly the layer set the wave gates will dispatch against.
         const taskLayers = graph?.batches();
-        const findings = this.#contract.validate({
-          docKey: doc.docKey,
-          path: docAbsolute,
-          content,
-          root: ctx.repoRoot,
-          slugIndex: index,
-          fs: this.#fs,
-          taskLayers,
-        });
+        // The closure fact comes from the port, never from a second audit built here:
+        // the composition root's accessor is the ONE construction point of that
+        // material, and the lifecycle's `contract.path` read-back shares it.
+        const closed = this.#provenClosed(doc.path);
+        const findings = this.#contract.validate(
+          {
+            docKey: doc.docKey,
+            path: docAbsolute,
+            content,
+            root: ctx.repoRoot,
+            slugIndex: index,
+            fs: this.#fs,
+            taskLayers,
+          },
+          closed,
+        );
         docOutcome = {
           kind: "judged",
           findings,
+          closed,
           // The layer fact is absent only where the graph gate never ran, and on the
           // dispatch faces that cannot happen: `--type plan` REQUIRES `--plan` (a usage
           // rejection exits first), so a plan doc always has its graph and therefore its
@@ -445,16 +471,28 @@ export class PreFlight {
           // face) — a visible degradation, never a dispatch-time refusal.
           layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
         };
-        if (findings.length > 0) {
+        // The verdict is graded by the declaration's own severity (spec §1.3): a `warn`
+        // rule reports, a `block` rule refuses. The details list only the blocking
+        // findings — otherwise a refusal would put a warning beside a real stop and the
+        // reader would repair a line that was never the reason. When the tree registers
+        // NO overall charter the details gain ONE row naming that absence: closure was
+        // then unprovable, not merely unproven, and the reader must be able to tell the
+        // two apart. An overall that names nobody is the "unproven" case and adds no row.
+        const blocking = findings.filter((finding) => finding.severity === "block");
+        if (blocking.length > 0) {
+          const details = blocking.map(
+            (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
+          );
+          if (!index.entries.some((entry) => entry.docType === "overall")) {
+            details.push(this.#words.preflightWords().closureUnavailable);
+          }
           return this.#refusal(
             {
               ok: false,
               gate: "doc-contract",
               reason: "doc-contract",
               message: this.#words.preflightWords().docContract,
-              details: findings.map(
-                (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
-              ),
+              details,
             },
             gates,
             checked,
@@ -618,7 +656,7 @@ export class PreFlight {
   #ruleRows(doc: DocOutcome, ledger: LedgerOutcome): string[] {
     const words = this.#words.checkedWords();
     const rows: string[] = [];
-    for (const declaration of Contract.ruleRows()) {
+    for (const declaration of this.#contract.ruleRows()) {
       if (declaration.scope === "doc") {
         if (doc.kind === "no-doc-target")
           rows.push(`${declaration.id}: ${words.skippedNoDocTarget}`);
@@ -626,15 +664,19 @@ export class PreFlight {
           rows.push(`${declaration.id}: ${words.skippedNotJudged}`);
         else if (doc.kind === "unreadable")
           rows.push(`${declaration.id}: ${words.skippedUnreadableDoc}`);
+        else if (doc.closed && declaration.skipWhenClosed)
+          // A rule the closed document exempted never ran — `passed` would testify for
+          // it, so the row names the reason (design spec §1.3).
+          rows.push(`${declaration.id}: ${words.skippedClosedDocument}`);
         else if (doc.layersUnavailable === true && declaration.id === "wave-width-at-most-three")
           rows.push(`${declaration.id}: ${words.planLayersUnavailable}`);
         else
           rows.push(
-            `${declaration.id}: ${
-              doc.findings.some((finding) => finding.kind === declaration.id)
-                ? words.failed
-                : words.passed
-            }`,
+            `${declaration.id}: ${PreFlight.#docRowWordOf(
+              declaration,
+              doc.findings.filter((finding) => finding.kind === declaration.id).length,
+              words,
+            )}`,
           );
         continue;
       }
@@ -651,6 +693,23 @@ export class PreFlight {
       }
     }
     return rows;
+  }
+
+  /** One doc-scope rule row's word — the SAME grading the verdict uses, read from the
+   *  declaration's severity: a `warn` rule that reported reads `warned — <n> warning(s)`
+   *  and the dispatch proceeds, a `block` rule that reported reads `failed`. The two
+   *  words therefore cannot drift from the verdict, and a rule never reads `passed`
+   *  while it reported something. */
+  static #docRowWordOf(
+    declaration: RuleDeclaration,
+    hitCount: number,
+    words: CheckedWords,
+  ): string {
+    if (hitCount === 0) return words.passed;
+    if (declaration.scope === "doc" && declaration.severity === "warn") {
+      return words.warned.replace("{count}", String(hitCount));
+    }
+    return words.failed;
   }
 
   /** The ledger fact bundle of one dispatch — built from the ledger, the plan read

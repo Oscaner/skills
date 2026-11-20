@@ -564,6 +564,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
           impact: {
             scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
           },
+          evidence: BLOCKER_EVIDENCE,
         },
         { severity: "warn", lens: "scope", summary: "typo" },
       ]);
@@ -593,6 +594,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
           impact: {
             scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
           },
+          evidence: BLOCKER_EVIDENCE,
         },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
@@ -608,6 +610,7 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
         impact: {
           scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
         },
+        evidence: BLOCKER_EVIDENCE,
       });
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
@@ -693,6 +696,9 @@ const IMPACT = {
   scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
 };
 
+/** The blocker's second paid cell (P41 §2.2) — where a reader re-runs the claim. */
+const BLOCKER_EVIDENCE = { repro: "pnpm -C packages/cdd-engine test" };
+
 describe("P37 T3 — the grading gate refuses a blocker that owes its scenario", () => {
   it("blocks the round and lists the criterion row plus every violating finding's id and summary", async () => {
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
@@ -723,7 +729,13 @@ describe("P37 T3 — the grading gate refuses a blocker that owes its scenario",
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {
       const runner = new ReviewDraftRunner([
-        { severity: "blocker", lens: "spec", summary: "drift", impact: IMPACT },
+        {
+          severity: "blocker",
+          lens: "spec",
+          summary: "drift",
+          impact: IMPACT,
+          evidence: BLOCKER_EVIDENCE,
+        },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
       expect(outcome.status).toBe("CHANGES_REQUESTED");
@@ -1450,6 +1462,11 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       // postmortem points back at the file the dead child was writing.
       expect(crash?.attemptedHandoff).toBe(".kairos/cdd/p30/tasks-1-review-1-a2.json");
       expect(crash?.cause).toBe("child-exit");
+      // The rejected round KEEPS its record — the postmortem fact — and DROPS the lock:
+      // the lock is only mutual exclusion, so a handle that outlived its round would
+      // keep refreshing a lock directory the tree may no longer carry.
+      expect(existsSync(recordPathOf(f))).toBe(true);
+      expect(existsSync(lockPathOf(f))).toBe(false);
       // The resume command is the review leg's own, off the same crash record.
       expect(crash?.next).toContain("cdd review");
       expect(path.basename(naming.crashPath(frame))).toBe("crash-tasks-1-review-1-a2.json");

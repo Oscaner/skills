@@ -57,6 +57,7 @@ import {
 } from "../../contract/completion-criterion.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { Contract } from "../../contract/judge.ts";
+import { RULE_REGISTRY } from "../../contract/rules.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
@@ -91,6 +92,10 @@ import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
+
+/** The doc-scope declaration rows — the `skipped (no doc target)` row count, read off
+ *  the registry instead of copied into a literal. */
+const DOC_RULE_ROWS = RULE_REGISTRY.filter((row) => row.scope === "doc").length;
 
 /** The dispatch's value record for one fixture (P40 T5) — the SAME pre-frame assembly
  *  the composition root hands the lifecycle, composed from the fixture scene and the
@@ -4460,7 +4465,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(24);
+      ).toHaveLength(DOC_RULE_ROWS);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
@@ -7364,6 +7369,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
               },
+              evidence: { repro: "sed -n '1,40p' docs/kairos/specs/p32-design.md" },
             },
           ],
         }),
@@ -7409,6 +7415,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
               scenario:
                 "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
             },
+            evidence: { repro: "sed -n '1,40p' docs/kairos/specs/p32-design.md" },
           },
         ],
       });
@@ -7460,17 +7467,27 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         cleanup();
       }
     };
-    const refused = await run(draftOf({}));
+    const repro = { repro: "pnpm -C packages/cdd-engine test" };
+    const refused = await run(draftOf({ evidence: repro }));
     expect(refused.code).toBe(1);
     expect(refused.io.stderrText).toContain("CDD_BLOCKED: grading-impact-missing");
     expect(refused.io.stderrText).toContain("drift");
     expect(refused.carrier).toBeUndefined();
     const accepted = await run(
-      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" } }),
+      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" }, evidence: repro }),
     );
     expect(accepted.code).toBe(0);
     expect(accepted.io.stderrText).not.toContain("CDD_BLOCKED");
     expect(accepted.io.stderrText).not.toContain("grading-impact-missing");
+    // P41 §2.2 — the second blocker duty rides the SAME read-back path: a blocker that
+    // states its scenario but names no reproduction refuses the round under its own word.
+    const unreproducible = await run(
+      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" } }),
+    );
+    expect(unreproducible.code).toBe(1);
+    expect(unreproducible.io.stderrText).toContain("CDD_BLOCKED: evidence-missing");
+    expect(unreproducible.io.stderrText).toContain("drift");
+    expect(unreproducible.carrier).toBeUndefined();
   });
 
   it("a task review appends the review skill ref — the object {ref} row's slash form", async () => {
@@ -8621,6 +8638,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),
@@ -8687,6 +8705,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),
@@ -8717,6 +8736,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             scenario:
               "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
           },
+          evidence: { repro: "pnpm -C packages/cdd-engine test" },
         },
       ]);
     } finally {
@@ -8979,6 +8999,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
                 scenario:
                   "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
               },
+              evidence: { repro: "pnpm -C packages/cdd-engine test" },
             },
           ],
         }),
@@ -10490,25 +10511,24 @@ describe("cdd <verb> — the in-flight acquire race", () => {
     };
     /** A pre-flight that approves, then lets a competitor claim the tree — the exact
      *  gate→acquire window (the gate judged `absent`, the lock is held by the time
-     *  the real dispatch acquires). */
+     *  the real dispatch acquires). The competitor handle is the TEST's (not the
+     *  gate's), so this case can drop the lock it took: a handle that outlived the
+     *  case would keep refreshing a lock directory the teardown removed. */
     class RacingPreFlight extends PreFlight {
-      readonly #repoRoot: string;
+      readonly #competitor: InFlight;
       readonly #record: InFlightRecord;
-      constructor(repoRoot: string, record: InFlightRecord) {
+      constructor(competitor: InFlight, record: InFlightRecord) {
         super({ git: new GitClient(), contract: new Contract(), words: new Words() });
-        this.#repoRoot = repoRoot;
+        this.#competitor = competitor;
         this.#record = record;
       }
       override async vet(): Promise<PreFlightVerdict> {
-        const competitor = new InFlight(
-          new WorkspaceRoot(this.#repoRoot, ".kairos/cdd"),
-          "competitor",
-        );
-        await competitor.acquire(this.#record);
+        await this.#competitor.acquire(this.#record);
         return { ok: true, order: ["tree-clean", "in-flight"], checked: [] };
       }
     }
     const { repoRoot, cleanup } = fixture({ sync });
+    const competitor = new InFlight(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "competitor");
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
@@ -10516,7 +10536,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       const racing = Cli.create({
         io,
         sync,
-        preflight: new RacingPreFlight(repoRoot, competitorRecord),
+        preflight: new RacingPreFlight(competitor, competitorRecord),
       });
       const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
@@ -10539,6 +10559,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       expect(recordBytes!).toBe(`${JSON.stringify(competitorRecord, null, 2)}\n`);
       expect(sync.calls).toEqual([]);
     } finally {
+      await competitor.release();
       cleanup();
     }
   });
@@ -12800,6 +12821,53 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
       const prompt = sync.calls[1]?.args.join(" ") ?? "";
       expect(prompt).toContain("tasks-1-fix-1");
       expect(prompt).toContain("-a2");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P41 T5 — one command, one snapshot. Every per-root seam of the composition
+// root (the identity index · the pin audit · the production pre-flight) and the
+// judgment instance's own right-domain corpus are dropped at the command
+// boundary, so a second `runArgv` on ONE `Cli` answers from the tree it reads
+// then — never from the snapshot the first command took.
+// ---------------------------------------------------------------------------
+
+describe("P41 T5 — the command boundary drops every per-root snapshot", () => {
+  it("re-reads the closure cell on the next command of the same instance", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const charter = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
+      const charterBody = (done: boolean): string =>
+        [
+          "---",
+          "title: Fixture Charter",
+          "doc-type: overall",
+          "version: v1.0",
+          "date: 2026-11-20",
+          "slug: x-overall",
+          "---",
+          "",
+          "## Phase inventory",
+          "",
+          "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+          "| --- | --- | --- | --- | --- | --- | --- |",
+          `| P1 | design | scope | ${done ? "✔ Done（`s1-design.md` · 2026-11-20）" : "[Pending]"} | [Pending] | criteria |  |`,
+          "",
+        ].join("\n");
+      writeFileSync(charter, charterBody(true), "utf8");
+      const argv = ["review", "--type", "phase-spec", "--spec", spec, "--dry-run"];
+      expect(await command.runArgv(argv)).toBe(0);
+      expect(io.stderrText).toContain("measure-literal: skipped (closed document)");
+      writeFileSync(charter, charterBody(false), "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(argv)).toBe(0);
+      expect(io.stderrText).toContain("measure-literal: passed");
+      expect(io.stderrText).not.toContain("measure-literal: skipped (closed document)");
     } finally {
       cleanup();
     }

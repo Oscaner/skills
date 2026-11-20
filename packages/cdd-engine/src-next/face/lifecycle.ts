@@ -36,7 +36,11 @@ import type { TemplateValues } from "../render/templates.ts";
 import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
-import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
+import type {
+  CarrierPlane,
+  GradingViolation,
+  GradingViolationCriterion,
+} from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
@@ -88,6 +92,45 @@ const ABORT_INTERRUPTED = RoundViolation.hard(
   "the dispatch was interrupted outside the engine — its in-flight record named a dead holder at takeover, so the round concluded nothing (the same command re-offers it)",
   "interrupted",
 );
+
+/** The blocker-evidence refusal (design spec §2.2 · P41 §2.2): ONE segment per
+ *  criterion that refused, in the table's order — the first word after
+ *  `CDD_BLOCKED:` is that criterion row's `id` — and each segment lists every
+ *  offending finding of ITS criterion by `id` and `summary` (all of them, never one
+ *  of two). A single-criterion round renders exactly the bytes it always did; a mixed
+ *  round renders one labelled segment per criterion, so no row is attributed to a word
+ *  it did not break. The composition is a module-level const so the byte face is
+ *  testable without driving a dispatch — the round reads it, the test pins it. */
+export const gradingRefusalOf = (violations: readonly GradingViolation[]): string => {
+  const segments: string[] = [];
+  for (const refusal of GRADING_REFUSALS) {
+    const labels = violations
+      .filter((violation) => violation.criterion === refusal.criterion)
+      .map((violation) => {
+        const summary = violation.summary?.trim() ?? "";
+        const quoted = summary.length === 0 ? "" : ` "${summary}"`;
+        return `${violation.id ?? "unkeyed"}${quoted}`;
+      });
+    if (labels.length === 0) continue;
+    segments.push(`${refusal.head} — ${labels.join("; ")}`);
+  }
+  return segments.join("; ");
+};
+
+/** The blocker-evidence refusals, one per refusal criterion — the `gradingRefusalOf`
+ *  segments in rendering order (the criteria table's own order: the functional-impact
+ *  scenario first, the reproduction second). The head strings are LITERALS: the gate's
+ *  pin is the printed byte, not an import of the registry. */
+const GRADING_REFUSALS: readonly { criterion: GradingViolationCriterion; head: string }[] = [
+  {
+    criterion: "grading-impact-missing",
+    head: "grading-impact-missing: finding(s) graded blocker carry no `impact.scenario`",
+  },
+  {
+    criterion: "evidence-missing",
+    head: "evidence-missing: finding(s) graded blocker carry no `evidence.repro`",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -234,9 +277,12 @@ export class CliLifecycle {
    *  when the channel opened — the record face must see a channel that never opened,
    *  not only the stderr notice. */
   #logUnavailable: RoundViolation | null = null;
-  /** The pin gate of this dispatch (P37 §7.2) — built on first use so the resolution
-   *  index is walked once per process, never once per read. */
+  /** The pin gate of this dispatch (P37 §7.2) — the one audit instance, built on first
+   *  use so the resolution index is walked once per dispatch, never once per read. */
   #pinIndex: PinAudit | null = null;
+  /** The composition root's audit accessor, when supplied — the ONE construction point of
+   *  the dispatch's pin audit, shared with the pre-flight closure port. */
+  readonly #pinAuditFactory: (() => PinAudit) | null;
   /** The dispatch's round-context values (P40 T5) — the ONE record the composition root
    *  assembled (`DispatchValues.compose`) and the seam judged. The renderer reads it and
    *  derives nothing: a frame-bound re-assembly here would be the second derivation the
@@ -261,6 +307,11 @@ export class CliLifecycle {
     /** The host id the composition root probed ONCE — required, no default: a default
      *  would re-open the second detection path this seam retired (P40 T6). */
     host: HostId | "";
+    /** The dispatch's one pin audit accessor (design spec §1.4) — the composition root
+     *  hands its lazily constructed audit to BOTH this class and the pre-flight closure
+     *  port, so one dispatch scans the doc roots once. Absent → this class builds its
+     *  own memoized audit (the eleven construction sites that never supply one). */
+    pinAudit?: () => PinAudit;
   }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
@@ -281,11 +332,23 @@ export class CliLifecycle {
       stderr: (t) => process.stderr.write(t),
     };
     this.#reviews = opts.reviews ?? null;
+    this.#pinAuditFactory = opts.pinAudit ?? null;
   }
 
-  /** The DispatchStep the lifecycle runs — one frame → the outcome. */
+  /** The DispatchStep the lifecycle runs — one frame → the outcome. The step boundary is
+   *  also the LOCK's boundary: every ending path below either releases the record (the
+   *  normal end) or deliberately keeps it as the postmortem fact (a dead child, a kill,
+   *  a timeout), and the second family must still drop the lock — the record is the
+   *  truth of "a dispatch is running", the lock is only mutual exclusion, and a handle
+   *  left behind in a long-lived process later stats a tree that is gone. */
   step(): DispatchStep {
-    return (frame) => this.#dispatch(frame);
+    return async (frame) => {
+      try {
+        return await this.#dispatch(frame);
+      } finally {
+        await this.#inflight.dropLock();
+      }
+    };
   }
 
   /** The `--recover` abort leg (spec §2.1①/§2.2) — take over a stale in-flight record
@@ -1327,23 +1390,19 @@ export class CliLifecycle {
   }
 
   /** The one audit instance of this dispatch — the resolution index is built once and
-   *  shared by both corpora (and by every round this instance drives). */
+   *  shared by both corpora (and by every round this instance drives). When the
+   *  composition root supplies its accessor, THAT instance is the dispatch's one audit
+   *  (the shape gate's closure port asks the same one); otherwise this class builds its
+   *  own on first use, so a construction site that supplies no accessor owes no edit. */
   #pinAudit(): PinAudit {
-    this.#pinIndex ??= new PinAudit(this.#repoRootValue().absolute);
+    this.#pinIndex ??= this.#pinAuditFactory?.() ?? new PinAudit(this.#repoRootValue().absolute);
     return this.#pinIndex;
   }
 
-  /** The blocker-evidence refusal (design spec §2.2): the first word after
-   *  `CDD_BLOCKED:` is the criteria row's `id` — written as a LITERAL here, because the
-   *  gate's pin is the printed byte, not an import of the registry — followed by every
-   *  offending finding's `id` and `summary` (all of them, never one of two). */
+  /** The blocker-evidence refusal — the module-level composition below, read through
+   *  one call so the round's message and the pinned byte never diverge. */
   #gradingRefusal(violations: readonly GradingViolation[]): string {
-    const labels = violations.map((violation) => {
-      const summary = violation.summary?.trim() ?? "";
-      const quoted = summary.length === 0 ? "" : ` "${summary}"`;
-      return `${violation.id ?? "unkeyed"}${quoted}`;
-    });
-    return `grading-impact-missing: finding(s) graded blocker carry no \`impact.scenario\` — ${labels.join("; ")}`;
+    return gradingRefusalOf(violations);
   }
 
   /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED

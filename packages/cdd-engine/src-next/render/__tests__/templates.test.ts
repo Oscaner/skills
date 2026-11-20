@@ -11,9 +11,12 @@
 // ONE narrative body, and `reviewBodyOf` is the single target → criteria map.
 //
 // P28 T3 — the volatile-facts discipline: the narrative body names the three claim
-// shapes a spec may pin (a symbol, a guarded count, a condition) instead of accepting
-// today's shape, while the plan variant stays byte-frozen — a plan's `path:line` is a
-// delivery target, not a spec claim.
+// shapes a spec may pin (a symbol, a census form, a condition) instead of accepting
+// the tree as it stands, while the plan variant stays byte-frozen. The plan bytes keep
+// the PIN form — a colocated pin's `path:line` is what the read-back resolves — while a
+// plan's PROSE may carry none: `line-coordinate` declares `docKeys: "all"` and a plan's
+// `#### Steps` is a decision face, so a prose coordinate is refused there exactly as it
+// is in a spec.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -170,13 +173,25 @@ describe("P22 T15 — the charter criteria (REVIEWS.overall) and the criteria-bo
  */
 const VOLATILE_FACT_ANCHORS = [
   "module path + symbol name",
-  "pinned by the named guard",
+  "census registry",
   "belongs to the plan",
 ] as const;
 
+/** The four shape rule rows the two authoring nodes name in their `- **` bullets. The
+ *  rubric states the same shapes as ONE prose axis and names none of them, so this is the
+ *  reverse read of the node face: a batch that copies a node's block into
+ *  `docNarrativeAxes` would give the same sentence a second form, which reddens here. */
+const SHAPE_RULE_IDS = [
+  "line-coordinate",
+  "measure-literal",
+  "live-arithmetic",
+  "temporal-indicator",
+] as const;
+
 /** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the
- *  spec variant only: a plan's `path:line` is the delivery target of a task, so
- *  banning it there buys nothing. */
+ *  spec variant only: the frozen bytes keep the pin form (`path:line` inside a colocated
+ *  pin, which is what the read-back resolves), and a plan's PROSE coordinate is refused
+ *  by the plan face's own decision-face rule instead of by this rubric's bytes. */
 const PLAN_GUIDE_PREFIX =
   "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ";
 
@@ -191,6 +206,14 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
     for (const anchor of ["typecheck", "test command", "Claimed→pin"]) {
       expect(REVIEWS.spec.axesGuide).toContain(anchor);
     }
+  });
+
+  it("keeps the rubric a prose axis — no bullet line, none of the four rule ids", () => {
+    // The three homes must not drift into two FORMS of one sentence: the nodes teach the
+    // shapes as bullets that name their rule rows, the rubric states them as prose and
+    // names none. Pre-seeding a copied node block here reddens the first half.
+    expect(REVIEWS.spec.axesGuide).not.toMatch(/^\s*- \*\*/m);
+    for (const id of SHAPE_RULE_IDS) expect(REVIEWS.spec.axesGuide, id).not.toContain(id);
   });
 
   it("keeps the plan variant byte-frozen — the rewrite is the spec variant's only", () => {

@@ -7,9 +7,10 @@
 //   · every row's three cells reach `renderRubric()` verbatim (no cell is metadata);
 //   · an unregistered id throws, a blank cell throws, a tier with no row throws — the
 //     assembly-time half of the two validation contracts;
-//   · the face census is pinned by id: `numbered` three rows, `gate` one (the
-//     `CDD_BLOCKED: grading-impact-missing` word), `test` one (the pin gate) — changing
-//     a row's face, deleting a row or adding one goes red here.
+//   · the face census is pinned by id: `numbered` three rows, `gate` two (the
+//     `CDD_BLOCKED: grading-impact-missing` and `CDD_BLOCKED: evidence-missing`
+//     words), `test` one (the pin gate) — changing a row's face, deleting a row or
+//     adding one goes red here.
 //
 // The row-shape half (a deleted key is a `tsc` error, not a throw) is deliberately NOT
 // asserted through vitest: the suite runs source through esbuild, so a missing literal
@@ -118,10 +119,11 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(CRITERIA.renderRubric()).not.toContain(`. ${REGRADE_MARK} `);
   });
 
-  it("pins the face census by id — numbered three, gate one, test one", () => {
+  it("pins the face census by id — numbered three, gate two, test one", () => {
     // The row set itself is pinned: deleting a row or adding one goes red.
     expect(CRITERIA.rows.map((row) => row.id)).toEqual([
       "grading-impact-missing",
+      "evidence-missing",
       "debt-consequence",
       "pin-parseability",
       "expression-only",
@@ -130,8 +132,11 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     const idsOf = (face: CriteriaRow["face"]): readonly string[] =>
       CRITERIA.rows.filter((row) => row.face === face).map((row) => row.id);
     expect(idsOf("numbered")).toEqual(["debt-consequence", "expression-only", "regrade-mark"]);
-    expect(idsOf("gate")).toEqual(["grading-impact-missing"]);
+    expect(idsOf("gate")).toEqual(["grading-impact-missing", "evidence-missing"]);
     expect(idsOf("test")).toEqual(["pin-parseability"]);
+    // Both gate rows sit on the blocker tier — the tier that forces a decision is the
+    // tier both refusals guard.
+    for (const id of idsOf("gate")) expect(CRITERIA.of(id).tier).toBe("blocker");
   });
 
   it("covers every tier — a tier with no row throws at assembly", () => {

@@ -53,7 +53,7 @@ const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
  *  corpus is red. It is deliberately not derived from `filesOf`: a number computed out
  *  of the same walk would agree with any corpus the walk returned, and re-emitting it
  *  could never turn this file red. */
-const CORPUS_SIZE = 83;
+const CORPUS_SIZE = 85;
 
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
 const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";
@@ -515,6 +515,16 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(f.audit.pathResolves(PENDING, null)).toBe(false);
     expect(f.audit.scanText(`# spec\n\n- \`${PENDING}\`\n`, JUDGED)).toEqual([]);
     expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
+  });
+
+  it("does not judge a `contract.path` that names a round artifact — vocabulary, not a coordinate", () => {
+    const f = pendingFixture({});
+    // A wave round anchors its findings on its own brief, which is the round's product
+    // name: §7.1's second exclusion leaves it out of the pin set, so there is nothing to
+    // resolve and no dead-pin row for every finding that names it.
+    expect(f.audit.pathResolves(".kairos/cdd/w1/tasks-1,2-brief.md", JUDGED)).toBe(true);
+    // the pair: a tree coordinate is still judged, and an absent one still reads dead
+    expect(f.audit.pathResolves("docs/kairos/plans/absent.md", JUDGED)).toBe(false);
   });
 
   it("drops the skip when the declaring plan stops writing the line", () => {

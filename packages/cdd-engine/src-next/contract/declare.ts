@@ -21,6 +21,7 @@
 // uniqueness).
 
 import type { Selector, Walk } from "./markdown-tree.ts";
+import type { DocKey } from "./project.ts";
 import { SelectorSpec } from "./selector-spec.ts";
 
 /** The presence category of an element: carried unconditionally, optionally, or only when its declared condition holds. */
@@ -407,6 +408,19 @@ const OVERALL_ELEMENTS = [
     refKind: "none",
     home: "facet",
     selector: SelectorSpec.heading("### Cross-cutting"),
+  },
+  // The registration ledger of the charter — declared OPTIONAL on purpose: every
+  // overall document that predates this element legitimately lacks it, so a required
+  // declaration would refuse the whole corpus. Its `valuePattern` is a PREFIX (the
+  // corpus writes a dated suffix after the heading), so a suffixed heading still
+  // resolves — the judgment reads the pattern, never the anchor literal.
+  {
+    anchor: "### 设计决策留存",
+    presence: "optional",
+    valuePattern: "^### 设计决策留存",
+    refKind: "none",
+    home: "facet",
+    selector: SelectorSpec.heading("### 设计决策留存"),
   },
   {
     anchor: "#### [MFRBEN] group",
@@ -1341,3 +1355,228 @@ export const declaredRegistries: DeclaredRegistries = {
   "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
   "single-spec": { docType: "single-spec", elements: SINGLE_SPEC_ELEMENTS },
 };
+
+/** The role a heading-anchored element plays in the judgment face: a condition that
+ *  must hold (`decision`), a record of what happened (`record`), or an identity /
+ *  position registration (`registration`). The three roles are a gate's scope, not a
+ *  preference — a shape rule judges `decision` sections only, which is why the role
+ *  is declared data rather than prose convention (design spec §1.1). */
+export type DocFace = "decision" | "record" | "registration";
+
+/** One declared face row: the registry element's `anchor` (the key of the row, never
+ *  the title literal the judgment matches on) and its role. */
+export interface DocFaceEntry {
+  readonly anchor: string;
+  readonly face: DocFace;
+}
+
+/** The whole face map, per doc type. The domain of this table is the ONE formula
+ *  §1.1 states: every registry element whose anchor STARTS with a heading literal
+ *  (`## ` · `### ` · `#### `). List items, token anchors, table rows, front-matter
+ *  keys and graph edges are outside it — their role follows the section they sit in,
+ *  so they owe no row and the map needs no second list. */
+export const DOC_FACES: Readonly<Record<DocKey, readonly DocFaceEntry[]>> = {
+  overall: [
+    { anchor: "## Document scope", face: "decision" },
+    { anchor: "## Program charter", face: "decision" },
+    { anchor: "### Goal", face: "decision" },
+    { anchor: "### Non-goals", face: "decision" },
+    { anchor: "### Cross-cutting", face: "decision" },
+    { anchor: "## Boundary rules", face: "decision" },
+    { anchor: "## Constraints", face: "decision" },
+    { anchor: "## Maintenance", face: "decision" },
+    { anchor: "## File paths", face: "registration" },
+    { anchor: "## Issue inventory", face: "registration" },
+    { anchor: "#### [MFRBEN] group", face: "registration" },
+    { anchor: "#### Upstream Endorsements", face: "registration" },
+    { anchor: "## Phase inventory", face: "registration" },
+    { anchor: "## Dependency graph", face: "registration" },
+    { anchor: "### 设计决策留存", face: "registration" },
+    { anchor: "## Change history", face: "record" },
+  ],
+  plan: [
+    { anchor: "## Constraints", face: "decision" },
+    { anchor: "### Task N:", face: "decision" },
+    { anchor: "#### Objective", face: "decision" },
+    { anchor: "#### Files", face: "decision" },
+    { anchor: "#### Consumes", face: "decision" },
+    { anchor: "#### Produces", face: "decision" },
+    { anchor: "#### Steps", face: "decision" },
+    { anchor: "#### Acceptance", face: "decision" },
+    { anchor: "#### DependsOn", face: "decision" },
+    { anchor: "## Change history", face: "record" },
+  ],
+  "phase-spec": [
+    { anchor: "## Design", face: "decision" },
+    { anchor: "### N. group heading", face: "decision" },
+    { anchor: "#### N.M item heading", face: "decision" },
+    { anchor: "### Acceptance criteria", face: "decision" },
+    { anchor: "## Constraints", face: "decision" },
+    { anchor: "## Deviations", face: "record" },
+    { anchor: "## Incremental warning", face: "record" },
+    { anchor: "## Notes for downstream", face: "record" },
+    { anchor: "## Review record", face: "record" },
+    { anchor: "## Change history", face: "record" },
+  ],
+  "single-spec": [
+    { anchor: "## Background & root cause", face: "decision" },
+    { anchor: "## Design decisions", face: "decision" },
+    { anchor: "## Acceptance", face: "decision" },
+    { anchor: "## Constraints", face: "decision" },
+    { anchor: "## Change history", face: "record" },
+  ],
+};
+
+/** One derived face row: the declared role joined with the element's own heading
+ *  matcher. `anchor` is the row's KEY (the registry element's identity), never the
+ *  title comparison surface — `headingMatch` is, and it is compiled from the
+ *  element's `valuePattern` (or, when the element declares none, from its selector's
+ *  heading judgment), so a suffixed or grouped heading resolves without a second
+ *  hand-written list. */
+export interface FaceRow {
+  readonly anchor: string;
+  readonly headingMatch: RegExp;
+  readonly docKey: DocKey;
+  readonly face: DocFace;
+}
+
+/** The heading-literal domain test of §1.1 — the ONE formula the domain is derived
+ *  from. `/^#{2,4} /` is that formula: a section, a charter facet, a `### Task N:`
+ *  block or one of its `####` fields. */
+const HEADING_ANCHOR = /^#{2,4} /;
+
+/**
+ * FaceMap — the doc-face map as DERIVED DATA (design spec §1.1): the declared
+ * `DOC_FACES` roles joined with the registry elements' own title matchers. The map
+ * answers one question — "which face is this heading in?" — and a heading it cannot
+ * place inside a doc key's domain is a GAP, not a silence: `gaps()` reports every
+ * domain element that lost its role, so a missing declaration is red instead of
+ * quietly judging nothing.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated derived-table surface — the zero-bare-function discipline admits no standalone predicate functions.
+export class FaceMap {
+  /** The derived rows, in declaration order (doc key, then declared order). */
+  static readonly ROWS: readonly FaceRow[] = FaceMap.#derive();
+
+  /** The role of one heading line in one doc key's face map. A heading placed by the
+   *  INNERMOST matching element wins (a `####` field over the `### Task N:` block that
+   *  contains it). A heading no element places INHERITS the role of its nearest
+   *  registered ancestor — `ancestors` is that heading stack from the innermost out, so
+   *  a `#### 7.5.1` under `### 7.` reads what `### 7.` reads, which is exactly the
+   *  section the prose it introduces belongs to. Only a heading with no registered
+   *  ancestor at all is `"unmapped"` — the gap itself, never the silence a
+   *  prose-classifying round would otherwise fall into. */
+  static roleOf(
+    docKey: DocKey,
+    heading: string,
+    ancestors: readonly string[] = [],
+  ): DocFace | "unmapped" {
+    const own = FaceMap.#matchOf(docKey, FaceMap.#normalize(heading));
+    if (own !== undefined) return own.face;
+    for (const ancestor of ancestors) {
+      const inherited = FaceMap.#matchOf(docKey, FaceMap.#normalize(ancestor));
+      if (inherited !== undefined) return inherited.face;
+    }
+    return "unmapped";
+  }
+
+  /** The innermost row of one doc key that places a normalized heading line — the ONE
+   *  comparison surface, shared by the heading's own read and its ancestor walk. */
+  static #matchOf(docKey: DocKey, line: string): FaceRow | undefined {
+    let winner: FaceRow | undefined;
+    for (const row of FaceMap.ROWS) {
+      if (row.docKey !== docKey) continue;
+      if (!row.headingMatch.test(line)) continue;
+      if (winner === undefined || FaceMap.#levelOf(row.anchor) > FaceMap.#levelOf(winner.anchor)) {
+        winner = row;
+      }
+    }
+    return winner;
+  }
+
+  /** Every domain element that carries no role — empty means the map covers its
+   *  domain. The domain is the derived formula (`HEADING_ANCHOR`), never a second
+   *  enumeration: a registry element added without a face row reads here. `declaration`
+   *  is the same table by default; a caller hands a doctored copy to ask the SAME
+   *  derivation what removing a role would report (the counter-arm the declaration
+   *  cannot express on itself). */
+  static gaps(
+    declaration: Readonly<Record<DocKey, readonly DocFaceEntry[]>> = DOC_FACES,
+  ): readonly { docKey: DocKey; anchor: string }[] {
+    const gaps: { docKey: DocKey; anchor: string }[] = [];
+    const rows = FaceMap.#derive(declaration);
+    for (const docKey of Object.keys(declaredRegistries) as DocKey[]) {
+      const placed = new Set(rows.filter((row) => row.docKey === docKey).map((row) => row.anchor));
+      for (const element of declaredRegistries[docKey].elements) {
+        if (!HEADING_ANCHOR.test(element.anchor)) continue;
+        if (placed.has(element.anchor)) continue;
+        gaps.push({ docKey, anchor: element.anchor });
+      }
+    }
+    return gaps;
+  }
+
+  /** Join the declared roles with the registry's own elements. An anchor that names
+   *  no element is skipped — it then surfaces through `gaps()` on the element the
+   *  typo left uncovered, which is the loud face, never a role about nothing. */
+  static #derive(
+    declaration: Readonly<Record<DocKey, readonly DocFaceEntry[]>> = DOC_FACES,
+  ): readonly FaceRow[] {
+    const rows: FaceRow[] = [];
+    for (const docKey of Object.keys(declaration) as DocKey[]) {
+      const elements = declaredRegistries[docKey].elements;
+      for (const entry of declaration[docKey]) {
+        const element = elements.find((candidate) => candidate.anchor === entry.anchor);
+        if (element === undefined) continue;
+        // An element with no title matcher yields no row: it must never resolve by its
+        // anchor literal, so it falls to `gaps()` instead of matching a heading.
+        const headingMatch = FaceMap.#headingMatchOf(element);
+        if (headingMatch === null) continue;
+        rows.push({ anchor: entry.anchor, headingMatch, docKey, face: entry.face });
+      }
+    }
+    return rows;
+  }
+
+  /** The element's title matcher — its declared `valuePattern` when it has one (the
+   *  value shape IS the title shape for a heading element), otherwise the selector's
+   *  own heading judgment. Never the `anchor` literal: an element that declares neither
+   *  has no title matcher at all (`null`), and the derivation leaves it to `gaps()`. */
+  static #headingMatchOf(element: RegistryElement): RegExp | null {
+    if (element.valuePattern !== undefined) return new RegExp(element.valuePattern);
+    return FaceMap.#selectorHeading(element.selector);
+  }
+
+  /** The first heading judgment up a selector's `from` chain, compiled — null when
+   *  the selector places the element by another walk. */
+  static #selectorHeading(selector: Selector): RegExp | null {
+    let current: "root" | Selector = selector;
+    while (current !== "root") {
+      if (current.walk === "heading" && current.match !== undefined) {
+        return current.match instanceof RegExp
+          ? current.match
+          : new RegExp(`^${FaceMap.#escaped(current.match)}`);
+      }
+      current = current.from;
+    }
+    return null;
+  }
+
+  /** A heading line folded to its comparison form: whitespace runs collapsed, the
+   *  ATX closing sequence dropped. The leading hashes stay — the level is the face
+   *  map's innermost-match key. */
+  static #normalize(heading: string): string {
+    return heading.replace(/\s+/g, " ").replace(/ #+$/, "").trim();
+  }
+
+  /** The heading level of one anchor (`## ` is two) — the innermost-match ordering. */
+  static #levelOf(line: string): number {
+    const hashes = /^#+/.exec(line);
+    return hashes === null ? 0 : hashes[0].length;
+  }
+
+  /** A literal string escaped for use inside a RegExp source. */
+  static #escaped(literal: string): string {
+    return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+}

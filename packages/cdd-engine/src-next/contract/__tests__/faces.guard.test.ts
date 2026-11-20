@@ -9,7 +9,10 @@
 //   · RESOLUTION — the face of a heading is read through the element's `valuePattern`
 //     (or its selector's heading judgment), never its `anchor` literal, so a grouped
 //     heading (`### Task 1: …` · `### N. …` · `#### N.M …`) and a suffixed one
-//     (`### 设计决策留存（…）`) both resolve;
+//     (`### 设计决策留存（…）`) both resolve; a heading no element places inherits the
+//     role of its nearest registered ancestor (`#### 7.5.1` under `### 7.` inside
+//     `## Design` reads `decision`), and only a heading with no registered ancestor
+//     at all reads `unmapped`;
 //   · LOCATION — one body line gets two faces depending on the section it sits in, and
 //     the map never grows a second list for the inherited (list-item, token) anchors.
 //
@@ -76,6 +79,44 @@ const SPEC_FIXTURE = [
   "",
 ].join("\n");
 
+/** A phase-spec fixture mirroring the corpus arm: a four-part design sub-heading that no
+ *  registered element places (`#### 7.5.1` — the phase-spec level-4 pattern is `N.M`),
+ *  sitting under `### 7.` inside `## Design`. The line beneath it belongs to that design
+ *  section, so the face map must reach it through the heading stack. */
+const NESTED_SPEC = [
+  "---",
+  "title: S",
+  "doc-type: phase-spec",
+  "version: v0.1",
+  "date: 2026-11-20",
+  "slug: x-p1",
+  "program: x",
+  "---",
+  "",
+  "## Design",
+  "",
+  "### 7. 定案：计划 Task 块契约（格式面）",
+  "",
+  "#### 7.5.1 身份与定位是两件事（B2 的裁定）",
+  "",
+  "第 41 行",
+  "",
+].join("\n");
+
+/** The heading stack above a body line — innermost first, exactly the order `roleOf`
+ *  walks when a heading matches no row. */
+const enclosingHeadingsOf = (doc: string, body: string): string[] => {
+  const lines = doc.split("\n");
+  const at = lines.findIndex((line) => line.trim() === body);
+  if (at < 0) throw new Error(`the fixture carries no line \`${body}\``);
+  const stack: string[] = [];
+  for (let index = at - 1; index >= 0; index -= 1) {
+    const line = lines[index] ?? "";
+    if (/^#{2,4} /.test(line)) stack.push(line);
+  }
+  return stack;
+};
+
 describe("P41 T1 — the doc-face map is declared data derived from the element registry", () => {
   it("places every heading-anchored element of the four doc keys — zero gaps", () => {
     expect(FaceMap.gaps()).toEqual([]);
@@ -127,6 +168,20 @@ describe("P41 T1 — the doc-face map is declared data derived from the element 
     expect(FaceMap.roleOf("overall", "## Constraints")).toBe("decision");
     // The suffix is what a literal anchor comparison would miss.
     expect(FaceMap.ROWS.map((row) => row.anchor)).not.toContain(suffixed);
+  });
+
+  it("inherits the nearest registered ancestor for a sub-heading no element places", () => {
+    const subHeading = "#### 7.5.1 身份与定位是两件事（B2 的裁定）";
+    const stack = enclosingHeadingsOf(NESTED_SPEC, "第 41 行");
+    expect(stack).toEqual([subHeading, "### 7. 定案：计划 Task 块契约（格式面）", "## Design"]);
+    // The sub-heading itself matches no row, so its own read is the gap.
+    expect(FaceMap.roleOf("phase-spec", subHeading)).toBe("unmapped");
+    // Through its heading stack it reads what `### 7.` inside `## Design` reads.
+    expect(FaceMap.roleOf("phase-spec", subHeading, stack.slice(1))).toBe("decision");
+    // An unregistered ancestor places it no better than none at all.
+    expect(
+      FaceMap.roleOf("phase-spec", subHeading, ["#### 7.5.1 无登记的祖先", "### 未登记的节"]),
+    ).toBe("unmapped");
   });
 
   it("lays no second list for the inherited anchors — list items and tokens carry no row", () => {

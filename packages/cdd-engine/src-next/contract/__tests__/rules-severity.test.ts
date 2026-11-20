@@ -1,8 +1,10 @@
 // packages/cdd-engine/src-next/contract/__tests__/rules-severity.test.ts
 // P41 T1 — the severity base (design spec §1.3). Three legs, each with its pair:
 //
-//   · the DECLARED table — every shipped row states its tier (`block`) and its
-//     closed-document exemption (`false`), on both scopes alike;
+//   · the DECLARED table — every row that PREDATES this phase's shape gate states its
+//     tier (`block`) and its closed-document exemption (`false`), on both scopes alike;
+//     the six shape rows this phase adds start at `warn` and sit outside that roster,
+//     so a later task adding or flipping one never rewrites this file;
 //   · the DRAFT/STAMP split — a strategy's `finding()` hands back a draft with no
 //     `severity` key, and `Contract.stamped` is the one place the tier is joined to it;
 //   · the INJECTED policy — a test rule's declared tier reaches its findings (warn
@@ -96,13 +98,53 @@ const specInput = (docKey: "phase-spec" | "plan" = "phase-spec") => ({
   root: ".",
 });
 
-describe("P41 T1 — every shipped rule row declares a tier and a closed-document posture", () => {
+/** The rows that predate the P41 shape gate — the twenty-four doc rows and the two
+ *  ledger rows — named as an explicit roster. The tier assertion below is about THESE
+ *  rows only: the phase's six new shape rows start at `warn` and are flipped by its last
+ *  task, so neither their arrival nor their flip touches this list. */
+const PRE_GATE_DOC_IDS = [
+  "presence",
+  "change-history-version-unique",
+  "change-history-row-shape",
+  "change-history-header-columns",
+  "change-history-latest-matches-front-matter",
+  "task-id-unique",
+  "phase-id-unique",
+  "domain",
+  "crosslink",
+  "section-order",
+  "front-matter-version-in-lineage",
+  "continuity",
+  "residue",
+  "hollow",
+  "link-shape",
+  "file-existence",
+  "sibling-scan",
+  "slug-ref",
+  "cross-doc-chain",
+  "section-scoped-domain",
+  "change-history-row-not-in-other-table",
+  "list-marker-not-doubled",
+  "wave-width-at-most-three",
+  "phase-design-spec-is-phase-spec",
+] as const;
+
+const PRE_GATE_LEDGER_IDS = [
+  "closed-wave-fits-depends-on-layers",
+  "planned-tasks-vs-recorded-tasks",
+] as const;
+
+describe("P41 T1 — every pre-gate rule row declares a tier and a closed-document posture", () => {
   it("declares `block` and `skipWhenClosed: false` on the twenty-four doc rows and the two ledger rows", () => {
-    const docRows = RULE_REGISTRY.filter((row) => row.scope === "doc");
-    const ledgerRows = RULE_REGISTRY.filter((row) => row.scope === "ledger");
-    expect(docRows).toHaveLength(24);
-    expect(ledgerRows).toHaveLength(2);
-    for (const row of RULE_REGISTRY) {
+    const byId = new Map(RULE_REGISTRY.map((row) => [row.id, row]));
+    const rows = [...PRE_GATE_DOC_IDS, ...PRE_GATE_LEDGER_IDS].map((id) => {
+      const row = byId.get(id);
+      if (row === undefined) throw new Error(`the registry dropped the pre-gate row ${id}`);
+      return row;
+    });
+    expect(rows.filter((row) => row.scope === "doc")).toHaveLength(24);
+    expect(rows.filter((row) => row.scope === "ledger")).toHaveLength(2);
+    for (const row of rows) {
       expect(row.severity, row.id).toBe("block");
       expect(row.skipWhenClosed, row.id).toBe(false);
     }
@@ -144,5 +186,14 @@ describe("P41 T1 — the strategy hands back a draft; the declaration stamps the
     expect(findings).toHaveLength(1);
     expect(findings[0]?.kind).toBe("doc-syntax");
     expect(findings[0]?.severity).toBe("block");
+  });
+
+  it("reports the registry it judged through, so the `checked:` face cannot drift", () => {
+    // The injected set is the one both the judgment and the row face report; the
+    // production construction keeps the shipped twenty-six rows.
+    expect(new Contract([probeDeclaration("warn")]).ruleRows().map((row) => row.id)).toEqual([
+      "probe-rule",
+    ]);
+    expect(new Contract().ruleRows()).toBe(RULE_REGISTRY);
   });
 });

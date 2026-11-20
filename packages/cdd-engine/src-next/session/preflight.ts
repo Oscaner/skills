@@ -39,7 +39,7 @@
 import type { ContextLine, SceneFacts } from "../contract/context-declarations.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
-import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
+import type { Contract, ContractInput, LedgerFacts } from "../contract/judge.ts";
 import {
   type ArtifactSnapshot,
   PreFlightRows,
@@ -618,7 +618,7 @@ export class PreFlight {
   #ruleRows(doc: DocOutcome, ledger: LedgerOutcome): string[] {
     const words = this.#words.checkedWords();
     const rows: string[] = [];
-    for (const declaration of Contract.ruleRows()) {
+    for (const declaration of this.#contract.ruleRows()) {
       if (declaration.scope === "doc") {
         if (doc.kind === "no-doc-target")
           rows.push(`${declaration.id}: ${words.skippedNoDocTarget}`);

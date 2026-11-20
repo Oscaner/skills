@@ -93,10 +93,6 @@ const ABORT_INTERRUPTED = RoundViolation.hard(
   "interrupted",
 );
 
-/** The blocker-evidence refusals, one per refusal criterion — the `#gradingRefusal`
- *  segments in rendering order (the criteria table's own order: the functional-impact
- *  scenario first, the reproduction second). The head strings are LITERALS: the gate's
- *  pin is the printed byte, not an import of the registry. */
 /** The blocker-evidence refusal (design spec §2.2 · P41 §2.2): ONE segment per
  *  criterion that refused, in the table's order — the first word after
  *  `CDD_BLOCKED:` is that criterion row's `id` — and each segment lists every
@@ -121,6 +117,10 @@ export const gradingRefusalOf = (violations: readonly GradingViolation[]): strin
   return segments.join("; ");
 };
 
+/** The blocker-evidence refusals, one per refusal criterion — the `gradingRefusalOf`
+ *  segments in rendering order (the criteria table's own order: the functional-impact
+ *  scenario first, the reproduction second). The head strings are LITERALS: the gate's
+ *  pin is the printed byte, not an import of the registry. */
 const GRADING_REFUSALS: readonly { criterion: GradingViolationCriterion; head: string }[] = [
   {
     criterion: "grading-impact-missing",

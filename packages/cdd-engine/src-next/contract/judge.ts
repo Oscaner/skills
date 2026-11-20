@@ -100,13 +100,18 @@ export interface DocRuleBinding {
  *
  * The strategy composition is DECLARED, not hard-coded (P21 §3.1): `policy()` walks
  * the rule declaration surface's doc-scope rows and instantiates each row's factory,
- * and `ruleRows()` returns the same rows for the `checked` list — one list, one
- * source, zero declaration re-copy.
+ * and `ruleRows()` returns the SAME registry this instance judged through — one list,
+ * one source, zero declaration re-copy. The registry is held on the instance, so an
+ * injected rule set is what both the judgment and the `checked:` face report; the
+ * argument-free production construction keeps `RULE_REGISTRY`.
  */
 export class Contract {
   /** The per-doc-key policy sets — the declaration-derived doc-scope strategy family,
    *  each entry carrying BOTH the strategy and the declaration that tiered it. */
   readonly #strategies: Record<DocKey, readonly DocRuleBinding[]>;
+  /** The rule registry this instance judged through — the injection seam's value, held
+   *  so `ruleRows()` and the ledger judgment read the SAME list the doc policy did. */
+  readonly #registry: readonly RuleDeclaration[];
   /** The projection carrier — the derived parse/skeleton faces the judgment reads. */
   readonly #projector: Projector;
   /** The row-source translator — the canonicalize seam carrier. One instance over
@@ -122,6 +127,7 @@ export class Contract {
    *  drive the same coordinator over a small declared rule set without touching the
    *  shipped table — production construction stays argument-free. */
   constructor(registry: readonly RuleDeclaration[] = RULE_REGISTRY) {
+    this.#registry = registry;
     this.#strategies = Contract.policy(registry);
     this.#projector = new Projector(declaredRegistries);
     this.#translator = new Translator(new Words());
@@ -159,10 +165,11 @@ export class Contract {
     return drafts.map((draft) => ({ ...draft, severity: declaration.severity }));
   }
 
-  /** The checked-list data face — every declaration row (both scopes), in registry
-   *  order. The pre-flight renders these rows; it never writes a second list. */
-  static ruleRows(): readonly RuleDeclaration[] {
-    return RULE_REGISTRY;
+  /** The checked-list data face — every declaration row (both scopes) of THIS
+   *  instance's registry, in registry order. The pre-flight renders these rows; it
+   *  never writes a second list. */
+  ruleRows(): readonly RuleDeclaration[] {
+    return this.#registry;
   }
 
   /** validate(doc) — split, parse, compose, run, aggregate. The single doc judgment entry.
@@ -213,7 +220,7 @@ export class Contract {
       return [Contract.#syntaxFinding(input, error)];
     }
     const findings: Finding[] = [];
-    for (const declaration of RULE_REGISTRY) {
+    for (const declaration of this.#registry) {
       if (declaration.scope !== "ledger") continue;
       if (declaration.docKeys !== "all" && !declaration.docKeys.includes(input.docKey)) continue;
       const rule: LedgerRule = declaration.create();

@@ -1460,9 +1460,29 @@ export class FaceMap {
 
   /** The role of one heading line in one doc key's face map. A heading placed by the
    *  INNERMOST matching element wins (a `####` field over the `### Task N:` block that
-   *  contains it); a heading no element places is `"unmapped"` — the gap itself. */
-  static roleOf(docKey: DocKey, heading: string): DocFace | "unmapped" {
-    const line = FaceMap.#normalize(heading);
+   *  contains it). A heading no element places INHERITS the role of its nearest
+   *  registered ancestor — `ancestors` is that heading stack from the innermost out, so
+   *  a `#### 7.5.1` under `### 7.` reads what `### 7.` reads, which is exactly the
+   *  section the prose it introduces belongs to. Only a heading with no registered
+   *  ancestor at all is `"unmapped"` — the gap itself, never the silence a
+   *  prose-classifying round would otherwise fall into. */
+  static roleOf(
+    docKey: DocKey,
+    heading: string,
+    ancestors: readonly string[] = [],
+  ): DocFace | "unmapped" {
+    const own = FaceMap.#matchOf(docKey, FaceMap.#normalize(heading));
+    if (own !== undefined) return own.face;
+    for (const ancestor of ancestors) {
+      const inherited = FaceMap.#matchOf(docKey, FaceMap.#normalize(ancestor));
+      if (inherited !== undefined) return inherited.face;
+    }
+    return "unmapped";
+  }
+
+  /** The innermost row of one doc key that places a normalized heading line — the ONE
+   *  comparison surface, shared by the heading's own read and its ancestor walk. */
+  static #matchOf(docKey: DocKey, line: string): FaceRow | undefined {
     let winner: FaceRow | undefined;
     for (const row of FaceMap.ROWS) {
       if (row.docKey !== docKey) continue;
@@ -1471,7 +1491,7 @@ export class FaceMap {
         winner = row;
       }
     }
-    return winner === undefined ? "unmapped" : winner.face;
+    return winner;
   }
 
   /** Every domain element that carries no role — empty means the map covers its
@@ -1508,12 +1528,11 @@ export class FaceMap {
       for (const entry of declaration[docKey]) {
         const element = elements.find((candidate) => candidate.anchor === entry.anchor);
         if (element === undefined) continue;
-        rows.push({
-          anchor: entry.anchor,
-          headingMatch: FaceMap.#headingMatchOf(element),
-          docKey,
-          face: entry.face,
-        });
+        // An element with no title matcher yields no row: it must never resolve by its
+        // anchor literal, so it falls to `gaps()` instead of matching a heading.
+        const headingMatch = FaceMap.#headingMatchOf(element);
+        if (headingMatch === null) continue;
+        rows.push({ anchor: entry.anchor, headingMatch, docKey, face: entry.face });
       }
     }
     return rows;
@@ -1521,13 +1540,11 @@ export class FaceMap {
 
   /** The element's title matcher — its declared `valuePattern` when it has one (the
    *  value shape IS the title shape for a heading element), otherwise the selector's
-   *  own heading judgment. Never the `anchor` literal. */
-  static #headingMatchOf(element: RegistryElement): RegExp {
+   *  own heading judgment. Never the `anchor` literal: an element that declares neither
+   *  has no title matcher at all (`null`), and the derivation leaves it to `gaps()`. */
+  static #headingMatchOf(element: RegistryElement): RegExp | null {
     if (element.valuePattern !== undefined) return new RegExp(element.valuePattern);
-    return (
-      FaceMap.#selectorHeading(element.selector) ??
-      new RegExp(`^${FaceMap.#escaped(element.anchor)}`)
-    );
+    return FaceMap.#selectorHeading(element.selector);
   }
 
   /** The first heading judgment up a selector's `from` chain, compiled — null when

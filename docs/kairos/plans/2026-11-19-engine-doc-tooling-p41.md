@@ -27,9 +27,10 @@ base: develop
 - Modify: `packages/cdd-engine/src-next/contract/declare.ts`（`### 设计决策留存` 补成一个可选 facet 元素——`anchor: "### 设计决策留存"`、`presence: "optional"`、前缀式 `valuePattern: "^### 设计决策留存"`、`home: "facet"`、`selector`，与同秩的三个 `###` facet 同形；新增面图声明 `DOC_FACES` 与它的派生 `FaceMap`）
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`（`RuleDeclaration` 的两份 scope 各增 `severity` 与 `skipWhenClosed`，六条新行在后续任务里加；`RULE_REGISTRY` 既有二十六行——doc 面二十四行 · ledger 面两行——各补 `severity: "block"` 与 `skipWhenClosed: false`）
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`Finding` 拆成草稿与盖章两形：`FindingDraft` 是策略的返回，`Finding extends FindingDraft` 多一个 `severity`；`Invariant#finding` 与 `LedgerRuleBase#finding` 返回草稿，既有子类的局部数组随基类返回型机械改型，判据不动）
-- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`Contract.policy` 收一个可注入的注册表参数并返回「声明 + 策略」的成对行，`Contract.stamped` 是**已声明规则**的唯一盖章点；`Contract.validate` 收闭合事实并在闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的那条 `doc-syntax` 不属任何规则行，按既有阻断语义自行盖 `"block"`）
+- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`Contract.policy` 收一个可注入的注册表参数并返回「声明 + 策略」的成对行，`Contract.stamped` 是**已声明规则**的唯一盖章点；`Contract.validate` 收闭合事实并在闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的那条 `doc-syntax` 不属任何规则行，按既有阻断语义自行盖 `"block"`；注册表落在实例上（`#registry`），`ruleRows()` 改成读同一份的实例方法，ledger 面的 `#ledgerFindings` 同读它——注入的规则集就是判定面与 `checked:` 面共同报告的那一份）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`Contract.ruleRows()` 的调用点改读契约实例的 `ruleRows()`，`checked:` 面因此与判定面同源，不起第二份读法）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（`CORPUS_SIZE` 复位到批后语料文件数——本 plan 已入语料，取值 85；本相位不再新增文档，故它一次性成立）
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（`Contract.policy()` 的既有读法随成对行改型——`policy()[docKey]` 的每一项由策略变成绑定，`.name` 改读 `binding.strategy.name`）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（`Contract.policy()` 的既有读法随成对行改型——`policy()[docKey]` 的每一项由策略变成绑定，`.name` 改读 `binding.strategy.name`；`Contract.ruleRows()` 的静态读法同批改成契约实例的读法）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/declare.test.ts`（注册表的元素总数期望值随那个 facet 元素加一；它按 docKey 逐项点名的那条算术行是同批义务）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts`（两处元素总数期望值各随那个 facet 元素加一——`expect(total).toBe(112)`；两条用例标题里的 `111` 同改；文件头注释里的那个陈旧计数是既有字面，本任务不动它）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/__snapshots__/project.{schema,shape}.overall.snap`（该 facet 元素落地后这两份快照各多一条：json 面的 `properties` 与 `shape` 的 facet 组；它们由 `toMatchFileSnapshot` 重写，不手改）
@@ -48,15 +49,17 @@ base: develop
 export type DocFace = "decision" | "record" | "registration";
 export interface FaceRow {
   readonly anchor: string;          // 注册表元素的 anchor——只作 ROWS 的键，不是标题字面
-  readonly headingMatch: RegExp;    // 该元素的 valuePattern 编译而来；无 valuePattern 时取 selector 的标题判法
+  readonly headingMatch: RegExp;    // 该元素的 valuePattern 编译而来；无 valuePattern 时取 selector 的标题判法，两者都无则不进 ROWS（由 gaps() 报）
   readonly docKey: DocKey;
   readonly face: DocFace;
 }
 export class FaceMap {
   static readonly ROWS: readonly FaceRow[];            // 注册表里锚以标题字面起头的元素，逐元素一行
-  static roleOf(docKey: DocKey, heading: string): DocFace | "unmapped";   // heading 是标题行，不是节正文
-  // 节名归一后按 headingMatch 逐行比：命中最内层的注册元素即取它的角色；没有注册祖先的标题
-  // 随外层元素继承（`### N.` 与 `#### N.M` 随 `## Design`）；两处都不命中即 "unmapped"（缺口）
+  static roleOf(docKey: DocKey, heading: string, ancestors?: readonly string[]): DocFace | "unmapped";
+  // heading 是标题行，不是节正文；ancestors 是它上方的标题栈（最内层在前）
+  // 节名归一后按 headingMatch 逐行比：自身命中最内层的注册元素即取它的角色；自身不命中时随
+  // 祖先栈里最近的注册祖先继承（`#### 7.5.1` 随 `### 7.`，`### N.` 与 `#### N.M` 随 `## Design`）；
+  // 自身与祖先栈都不命中即 "unmapped"（缺口）
   static gaps(): readonly { docKey: DocKey; anchor: string }[];              // 域内无角色的元素
 }
 // contract/rules.ts — severity 与闭合豁免都住在联合上，两类 scope 同一处声明
@@ -90,25 +93,26 @@ export interface DocRuleBinding {
 }
 static policy(registry: readonly RuleDeclaration[] = RULE_REGISTRY): Record<DocKey, readonly DocRuleBinding[]>;
 static stamped(drafts: readonly FindingDraft[], declaration: RuleDeclaration): readonly Finding[];
+ruleRows(): readonly RuleDeclaration[];   // 本实例的注册表——判定面与 checked: 面同源
 validate(input: ContractInput, closed = false): Finding[];   // 闭合时跳过 skipWhenClosed 的策略
 ```
 
 #### Steps
 - `pins.guard.test.ts` 的 `CORPUS_SIZE` 复位到批后的语料文件数（取值 85），一对断言：语料文件数等于该常量 ⇒ 规模那一臂绿；把它改成批前的旧值 ⇒ 立即红 — checkable: 规模断言的期望值等于 `PinAudit.filesOf(corpusOf(root)).length` 的实测值（本步落地的取值即实测值）；该文件的零命中臂属窗口内预期红（见 `## Constraints`），不在此步判据内
 - 在 `contract/declare.ts` 把 `### 设计决策留存` 补成 facet 元素（`anchor: "### 设计决策留存"` · `presence: "optional"` · `valuePattern: "^### 设计决策留存"` · `home: "facet"` · `selector: SelectorSpec.heading("### 设计决策留存")`）— checkable: `schema get overall --output json` 的 `properties` 多出该键、`shape` 的 facet 组多一条、`slices` 多一行，且 `--output skeleton` 的字节不变（`git diff` 对该命令输出为空）；同批的既有用例随该元素收紧——`declare.test.ts` 的算术行与两张 overall 快照一起改，`pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿
-- 写 `FaceMap.ROWS`：从 `ElementRegistry` 里筛「锚以 `## ` · `### ` · `#### ` 起头」的元素，每行带该元素的 `headingMatch`（由其 `valuePattern` 编译；无 `valuePattern` 时取 `selector` 的标题判法），按 §1.4 的逐 docKey 表给角色；四个 docKey 各一组 — checkable: `FaceMap.gaps()` 返回空数组；成对反证——拿掉任一域内元素的角色 ⇒ `gaps()` 非空
-- 写 `FaceMap.roleOf` 的解析规则：标题归一后按 `headingMatch` 逐行比，命中最内层的注册元素即取它的角色；没有注册祖先的标题随外层元素继承（`### N.` 与 `#### N.M` 随 `## Design`）——不按 `anchor` 的字面比，也不起第二张名单 — checkable: 一对夹具——`### Task 1: 面图` 经 `### Task N:` 元素的 `valuePattern` 解析出角色、`### 1. 形状面` 与其下的 `#### 1.1 面图是声明` 随 `## Design` 读 `decision`；把解析面换成 `anchor` 字面比 ⇒ 三条都读 `unmapped`
+- 写 `FaceMap.ROWS`：从 `ElementRegistry` 里筛「锚以 `## ` · `### ` · `#### ` 起头」的元素，每行带该元素的 `headingMatch`（由其 `valuePattern` 编译；无 `valuePattern` 时取 `selector` 的标题判法；两者都无则不进 `ROWS`，由 `gaps()` 报出来，故没有元素能按 `anchor` 字面解析），按 §1.4 的逐 docKey 表给角色；四个 docKey 各一组 — checkable: `FaceMap.gaps()` 返回空数组；成对反证——拿掉任一域内元素的角色 ⇒ `gaps()` 非空
+- 写 `FaceMap.roleOf` 的解析规则：标题归一后按 `headingMatch` 逐行比，自身命中最内层的注册元素即取它的角色；自身不命中时收第三个可选参数 `ancestors`（标题栈，最内层在前）随最近的注册祖先继承（`### N.` 与 `#### N.M` 随 `## Design`）——不按 `anchor` 的字面比，也不起第二张名单 — checkable: 一对夹具——`### Task 1: 面图` 经 `### Task N:` 元素的 `valuePattern` 解析出角色、`### 1. 形状面` 与其下的 `#### 1.1 面图是声明` 随 `## Design` 读 `decision`；把解析面换成 `anchor` 字面比 ⇒ 三条都读 `unmapped`；语料一臂——四级子标题 `#### 7.5.1` 自带读 `unmapped`，带上祖先栈（`### 7.` · `## Design`）读 `decision`，祖先栈里也没有注册节时仍读 `unmapped`
 - 写 `faces.guard.test.ts` 第一对用例：一份 phase-spec 夹具，同一行 `第 41 行` 只放 `## Change history` ⇒ `FaceMap.roleOf` 返回 `"record"`；同一行搬进 `## Design` ⇒ 返回 `"decision"` — checkable: 两条断言同时通过
 - 写第二对：把所有列表条目与 token 类锚（`Constraint delta bullet` · `Task id token`）从 `FaceMap.ROWS` 里剔除后 `gaps()` 为空——证明它们随所在节继承角色，不需要第二张名单 — checkable: 断言 `ROWS` 里不存在 `anchor` 以 `- ` 起头的行，且 `gaps()` 为空
 - 写第三对（overall docKey）：带后缀的标题 `### 设计决策留存（2026-10-10 —— 元层裁定 + 注册）` 经该元素的**前缀式 `valuePattern`** 解析出 `"registration"`，`## Constraints` 下的同一行读 `"decision"` — checkable: 两条断言同时通过；把该元素的 `valuePattern` 换成 `anchor` 字面比 ⇒ 第一臂读 `"unmapped"`
 - 既有读法的随动：`judge.test.ts` 里 `Contract.policy()` 的 `.name` 改读 `binding.strategy.name`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新 — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit -p .` 通过；`pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿（该命令下的四处随动文件即本步的坐标）
-- `contract/rules.ts` 的 `RuleDeclaration` 两份 scope 增 `severity` 与 `skipWhenClosed`，既有二十六行（doc 面与 ledger 面各一组）一律 `"block"` 与 `false` — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 通过；`rules-severity.test.ts` 断言既有行的档位全为 `block`、闭合豁免全为 `false`，ledger 面的两行同读
+- `contract/rules.ts` 的 `RuleDeclaration` 两份 scope 增 `severity` 与 `skipWhenClosed`，既有二十六行（doc 面与 ledger 面各一组）一律 `"block"` 与 `false` — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 通过；`rules-severity.test.ts` 按一份**既有二十六行的显式名册**断言档位全为 `block`、闭合豁免全为 `false`（名册外的行不在这一臂的判据里，故后续任务新增或翻位规则行不改它）；ledger 面的两行同读
 - `contract/invariants.ts` 把 `Finding` 拆成 `FindingDraft` 与 `Finding`：`Invariant#finding` · `LedgerRuleBase#finding` 返回草稿，既有子类的局部数组随基类返回型机械改型 — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 通过；`rules-severity.test.ts` 的草稿臂——一个测试策略经基类 `finding()` 交出的对象不带 `severity` 键
-- `contract/judge.ts`：`Contract.policy` 收可注入的注册表（默认 `RULE_REGISTRY`）并返回「声明 + 策略」的成对行；`Contract.stamped` 是已声明规则的唯一盖章点（`doc-syntax` 那条由 `#syntaxFinding` 自己盖，是这一句点名的例外）；`Contract.validate` 收 `closed = false`，闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的一条按既有阻断语义盖 `"block"` — checkable: `rules-severity.test.ts` 第二对在**注入的注册表**上成立——一条 `severity: "warn"` 的测试规则命中时 `findings[0].severity === "warn"`，把该声明的档位改成 `block` 后同读 `block`（夹具不碰任何真实行，故 Task 8 的翻位不改它）；一份语法面夹具读 `block`
+- `contract/judge.ts`：`Contract.policy` 收可注入的注册表（默认 `RULE_REGISTRY`）并返回「声明 + 策略」的成对行；`Contract.stamped` 是已声明规则的唯一盖章点（`doc-syntax` 那条由 `#syntaxFinding` 自己盖，是这一句点名的例外）；`Contract.validate` 收 `closed = false`，闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的一条按既有阻断语义盖 `"block"`；注册表落在实例上，`ruleRows()` 与 ledger 面的 `#ledgerFindings` 同读它 — checkable: `rules-severity.test.ts` 第二对在**注入的注册表**上成立——一条 `severity: "warn"` 的测试规则命中时 `findings[0].severity === "warn"`，把该声明的档位改成 `block` 后同读 `block`（夹具不碰任何真实行，故 Task 8 的翻位不改它）；一份语法面夹具读 `block`；注入注册表的实例 `ruleRows()` 只回注入的那一行，无参构造仍回 `RULE_REGISTRY`
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
-`FaceMap.gaps()` 在四个 docKey 上为空，且缺口可被成对反证（拿掉一个域内元素的角色即非空）；解析面是元素的 `valuePattern`/`selector` 而非 `anchor` 字面——`### Task N:` · `### N.` · `#### N.M` 与带后缀的 `### 设计决策留存（…）` 都解析出角色（各有一对夹具，换成字面比即读 `unmapped`）；面图对同一行文案在两个节里给出两个角色（成对），overall 上 `## Constraints` 与登记面各一角色（成对）；`ROWS` 里没有以 `- ` 起头的 anchor，故列表条目与 token 类锚没有第二张名单；`schema get overall` 的 json 面三条投影各增一条（`properties` · `shape` 的 facet 组 · `slices`），`--output skeleton` 的字节逐字节相同；策略交出的是 `FindingDraft`（无 `severity` 键），`Finding.severity` 只由 `Contract.stamped` 盖，且政策可注入——一条 `warn` 测试规则在注入注册表上读 `warn`、声明改 `block` 后读 `block`，语法面的一条按既有阻断语义盖 `block`；`Contract.stamped` 的独占性只对已声明规则成立——`doc-syntax` 由 `#syntaxFinding` 自盖；`CORPUS_SIZE` 等于批后语料文件数；既有 `Contract.policy()` 读法改读 `binding.strategy.name`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新。
+`FaceMap.gaps()` 在四个 docKey 上为空，且缺口可被成对反证（拿掉一个域内元素的角色即非空）；解析面是元素的 `valuePattern`/`selector` 而非 `anchor` 字面——`### Task N:` · `### N.` · `#### N.M` 与带后缀的 `### 设计决策留存（…）` 都解析出角色（各有一对夹具，换成字面比即读 `unmapped`），无 `valuePattern` 也无标题判法的元素不进 `ROWS` 而落进 `gaps()`；自身不命中的标题随祖先栈里最近的注册祖先继承（`#### 7.5.1` 一臂），祖先栈里没有注册节时仍读 `unmapped`；面图对同一行文案在两个节里给出两个角色（成对），overall 上 `## Constraints` 与登记面各一角色（成对）；`ROWS` 里没有以 `- ` 起头的 anchor，故列表条目与 token 类锚没有第二张名单；`schema get overall` 的 json 面三条投影各增一条（`properties` · `shape` 的 facet 组 · `slices`），`--output skeleton` 的字节逐字节相同；策略交出的是 `FindingDraft`（无 `severity` 键），`Finding.severity` 只由 `Contract.stamped` 盖，且政策可注入——一条 `warn` 测试规则在注入注册表上读 `warn`、声明改 `block` 后读 `block`，语法面的一条按既有阻断语义盖 `block`；`Contract.stamped` 的独占性只对已声明规则成立——`doc-syntax` 由 `#syntaxFinding` 自盖；注入的注册表就是 `ruleRows()` 报告的同一份（判定面与 `checked:` 面同源），既有二十六行按显式名册读 `block` 与 `false`；`CORPUS_SIZE` 等于批后语料文件数；既有 `Contract.policy()` 读法改读 `binding.strategy.name` 与契约实例的 `ruleRows()`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新。
 
 #### DependsOn
 none

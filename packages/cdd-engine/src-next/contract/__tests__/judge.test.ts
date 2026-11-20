@@ -1819,7 +1819,9 @@ describe("P26 §4.4 — a Phase-inventory row's Design spec must be a phase-spec
         "phase-design-spec-is-phase-spec",
       );
     }
-    expect(Contract.ruleRows().map((row) => row.id)).toContain("phase-design-spec-is-phase-spec");
+    expect(new Contract().ruleRows().map((row) => row.id)).toContain(
+      "phase-design-spec-is-phase-spec",
+    );
   });
 
   it("is not judged on a doc type it does not declare", () => {

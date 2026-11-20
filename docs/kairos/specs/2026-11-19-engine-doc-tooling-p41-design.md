@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.14
+version: v0.15
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -39,7 +39,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - 门判词：存在 block 即拒；warn 不拒。
 - 告警的消费者字节挂在**规则自己的 `checked:` 行**上（`session/preflight.ts#PreFlight` 的规则行渲染，一行一条声明）：声明 `warn` 的规则命中时该行读作 `<rule id>: warned — <n> warning(s)`；未命中读 `passed`，声明 `block` 的规则命中读 `failed`——后两档与既有字节逐字节相同（消费面守恒），告警档是本相位唯一的新增形态。
 - **`details` 只列 block 命中**：既有门把全部 finding 映进 `details`（一行一条 `kind@field: message`，行内不带档位标记；`session/preflight.ts#PreFlight` 的 `doc-contract` 分支），而档位现在由规则行声明——不过滤，同一次拒绝就把一条告警与真正的阻断并列，读者会照 `details` 去修一条本来不该修的行。故 `doc-contract` 的 `details` 行集过滤到 `severity: "block"`：前缀、字段分隔符与一行的形状逐字节不变，变的是行集。只有 warn 命中的文档不拒，故「`details` 为空」在报文面上不可见。混合档的成对用例见验收。
-- **第三档不是 `passed`**：被判目标是闭合文档时（§1.4 的豁免），六条规则行读 `skipped (closed document)`——规则面自己的契约是「哪条规则跑了」与「它判了什么」不许漂移，一条从未跑过的规则读 `passed` 是在替它作证。无文档目标的派发读 `skipped (no doc target)`：两个原因两个词——这一面的集合是 `wave` 与 `branch` 两种派发（按派发类型定，不按 `--spec` 缺席定，§4），plan 面有文档目标，故它的六行照判。文档面在 `doc-contract` 之前就被挡下（树不干净 · 在飞持有者 · plan 载体 · graph 一道）时读 `skipped (not judged)`，字节住 `face/words.ts#CheckedWords.skippedNotJudged`：`session/preflight.ts#PreFlight#docOutcomeOf` 对 wave / branch 之外的派发返回 `not-judged`，没有文档走到这几条规则上——三个原因三个词，`passed` 不替从未跑过的规则作证。
+- **第三档不是 `passed`**：被判目标是闭合文档时（§1.4 的豁免），六条规则行读 `skipped (closed document)`——规则面自己的契约是「哪条规则跑了」与「它判了什么」不许漂移，一条从未跑过的规则读 `passed` 是在替它作证。无文档目标的派发读 `skipped (no doc target)`：两个原因两个词——这一面的集合是 `wave` 与 `branch` 两种派发（按派发类型定，不按 `--spec` 缺席定，§4），plan 面有文档目标，故它的六行照判。文档面在 `doc-contract` 之前就被挡下（树不干净 · 在飞持有者 · plan 载体 · graph · plan-ledger 一道）时读 `skipped (not judged)`，字节住 `face/words.ts#CheckedWords.skippedNotJudged`：`session/preflight.ts#PreFlight#docOutcomeOf` 对 wave / branch 之外的派发返回 `not-judged`，没有文档走到这几条规则上——三个原因三个词，`passed` 不替从未跑过的规则作证。
 - 自毁不是豁免层，是**本相位内的一个过渡值**：本相位落的**六条规则行一律 warn 起步**（四类可变量的四条 · `single-home` · 记录面的日期形状行），本相位最后一个任务把这六行的告警位翻成 block，并加一条 pin 断言「当前无一规则声明 warn」。pin 的断言跨全部规则行，故没有「翻了一半」的中间态被登记；`single-home` 的起步档也在这句里，不留给作者猜。
 
 #### 1.4 适用范围由生命周期决定
@@ -97,7 +97,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 ### 3. 一份住所
 #### 3.1 判据
-- 句子级**字符 3-gram Jaccard ≥ 0.6**，且两侧句子的**散文长度均 ≥ 40 字符**（行内代码段整段不计，见下一条）⇒ 两份文档陈述了同一条判据。
+- 句子级**字符 3-gram Jaccard ≥ 0.6**，且两侧句子的**散文长度均 ≥ 40 字符**（行内代码段整段不计，见下一条）⇒ 两份文档陈述了同一条判据。两个数各有一处取值住所，本节不另存一份：阈值住 `contract/invariants.ts#SentenceIndex.THRESHOLD`，散文长度下界住 `contract/invariants.ts#SentenceIndex.MIN_LENGTH`——本节写出的两个数只是这两个常量的读法，改判据即改常量。
 - **两个度量读两个形态**：长度下界量的是**去掉行内代码段之后剩下的散文**——一个 `path` 或一条 `slug` 不是散文，只点名它们的那一句因此不进域；3-gram 比较读的是**整句的归一化形态**：去掉行内代码标记（代码段里的正文留在里面）、折叠空白、折大小写、丢标点。切句：`。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切；表格行与列表项各自成句。
 - 只抓**抄**，不抓**改**：抄的相似度趋近于一，阈值是安全垫。
 - 报文必须给两侧文件与两侧开头，让人一眼判真假。
@@ -149,7 +149,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - `evidence` **blocker 必填**：带 findings 的载体里 `severity: "blocker"` 而 `evidence` 缺席 ⇒ 载体被拒（`CDD_BLOCKED: evidence-missing`），本轮不推进、不记结论；`warn` 缺席 evidence ⇒ 通过。`repro` 为一条命令与为一个 `doc.md#section` 指针两种形态都通过（判断类 blocker 拿不出命令时不得被迫降档），而 `repro` 为空白串 ⇒ 被拒（成对：缺席一形与 `" "` 一形各一条用例，两条都读同一个拒绝报文）；fix 草稿带 `dispositions` 而无 `findings` 槽 ⇒ 不欠这条义务（`work` 平面没有 findings）；判据行进 `SEVERITY_RUBRIC` ⇒ `renderRubric` 的 blocker 片段与 `review-criteria.test.ts` 的 id 名册同批更新。
 - rulings **`probe` 在驳回时必填**：侧车里 `verdict: "rejected"` 而 `probe` 缺席 ⇒ 侧车不被接受；`verdict: "fixed"` 缺席 `probe` ⇒ 通过（改动本身即证据）；不带 `verdict` 的存量侧车 ⇒ 通过。
 - `doc-contract` **一份住所**：同一判据句进两份**不同 slug**、都未闭合的文档正文 ⇒ 两侧文件与两侧开头都被念出；同一句同时出现在一份闭合文档与一份**不同 slug** 的未闭合文档 ⇒ 照报：左侧是那份未闭合文档，右侧把那份闭合文档念出（闭合只让它不被判，不豁免右侧的语料）；**同 slug 的负向对照**：两份 `slug:` 相同的文档（一份 spec 与它的 plan）各带同一句、且该句越过判据的长度与相似度门 ⇒ 零拒绝——这条是分组缺席时的红灯，不写分组的实现在它上面必红，而上面那条不同 slug 的正向臂要求同句照报（两侧成对，只改一侧的 `slug:`）；同句搬进引用块 ⇒ 零拒绝；本文件与自己的同一句 ⇒ 零拒绝（右侧不含本文件）；工作项不进域：两份不同 slug 的文档各带同一行 `- Modify:` 指向同一文件、且**两半都在代码段之外带四十字符以上的散文**（模板那句括注；缺了它，裸指针在两半上都过不了散文下界，这条收窄就没有对照）⇒ 零 finding（成对：同一行只去掉列表标记、散文一字不动 ⇒ 报——两半唯一的差别是列表标记，所以第二半红是因为它不再是工作项，不是因为散文变长）；指针句不进域：两句各抄同一条长路径 ⇒ 零 finding（成对：同一路径两侧各配四十字符以上的散文 ⇒ 报）
-- `cdd-spec-writer` · `cdd-plan` **claim shape 与规则行对齐（本相位交付）**：两个 skill 的 `author-spec` 与 `author-plan` 节点各为三条（`pin` · `count` · `narrative`），每条点名它对应的规则行——少一条、多一条或某条不点名规则行 ⇒ 红；标题面由 `packages/kairos/tests/skill-anatomy.test.ts` 守（注册表外的标题不被接受），三行本身由逐字对读守住（那个用例不数段落）。验收把 §4 的同一段引文与两个节点逐字对读，任一节点措辞漂一个词即红；rubric 那一处不在逐字臂内——按 §4 登记的关系，它承载判据而不抄字节（散文轴，无 `- **pin** —` 子弹行、无规则行 id），它的形态由 `packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 的既有锚守。
+- `cdd-spec-writer` · `cdd-plan` **claim shape 与规则行对齐（本相位交付）**：两个 skill 的 `author-spec` 与 `author-plan` 节点各为三条（`pin` · `count` · `narrative`），每条点名它对应的规则行——少一条、多一条或某条不点名规则行 ⇒ 红；标题面由 `packages/kairos/tests/skill-anatomy.test.ts` 守（注册表外的标题不被接受），三行本身由逐字对读守住（那个用例不数段落）。验收把 §4 的同一段引文与两个节点逐字对读，任一节点措辞漂一个词即红；rubric 那一处不在逐字臂内——按 §4 登记的关系，它承载判据而不抄字节（散文轴，无 `- **pin** —` 子弹行、无规则行 id）；既有锚只守三个 claim shape 各一条稳定子串（`module path + symbol name` · `census registry` · `belongs to the plan`）与更早的三条（`typecheck` · `test command` · `Claimed→pin`），它不读行形状。故「无子弹行 · 无规则行 id」这半条不是既有锚的判词，登记成同批新增的反向对读：`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 对 `render/templates.ts#docNarrativeAxes` 断言 `REVIEWS.spec.axesGuide` 不含以 `- **` 起头的子弹行、不含四条规则行 id（`measure-literal` · `line-coordinate` · `live-arithmetic` · `temporal-indicator`）——预置一份复制 skill 块的形态 ⇒ 该用例必红。
 - `contract/doc-body.ts#DocBodyProjection` **身份面回归**：只追加一条 `## Change history` 行并 bump 版本 ⇒ `doc-revision` 摘要逐字节不变；判据面改一个词 ⇒ 变。本相位不为身份面新增判据，只留这一对回归防止被顺手改动。
 
 ## Constraints
@@ -165,6 +165,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.15 | 2026-11-20 | 第十轮评审回填（fix 10）：① **rubric 那一处的守卫改成它真正守的东西**（F1）——验收臂写明既有锚只守三个 claim shape 各一条稳定子串与更早的三条、不读行形状，并把「无 `- **pin** —` 子弹行 · 无规则行 id」这半条登记成同批新增的反向对读（`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 对 `render/templates.ts#docNarrativeAxes`）；预置一份复制的 skill 块即红。② **§3.1 的两个数各补一处取值住所**（F2）——阈值住 `contract/invariants.ts#SentenceIndex.THRESHOLD`、散文长度下界住 `contract/invariants.ts#SentenceIndex.MIN_LENGTH`，本节写出的两个数只是这两个常量的读法。③ **§1.3 的挡门括号补 `plan-ledger`**（F3）——它在 `doc-contract` 之前一格，plan 派发经它拒绝时六行照读 `skipped (not judged)`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 10） |
 | v0.14 | 2026-11-20 | 第九轮评审回填（fix 9）：① **无总体时那条 `details` 行改成引真字节**（F1）——§1.4 · §4 · 验收臂三处撤掉原先登记的中文句子，改成 `face/words.ts#PreflightWords.closureUnavailable` 的整句，并点名唯一推送点 `session/preflight.ts#PreFlight#vet`；那串中文在引擎与 kairos 源码里零命中，v0.4 行 ③ 的点名因此按本行更正：那条行的字节是英文整句，不是一个中文标签。② **claim shape 的三处住户改成两种关系**（F2）——两个 skill 节点逐字同文，rubric 是散文轴承载同一组判据（无 `- **pin** —` 子弹行、无规则行 id、不抄引文），逐字臂只守那两个节点；v0.13 行 ② 的「同一组三行」按本行更正：rubric 与那两个节点不同文。③ **面图缺口指定上报行**（F3）——§1.1 写明缺口只报一次、只由族内第一条声明行 `measure-literal` 报（`contract/invariants.ts#ProseFace.gaps` 的唯一调用点），验收臂写明一条缺口恰一条 finding。④ **第四档补进消费面**（F4）——文档面在 `doc-contract` 之前被挡时六行读 `skipped (not judged)`（`face/words.ts#CheckedWords.skippedNotJudged`），§1.3 与 §4 同改，`skipped` 的三个原因列成三个词（闭合 · 无文档目标 · 未判）。⑤ **标题面的守卫补路径 pin**（F5）——`packages/kairos/tests/skill-anatomy.test.ts`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 9） |
 | v0.13 | 2026-11-20 | **消费面收口（本相位最后一批）**：① **六条规则行翻成 `block`**——warn 只是本相位内的过渡值，翻位之后 `RULE_REGISTRY` 里没有一条声明 warn（`rules-severity.test.ts` 的终态断言守着）；② **claim shape 的第三处住户**——`render/templates.ts#docNarrativeAxes` 与两个 skill 节点并列，同一组三行，count 只认 `census:<id> = <n>`（id 取自 census 登记表），「点名维持该值的守卫或测试」不再是合法形态，doc comment 与正文同批改口；`templates.test.ts` 的第二条锚随之重锚为 `census registry`；③ **两处说明书逐字对齐**——`cdd-spec-writer` 的 `author-spec` 与 `cdd-plan` 的 `author-plan` 各三条、逐字相同、各点名其规则行；④ **章程 P28 行重锚登记**——验收格里第二条子串从 `pinned by the named guard` 换成 `census registry`，并写明由本相位重锚；⑤ **changeset 两层 minor**——六条规则行 · 五档渲染词 · 一条 `details` 行 · `evidence` 键 · 侧车两键 · 一种拒绝报文。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-implement） |
 | v0.12 | 2026-11-20 | 第八轮评审回填（fix 8）：① **定义句与两条收窄读成一条规则**（F1）——§3.1 的长度下界量散文（行内代码段整段不计），归一化那一条写明两个度量读两个形态（下界读散文、3-gram 读整句归一化形态），v0.11 那一条改成这条下界的后果；② **两条域收窄进章程的同批登记**（F2）——§3.2 与 §4 把 P41 ③ 的散文下界与 ⑥ 的工作项例外写成同一次落地的回填（章程写入仍归编排者），章程的变更史一行点名；③ **`pin.total` 改成落地前照计**（F3）——② 原写「未落地符号不计入」，与实测相反（本相位 plan 的十一处裸符号全被计入），改为取活读数、红落在 P37 对的那几处 `= 0` 声明上、符号落地自愈、不得改那些声明；④ **工作项那一对补上散文夹具**（F4）——两半都带四十字符以上的散文，否则裸指针在散文下界下两半皆绿，这条收窄就没有对照；⑤ **v0.11 行的「其一真」撤回**（F5）——两处都是路径复制的产物，散文下界一并消解。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |

@@ -1865,15 +1865,20 @@ const TEMPORAL = /\btoday\b|\bcurrently\b|今天|今日|仍/i;
  *  dash: a single `—` is not a delimiter, so a loose `—+` reading is never admissible. */
 const CLAUSE_DELIMITERS = "，；。·";
 
-/** One prose line of the judged document with the face the map places it in. */
-interface ProseLineRecord {
-  /** The 1-based line number in the body text (fence lines still count). */
+/** One prose line of a document body — the shared line read of the shape grammars and
+ *  the sentence index (one line face, so a fence and a code span are judged once). */
+export interface ProseLine {
+  /** The 1-based line number in the source text (fence lines still count). */
   readonly line: number;
   /** The line verbatim — the symbol-candidate read face. */
   readonly raw: string;
   /** The same line with every inline code span blanked — the token-grammar read face,
    *  so a claim quoted in a code span is a citation and never a violation. */
   readonly blanked: string;
+}
+
+/** One prose line of the judged document with the face the map places it in. */
+interface ProseLineRecord extends ProseLine {
   /** The heading the line sits under ("" before the first heading). */
   readonly heading: string;
   /** The face the map places the line in; `unmapped` is the map's own gap. */
@@ -1883,14 +1888,21 @@ interface ProseLineRecord {
 /**
  * ProseLines — the prose-line split of one document body (P41 §1.2): the lines a
  * shape grammar can judge. Fenced lines never arrive (the fence state is `PinSpans`'s
- * one judgment — this class holds no second copy), and each returned line has its
- * inline code spans stripped to equal-width blanks so the column positions survive.
+ * one judgment — this class holds no second copy), and each returned line carries both
+ * read faces: the verbatim text and the same line with its inline code spans stripped
+ * to equal-width blanks, so the column positions survive. The heading-stack walk and
+ * the sentence index advance along THIS read — one split, both families.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the prose-line split is a declared static reader set — the repo's zero-bare-function discipline admits no standalone splitter.
 export class ProseLines {
-  /** The prose lines of one body, each stripped of its inline code spans. */
-  static of(content: string): readonly string[] {
-    return PinSpans.proseOf(content).map((line) => PinSpans.blankedOf(line));
+  /** The prose lines of one body with both read faces — the ONE line read of the shape
+   *  grammars and the sentence index. */
+  static of(content: string): readonly ProseLine[] {
+    return PinSpans.proseEntriesOf(content).map((entry) => ({
+      line: entry.line,
+      raw: entry.text,
+      blanked: PinSpans.blankedOf(entry.text),
+    }));
   }
 
   /** Whether a line opens a block quote — the ONE quote-form judgment (§3.1), read on
@@ -1911,21 +1923,21 @@ class ProseWalk {
   static of(ctx: JudgeContext): readonly ProseLineRecord[] {
     const records: ProseLineRecord[] = [];
     const stack: string[] = [];
-    for (const entry of PinSpans.proseEntriesOf(ctx.text)) {
-      const level = ProseWalk.#levelOf(entry.text);
+    for (const entry of ProseLines.of(ctx.text)) {
+      const level = ProseWalk.#levelOf(entry.raw);
       if (level > 0) {
         while (stack.length > 0 && ProseWalk.#levelOf(stack[stack.length - 1] ?? "") >= level) {
           stack.pop();
         }
-        stack.push(entry.text);
+        stack.push(entry.raw);
       }
-      if (entry.text.trim() === "") continue;
+      if (entry.raw.trim() === "") continue;
       records.push({
         line: entry.line,
-        raw: entry.text,
-        blanked: PinSpans.blankedOf(entry.text),
+        raw: entry.raw,
+        blanked: entry.blanked,
         heading: stack[stack.length - 1] ?? "",
-        role: FaceMap.roleOf(ctx.docKey, entry.text, [...stack].reverse()),
+        role: FaceMap.roleOf(ctx.docKey, entry.raw, [...stack].reverse()),
       });
     }
     return records;
@@ -2188,27 +2200,50 @@ export class ChangeHistoryDateShapeInvariant extends Invariant {
  * SentenceIndex — the sentence split and comparison faces of `single-home` (P41 §3.1):
  * one normalized sentence per unit, the character 3-gram set of a sentence, and the
  * Jaccard similarity of two such sets. The split reads prose only: fenced lines never
- * arrive (`PinSpans`'s one fence judgment) and a quoted line is exempt (`ProseLines`'s
- * one quote-form judgment). A table row and a list item are each ONE sentence — a cell
- * is never its own claim.
+ * arrive (`PinSpans`'s one fence judgment), a quoted line is exempt (`ProseLines`'s one
+ * quote-form judgment), and a work item yields no sentence at all (a plan's `- Modify:`
+ * line names a location, never a criterion). A table row and a list item are each ONE
+ * sentence — a cell is never its own claim.
+ *
+ * Two lengths ride every sentence, because the rule reads two: `text` is the WHOLE
+ * normalized sentence (the 3-gram comparison's face) and `prose` is its normalized
+ * length AFTER the inline code spans are removed — the length floor's face, so a
+ * sentence that only points at a path never becomes a compared criterion.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the sentence split is a declared static reader set — the repo's zero-bare-function discipline admits no standalone splitter.
 export class SentenceIndex {
-  /** The normalized-length floor a compared sentence must clear (§3.1). */
+  /** The normalized-length floor a compared sentence's PROSE must clear (§3.1). */
   static readonly MIN_LENGTH = 40;
   /** The 3-gram Jaccard threshold at which two sentences state the same criterion. */
   static readonly THRESHOLD = 0.6;
 
+  /** Whether a line is a WORK ITEM — a list marker followed by one of the four declared
+   *  declaration verbs (§3.1). `- Modify: <path>` normalizes to the same ~58-character
+   *  sentence in every plan, so comparing it would judge the template dead; both
+   *  domains split through `of`, so both skip it here and nowhere else. */
+  static isWorkItem(line: string): boolean {
+    return /^\s*(?:[-*+]|\d+\.)\s+(?:Modify|Create|Test|Delete):/.test(line);
+  }
+
   /** The normalized sentences of one BODY text (front matter excluded) with the line
-   *  each starts on. */
-  static of(content: string): readonly { readonly text: string; readonly line: number }[] {
-    const sentences: { text: string; line: number }[] = [];
-    for (const entry of PinSpans.proseEntriesOf(content)) {
-      if (ProseLines.isQuoted(entry.text)) continue;
-      for (const unit of SentenceIndex.#unitsOf(entry.text)) {
+   *  each starts on and its prose length. `from` offsets every line number onto the
+   *  FILE coordinate of a foreign document — the number a reader navigates by. */
+  static of(
+    content: string,
+    from = 0,
+  ): readonly { readonly text: string; readonly prose: number; readonly line: number }[] {
+    const sentences: { text: string; prose: number; line: number }[] = [];
+    for (const entry of ProseLines.of(content)) {
+      if (ProseLines.isQuoted(entry.raw)) continue;
+      if (SentenceIndex.isWorkItem(entry.raw)) continue;
+      for (const unit of SentenceIndex.#unitsOf(entry.raw)) {
         const text = SentenceIndex.#normalize(unit);
         if (text === "") continue;
-        sentences.push({ text, line: entry.line });
+        sentences.push({
+          text,
+          prose: SentenceIndex.#normalize(PinSpans.blankedOf(unit)).length,
+          line: entry.line + from,
+        });
       }
     }
     return sentences;
@@ -2342,17 +2377,21 @@ export class SingleHomeInvariant extends Invariant {
     return findings;
   }
 
-  /** The judged document's decision-face sentences that clear the length floor — the
-   *  left domain. The face facts come from the SAME heading-stack walk the shape rules
-   *  read, joined by line number. */
+  /** The judged document's decision-face sentences whose PROSE clears the length floor
+   *  — the left domain. The face facts come from the SAME heading-stack walk the shape
+   *  rules read, joined by line number (both are body coordinates, so the join holds). */
   #decisionSentences(ctx: JudgeContext): readonly SentenceIndexedSentence[] {
     const face = new Map<number, DocFace | "unmapped">(
       ProseWalk.of(ctx).map((record) => [record.line, record.role]),
     );
     return SentenceIndex.of(ctx.text)
-      .filter((sentence) => sentence.text.length >= SentenceIndex.MIN_LENGTH)
+      .filter((sentence) => sentence.prose >= SentenceIndex.MIN_LENGTH)
       .filter((sentence) => face.get(sentence.line) === "decision")
-      .map((sentence) => ({ ...sentence, grams: SentenceIndex.trigrams(sentence.text) }));
+      .map((sentence) => ({
+        text: sentence.text,
+        line: sentence.line,
+        grams: SentenceIndex.trigrams(sentence.text),
+      }));
   }
 
   /** The right domain of one workspace root — every readable document under the three doc
@@ -2370,10 +2409,20 @@ export class SingleHomeInvariant extends Invariant {
         const absolute = path.resolve(ctx.root, dir, name);
         const content = ctx.fs.read(absolute);
         if (content === null) continue;
-        const { head, body } = FrontMatterExtractor.split(content);
-        const indexed = SentenceIndex.of(body)
-          .filter((sentence) => sentence.text.length >= SentenceIndex.MIN_LENGTH)
-          .map((sentence) => ({ ...sentence, grams: SentenceIndex.trigrams(sentence.text) }));
+        // Both sides of a comparison must read ONE normalized face, so the neighbour
+        // goes through the same row source the judged body did. The head is still
+        // resolved off the RAW content (a `slug:` is identity data, never translated),
+        // and its line count becomes the sentence index's offset: the coordinate this
+        // rule PRINTS names the line of the file a reader opens, not a body line.
+        const { head, text } = new RowSource(ctx.translator).read(content);
+        const from = content.split("\n").length - text.split("\n").length;
+        const indexed = SentenceIndex.of(text, from)
+          .filter((sentence) => sentence.prose >= SentenceIndex.MIN_LENGTH)
+          .map((sentence) => ({
+            text: sentence.text,
+            line: sentence.line,
+            grams: SentenceIndex.trigrams(sentence.text),
+          }));
         documents.push({
           absolute,
           path: path.join(dir, name),

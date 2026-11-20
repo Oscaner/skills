@@ -517,6 +517,16 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
   });
 
+  it("does not judge a `contract.path` that names a round artifact — vocabulary, not a coordinate", () => {
+    const f = pendingFixture({});
+    // A wave round anchors its findings on its own brief, which is the round's product
+    // name: §7.1's second exclusion leaves it out of the pin set, so there is nothing to
+    // resolve and no dead-pin row for every finding that names it.
+    expect(f.audit.pathResolves(".kairos/cdd/w1/tasks-1,2-brief.md", JUDGED)).toBe(true);
+    // the pair: a tree coordinate is still judged, and an absent one still reads dead
+    expect(f.audit.pathResolves("docs/kairos/plans/absent.md", JUDGED)).toBe(false);
+  });
+
   it("drops the skip when the declaring plan stops writing the line", () => {
     const f = pendingFixture({ pending: null });
     expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([PENDING]);

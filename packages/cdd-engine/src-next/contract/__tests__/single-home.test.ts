@@ -132,7 +132,7 @@ describe("P41 T4 — SentenceIndex splits prose into normalized sentences", () =
 
   it("keeps a quoted line out of the split face", () => {
     expect(SentenceIndex.of(["> quoted claim", "prose claim"].join("\n"))).toEqual([
-      { text: "prose claim", line: 2 },
+      { text: "prose claim", prose: 11, line: 2 },
     ]);
   });
 });
@@ -246,6 +246,84 @@ describe("P41 T4 — short sentences stay out of the comparison domain", () => {
       "/repo/docs/kairos/specs/x-other-design.md": specDoc("x-other", [CRITERION]),
     });
     expect(findings).toHaveLength(1);
+  });
+});
+
+describe("P41 T4 — a work item line yields no criterion", () => {
+  const OTHER = "docs/kairos/plans/x-other.md";
+
+  /** The same work item in two plans: a `- Modify:` line whose path sits in a code span
+   *  and whose prose clears the floor, so ONLY the list marker can keep it out. */
+  const WORK_ITEM =
+    "- Modify: `packages/cdd-engine/src-next/contract/judge.ts` 承载判据面切行的唯一实现，故这一行只点名位置而不陈述任何可评审的判据。";
+
+  it("reports nothing for the same `- Modify:` line in two different-slug plans", () => {
+    const findings = singleHomeFindings(planDoc("x-shape", [WORK_ITEM]), {
+      [`/repo/${OTHER}`]: planDoc("x-other", [WORK_ITEM]),
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it("reports the same line once its list marker is gone (the pair)", () => {
+    const criterion = WORK_ITEM.replace(/^- /, "");
+    const findings = singleHomeFindings(planDoc("x-shape", [criterion]), {
+      [`/repo/${OTHER}`]: planDoc("x-other", [criterion]),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain(OTHER);
+  });
+});
+
+describe("P41 T4 — the length floor measures the prose, not the paths it names", () => {
+  const OTHER = "docs/kairos/specs/x-other-design.md";
+  const path = "`packages/cdd-engine/src-next/contract/judge.ts`";
+
+  it("keeps a pointer sentence that only names a path out of the domain", () => {
+    const findings = singleHomeFindings(specDoc("x-shape", [`见 ${path} 的指针。`]), {
+      [`/repo/${OTHER}`]: specDoc("x-other", [`见 ${path} 的指针。`]),
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it("compares the same pointer once each side carries forty characters of prose (the pair)", () => {
+    const criterion = `见 ${path} 一节：判据面的每一节都写下能够成立的条件句而不是此刻的形状，故这一节本身是一条可评审的判断。`;
+    const findings = singleHomeFindings(specDoc("x-shape", [criterion]), {
+      [`/repo/${OTHER}`]: specDoc("x-other", [criterion]),
+    });
+    expect(findings).toHaveLength(1);
+  });
+});
+
+describe("P41 T4 — both domains read one normalized face", () => {
+  const OTHER = "docs/kairos/specs/x-other-design.md";
+
+  it("reports a copy that a registered alias spells differently on each side", () => {
+    // The judged body arrives canonicalized; the neighbour is read through the same
+    // translator, so a registered alias (`上游先例背书` → `Upstream Endorsements`) cannot
+    // hold the two sides of one criterion below the threshold.
+    const aliased =
+      "上游先例背书一节列出三份先例与各自的落地位置，判据面只判能够成立的条件句而不是此刻的形状。";
+    const findings = singleHomeFindings(specDoc("x-shape", [aliased]), {
+      [`/repo/${OTHER}`]: specDoc("x-other", [aliased]),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain(OTHER);
+  });
+});
+
+describe("P41 T4 — the printed neighbour coordinate is a file line", () => {
+  const OTHER = "docs/kairos/specs/x-other-design.md";
+
+  it("names the line a reader lands on when opening the neighbour", () => {
+    // The head is real lines of the file, so a body-relative number would send the
+    // reader into the front matter.
+    const neighbour = specDoc("x-other", ["占位正文。", CRITERION]);
+    const fileLine = neighbour.split("\n").indexOf(CRITERION) + 1;
+    const findings = singleHomeFindings(specDoc("x-shape", [CRITERION]), {
+      [`/repo/${OTHER}`]: neighbour,
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain(`(line ${fileLine})`);
   });
 });
 

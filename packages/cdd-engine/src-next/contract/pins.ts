@@ -371,7 +371,10 @@ export class PinSpans {
     return entries;
   }
 
-  /** The prose line texts of one markdown body (the `proseEntriesOf` line face). */
+  /** The prose line TEXTS of one markdown body — the string projection of the entry
+   *  face above, for a caller that needs the lone fence judgment and no coordinates.
+   *  `ProseLines` reads the entries (it has to carry line numbers), and both arrive on
+   *  the ONE walk, so the shape rules and the sentence index hold no second reading. */
   static proseOf(text: string): readonly string[] {
     return PinSpans.proseEntriesOf(text).map((entry) => entry.text);
   }
@@ -871,8 +874,15 @@ export class PinAudit {
    *  anchor owns the line, the gate owns the coordinate). §7.3's time face applies
    *  here too: a pending `Create:` declaration of the JUDGED document's own plan is
    *  not dead — `null` judged (a wave / branch round) has no subject for that
-   *  condition, so a pending path stays a finding there. */
+   *  condition, so a pending path stays a finding there.
+   *
+   *  The pin DEFINITION gates this corpus as it gates the other two: a token the three
+   *  §7.1 exclusions leave out (product vocabulary such as `.kairos/cdd/<workspace>/
+   *  tasks-1-brief.md`, an ephemeral `.changeset/*.md`) names no tree coordinate, so
+   *  there is nothing to resolve. Without that screen a round that anchors a finding on
+   *  its own brief reads a dead pin for every such finding. */
   pathResolves(pinPath: string, judged: string | null): boolean {
+    if (!PinVocabulary.isPin(pinPath)) return true;
     const form = PinVocabulary.pathOf(pinPath);
     const path = form?.path ?? pinPath;
     if (this.#index.resolve(path).kind === "resolved") return true;

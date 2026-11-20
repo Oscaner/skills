@@ -18,6 +18,7 @@ import { FaceMap } from "../declare.ts";
 import type { DocFs } from "../invariants.ts";
 import { ProseLines } from "../invariants.ts";
 import { Contract } from "../judge.ts";
+import { PinSpans } from "../pins.ts";
 import type { DocKey } from "../project.ts";
 import { RULE_REGISTRY } from "../rules.ts";
 
@@ -172,14 +173,25 @@ describe("P41 T2 — the six shape rows land as `warn` and skip a closed documen
 
 describe("P41 T2 — ProseLines splits the prose face (the fence is one judgment)", () => {
   it("drops a fenced line and keeps the same string outside the fence", () => {
-    const lines = ProseLines.of(["前言", "```", "见第 41 行", "```", "见第 41 行"].join("\n"));
-    expect(lines.filter((line) => line.includes("第 41 行"))).toHaveLength(1);
+    const content = ["前言", "```", "见第 41 行", "```", "见第 41 行"].join("\n");
+    // One fence judgment, two faces: the text read and the line read `ProseLines`
+    // builds on it agree on which lines are prose.
+    const texts = PinSpans.proseOf(content);
+    expect(texts.filter((line) => line.includes("第 41 行"))).toHaveLength(1);
+    expect(ProseLines.of(content).map((line) => line.raw)).toEqual(texts);
+  });
+
+  it("keeps the source line number of every prose line it returns", () => {
+    // The declared line read carries the coordinate, so a caller never scans the body
+    // a second time to recover it.
+    const lines = ProseLines.of(["前言", "```", "示例", "```", "正文"].join("\n"));
+    expect(lines.map((line) => line.line)).toEqual([1, 5]);
   });
 
   it("blanks an inline code span to the same width, so the claim stays a citation", () => {
     const [line] = ProseLines.of("见 `第 41 行` 一处坐标");
-    expect(line).not.toContain("第 41 行");
-    expect(line).toHaveLength("见 `第 41 行` 一处坐标".length);
+    expect(line?.blanked).not.toContain("第 41 行");
+    expect(line?.blanked).toHaveLength("见 `第 41 行` 一处坐标".length);
   });
 
   it("reads a block quote by the line's `>` opener", () => {
@@ -245,6 +257,29 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
 
   it("reports nothing when the same coordinates sit on a record section (the pair)", () => {
     expect(findingsOf(recordDoc(["第 41 行 与 line 41"]), "line-coordinate")).toEqual([]);
+  });
+
+  it("reports nothing inside `## Change history`'s own prose (the record face)", () => {
+    // `## Change history` is the recorded face named by the brief, not a decision
+    // section: the coordinate it carries is a record of what was measured, so it is
+    // silent. The same fixture proves the table still parses — the date row is read.
+    const content = specDoc([
+      "## Design",
+      "",
+      "### 1. 目标",
+      "",
+      "判据面正文。",
+      "",
+      "## Change history",
+      "",
+      "第 41 行 与 line 41 的读数留在这一节里。",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v0.1 | xxx | init | [human] |",
+    ]);
+    expect(findingsOf(content, "line-coordinate")).toEqual([]);
+    expect(findingsOf(content, "change-history-date-shape")).toHaveLength(1);
   });
 });
 
@@ -339,7 +374,16 @@ describe("P41 T3 — change-history-date-shape: the record face's date cell", ()
 
   it("reports nothing for a history row that carries no measurement column", () => {
     // The four declared columns are all the row owes; "how the reading was taken"
-    // belongs to the commit message, not to the document.
-    expect(findingsOf(planDoc("2026-11-20"), "change-history-date-shape", "plan")).toEqual([]);
+    // belongs to the commit message, not to the document. The fixture carries an EXTRA
+    // trailing column, so what is proved is the date rule's indifference to the column
+    // set — not the ISO date, which the pair above already owns.
+    const content = planDoc("2026-11-20").replace(
+      "| v1.0 | 2026-11-20 | init | [human] |",
+      "| v1.0 | 2026-11-20 | init | [human] | 由评审轮记录 |",
+    );
+    expect(findingsOf(content, "change-history-date-shape", "plan")).toEqual([]);
+    // The row's width is its own rules' question, so the extra column is not silent:
+    // this arm proves the date rule and the row-shape rule judge different facts.
+    expect(findingsOf(content, "change-history-row-shape", "plan")).toHaveLength(1);
   });
 });

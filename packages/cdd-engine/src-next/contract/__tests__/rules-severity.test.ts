@@ -197,3 +197,13 @@ describe("P41 T1 — the strategy hands back a draft; the declaration stamps the
     expect(new Contract().ruleRows()).toBe(RULE_REGISTRY);
   });
 });
+
+/** The transition's self-destroying face: the six shape rows landed at `warn` so no
+ *  half-flipped state was ever registered, and the phase's last action flips them — a
+ *  row still declaring `warn` is a transition that never finished. The injected probe
+ *  above keeps its `warn` arms; this pin reads the SHIPPED registry. */
+describe("P41 T8 — the transitional tier is retired", () => {
+  it("declares no `warn` row in the shipped registry", () => {
+    expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
+  });
+});

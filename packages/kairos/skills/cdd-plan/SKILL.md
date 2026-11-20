@@ -47,6 +47,9 @@ flowchart TD
   - **Appending work** — work that surfaces after the plan has been reviewed enters as new tasks whose `DependsOn` edges point only at already-closed tasks, so the engine derives a fresh dispatch wave for them; never rewrite the content of an already-closed task (a closed wave's content is history — later work enters as a new task); a user adjudication that re-scopes a closed task is the one exception and lands under Plan write authority (I3); an appended task declares its `Acceptance` exactly like any other.
   - **Write authority** — cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator under Plan write authority (I3): it amends the target task's `#### Objective` / `#### Steps` / `#### Acceptance` sections directly.
   - **Citations** — citations stay in the plan: a task's `path:line` is a delivery target the implementer re-derives each round, so leave it here and never carry it into the spec.
+  - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
+  - **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form
+  - **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)
 - **Read**: approved spec + `backfill-design` output + the plan's structural contract (the same structure fact the review reads)
 - **Exit**: File written → `self-review`
 - **Fail**: Schema read fails or the draft plan is unusable → BLOCKED (missing plan input)

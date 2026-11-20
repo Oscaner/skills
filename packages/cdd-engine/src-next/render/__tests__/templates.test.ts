@@ -11,7 +11,7 @@
 // ONE narrative body, and `reviewBodyOf` is the single target → criteria map.
 //
 // P28 T3 — the volatile-facts discipline: the narrative body names the three claim
-// shapes a spec may pin (a symbol, a guarded count, a condition) instead of accepting
+// shapes a spec may pin (a symbol, a census form, a condition) instead of accepting
 // today's shape, while the plan variant stays byte-frozen — a plan's `path:line` is a
 // delivery target, not a spec claim.
 
@@ -170,7 +170,7 @@ describe("P22 T15 — the charter criteria (REVIEWS.overall) and the criteria-bo
  */
 const VOLATILE_FACT_ANCHORS = [
   "module path + symbol name",
-  "pinned by the named guard",
+  "census registry",
   "belongs to the plan",
 ] as const;
 

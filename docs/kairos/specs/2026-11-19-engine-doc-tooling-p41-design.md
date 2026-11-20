@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.12
+version: v0.13
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -119,7 +119,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - 新增：`doc-contract` 的六条规则行出现在**每次派发**的 `checked:` 面（`measure-literal` · `line-coordinate` · `live-arithmetic` · `temporal-indicator` · `single-home` · `change-history-date-shape`），且告警档命中时该行读作 `<rule id>: warned — <n> warning(s)`。无文档目标的派发读 `skipped (no doc target)`，条数与位置不变；这个面的集合由**派发类型**给出，不由「有没有 `--spec`」给出——`session/preflight.ts#PreFlight#docOutcomeOf` 只对 `wave` 与 `branch` 两种派发返回 `no-doc-target`。plan 面有文档目标（`face/declare.ts#REQUIRED_GROUPS` 的 `review.plan` 组要求 `--plan`，故 `ctx.doc` 非空，而 plan 是 §1.4 的 docKey 之一），它的六行照判：`passed` / `failed` / `warned`，不读 `skipped (no doc target)`。因此 wave / branch 的预览字节同样变，入册面是每一次派发，不是带文档那一档。
 - 新增：闭合文档的六条规则行读 `skipped (closed document)`（§1.3 · §1.4）——闭合让文档被判据面豁免，而规则行不许用 `passed` 替一条从未跑过的规则作证。`skipped (no doc target)` 那一条不动：两个原因两个词。
 - 新增：`SEVERITY_RUBRIC` 的 blocker 片段增一行（`evidence-missing` 的判据行）⇒ 每次 review 派发的 prompt 字节随之变化；`contract/__tests__/review-criteria.test.ts` 的 id 名册与 `gate` 档断言同批更新。同批随动的是语料面：`census:criteria.rows` 的值由 `5` 变 `6`，闭集 P37 对里声明它的四行同批改（§2.2），`contract/__tests__/census.guard.test.ts` 是它们的门。
-- 新增：`packages/kairos/skills/cdd-spec-writer/SKILL.md` 的 `author-spec` 节点与 `packages/kairos/skills/cdd-plan/SKILL.md` 的 `author-plan` 节点，同一份三种 claim shape 的表述面（`## Constraints` 的「只改表述不增段落」）——三条各占一行，不多一条段落，每条点名它对应的规则行；标题面由既有 skill-anatomy 用例守恒，三行本身由验收臂的逐字对读守恒（既有用例不数段落）。plan 的 task 块（含 `#### Steps`）与 `## Constraints` 是判定面里体量最大的一块，且本相位自己的 plan 落在被判集里，故 plan 的作者拿到的是同一份说明书。最终措辞就是下面引文，两处照抄、不另造：
+- 新增：`packages/kairos/skills/cdd-spec-writer/SKILL.md` 的 `author-spec` 节点与 `packages/kairos/skills/cdd-plan/SKILL.md` 的 `author-plan` 节点，同一份三种 claim shape 的表述面（`## Constraints` 的「只改表述不增段落」）——三条各占一行，不多一条段落，每条点名它对应的规则行；标题面由既有 skill-anatomy 用例守恒，三行本身由验收臂的逐字对读守恒（既有用例不数段落）。plan 的 task 块（含 `#### Steps`）与 `## Constraints` 是判定面里体量最大的一块，且本相位自己的 plan 落在被判集里，故 plan 的作者拿到的是同一份说明书。**同一组三行的第三处住户是 rubric 本身**：`render/templates.ts#docNarrativeAxes` 与上面两个 skill 节点并列，而它就是 spec 评审 prompt 的唯一来源——count 一形只认 `census:<id> = <n>`（id 取自 census 登记表），「点名维持该值的守卫或测试」不再是合法形态，而 `measure-literal` 拒的正是它；同一句话在 rubric 与门之间不许有两个答案。最终措辞就是下面引文，三处住户同抄、不另造：
 
 ```
 - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
@@ -165,6 +165,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.13 | 2026-11-20 | **消费面收口（本相位最后一批）**：① **六条规则行翻成 `block`**——warn 只是本相位内的过渡值，翻位之后 `RULE_REGISTRY` 里没有一条声明 warn（`rules-severity.test.ts` 的终态断言守着）；② **claim shape 的第三处住户**——`render/templates.ts#docNarrativeAxes` 与两个 skill 节点并列，同一组三行，count 只认 `census:<id> = <n>`（id 取自 census 登记表），「点名维持该值的守卫或测试」不再是合法形态，doc comment 与正文同批改口；`templates.test.ts` 的第二条锚随之重锚为 `census registry`；③ **两处说明书逐字对齐**——`cdd-spec-writer` 的 `author-spec` 与 `cdd-plan` 的 `author-plan` 各三条、逐字相同、各点名其规则行；④ **章程 P28 行重锚登记**——验收格里第二条子串从 `pinned by the named guard` 换成 `census registry`，并写明由本相位重锚；⑤ **changeset 两层 minor**——六条规则行 · 五档渲染词 · 一条 `details` 行 · `evidence` 键 · 侧车两键 · 一种拒绝报文。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-implement） |
 | v0.12 | 2026-11-20 | 第八轮评审回填（fix 8）：① **定义句与两条收窄读成一条规则**（F1）——§3.1 的长度下界量散文（行内代码段整段不计），归一化那一条写明两个度量读两个形态（下界读散文、3-gram 读整句归一化形态），v0.11 那一条改成这条下界的后果；② **两条域收窄进章程的同批登记**（F2）——§3.2 与 §4 把 P41 ③ 的散文下界与 ⑥ 的工作项例外写成同一次落地的回填（章程写入仍归编排者），章程的变更史一行点名；③ **`pin.total` 改成落地前照计**（F3）——② 原写「未落地符号不计入」，与实测相反（本相位 plan 的十一处裸符号全被计入），改为取活读数、红落在 P37 对的那几处 `= 0` 声明上、符号落地自愈、不得改那些声明；④ **工作项那一对补上散文夹具**（F4）——两半都带四十字符以上的散文，否则裸指针在散文下界下两半皆绿，这条收窄就没有对照；⑤ **v0.11 行的「其一真」撤回**（F5）——两处都是路径复制的产物，散文下界一并消解。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-spec-writer） |
 | v0.11 | 2026-11-20 | **W2 回填第二笔（规则自身的第二次域误报）**：规则上线后判本相位自己的 plan，报出两处——**两处都是路径复制的产物**，同一个缺口的两面：长度下界把路径字节也算进散文，于是「点名一条路径的指针句」被判成一条判据（Task 7 与章程各抄同一条路径的那一处、以及另一处同形句）。⇒ §3.1 增「下界按散文计」：门槛量的是去掉行内代码段之后的散文，两条命中因此一并消解，本相位没有剩下要处置的真复述。收窄域，不动阈值 | [human] · Claude（kairos:cdd-dev · W2 回填） |
 | v0.10 | 2026-11-20 | **W2 wave 评审回填（F1 · 编排者面）**：`single-home` 的左域把 plan 的 `#### Files` 子弹也算成判据句，而 `- Modify: <path>` 归一化后每一份 plan 都逐字相同 ⇒ 本相位自己的 plan 被量出六十三条、其中六十二条是子弹，翻位之后每一份 plan 都会被自己的模板判死。⇒ §3.1 增「工作项不进比较域」（两侧都跳），验收加一对：同一行 `- Modify:` 跨两个 slug 零报，去掉列表标记写成判据句则报。这不是调阈值，是收窄域 | [human] · Claude（kairos:cdd-dev · W2 回填） |

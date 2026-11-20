@@ -159,13 +159,13 @@ const measure = (line: string) => findingsOf(designDoc([line]), "measure-literal
 /** The temporal-indicator findings of one decision-face line. */
 const temporal = (line: string) => findingsOf(designDoc([line]), "temporal-indicator");
 
-describe("P41 T2 — the six shape rows land as `warn` and skip a closed document", () => {
-  it("declares every shape row with `severity: warn` and `skipWhenClosed: true`", () => {
+describe("P41 T2 — the six shape rows carry `block` and skip a closed document", () => {
+  it("declares every shape row with `severity: block` and `skipWhenClosed: true`", () => {
     const byId = new Map(RULE_REGISTRY.map((row) => [row.id, row]));
     for (const id of SHAPE_RULE_IDS) {
       const row = byId.get(id);
       if (row === undefined) throw new Error(`the registry dropped the shape row ${id}`);
-      expect(row.severity, id).toBe("warn");
+      expect(row.severity, id).toBe("block");
       expect(row.skipWhenClosed, id).toBe(true);
     }
   });

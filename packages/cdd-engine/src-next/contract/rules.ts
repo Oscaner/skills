@@ -107,7 +107,8 @@ export interface LedgerRule {
 
 /** The rule registry — doc scope 30 rows + ledger scope 2 rows = 32. The six shape
  *  rows (the four variable classes · single-home · the record face's date shape) are
- *  P41's additions; they start at `warn` and sit beside the pre-existing block rows. */
+ *  P41's additions; they land at `block` beside the pre-existing block rows, the flip
+ *  from their transitional `warn` being the phase's own last action. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   {
     scope: "doc",
@@ -301,13 +302,13 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     skipWhenClosed: false,
     create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
   },
-  // P41's shape gate — six rows, all `warn` at landing: the flip to `block` is the
-  // phase's own last action, so no half-flipped state is ever registered.
+  // P41's shape gate — six rows, flipped to `block` by the phase's own last action (they
+  // landed as `warn`, so no half-flipped state was ever registered).
   {
     scope: "doc",
     id: "measure-literal",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new MeasureLiteralInvariant(),
   },
@@ -315,7 +316,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "line-coordinate",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new LineCoordinateInvariant(),
   },
@@ -323,7 +324,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "live-arithmetic",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new LiveArithmeticInvariant(),
   },
@@ -331,7 +332,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "temporal-indicator",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new TemporalIndicatorInvariant(),
   },
@@ -339,7 +340,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "single-home",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new SingleHomeInvariant(),
   },
@@ -347,7 +348,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "change-history-date-shape",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     skipWhenClosed: true,
     create: () => new ChangeHistoryDateShapeInvariant(),
   },

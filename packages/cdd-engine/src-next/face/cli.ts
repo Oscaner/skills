@@ -51,6 +51,7 @@ import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
+import { PinAudit } from "../contract/pins.ts";
 import type { ArtifactSnapshot } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -299,8 +300,9 @@ export class Cli {
   readonly #graphView: GraphView;
   /** The lifecycle pre-flight seam (P4.1 T1) — the STRUCTURE gates the work
    *  commands consult before ANY child dispatch (tree-clean → in-flight → graph →
-   *  plan-ledger → doc-contract; the CLI orchestrates, never a re-type). */
-  readonly #preflight: PreFlight;
+   *  plan-ledger → doc-contract; the CLI orchestrates, never a re-type). A caller's
+   *  injected seam (tests) is used as-is; the production one is memoized below. */
+  readonly #preflightInjected: PreFlight | null;
   /** The dispatch authority (P27 §2) — the ONE verdict over structure → upstream →
    *  line, and the ONE refusal line. The dispatch gate reads it before its first
    *  write; the capsule and the board read the same hop the refusal names. */
@@ -366,13 +368,11 @@ export class Cli {
     this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
     this.#graphView = new GraphView();
     this.#contract = new Contract();
-    this.#preflight =
-      opts.preflight ??
-      new PreFlight({
-        git: this.#git,
-        contract: this.#contract,
-        words: this.#words,
-      });
+    // The pre-flight seam is built at the dispatch, not here (design spec §1.4): its
+    // closure port must name THIS invocation's pin audit, and the repo root is known
+    // only once the command preamble resolves it. A caller's injected seam (tests) is
+    // kept as-is; the production one is memoized by `#preflightOf`.
+    this.#preflightInjected = opts.preflight ?? null;
     this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
     // The invocation's ONE matrix — the command preamble's construction point. The
@@ -555,6 +555,50 @@ export class Cli {
     this.#indexRoot = repoRoot;
     this.#matrix.bindDocIndex(index);
     return index;
+  }
+
+  /** The dispatch's ONE pin audit (design spec §1.4) — constructed on first use by the
+   *  accessor handed to BOTH the pre-flight closure port and the lifecycle's
+   *  `contract.path` read-back, so one dispatch scans the doc roots once. A wave /
+   *  branch dispatch never asks the closure port (no doc target) and a work-plane round
+   *  never reads a pin, so those dispatches construct none. */
+  #pinAudit: PinAudit | null = null;
+  #pinAuditRoot: string | null = null;
+  /** The production pre-flight seam, memoized per repo root (the closure port's memo
+   *  key) — built at the assembly point so its port names THIS invocation's audit. */
+  #preflightBuilt: PreFlight | null = null;
+  #preflightRoot: string | null = null;
+
+  /** The invocation's pin audit — constructed on first use, memoized per repo root. The
+   *  ONE construction point of that material (design spec §1.4): the pre-flight closure
+   *  port and the lifecycle's `contract.path` read-back both resolve through here, so a
+   *  review dispatch reads the doc roots once, and a wave / branch dispatch (no doc
+   *  target, no pin read) reads them zero times. */
+  #auditOf(repoRoot: string): PinAudit {
+    if (this.#pinAudit !== null && this.#pinAuditRoot === repoRoot) return this.#pinAudit;
+    const audit = new PinAudit(repoRoot);
+    this.#pinAudit = audit;
+    this.#pinAuditRoot = repoRoot;
+    return audit;
+  }
+
+  /** The pre-flight seam of one dispatch — the caller's injected seam when there is one,
+   *  otherwise the production seam built here so its closure port can name this
+   *  invocation's audit. Memoized per repo root (the port's memo key). */
+  #preflightOf(repoRoot: string): PreFlight {
+    if (this.#preflightInjected !== null) return this.#preflightInjected;
+    if (this.#preflightBuilt !== null && this.#preflightRoot === repoRoot) {
+      return this.#preflightBuilt;
+    }
+    const seam = new PreFlight({
+      git: this.#git,
+      contract: this.#contract,
+      words: this.#words,
+      provenClosed: (rel) => this.#auditOf(repoRoot).provenClosed(rel),
+    });
+    this.#preflightBuilt = seam;
+    this.#preflightRoot = repoRoot;
+    return seam;
   }
 
   /** `cdd board --plan <path> / --spec <path>` — the entry document's progress board
@@ -926,7 +970,7 @@ export class Cli {
         : "",
     );
     // The in-flight handle of this tree is built above, with the value assembly.
-    const preflight = await this.#preflight.vet({
+    const preflight = await this.#preflightOf(repoRoot).vet({
       type,
       repoRoot: scene.workspace.root.repoRoot,
       plan: scene.plan,
@@ -1391,6 +1435,9 @@ export class Cli {
       values,
       // The host id the root probed ONCE — the spawn's table row (P40 T6).
       host,
+      // The dispatch's ONE pin audit — the same accessor the pre-flight closure port
+      // resolves, so the shape gate and the `contract.path` read-back share one scan.
+      pinAudit: () => this.#auditOf(scene.workspace.root.repoRoot),
     });
   }
 

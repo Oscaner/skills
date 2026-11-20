@@ -277,9 +277,12 @@ export class CliLifecycle {
    *  when the channel opened — the record face must see a channel that never opened,
    *  not only the stderr notice. */
   #logUnavailable: RoundViolation | null = null;
-  /** The pin gate of this dispatch (P37 §7.2) — built on first use so the resolution
-   *  index is walked once per process, never once per read. */
+  /** The pin gate of this dispatch (P37 §7.2) — the one audit instance, built on first
+   *  use so the resolution index is walked once per dispatch, never once per read. */
   #pinIndex: PinAudit | null = null;
+  /** The composition root's audit accessor, when supplied — the ONE construction point of
+   *  the dispatch's pin audit, shared with the pre-flight closure port. */
+  readonly #pinAuditFactory: (() => PinAudit) | null;
   /** The dispatch's round-context values (P40 T5) — the ONE record the composition root
    *  assembled (`DispatchValues.compose`) and the seam judged. The renderer reads it and
    *  derives nothing: a frame-bound re-assembly here would be the second derivation the
@@ -304,6 +307,11 @@ export class CliLifecycle {
     /** The host id the composition root probed ONCE — required, no default: a default
      *  would re-open the second detection path this seam retired (P40 T6). */
     host: HostId | "";
+    /** The dispatch's one pin audit accessor (design spec §1.4) — the composition root
+     *  hands its lazily constructed audit to BOTH this class and the pre-flight closure
+     *  port, so one dispatch scans the doc roots once. Absent → this class builds its
+     *  own memoized audit (the eleven construction sites that never supply one). */
+    pinAudit?: () => PinAudit;
   }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
@@ -324,6 +332,7 @@ export class CliLifecycle {
       stderr: (t) => process.stderr.write(t),
     };
     this.#reviews = opts.reviews ?? null;
+    this.#pinAuditFactory = opts.pinAudit ?? null;
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */
@@ -1370,9 +1379,12 @@ export class CliLifecycle {
   }
 
   /** The one audit instance of this dispatch — the resolution index is built once and
-   *  shared by both corpora (and by every round this instance drives). */
+   *  shared by both corpora (and by every round this instance drives). When the
+   *  composition root supplies its accessor, THAT instance is the dispatch's one audit
+   *  (the shape gate's closure port asks the same one); otherwise this class builds its
+   *  own on first use, so a construction site that supplies no accessor owes no edit. */
   #pinAudit(): PinAudit {
-    this.#pinIndex ??= new PinAudit(this.#repoRootValue().absolute);
+    this.#pinIndex ??= this.#pinAuditFactory?.() ?? new PinAudit(this.#repoRootValue().absolute);
     return this.#pinIndex;
   }
 

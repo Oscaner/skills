@@ -32,8 +32,19 @@ import { describe, expect, it } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { CarrierLine } from "../../contract/carrier-line.ts";
 import { PlanDocType } from "../../contract/doc.ts";
+import {
+  type DocFs,
+  type FindingDraft,
+  Invariant,
+  type JudgeContext,
+  NodeFs,
+} from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
+import { PinAudit } from "../../contract/pins.ts";
 import type { ArtifactSnapshot, ArtifactSnapshotRead } from "../../contract/preflight-rows.ts";
+import type { DocKey } from "../../contract/project.ts";
+import type { DocRuleDeclaration } from "../../contract/rules.ts";
+import type { TargetType } from "../../contract/target-type.ts";
 import {
   type DispatchIdentity,
   type DispatchSceneFacts,
@@ -681,6 +692,419 @@ describe("the priority shift — the structure rows sit ahead of the line leg", 
       if (line.allowed) throw new Error("expected a line refusal");
       expect(line.leg).toBe("line");
       expect(line.reason).toBe("split");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P41 T5 — the tiers' rendering, the closed-document exemption and the closure port
+// ---------------------------------------------------------------------------
+
+/** A declaration-shaped marker strategy — it reports ONCE when the judged body carries
+ *  the row's own marker, so an arm can place one violation of a NAMED declaration and
+ *  read that declaration's `checked:` row. The tier and the exemption ride the
+ *  declaration, never the strategy. */
+class MarkerInvariant extends Invariant {
+  readonly name: string;
+  readonly #marker: string;
+
+  constructor(name: string, marker: string) {
+    super();
+    this.name = name;
+    this.#marker = marker;
+  }
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    if (!ctx.text.includes(this.#marker)) return [];
+    return [this.finding(ctx, "body", `${this.#marker} reported`, "drop the marker")];
+  }
+}
+
+/** One doc-scope test declaration over a marker. */
+const markerRow = (
+  id: string,
+  marker: string,
+  severity: "block" | "warn",
+  skipWhenClosed: boolean,
+): DocRuleDeclaration => ({
+  scope: "doc",
+  id,
+  docKeys: "all",
+  severity,
+  skipWhenClosed,
+  create: () => new MarkerInvariant(id, marker),
+});
+
+/** The six shape rows' ids — the closed-document exemption's subject (the real registry
+ *  carries six, and the arms below read all of them). */
+const SHAPE_ROW_IDS = [
+  "shape-one",
+  "shape-two",
+  "shape-three",
+  "shape-four",
+  "shape-five",
+  "shape-six",
+] as const;
+
+/** The test registry — one open `warn` row, one open `block` row and the six closed-
+ *  exempt shape rows. The shape rows' tier is the parameter: the rendering arm wants
+ *  `warn` (the `warned` byte), the single-spec arm wants `block` (the `failed` byte),
+ *  and the render reads the SAME declarations the judgment stamped. */
+const shapeRegistryOf = (shapeSeverity: "block" | "warn"): readonly DocRuleDeclaration[] => [
+  markerRow("open-warn", "WARN_HIT", "warn", false),
+  markerRow("open-block", "BLOCK_HIT", "block", false),
+  ...SHAPE_ROW_IDS.map((id) => markerRow(id, "SHAPE_HIT", shapeSeverity, true)),
+];
+
+/** The existence-permissive seam — the four pre-dispatch rows read declared paths'
+ *  existence, and these arms judge the doc gate over real fixture documents. Reads and
+ *  listings stay real, so the doc-contract judgment sees the bytes on disk. */
+class RealReadsFs implements DocFs {
+  readonly #real = new NodeFs();
+
+  exists(): boolean {
+    return true;
+  }
+
+  read(p: string): string | null {
+    return this.#real.read(p);
+  }
+
+  list(p: string): readonly string[] {
+    return this.#real.list(p);
+  }
+}
+
+/** The seam under judgment — the injected test registry, the real files, and the
+ *  closure port (absent arms prove nothing closed, as the production default does). */
+const shapeSeamOf = (
+  registry: readonly DocRuleDeclaration[],
+  provenClosed?: (rel: string) => boolean,
+): PreFlight =>
+  new PreFlight({
+    git: new GitClient(),
+    contract: new Contract(registry),
+    words: new Words(),
+    fs: new RealReadsFs(),
+    provenClosed,
+  });
+
+/** Write one document into the fixture repo and commit it (the gate reads a clean tree). */
+const writeDoc = (repo: string, rel: string, content: string): void => {
+  const absolute = path.join(repo, rel);
+  mkdirSync(path.dirname(absolute), { recursive: true });
+  writeFileSync(absolute, content, "utf8");
+  commitAll(repo);
+};
+
+/** A judged document's literal — the minimal declared head the doc gate reads. */
+const judgedDoc = (
+  docType: "phase-spec" | "plan" | "single-spec",
+  slug: string,
+  body: readonly string[],
+): string =>
+  [
+    "---",
+    "title: Shape Doc",
+    `doc-type: ${docType}`,
+    "version: v0.1",
+    "date: 2026-11-20",
+    `slug: ${slug}`,
+    "---",
+    "",
+    ...body,
+  ].join("\n");
+
+/** An overall charter whose Phase-inventory row carries the two NAMED cells — the
+ *  closure registration the gate reads. Either cell may be `[Pending]`. */
+const charterOf = (slug: string, designCell: string, planCell: string): string =>
+  [
+    "---",
+    "title: Shape Charter",
+    "doc-type: overall",
+    "version: v1.0",
+    "date: 2026-11-20",
+    `slug: ${slug}`,
+    "---",
+    "",
+    "## Phase inventory",
+    "",
+    "| Phase | Scope | Design spec | Implementation plan | Dependency |",
+    "|---|---|---|---|---|",
+    `| P1 | scope | ${designCell} | ${planCell} | none |`,
+    "",
+  ].join("\n");
+
+/** A `✔ Done` cell naming one file (the full-width parentheses the grammar reads). */
+const doneCell = (file: string): string => `✔ Done（\`${file}\` · 2026-11-20）`;
+
+/** The doc-face context of one fixture — every pre-dispatch cell supplied, the two
+ *  judged path cells pointing at real files. */
+const docFaceCtxOf = (
+  fixture: Fixture,
+  parts: { readonly type: TargetType; readonly docKey: DocKey; readonly rel: string },
+): PreFlightContext => {
+  const values: Record<string, string> = {
+    ROLE: "review",
+    TARGET_TYPE: parts.type,
+    INPUT_SPEC: parts.rel,
+    INPUT_PLAN: "docs/kairos/plans/x-p40.md",
+    INPUT_OVERALL: "docs/kairos/overalls/x-charter.md",
+    INPUT_WAVE_BRIEF: "tasks-1-brief.md",
+    INPUT_REVIEWS: "carrier.json",
+    INPUT_RULINGS: "rulings.json",
+    BASE_BRANCH: "develop",
+    OUTPUT_REPORT: "report.md",
+    OUTPUT_EVIDENCE: "evidence.json",
+    OUTPUT_HANDOFF: "handoff.json",
+    WORKSPACE_DIR: ".kairos/cdd/p40-slug",
+    WORKSPACE_ID: "p40-slug",
+  };
+  return {
+    type: parts.type,
+    repoRoot: fixture.repo,
+    plan: planSourceOf(fixture.workspace.root.basis).readPath("docs/kairos/plans/x-p40.md"),
+    ledger: fixture.ledger,
+    doc: { docKey: parts.docKey, path: parts.rel as RepoPath },
+    inflight: new InFlight(fixture.workspace.root, fixture.workspace.slug, {
+      live: async () => false,
+    }),
+    host: "claude",
+    values,
+    declarations: new TemplateAssembler().layoutOf(values),
+    scene: { program: false, docType: true },
+    artifact: ABSENT_ARTIFACT,
+  };
+};
+
+describe("PreFlight — the shape tiers and the closed-document exemption (P41 T5)", () => {
+  it("renders each row by its own declaration: passed, warned and failed in one judgment", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-shape-design.md";
+      writeDoc(
+        fixture.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "WARN_HIT"]),
+      );
+      const verdict = await shapeSeamOf(shapeRegistryOf("warn")).vet(
+        docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }),
+      );
+      // A `warn` hit reports and the dispatch proceeds — the refusal needs a block.
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked).toContain("open-warn: warned — 1 warning(s)");
+      expect(verdict.checked).toContain("open-block: passed");
+      expect(verdict.checked).toContain("shape-one: passed");
+      // The ledger rows are absent from this registry's declaration set: one list, one
+      // render — a rule that never ran has no row.
+      expect(verdict.checked.some((row) => row.startsWith("closed-wave"))).toBe(false);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("refuses on a block hit and lists only the blocking finding under `details`", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-shape-design.md";
+      writeDoc(
+        fixture.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "WARN_HIT", "", "BLOCK_HIT"]),
+      );
+      // An overall that names nobody: a registration exists, so the closure-absence row
+      // is out of scope here and `details` holds the blocking findings alone.
+      writeDoc(
+        fixture.repo,
+        "docs/kairos/overalls/x-charter.md",
+        charterOf("x-charter", "[Pending]", "[Pending]"),
+      );
+      const verdict = await shapeSeamOf(shapeRegistryOf("warn")).vet(
+        docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }),
+      );
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      // The warn row still reads its own tier — the refusal is graded by severity, not by
+      // "some finding exists".
+      expect(verdict.checked).toContain("open-warn: warned — 1 warning(s)");
+      expect(verdict.checked).toContain("open-block: failed");
+      // Exactly one detail row: the block finding. A warning beside a real stop would
+      // send the reader to repair a line that was never the reason.
+      expect(verdict.details).toHaveLength(1);
+      expect(verdict.details?.[0]).toContain("open-block@body:");
+      expect(verdict.details?.some((row) => row.includes("open-warn"))).toBe(false);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("skips exactly the exempt rows on a closed document, and still reports the open rows", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-shape-design.md";
+      writeDoc(
+        fixture.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "WARN_HIT", "", "SHAPE_HIT"]),
+      );
+      writeDoc(
+        fixture.repo,
+        "docs/kairos/overalls/x-charter.md",
+        charterOf("x-charter", doneCell("x-shape-design.md"), "[Pending]"),
+      );
+      const audit = new PinAudit(fixture.repo);
+      const verdict = await shapeSeamOf(shapeRegistryOf("warn"), (target) =>
+        audit.provenClosed(target),
+      ).vet(docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }));
+      expect(verdict.ok).toBe(true);
+      // The six shape rows never ran: `passed` would testify for a rule that judged
+      // nothing, so the exemption is named.
+      for (const id of SHAPE_ROW_IDS) {
+        expect(verdict.checked).toContain(`${id}: skipped (closed document)`);
+      }
+      // Closure exempts those six and ONLY those: the open rows judged the same body.
+      expect(verdict.checked).toContain("open-warn: warned — 1 warning(s)");
+      expect(verdict.checked).toContain("open-block: passed");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("still refuses a non-exempt violation on a closed document", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-shape-design.md";
+      writeDoc(
+        fixture.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "BLOCK_HIT", "", "SHAPE_HIT"]),
+      );
+      writeDoc(
+        fixture.repo,
+        "docs/kairos/overalls/x-charter.md",
+        charterOf("x-charter", "[Pending]", doneCell("x-shape-design.md")),
+      );
+      const audit = new PinAudit(fixture.repo);
+      const verdict = await shapeSeamOf(shapeRegistryOf("warn"), (target) =>
+        audit.provenClosed(target),
+      ).vet(docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.checked).toContain("open-block: failed");
+      expect(verdict.checked).toContain("shape-one: skipped (closed document)");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("adds the closure row only when the tree registers NO overall charter", async () => {
+    const noCharter = fixtureOf();
+    const charterWithoutNaming = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-shape-design.md";
+      writeDoc(
+        noCharter.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "BLOCK_HIT"]),
+      );
+      const absent = await shapeSeamOf(shapeRegistryOf("warn")).vet(
+        docFaceCtxOf(noCharter, { type: "phase-spec", docKey: "phase-spec", rel }),
+      );
+      expect(absent.ok).toBe(false);
+      // Closure is unprovable here — not merely unproven — and the refusal says so.
+      expect(absent.details).toContain(new Words().preflightWords().closureUnavailable);
+
+      writeDoc(
+        charterWithoutNaming.repo,
+        rel,
+        judgedDoc("phase-spec", "x-shape", ["## Design", "", "BLOCK_HIT"]),
+      );
+      // An overall that names nobody is the "unproven" case: a registration exists, so
+      // the absence row would misdescribe it.
+      writeDoc(
+        charterWithoutNaming.repo,
+        "docs/kairos/overalls/x-charter.md",
+        charterOf("x-charter", "[Pending]", "[Pending]"),
+      );
+      const unproven = await shapeSeamOf(shapeRegistryOf("warn")).vet(
+        docFaceCtxOf(charterWithoutNaming, {
+          type: "phase-spec",
+          docKey: "phase-spec",
+          rel,
+        }),
+      );
+      expect(unproven.ok).toBe(false);
+      expect(unproven.details).not.toContain(new Words().preflightWords().closureUnavailable);
+    } finally {
+      noCharter.cleanup();
+      charterWithoutNaming.cleanup();
+    }
+  });
+
+  it("reads `skipped (no doc target)` by dispatch type, not by a missing `--spec`", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/plans/x-shape.md";
+      writeDoc(
+        fixture.repo,
+        rel,
+        judgedDoc("plan", "x-shape", ["## Constraints", "", "BLOCK_HIT"]),
+      );
+      const judged = await shapeSeamOf(shapeRegistryOf("warn")).vet(
+        docFaceCtxOf(fixture, { type: "plan", docKey: "plan", rel }),
+      );
+      // The plan face HAS a doc target, so its rows judge — the block row reads its tier.
+      expect(judged.ok).toBe(false);
+      expect(judged.checked).toContain("open-block: failed");
+      expect(judged.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
+        0,
+      );
+
+      // The SAME document as a wave dispatch has no doc target at all: every doc row
+      // reads the skip word, and the bytes are the existing ones.
+      const wave = await shapeSeamOf(shapeRegistryOf("warn")).vet(waveCtxOf(fixture));
+      expect(wave.ok).toBe(true);
+      const skipped = wave.checked.filter((row) => row.endsWith(": skipped (no doc target)"));
+      expect(skipped).toHaveLength(8);
+      expect(skipped).toContain("shape-six: skipped (no doc target)");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("judges an unnamed single-spec and skips the shape rows once a named cell claims it", async () => {
+    const fixture = fixtureOf();
+    try {
+      const rel = "docs/kairos/specs/x-single.md";
+      const body = ["## Acceptance", "", "SHAPE_HIT", "", "WARN_HIT"];
+      writeDoc(fixture.repo, rel, judgedDoc("single-spec", "x-single", body));
+      const registry = shapeRegistryOf("block");
+      const sealed = await shapeSeamOf(registry).vet(
+        docFaceCtxOf(fixture, { type: "single-spec", docKey: "single-spec", rel }),
+      );
+      // No phase inventory names this file: closure is unproven, so the shape rows judge,
+      // and the declared `block` tier is what the row reads.
+      expect(sealed.ok).toBe(false);
+      expect(sealed.checked).toContain("shape-one: failed");
+      expect(sealed.checked).not.toContain("shape-one: skipped (closed document)");
+
+      // The same bytes, named in BOTH named cells — the two faces of one registration.
+      writeDoc(
+        fixture.repo,
+        "docs/kairos/overalls/x-charter.md",
+        charterOf("x-charter", doneCell("x-single.md"), doneCell("x-single.md")),
+      );
+      const audit = new PinAudit(fixture.repo);
+      const closed = await shapeSeamOf(registry, (target) => audit.provenClosed(target)).vet(
+        docFaceCtxOf(fixture, { type: "single-spec", docKey: "single-spec", rel }),
+      );
+      expect(closed.ok).toBe(true);
+      for (const id of SHAPE_ROW_IDS) {
+        expect(closed.checked).toContain(`${id}: skipped (closed document)`);
+      }
+      // The other rows judged the same body — closure is not a document-wide silence.
+      expect(closed.checked).toContain("open-warn: warned — 1 warning(s)");
     } finally {
       fixture.cleanup();
     }

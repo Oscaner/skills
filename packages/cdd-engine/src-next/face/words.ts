@@ -110,6 +110,11 @@ export interface PreflightWords {
    *  (P40 §1.3: moved here from the lifecycle's dispatch body, so the row's bytes have
    *  one home). One sentence, no fill slot. */
   noHost: string;
+  /** The `doc-contract` refusal's extra `details` row when the tree registers no
+   *  overall charter (design spec §1.4): closure is then UNPROVABLE rather than merely
+   *  unproven, so the refusal says which material was missing instead of landing the
+   *  verdict in silence. */
+  closureUnavailable: string;
 }
 
 /** One `artifact-identity` refusal's facts (spec §2.4) — the kind whose rendered name
@@ -181,6 +186,9 @@ export interface CheckedWords {
   warned: string;
   /** A doc-scope rule on a dispatch with no doc target (wave / branch). */
   skippedNoDocTarget: string;
+  /** A shape rule the CLOSED document exempted (design spec §1.4) — the rule never ran,
+   *  and `passed` would testify for a rule that judged nothing, so the reason is named. */
+  skippedClosedDocument: string;
   /** A ledger-scope rule with no ledger fact bundle. */
   skippedNoLedgerFacts: string;
   /** The in-flight gate's state rows (the gate row is `in-flight: <state>`, the ONE
@@ -286,6 +294,8 @@ export const CAPSULE_WORDS = {
     planLedger:
       "the plan and the ledger disagree structurally — fix the plan's task set or the recorded waves first",
     noHost: "no host harness detected (run cdd from within a supported harness)",
+    closureUnavailable:
+      "closure: no overall charter is registered in this tree, so the document's closed state is unprovable — every shape rule judged it",
   } as const satisfies PreflightWords,
   /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
    *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
@@ -295,6 +305,7 @@ export const CAPSULE_WORDS = {
     failed: "failed",
     warned: "warned — {count} warning(s)",
     skippedNoDocTarget: "skipped (no doc target)",
+    skippedClosedDocument: "skipped (closed document)",
     skippedNoLedgerFacts: "skipped (no ledger facts)",
     skippedNotJudged: "skipped (not judged)",
     skippedUnreadableDoc: "skipped (unreadable doc)",

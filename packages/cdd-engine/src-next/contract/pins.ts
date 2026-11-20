@@ -678,6 +678,48 @@ export class ForwardPaths {
     );
   }
 
+  /** Whether the judged document is PROVEN closed by a phase inventory's named cells
+   *  (design spec §1.4) — the positive reading. The two cells that name a file
+   *  (`Design spec` · `Implementation plan`) are judged alike: a phase spec and its plan
+   *  are two faces of one closure registration, so reading only the plan cell would keep
+   *  every closed spec judged forever. `rel` is the judged document's repo-relative path
+   *  and the cell's file name is compared against `path.basename(rel)`; a cell whose name
+   *  resolves to zero or several indexed documents proves nothing, so it never closes.
+   *
+   *  This is deliberately the OPPOSITE polarity of the private `#closedBy` (whose zero /
+   *  several reading counts as closed, because a dead `✔ Done` row must not buy a silent
+   *  pin skip): the two names never collide, and the shape gate never inherits the pin
+   *  face's tolerance. */
+  provenClosed(rel: string): boolean {
+    const judged = PinIndex.normalize(rel);
+    for (const charter of this.#headsOf()) {
+      if (charter.head.docType !== "overall") continue;
+      const parsed = docTypeParsers.overall.parse(
+        charter.body.split("\n"),
+        charter.head,
+      ) as OverallParsed;
+      if (parsed.tables["Phase inventory"].headerRow === null) continue;
+      for (const phase of parsed.chain.phases) {
+        if (this.#namedCellsClose([phase.designCell, phase.planCell], judged)) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Whether any of one Phase-inventory row's NAMED cells proves the judged document
+   *  closed — the `✔ Done（`file` · date）` form, resolved by file name to exactly one
+   *  indexed document, that document being the judged one. */
+  #namedCellsClose(cells: readonly string[], judged: string): boolean {
+    for (const cell of cells) {
+      const done = /✔ Done（`(?<file>[^`]+)`/.exec(cell)?.groups?.file;
+      if (done === undefined) continue;
+      const hits = this.#headsOf().filter((head) => path.basename(head.rel) === done);
+      if (hits.length !== 1) continue;
+      if (hits[0]?.rel === judged) return true;
+    }
+    return false;
+  }
+
   /** The pending paths of one judged document — one table per identity, memoized, so a
    *  corpus scan pays one computation rather than one per token. */
   #pendingOf(judged: string): readonly string[] {
@@ -822,6 +864,15 @@ export class PinAudit {
    *  reader never opens the corpus through a mechanism of its own. */
   textOf(entry: string): string | null {
     return this.#index.textOf(entry);
+  }
+
+  /** The PROVEN-closure reading of the judged document (design spec §1.4) — the shape
+   *  gate's single port onto this audit's own `ForwardPaths` material. The audit is the
+   *  one construction point per dispatch, so the closure port and the lifecycle's
+   *  `contract.path` read-back judge the SAME index rather than scanning the doc roots
+   *  twice. */
+  provenClosed(rel: string): boolean {
+    return this.#forward.provenClosed(rel);
   }
 
   /** The four census readings (§8.2) — one scan and one file listing, so `total` is

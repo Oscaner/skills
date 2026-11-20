@@ -99,6 +99,11 @@ type DocOutcome =
   | {
       readonly kind: "judged";
       readonly findings: readonly Finding[];
+      /** Whether the judged document is PROVEN closed by its program's phase
+       *  inventory (design spec §1.4) — the shape rules carrying `skipWhenClosed`
+       *  never ran, and their `checked:` rows say so. The judgment itself still ran:
+       *  closure adds no kind and exempts no other rule. */
+      readonly closed: boolean;
       readonly layersUnavailable?: boolean;
     }
   | { readonly kind: "no-doc-target" }
@@ -216,12 +221,24 @@ export class PreFlight {
   readonly #words: Words;
   /** The filesystem seam the doc-contract gate reads (defaults to node:fs). */
   readonly #fs: DocFs;
+  /** The closure port (design spec §1.4) — the ONE method the gate asks, so the
+   *  closure material has one construction point (the composition root's audit
+   *  accessor). The default proves nothing: a construction site that supplies no
+   *  accessor therefore has no closed document, and owes no edit. */
+  readonly #provenClosed: (rel: string) => boolean;
 
-  constructor(opts: { git: GitClient; contract: Contract; words: Words; fs?: DocFs }) {
+  constructor(opts: {
+    git: GitClient;
+    contract: Contract;
+    words: Words;
+    fs?: DocFs;
+    provenClosed?: (rel: string) => boolean;
+  }) {
     this.#git = opts.git;
     this.#contract = opts.contract;
     this.#words = opts.words;
     this.#fs = opts.fs ?? new NodeFs();
+    this.#provenClosed = opts.provenClosed ?? (() => false);
   }
 
   /** vet(ctx) — the single seam call: tree-clean → in-flight → plan-carrier → graph
@@ -425,18 +442,26 @@ export class PreFlight {
         // (`TaskGraph#batches()` — the ONE width authority), so the plan-scope rules
         // judge exactly the layer set the wave gates will dispatch against.
         const taskLayers = graph?.batches();
-        const findings = this.#contract.validate({
-          docKey: doc.docKey,
-          path: docAbsolute,
-          content,
-          root: ctx.repoRoot,
-          slugIndex: index,
-          fs: this.#fs,
-          taskLayers,
-        });
+        // The closure fact comes from the port, never from a second audit built here:
+        // the composition root's accessor is the ONE construction point of that
+        // material, and the lifecycle's `contract.path` read-back shares it.
+        const closed = this.#provenClosed(doc.path);
+        const findings = this.#contract.validate(
+          {
+            docKey: doc.docKey,
+            path: docAbsolute,
+            content,
+            root: ctx.repoRoot,
+            slugIndex: index,
+            fs: this.#fs,
+            taskLayers,
+          },
+          closed,
+        );
         docOutcome = {
           kind: "judged",
           findings,
+          closed,
           // The layer fact is absent only where the graph gate never ran, and on the
           // dispatch faces that cannot happen: `--type plan` REQUIRES `--plan` (a usage
           // rejection exits first), so a plan doc always has its graph and therefore its
@@ -449,18 +474,25 @@ export class PreFlight {
         // The verdict is graded by the declaration's own severity (spec §1.3): a `warn`
         // rule reports, a `block` rule refuses. The details list only the blocking
         // findings — otherwise a refusal would put a warning beside a real stop and the
-        // reader would repair a line that was never the reason.
+        // reader would repair a line that was never the reason. When the tree registers
+        // NO overall charter the details gain ONE row naming that absence: closure was
+        // then unprovable, not merely unproven, and the reader must be able to tell the
+        // two apart. An overall that names nobody is the "unproven" case and adds no row.
         const blocking = findings.filter((finding) => finding.severity === "block");
         if (blocking.length > 0) {
+          const details = blocking.map(
+            (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
+          );
+          if (!index.entries.some((entry) => entry.docType === "overall")) {
+            details.push(this.#words.preflightWords().closureUnavailable);
+          }
           return this.#refusal(
             {
               ok: false,
               gate: "doc-contract",
               reason: "doc-contract",
               message: this.#words.preflightWords().docContract,
-              details: blocking.map(
-                (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
-              ),
+              details,
             },
             gates,
             checked,
@@ -632,6 +664,10 @@ export class PreFlight {
           rows.push(`${declaration.id}: ${words.skippedNotJudged}`);
         else if (doc.kind === "unreadable")
           rows.push(`${declaration.id}: ${words.skippedUnreadableDoc}`);
+        else if (doc.closed && declaration.skipWhenClosed)
+          // A rule the closed document exempted never ran — `passed` would testify for
+          // it, so the row names the reason (design spec §1.3).
+          rows.push(`${declaration.id}: ${words.skippedClosedDocument}`);
         else if (doc.layersUnavailable === true && declaration.id === "wave-width-at-most-three")
           rows.push(`${declaration.id}: ${words.planLayersUnavailable}`);
         else

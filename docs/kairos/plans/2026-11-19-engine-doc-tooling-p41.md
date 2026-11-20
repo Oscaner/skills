@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -15,7 +15,7 @@ base: develop
 - **消费面守恒**：退出码表 · `CDD_BLOCKED` 通道 · 既有拒绝报文的前缀与字段分隔符 · `next:` 字面逐字节不变；新增形态只有三种——`<rule id>: warned — <n> warning(s)` · `skipped (closed document)` · 一条 `details` 行。
 - **扫描面只读散文**：行内代码段与围栏块豁免；表格单元格照扫；引用块按行首 `>` 判定（不是树节点）。围栏跳过这一处定义住 `contract/pins.ts#PinSpans`，形状规则的散文行切分复用它，不起第二份判法。
 - 本文件的正文按它自己要落的规则书写：无行号坐标、无裸测量字面（计数写成中文数词或 `census:<id> = <n>`）、无挂符号的时序指示词。
-- **实现前窗口的预期红**：本 plan 是语料的一行，两处读数在实现面落地之前读红，且不随文档修正自愈——其一，`pins.guard.test.ts` 的零命中臂：指向尚未落地符号的 pin 由 `PinAudit` 照数（审计的跳过只覆盖 `Create:` 声明的**路径**，不覆盖符号名），最后一个声明符号随 Task 8 落地；其二，闭集 P37 对里 `census:pin.total` 的声明值随同一批符号落地。两者是实现前的预期红，不是回归，各任务的 checkable 因此不把这两处纳进判据。
+- **实现前窗口的预期红**：本 plan 是语料的一行，两处读数在实现面落地之前读红，且不随文档修正自愈——其一，`pins.guard.test.ts` 的零命中臂：指向尚未落地符号的 pin 由 `PinAudit` 照数（审计的跳过只覆盖 `Create:` 声明的**路径**，不覆盖符号名），最后一个声明符号随 Task 5 落地——窗口也在那一处闭合，因为未解析的四个 pin 名字（`skippedClosedDocument` · `provenClosed` · `PinAudit#provenClosed` · `ForwardPaths#provenClosed`）全由 Task 5 的 Files 声明，Task 5 之后读到这条红就只能是回归；其二，闭集 P37 对里 `census:pin.total` 的声明值随同一批符号（Task 5）落地，那几处 `= 0` 声明不属任何任务的改动面。两者是实现前的预期红，不是回归，各任务的 checkable 与 Acceptance 因此不把这两处纳进判据，两处之外的读数照判。
 - **窗口内不写测量值**：`census:criteria.rows` 的新值属判据行落地之后的形状，落地之前只以 `census:<id> = <n>` 的占位形态出现，本文件不写它的目标值。语料规模常量不在此列——它是判断，属同批义务，由 Task 1 复位的步骤持有。
 
 ### Task 1: 面图与严重度基座
@@ -163,7 +163,7 @@ export class TemporalIndicatorInvariant extends Invariant { readonly name = "tem
 - 提交 — checkable: 四条规则行在 `RULE_REGISTRY` 里出现，且各带 `severity: "warn"` 与 `skipWhenClosed: true`
 
 #### Acceptance
-四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；继承面同判——`### 7.` 下的 `#### 7.5.1` 判作 `decision`、违例的 `kind` 是规则自己的名字（成对：不交标题栈即落缺口判词，`kind` 不再是那个名字）；围栏跳过只有一处定义（`PinSpans#proseOf`），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿。
+四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；继承面同判——`### 7.` 下的 `#### 7.5.1` 判作 `decision`、违例的 `kind` 是规则自己的名字（成对：不交标题栈即落缺口判词，`kind` 不再是那个名字）；围栏跳过只有一处定义（`PinSpans#proseOf`），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 在 `## Constraints` 声明的那两处窗口红之外绿——`pins.guard.test.ts` 的零命中臂与 `census.guard.test.ts` 的 `pin.total` 不属本任务的判据，P37 对里那两处 `= 0` 声明一字不动（改写它们等于替一扇尚未存在的门记账）。
 
 #### DependsOn
 1
@@ -230,13 +230,13 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 #### Steps
 - 写 `SentenceIndex.of`（实参是 `ctx.text`——正文面，front-matter 头不在其中）：切句按 `。` `！` `？` `!` `?` 与后接空白的 `.`，代码段与围栏内不切，表格行与列表项各自成句；归一化去行内代码标记、折空白、折大小写、丢标点 — checkable: 一对夹具给出两条句子，其中表格行仍成一条
 - 写 `trigrams` 与 `jaccard` — checkable: 同一句 ⇒ 1.0；只差标点与空白 ⇒ 1.0；两个不相干句 ⇒ 低于 0.3
-- 写规则：左域取被判文档的判据面句子（≥ 40 字符，且门槛按**去掉行内代码段后**的散文计——点名一条路径的指针句因此不进域），且**工作项行不进域**：行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:` 的行在两侧都被跳过（`- Modify: <path>` 归一化后每份 plan 逐字相同，比它等于判死模板）；右域同样跳过这一形状，并**经 `ctx.translator` 归一化后再切句**（两侧必须读同一个归一化面），右域扫 `DocFs.list` 覆盖的 spec/plan/overall 三 root，跳过同 slug 文档与本文件，逐对算 Jaccard — checkable: 两份不同 slug 的夹具各带同一句 ⇒ 一条 finding 念两侧文件与两侧开头；同句搬进引用块 ⇒ 零报；工作项成对：两份不同 slug 各带同一行 `- Modify:` 指向同一文件 ⇒ 零报，去掉列表标记写成判据句 ⇒ 报
+- 写规则：左域取被判文档的判据面句子（≥ 40 字符，且门槛按**去掉行内代码段后**的散文计——点名一条路径的指针句因此不进域），且**工作项行不进域**：行首列表标记后接 `Modify:` · `Create:` · `Test:` · `Delete:` 的行在两侧都被跳过（`- Modify: <path>` 归一化后每份 plan 逐字相同，比它等于判死模板）；右域同样跳过这一形状，并**经 `ctx.translator` 归一化后再切句**（两侧必须读同一个归一化面），右域扫 `DocFs.list` 覆盖的 spec/plan/overall 三 root，跳过同 slug 文档与本文件，逐对算 Jaccard — checkable: 两份不同 slug 的夹具各带同一句 ⇒ 一条 finding 念两侧文件与两侧开头；同句搬进引用块 ⇒ 零报；工作项成对：两份不同 slug 各带同一行 `- Modify:` 指向同一文件、且两半都在行内代码段之外带四十字符以上的散文 ⇒ 零报，去掉列表标记写成判据句 ⇒ 报（两半唯一的差别是列表标记，故第二半红是因为它不再是工作项）；指针句成对：两句各抄同一条长路径、两侧散文都不足下界 ⇒ 零报，同一路径两侧各配四十字符以上的散文 ⇒ 报（两半唯一的差别是散文量，故第一半绿是因为路径不计入下界）
 - 同 slug 豁免一对：把同一句放进同 slug 的 spec 与 plan ⇒ 零报 — checkable: 断言零 finding
 - 右域的闭合臂一对：同一句同时出现在一份**已闭合**的文档与一份不同 slug 的未闭合文档上 ⇒ 照报——左侧是那份未闭合文档，右侧把那份闭合文档念出（右域不按闭合过滤）；成对——把同一句搬进引用块 ⇒ 零报 — checkable: 两条断言同时通过，报文念出闭合那份的文件名
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
-阈值与长度下界成对可核（同句 1.0 · 不相干低于阈值）；引用块与围栏块豁免；同 slug 对零报（成对：换 slug 后同一句报）；右域不按闭合过滤——闭合文档在右侧仍被念出（成对：搬进引用块零报）；报文含两侧文件与两侧开头；单位不在闭集内的裸数与短句都不进比较域；句子切分的输入是 `ctx.text`（正文面，front-matter 头不在其中），front-matter 行不进切句面；工作项行在两侧都不进域（成对：去标记后同一句报）；两侧同读 `ctx.translator` 的归一化面（含 `组` 这类别名判据的中文夹具 ⇒ 报，改前零报）
+阈值与长度下界成对可核（同句 1.0 · 不相干低于阈值）；引用块与围栏块豁免；同 slug 对零报（成对：换 slug 后同一句报）；右域不按闭合过滤——闭合文档在右侧仍被念出（成对：搬进引用块零报）；报文含两侧文件与两侧开头；单位不在闭集内的裸数与短句都不进比较域；句子切分的输入是 `ctx.text`（正文面，front-matter 头不在其中），front-matter 行不进切句面；工作项行在两侧都不进域（成对：两半都带四十字符以上的散文、只去掉列表标记后同一句报）；长度下界量的是散文（成对：两句各抄同一条长路径、两侧散文都不足下界 ⇒ 零报，同一路径两侧各配四十字符以上的散文 ⇒ 报），故点名一条路径的指针句不进比较域；两侧同读 `ctx.translator` 的归一化面（含 `组` 这类别名判据的中文夹具 ⇒ 报，改前零报）
 
 #### DependsOn
 1
@@ -253,8 +253,6 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（组装点持那条按首次使用构造的审计访问器——`PinAudit` 的一次派发唯一构造处，并把同一个访问器交给 `PreFlight`（闭合端口）与 `CliLifecycle`（`contract.path` 回读）：一次 review 派发的形状门与回读落在同一份审计上，wave 与 branch 派发一次语料扫描都不付；`PreFlight` 只收访问器、不自己 new，而 `vet` 跑在 `#lifecycleOf` 之前，读数在那一刻已可取）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#pinAudit()` 改成读组装点注入的审计访问器——本条生命周期不再自己 new 一个 `PinAudit`，两条语料面（被判文档的正文与 `contract.path` 回读）落在同一份上）
 - Test: `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts`
-- Modify: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（两处 `skipped (no doc target)` 的计数期望值随六条规则行改到 `30`，两条用例标题里的数词同改）
-- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（wave 面那条 `skipped (no doc target)` 的计数同改到 `30`）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/pins-guard-closure.test.ts`
 
 #### Consumes
@@ -287,15 +285,16 @@ provenClosed(rel: string): boolean;             // 两个命名格同判；零�
 - 闭合的判定面：`doc-contract` 门先问闭合读数（经构造注入的端口，不在门里自己建审计），把 `closed` 交给 `Contract.validate(input, closed)`——六条带 `skipWhenClosed` 的策略不跑、也不交 finding，其余规则照跑 — checkable: 一份在 `## Change history` 表头缺一列的闭合夹具被 `change-history-header-columns` 拒一次（六条形状行不行以代判）；成对——同一份内容的未闭合副本里六条形状行照判，其中那条 `change-history-date-shape` 的违例读 `failed`
 - `#ruleRows` 按声明渲染：命中且 `warn` ⇒ `${id}: ${words.warned} — ${n} warning(s)`；命中且 `block` ⇒ `${id}: ${words.failed}`；未命中 ⇒ `${id}: ${words.passed}`；带 `skipWhenClosed` 且夹具闭合 ⇒ `${id}: ${words.skippedClosedDocument}`，同一夹具上不带该旗标的行照档位读 `passed` 或 `failed`；夹具的行表由构造面注进（一条 `warn` 行 · 一条 `block` 行 · 一条带 `skipWhenClosed` 的行），故 Task 8 的翻位不改这五条 — checkable: `session/__tests__/preflight-rows.test.ts` 五条成对断言（含「同一次判定里两种词共存」那一条），行表经构造面注入、不读真实注册表
 - 拒绝判词从「有 finding 即拒」改成「存在 block 命中即拒」（`findings.some((f) => f.severity === "block")`）— checkable: 一对断言——只有 warn 命中的夹具不被拒（exit 0，该行读 `warned`）；含 block 命中的夹具被拒一次；`checked:` 行字节逐字节不变
+- 两处 `skipped (no doc target)` 计数臂与 wave 面那条同读 `RULE_REGISTRY` 的派生值——`session/__tests__/preflight.test.ts` 与 `face/__tests__/cli.test.ts` 各自定义 `DOC_RULE_ROWS = RULE_REGISTRY.filter((row) => row.scope === "doc").length`——故两个文件不在本任务的改动面：六条规则行落地后派生值自己走到本批条数，计数不写成字面，用例标题里也没有数词要改 — checkable: `git diff --name-only` 不含这两份用例文件；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/preflight.test.ts src-next/face/__tests__/cli.test.ts` 绿（`findings.some((f) => f.severity === "block")`）— checkable: 一对断言——只有 warn 命中的夹具不被拒（exit 0，该行读 `warned`）；含 block 命中的夹具被拒一次；`checked:` 行字节逐字节不变
 - `doc-contract` 的 `details` 过滤到 `severity === "block"` — checkable: 混合档夹具上 `details` 只有 block 那条的 `kind@field`
 - 无总体时追加 `details` 行「无可用的闭合登记」；有总体但无格点名时**不**追加——触发键是门内已建那份 `SlugIndex` 的 `entries`（有一项 `docType` 为 `overall` 即登记可用），不是端口上 `provenClosed` 的假值：后者的两个假分支在端口上同形，拿它写这条行会把「有总体而不点名」当成「无可用的闭合登记」 — checkable: 两对夹具各一条断言
-- `ForwardPaths#provenClosed`：两命名格同判、恰一份命中；零命中与多命中都不算闭合；`PinAudit#provenClosed` 把它交出去，审计由组装点持有的访问器按首次使用构造——端口与 `CliLifecycle` 的回读收的是同一个访问器 — checkable: `pins-guard-closure.test.ts` 三对断言（单格命中 · 双格命中 · 多命中）；两条计数臂——一次 wave 派发跑完，闭合端口一次未被调用、`PinAudit` 构造零次；一次带 findings（每条带 `contract.path`）的 review 派发跑完，形状门与回读落在同一份审计上，`PinAudit` 构造恰一次（两者问的是组装点的同一访问器）
-- `skipped (no doc target)` 的面按**派发类型**定：同一份带违例的 plan 作 `--type plan` 判 ⇒ 命中行 `failed`；作 wave 派遣发 ⇒ 六行全 `skipped (no doc target)` — checkable: `session/__tests__/preflight-rows.test.ts` 一对断言，只改派发类型
-- 无格点名的 single-spec：一份带违例的 single-spec 夹具（无任何总体的命名格点名它）以 `cdd review --type single-spec --spec <path>` 判 ⇒ 六条形状规则照判、命中行读 `failed`，不读 `skipped (closed document)`；成对——把同一份内容的文件名写进两个命名格 ⇒ 六条形状行读 `skipped (closed document)`、其余行照判 — checkable: `session/__tests__/preflight-rows.test.ts` 一对断言
+- `ForwardPaths#provenClosed`：两命名格同判、恰一份命中；零命中与多命中都不算闭合；`PinAudit#provenClosed` 把它交出去，审计由组装点持有的访问器按首次使用构造——端口与 `CliLifecycle` 的回读收的是同一个访问器 — checkable: `pins-guard-closure.test.ts` 三对断言（单格命中 · 双格命中 · 多命中）；两条计数臂，每条点名自己用的派发平面——一条**工作平面**的 wave 派遣发跑完：闭合端口一次未被调用、`PinAudit` 构造零次；一条带 findings（每条带 `contract.path`）的 review 派发（判平面）跑完：形状门与回读落在同一份审计上、`PinAudit` 构造恰一次（两者问的是组装点的同一访问器）。零构造那一臂只对工作平面成立：判平面的回读先注一次 pin 读数、再无条件下取审计，故 wave review 与 branch review 都必构造一份；闭合端口零调用那一半对两个平面都成立
+- `skipped (no doc target)` 的面按**派发类型**定：同一份带违例的 plan 作 `--type plan` 判 ⇒ 命中行 `failed`；作 wave 派遣发 ⇒ 六行全 `skipped (no doc target)`；两次的行表都经构造面注入，且把那条规则声明成 `block`（行表与档位渲染那一臂同形）——`failed` 是翻位之后的字节，起步档的真实注册表读 `warned`，故这一臂不随翻位而变 — checkable: `session/__tests__/preflight-rows.test.ts` 一对断言，只改派发类型，行表经构造面注入
+- 无格点名的 single-spec：一份带违例的 single-spec 夹具（无任何总体的命名格点名它）以 `cdd review --type single-spec --spec <path>` 判 ⇒ 六条形状规则照判、命中行读 `failed`（六行的行表经构造面注入成 `block`，所以这一臂读的是翻位之后的字节，不依赖真实注册表的起步档），不读 `skipped (closed document)`；成对——把同一份内容的文件名写进两个命名格 ⇒ 六条形状行读 `skipped (closed document)`、其余行照判 — checkable: `session/__tests__/preflight-rows.test.ts` 一对断言
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
-五档渲染各有一对（`passed` · `failed` · `warned` · `skipped (closed document)` · `skipped (no doc target)`）；后两档字节与既有形态一致的档（`passed` · `failed` · `skipped (no doc target)`）逐字节不变；拒绝判词成对可核（只有 warn 命中 ⇒ 不拒，含 block 命中 ⇒ 拒一次）；闭合只豁免带 `skipWhenClosed` 的六行（成对：闭合夹具上的非形状违例照拒，未闭合副本里六行照判）；`details` 只列 block；无总体那条 `details` 行读门内那份 `SlugIndex` 的 `entries`，出现条件收窄成立（有总体时不出现，与 `provenClosed` 的假值不混形）；`provenClosed` 的两格同判与「恰一份命中」都有反证；两条计数臂相反相成——无文档目标的派发不构造审计，带 `contract.path` 的 review 派发只构造一份（形状门与回读共用同一实例）；无格点名的 single-spec 照判（成对：格点名后六条形状行读 `skipped (closed document)`、其余行照判）；五条档位臂建在构造面注入的 `ruleRows` 上（含那条 `warn` 行），翻位之后仍绿；构造面的两项都可缺省（端口缺省读「无文档被证明闭合」、行表缺省读 `Contract.ruleRows()`），故未供这两项的构造站点（`session/__tests__/plan-read-consistency.test.ts` 那一臂）不欠编辑、本任务的 `tsc --noEmit` 也不因它变红。
+五档渲染各有一对（`passed` · `failed` · `warned` · `skipped (closed document)` · `skipped (no doc target)`）；后两档字节与既有形态一致的档（`passed` · `failed` · `skipped (no doc target)`）逐字节不变；拒绝判词成对可核（只有 warn 命中 ⇒ 不拒，含 block 命中 ⇒ 拒一次）；闭合只豁免带 `skipWhenClosed` 的六行（成对：闭合夹具上的非形状违例照拒，未闭合副本里六行照判）；`details` 只列 block；无总体那条 `details` 行读门内那份 `SlugIndex` 的 `entries`，出现条件收窄成立（有总体时不出现，与 `provenClosed` 的假值不混形）；`provenClosed` 的两格同判与「恰一份命中」都有反证；两条计数臂相反相成且各点名派发平面——工作平面的 wave 派遣发不构造审计（判平面的 wave review 不在零构造那一侧：回读对每个判平面轮都取一次审计），带 `contract.path` 的 review 派发只构造一份（形状门与回读共用同一实例），而闭合端口零调用那一半对两个平面都成立；无格点名的 single-spec 照判（成对：格点名后六条形状行读 `skipped (closed document)`、其余行照判）；五条档位臂建在构造面注入的 `ruleRows` 上（含那条 `warn` 行），翻位之后仍绿；构造面的两项都可缺省（端口缺省读「无文档被证明闭合」、行表缺省读 `Contract.ruleRows()`），故未供这两项的构造站点（`session/__tests__/plan-read-consistency.test.ts` 那一臂）不欠编辑、本任务的 `tsc --noEmit` 也不因它变红。
 
 #### DependsOn
 2, 3, 4
@@ -357,10 +356,10 @@ none
 ### Task 7: 章程自修
 
 #### Objective
-翻位之后本程序章程会被自己的判据面拒——五节里把命令清单、例外面与模板形面挂在一个符号上，用的是时序措辞；`### Non-goals` 那一颗子弹还带一处测量字面。本任务把五节改写成条件句，并把两处重复句收敛成**指针**（点名持有者的节，不复述原句），使三族齐零：两个文法各自零命中，且 `single-home` 在章程上零命中。
+翻位之后本程序章程会被自己的判据面拒——五节里把命令清单、例外面与模板形面挂在一个符号上，用的是时序措辞；`### Non-goals` 那一颗子弹还带一处测量字面。本任务把五节改写成条件句，并把两处重复句收敛成**指针**（点名持有者的节，不复述原句），使三族齐零：两个文法各自零命中，且 `single-home` 在章程上零命中。同一次写入还回填章程 `## Phase inventory` 的 P41 验收——③ 的下界改成量散文、⑥ 补一句工作项行不是判据，两处措辞取 Task 4 落地的域（这项回填不在五节里，五节自修够不到注册节），章程的 `## Change history` 同批记一行、front-matter 的 `version:` 随之 bump。
 
 #### Files
-- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（`### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句；`### Non-goals` 那颗子弹的计数删掉或写成 `census:<id> = <n>`；两处重复句收敛成指针）
+- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（`### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句；`### Non-goals` 那颗子弹的计数删掉或写成 `census:<id> = <n>`；两处重复句收敛成指针；**验收回填**——`## Phase inventory` 的 P41 验收 ③ 改成「下界量的是散文，行内代码段整段不计」、⑥ 补一句「工作项行不是判据，`- Modify:` 一类行在两侧都不进域」，并在 `## Change history` 记一行、front-matter 的 `version:` 同批 bump）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`
 
 #### Consumes
@@ -375,12 +374,13 @@ none
 #### Steps
 - 写四对用例的前两对：改回原句 ⇒ 命中八处（`### Goal` · `### Cross-cutting` · `## Boundary rules` 各一处 `temporal-indicator`，`## Constraints` 两处，`### Non-goals` 两处 `temporal-indicator` 加一处 `measure-literal`）；两个文法修净而重复句留着 ⇒ 被 `single-home` 拒 — checkable: 两条夹具各断言 finding 集合的 `kind`
 - 把五节改成条件句；那颗子弹的计数删掉 — checkable: 两个文法在章程五节上零命中
+- 验收回填：章程 `## Phase inventory` 的 P41 验收 ③ 按 Task 4 的散文下界重述（下界量的是散文，点名一条路径的指针句因此不进域）、⑥ 补一句工作项例外（`- Modify:` 一类行在两侧都被跳过）；两处与新规则同读，不回填就等于让实现面写一条与登记面相反的判据 — checkable: 章程的 P41 格 ③ 带散文下界、⑥ 带工作项例外；同一次写入在章程的 `## Change history` 记一行，且历史表最新一行的版本号等于 front-matter 的 `version:`
 - 两处重复句收敛成指向持有者的节（`见 <path> 的 ## Constraints`），不复述原句、不带判据标签 — checkable: `single-home` 在章程上零命中
 - 后两对用例：指针句自身零拒绝；携带判据标签的复述 ⇒ 被同源句命中 — checkable: 一对断言
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p41):` 起头
 
 #### Acceptance
-三族齐零（两个文法 + `single-home`）在章程五节上成立；改回原句 ⇒ 八处命中且两类都出现；只修两文法而留重复句 ⇒ 仍被拒；指针句过 `single-home` 两对；翻位之后以 `cdd review --type overall --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 判章程为零拒绝。
+三族齐零（两个文法 + `single-home`）在章程五节上成立；改回原句 ⇒ 八处命中且两类都出现；只修两文法而留重复句 ⇒ 仍被拒；指针句过 `single-home` 两对；翻位之后以 `cdd review --type overall --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 判章程为零拒绝；验收回填落在同一个文件的注册节——③ 量散文、⑥ 工作项行不是判据，两处与 Task 4 落地的域同读；同一次写入的历史表多一行，其版本号等于 front-matter 的 `version:`。
 
 #### DependsOn
 2, 4
@@ -421,7 +421,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 - `cdd-plan` 的 `author-plan` 节点照抄同一组三行 — checkable: 两处字节相同（`claim-shapes.test.ts` 的第二条断言）
 - 写 changeset：两个包键各记 **minor**——`@oscaner-skills/cdd-engine` 与 `@oscaner-skills/kairos`：后者是本次交付的 kairos 一半（两个 skill 节点都在 `packages/kairos/` 下，`.changeset/README.md` 对那一侧的改动同样要求 changeset，只改 skill 散文的先例也是 kairos minor）；条目列出六条规则行 · 五档渲染词 · 一条 `details` 行 · `evidence` 键 · 侧车两键 · 拒绝报文一种 — checkable: `pnpm run version-sync` 通过；changeset 文件的最外层带这两个键，档位同为 `minor`，无 YAML 误写
 - 六条规则行的 `severity` 翻成 `"block"`，`skipWhenClosed: true` 不动；`rules-severity.test.ts` 的档位夹具建在注入的注册表上，Task 5 的五条渲染臂建在构造面注入的 `ruleRows` 上，故翻位不改这两处测试 — checkable: `rules-severity.test.ts` 的终态断言为真，且该文件与本批两处测试在本步零 diff
-- 全量门 — checkable: `pnpm run validate` exit 0（两处预期红随本批落地一并转绿：语料规模常量在 Task 1 复位，pin 面的符号指针随本任务最后一个声明符号落地）
+- 全量门 — checkable: `pnpm run validate` exit 0（两处预期红在窗口内各自转绿：语料规模常量在 Task 1 复位，pin 面的符号指针与 `census:pin.total` 随 Task 5 的最后一个声明符号落地；本任务只做翻位与消费面收口，不声明任何符号）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
@@ -434,6 +434,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.8 | 2026-11-20 | 第六轮评审回填（plan fix 6）：① **章程验收回填入 Task 7**——`## Phase inventory` 的 P41 验收 ③ 改成下界量散文、⑥ 补工作项例外（同 slug 例外已由章程 v4.47 登记，本轮只补未登记的两处），并在章程的 `## Change history` 记一行、同批 bump 章程版本；Task 7 的 Objective · Files · Steps · Acceptance 四处同改；② **Task 4 补两条可判成对**：指针句（两句各抄同一条长路径 ⇒ 零报，同一路径两侧各配四十字符以上的散文 ⇒ 报）与工作项两半的散文括注（两半的唯一差别是列表标记）；③ **预期红窗口的终点改挂 Task 5**——四个未解析的 pin 名字全由 Task 5 声明，Task 8 的全量门只做翻位；④ Task 2 的 Acceptance 点名那两处窗口红不受判，P37 对里的 `= 0` 声明一字不动；⑤ Task 5 的两条计数臂逐条点名派发平面（零构造只对工作平面成立，判平面的 wave review 照构造一份）；⑥ Task 5 的派发类型臂与 single-spec 臂的行表经构造面注入成 block，`failed` 的读法不随翻位；⑦ `preflight.test.ts` 与 `cli.test.ts` 的计数从 `RULE_REGISTRY` 派生，两文件零 diff、用例标题无数词。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.7 | 2026-11-20 | **W2 wave 评审回填（F1 · F2）**：① 工作项行（`- Modify:` 一类）在 `single-home` 的两侧都不进域——它是文件点名不是判据，而同一份模板让每份 plan 逐字相同，比它等于判死模板；② 两侧必须读同一个归一化面（右域经 `ctx.translator`），否则含别名的中文判据永不命中；③ **长度下界按散文计**（去掉行内代码段之后），因为规则上线后判本文件时报出的两处里有一处是「两句各抄同一条路径」——路径不是散文。两条都进了 Task 4 的 Step 与 Acceptance | [human] · Claude（kairos:cdd-dev） |
 | v0.6 | 2026-11-20 | 第五轮评审回填（plan fix 5）：① 本文件自身的三处时序措辞退到无符号分句——`## Constraints` 声明的「无挂符号的时序指示词」现由本文件满足（祖先栈的空读法写作「读作缺口」、无参构造写作「回到默认注册表」）；② Task 2 的散文扫描步骤补标题栈——扫描器把 `[...ancestors].reverse()` 交给 `FaceMap.roleOf` 的第三个参数，并补继承臂（`### 7.` 下的 `#### 7.5.1` 判作 `decision`）与两参形态的反证；③ Task 5 的构造面两项都声明缺省形态——闭合端口 `provenClosed?` 缺省 `() => false`（未供端口的构造站点零改动），行表 `ruleRows?` 缺省读 `Contract.ruleRows()`。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.5 | 2026-11-20 | 第四轮评审回填（plan fix 4）：① Task 6 的单判据句改写，分句切分口径钉在双写 `——` 上——Task 2 的文法声明与 Acceptance 补同一条读法（单写的一个 `—` 不切分句）；② 三处计数钉住的用例入册：`rules.test.ts` 随 Task 2 · 3 · 4 各改一次（批后终态 `toHaveLength(32)` · `30` · `2`），`preflight.test.ts` 的两处与 `cli.test.ts` 的一处随 Task 5 改到 `30`；③ `selector-coverage.test.ts` 的两处元素总数随 Task 1 的 facet 元素加一（`expect(total).toBe(112)`）；④ `handoff-schema.test.ts` 入 Task 6 的测试面，并点名两条带 `criterion` 的 `toEqual` 与一条混合载荷臂；⑤ 闭合端口收成单方法 `provenClosed`——「登记可用」由门读自己那份 `SlugIndex` 回答，审计的唯一构造处上移到组装点 `face/cli.ts`，`PreFlight` 与 `CliLifecycle` 收同一个访问器；⑥ 渲染面多一张可注入的规则行表（`PreFlight` 构造面的 `ruleRows`），五条档位成对臂建在它上面，翻位不改。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |

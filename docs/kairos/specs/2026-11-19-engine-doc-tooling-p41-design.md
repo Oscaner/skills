@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.17
+version: v0.18
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -60,7 +60,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
   - 「doc-contract 判定语义不变 · 骨架不是 gate 豁免通道」（章程的 `### Cross-cutting`，`### Non-goals` 与 `## Boundary rules` 另有同源两处）：三处同源表述收敛成一处指针，指向这三份 design 与一份 plan 的 `## Constraints`；四份的路径依次是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md` · `docs/kairos/plans/2026-10-10-engine-doc-tooling-p4.md`。
   - 「不发布 · changesets 收尾到可发布态即止」（章程的 `## Constraints`，`### Non-goals` 另有同源一处）：两处收敛成一处指针，指向 P13 design 的 `## Constraints`；P13 design 的路径是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p13-design.md`，指针只点名节，不带判据标签、也不复述原句。
   - **回填纪律**（章程的 `## Boundary rules` 与 `## Constraints` 两处，`## Document scope` 里另有一处同族提及）：两处收敛成一处指针，指向 P9 design 的 `## Constraints`；P9 design 的路径是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md`。这一族是三族里最大的一份——它是章程在 `single-home` 上四处命中的来源（P9 design · P10 design · 两份 P1/P2 的 plan 各一对）——漏掉它，「三族齐零」这条验收臂在章程上到不了零，交付面读起来是两笔而实际是三笔。
-- 指针句自身也要过 `single-home`，而且过两对：对持有者文档不得同形，对本节给出的措辞面也不得同形——章程是被判文档，本 spec 的句子落在它右侧的比较域里。措辞因此收窄到**只点名持有者所在的节**（`见 <path> 的 ## Constraints`），不携带本节的判据标签，也不复述原句。**章程的写入由编排者执行**——本相位给判据与措辞面，fix 轮不写章程。
+- 指针句自身也要过 `single-home`，而且过两对：对持有者文档不得同形，对本节给出的措辞面也不得同形——章程是被判文档，本 spec 的句子落在它右侧的比较域里。措辞因此收窄到**只点名持有者所在的节**（`见 <path> 的 ## Constraints`），不携带本节的判据标签，也不复述原句。**章程的写入只有一个落点**——本相位把章程登记成一条具名任务的改动面（plan 的章程自修任务，它的 `#### Files` 点名章程），由那次派发写入；未在该改动面上的 fix 轮只给判据与措辞面、不写章程，两个写手并存会让同一个版本号被写两遍。
 - **刻意接受**：闭合文档不再被形状门约束。改它就等于改历史，而评审不该因为记录而重开。
 
 #### 1.5 记录面只判日期形状
@@ -109,7 +109,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 #### 3.2 比较域是单边的
 - 左侧 = 在范围内的文档，右侧 = **除本文件之外**的全部文档。自比不计：右侧若含本文件，它的每一句都和自己同形，判据在任何文档上都恒真——这条排除是判据的一部分，不留给实现者顺手加。漂移的方向永远是「新的抄旧的然后各自演化」；反向不存在。
 - **同一 run 的一对不互比**：`slug:` 相同的 spec 与 plan 是同一份设计的两面——plan 的 `#### Acceptance` 本来就是 spec 判据的可核形态，判它们互抄等于判死每一份 plan。故比较按 `slug:` 分组：一份文档只与**不同 slug** 的文档比。这条不收窄评审面实测到的那一类：章程与相位文档的 slug 各不相同（章程的 slug 是程序名，相位文档的是 `<date>-<program>-pN-design`），所以章程对相位文档的复述照旧被判。
-- **分组与判据同批登记**：分组不是实现细节，它有正负两臂（验收的「一份住所」一条）——缺了分组，正臂照绿而负臂红。它的登记面是章程：P41 验收 ⑥ 按本节的同 slug 例外重述，章程的写入由编排者执行（§4 交付面的第三笔），因为 ⑥ 住在 `## Phase inventory`，那是注册节，五节自修够不到它。**§3.1 的两条域收窄同批登记**：它们收窄的正是章程 P41 ③ 与 ⑥ 已经写下的判据（③ 的「两侧归一化长度够长」、⑥ 的「同句进两份不同 slug 的未闭合文档 ⇒ 两侧都念」），故 ③ 写明下界量的是散文、⑥ 写明工作项行不是判据，再由章程的 `## Change history` 记一行；不登记的话，评审要么把两条收窄读成对已登记判据的未登记收紧，要么照 ⑥ 的字面实现出拒绝每一份 plan 模板行的规则。
+- **分组与判据同批登记**：分组不是实现细节，它有正负两臂（验收的「一份住所」一条）——缺了分组，正臂照绿而负臂红。它的登记面是章程：P41 验收 ⑥ 按本节的同 slug 例外重述，章程的写入落在本相位登记的章程自修任务上（§4 交付面的第三笔）——那条任务的 `#### Files` 点名章程，故 ⑥ 住在 `## Phase inventory`（注册节）这件事由它回填，五节自修够不到它。**§3.1 的两条域收窄同批登记**：它们收窄的正是章程 P41 ③ 与 ⑥ 已经写下的判据（③ 的「两侧归一化长度够长」、⑥ 的「同句进两份不同 slug 的未闭合文档 ⇒ 两侧都念」），故 ③ 写明下界量的是散文、⑥ 写明工作项行不是判据，再由章程的 `## Change history` 记一行；不登记的话，评审要么把两条收窄读成对已登记判据的未登记收紧，要么照 ⑥ 的字面实现出拒绝每一份 plan 模板行的规则。
 - 这是 `doc-contract` 的一条规则行（重复规则那一行），不是新腿——同一扇门、同一张规则表。
 
 #### 3.3 不判什么
@@ -134,7 +134,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 - 新增：既有 `doc-contract` 拒绝上的一条 `details` 行——字面是 `face/words.ts#PreflightWords.closureUnavailable` 的整句（§1.4 引的就是那串字节），只在被判目标是文档、且树上一个总体都没有时出现；有总体而没有格点名本文件时不出现（那是未闭合）。拒绝码与其余 `details` 行不变。
 - 新增：`contract/pins.ts#ForwardPaths` 上一条公开的闭合读数（§1.4）——同一个类、同一份材料，供形状门读；不经 `checked:` 面，不改报文。
 - 不动：退出码表 · `CDD_BLOCKED` 通道 · 既有拒绝报文 · `next:` 字面 · 身份与漂移判据 · 分级判收敛 · **board 的任何字节**（§2 不再有可见面交付）。
-- 本相位自身的交付面（章程）：把 `### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句，两文法零命中**且** `single-home` 在章程上零命中（§1.4）；`### Non-goals` 那一颗子弹同时带时序指示词与测量字面，故计数随句改、其余四节只改句式。同批落地的是三处重复句的指针处置（§1.4）：gate 判据指向 P3 · P4 · P5 三份 design 与 P4 plan 的 `## Constraints`，发布姿态指向 P13 design 的 `## Constraints`，回填纪律指向 P9 design 的 `## Constraints`（章程的 `## Boundary rules` 与 `## Constraints` 两处，`## Document scope` 一处同族）。**第三笔是验收回填**：章程 `## Phase inventory` 的 P41 验收 ⑥ 按 §3.2 的同 slug 例外重述（「同句进两份未闭合文档 ⇒ 两侧都念」加一句「同一份设计的 spec 与 plan 除外」），③ 按 §3.1 的散文下界重述（「两侧归一化长度够长」改成下界量的是散文），⑥ 再补一句工作项行不是判据——三处同一次写入，并在章程的 `## Change history` 记一行——章程自己的规矩是「变更先回填本 overall（backfill-as-version），再继续实现」，而 ⑥ 住在注册节，五节自修够不到它；不回填就等于让实现面写一条与登记面相反的判据。交付面因此是「五节条件句 + 三处指针 + 一处验收回填（同 slug 例外 · 散文下界 · 工作项例外）」，改的是文档内容，不动报文；章程的写入由编排者执行，本相位只给判据、措辞面与那三处回填文字。
+- 本相位自身的交付面（章程）：把 `### Goal` · `### Non-goals` · `### Cross-cutting` · `## Boundary rules` · `## Constraints` 五节改成条件句，两文法零命中**且** `single-home` 在章程上零命中（§1.4）；`### Non-goals` 那一颗子弹同时带时序指示词与测量字面，故计数随句改、其余四节只改句式。同批落地的是三处重复句的指针处置（§1.4）：gate 判据指向 P3 · P4 · P5 三份 design 与 P4 plan 的 `## Constraints`，发布姿态指向 P13 design 的 `## Constraints`，回填纪律指向 P9 design 的 `## Constraints`（章程的 `## Boundary rules` 与 `## Constraints` 两处，`## Document scope` 一处同族）。**第三笔是验收回填**：章程 `## Phase inventory` 的 P41 验收 ⑥ 按 §3.2 的同 slug 例外重述（「同句进两份未闭合文档 ⇒ 两侧都念」加一句「同一份设计的 spec 与 plan 除外」），③ 按 §3.1 的散文下界重述（「两侧归一化长度够长」改成下界量的是散文），⑥ 再补一句工作项行不是判据——三处同一次写入，并在章程的 `## Change history` 记一行——章程自己的规矩是「变更先回填本 overall（backfill-as-version），再继续实现」，而 ⑥ 住在注册节，五节自修够不到它；不回填就等于让实现面写一条与登记面相反的判据。交付面因此是「五节条件句 + 三处指针 + 一处验收回填（同 slug 例外 · 散文下界 · 工作项例外）」，改的是文档内容，不动报文；章程的写入由本相位登记的章程自修任务执行（它的 `#### Files` 点名章程），本相位只给判据、措辞面与那三处回填文字；未登记章程的 fix 轮不写它。
 - 版本级按 D74：方法论契约不变 ⇒ changeset **minor**。
 
 ### Acceptance criteria
@@ -166,6 +166,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.18 | 2026-11-20 | 分支评审回填（branch fix 1）：① **章程的写手收成一个**（F6）——§1.4 · §3.2 · §4 三处原本写「章程的写入由编排者执行」，而本相位的 plan 把章程登记在章程自修任务的 `#### Files` 面、交付史里也是那次派发写的；三处同批改成「章程的写入落在该任务的改动面上，未登记章程的 fix 轮不写它」，两次写手并存正是 v4.46 记下的版本号撞车 | [human] · Claude Opus 5（kairos:cdd-dev · branch-fix） |
 | v0.17 | 2026-11-20 | 第十一轮评审回填（fix 11）：① **narrative 的姊妹许可一并撤回**（F1）——`line-coordinate` 声明 `docKeys: "all"`，plan 的 `#### Steps` 一类判据面同判，故「`path:line` 引用归 plan」与 `author-plan` 的 `Citations` 一条是同一句许可的两个半句；三处住户（两个 skill 节点与 rubric）同批改成「plan 拥有的是工作项（`- Modify: <path>`），不是坐标」，`author-plan` 的 `Citations` 随之改口，`packages/kairos/tests/claim-shapes.test.ts` 的期望串与 `render/templates.ts#docNarrativeAxes` 同批；既有锚 `belongs to the plan` 改挂在工作项那一半上，仍是 rubric 的一处稳定子串。② **plan 面补上缺的载具**（F1）——`contract/__tests__/shape-rules.test.ts` 只建 `phase-spec` 与 `overall` 两种载体，plan 面一条用例都没有；补一对：`#### Steps` 里的散文 `path:line` 报一次，行内代码段与工作项零拒绝。③ **章程自修登记第三族**（F2）——§1.4 的「两处实账」改成三处，回填纪律（章程的 `## Boundary rules` 与 `## Constraints`）指向 P9 design 的 `## Constraints`，§4 的交付面随之读「三处指针」，验收臂补一对（只恢复该族 ⇒ 四处命中）。④ **rubric 的关系按实情重写**（F3）——它与两个节点同措辞、差别在形态，撤掉「不抄引文 · 同判据不同形」的误述，反向对读因此读作整条守卫而不是半条。P28 章程行的验收格记的是当日交付的 grep 断言，已闭合相位的验收记录不在此列。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 11） |
 | v0.16 | 2026-11-20 | **W8 wave 评审回填（fix 1）**：① **narrative 一条撤回「快照归 plan」的许可**（F2）——`temporal-indicator` 声明 `docKeys: "all"`，plan 的 `#### Steps` 一类判据面同判，故「现在时叙述归 plan」是一句被它自己点名的规则行拒绝的许可；三处住户同批改成「两个文档一律不许快照：`path:line` 引用归 plan，必须成立的条件归 spec」，`claim-shapes.test.ts` 的期望串与本段引文随之；既有三条锚一字不动（`belongs to the plan` 改挂在引用那一半上，仍是 rubric 里的一处稳定子串）。② **rubric 的反向对读落地**（F1）——`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 补一条：`REVIEWS.spec.axesGuide` 不含以 `- **` 起头的子弹行、不含四条规则行 id，预置一份复制的 skill 块即红。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-fix 1） |
 | v0.15 | 2026-11-20 | 第十轮评审回填（fix 10）：① **rubric 那一处的守卫改成它真正守的东西**（F1）——验收臂写明既有锚只守三个 claim shape 各一条稳定子串与更早的三条、不读行形状，并把「无 `- **pin** —` 子弹行 · 无规则行 id」这半条登记成同批新增的反向对读（`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 对 `render/templates.ts#docNarrativeAxes`）；预置一份复制的 skill 块即红。② **§3.1 的两个数各补一处取值住所**（F2）——阈值住 `contract/invariants.ts#SentenceIndex.THRESHOLD`、散文长度下界住 `contract/invariants.ts#SentenceIndex.MIN_LENGTH`，本节写出的两个数只是这两个常量的读法。③ **§1.3 的挡门括号补 `plan-ledger`**（F3）——它在 `doc-contract` 之前一格，plan 派发经它拒绝时六行照读 `skipped (not judged)`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 10） |

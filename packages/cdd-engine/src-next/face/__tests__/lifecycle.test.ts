@@ -1462,6 +1462,11 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       // postmortem points back at the file the dead child was writing.
       expect(crash?.attemptedHandoff).toBe(".kairos/cdd/p30/tasks-1-review-1-a2.json");
       expect(crash?.cause).toBe("child-exit");
+      // The rejected round KEEPS its record — the postmortem fact — and DROPS the lock:
+      // the lock is only mutual exclusion, so a handle that outlived its round would
+      // keep refreshing a lock directory the tree may no longer carry.
+      expect(existsSync(recordPathOf(f))).toBe(true);
+      expect(existsSync(lockPathOf(f))).toBe(false);
       // The resume command is the review leg's own, off the same crash record.
       expect(crash?.next).toContain("cdd review");
       expect(path.basename(naming.crashPath(frame))).toBe("crash-tasks-1-review-1-a2.json");

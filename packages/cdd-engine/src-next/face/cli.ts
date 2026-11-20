@@ -335,8 +335,11 @@ export class Cli {
   /** The contract coordinator — the doc-contract judgment face the pre-flight's
    *  doc gate reads (the single interpreter entry; spec §12 · D34 retired the
    *  filename→type derivation — the doc type is now the declared header fact read
-   *  through BoardView.readDocType). */
-  readonly #contract: Contract;
+   *  through BoardView.readDocType). Its instance carries the judgment strategies' own
+   *  state (the `single-home` right-domain corpus, per workspace root), so the command
+   *  boundary REBUILDS it: a corpus list carried across commands would answer from a
+   *  snapshot taken before this command's writes. */
+  #contract: Contract;
   /** The commander command tree — the declaration projection (CommandTreeBuilder,
    *  face/projection.ts): the domain-run error face's usage byte is the command
    *  node's commander-native helpInformation() first line (the self-built usage
@@ -448,16 +451,32 @@ export class Cli {
   async runArgv(raw: readonly string[]): Promise<number> {
     try {
       this.#exitCode = 0;
-      // One COMMAND, one index: the memo below serves a single invocation (its two
-      // call points — the command preamble and the scene — must read one snapshot),
-      // and the next invocation re-scans. A memo carried across commands would answer
-      // from a snapshot taken before the documents this command writes or observes.
-      this.#index.reset();
+      this.#beginCommand();
       await this.#program.parseAsync([...raw], { from: "user" });
       return this.#exitCode;
     } catch (err) {
       return this.#normalizeExit(err);
     }
+  }
+
+  /** The command boundary — the ONE invalidation point of every snapshot a command
+   *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
+   *  per-root memos (`#index` · `#audit` · the production pre-flight, whose closure port
+   *  closes over the audit) and the judgment instance's own right-domain corpus are
+   *  dropped here, so the next invocation re-scans. A memo carried across commands
+   *  would answer from a snapshot taken before the documents this command writes or
+   *  observes — the `✔ Done` cell of the judged document included.
+   *
+   *  The memos stay keyed on the repo root (one `Cli` may serve several fixtures), and
+   *  the invalidation lives here rather than in a `#...Root` companion every seam has
+   *  to remember to pair. */
+  #beginCommand(): void {
+    this.#index.reset();
+    this.#audit.reset();
+    this.#preflight.reset();
+    // The strategies hold their own state (the `single-home` corpus per root); a fresh
+    // judgment instance is the whole reset, and its construction reads no file.
+    this.#contract = new Contract();
   }
 
   /** The exit-code discriminator — the CommanderError surface (§3.1): the explicit

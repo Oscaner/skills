@@ -335,9 +335,20 @@ export class CliLifecycle {
     this.#pinAuditFactory = opts.pinAudit ?? null;
   }
 
-  /** The DispatchStep the lifecycle runs — one frame → the outcome. */
+  /** The DispatchStep the lifecycle runs — one frame → the outcome. The step boundary is
+   *  also the LOCK's boundary: every ending path below either releases the record (the
+   *  normal end) or deliberately keeps it as the postmortem fact (a dead child, a kill,
+   *  a timeout), and the second family must still drop the lock — the record is the
+   *  truth of "a dispatch is running", the lock is only mutual exclusion, and a handle
+   *  left behind in a long-lived process later stats a tree that is gone. */
   step(): DispatchStep {
-    return (frame) => this.#dispatch(frame);
+    return async (frame) => {
+      try {
+        return await this.#dispatch(frame);
+      } finally {
+        await this.#inflight.dropLock();
+      }
+    };
   }
 
   /** The `--recover` abort leg (spec §2.1①/§2.2) — take over a stale in-flight record

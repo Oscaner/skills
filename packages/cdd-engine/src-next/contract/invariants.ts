@@ -1834,11 +1834,15 @@ export class WaveWidthInvariant extends Invariant {
 const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows", "行", "处", "条"] as const;
 
 /** The `measure-literal` token grammar — an independent decimal integer, one space,
- *  one word of the closed unit set. "Independent" is the two lookarounds: a decimal's
+ *  one word of the closed unit set. "Independent" is the three lookarounds: a decimal's
  *  fractional part and the number inside a dotted id are not integers; "word" is the
- *  right lookahead, which also refuses a Chinese unit embedded in a longer compound. */
+ *  right lookahead, which also refuses a Chinese unit embedded in a longer compound;
+ *  and an integer behind `第` is not a count at all — `第 N 行` is the `line-coordinate`
+ *  row's own shape, and `行` is in the unit set, so without that lookbehind one
+ *  coordinate would be refused twice and the second refusal would blame "a bare
+ *  measurement" for it. One fact, one rule. */
 const MEASURE_LITERAL = new RegExp(
-  `(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
+  `(?<!第\\s{0,2})(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
   "g",
 );
 

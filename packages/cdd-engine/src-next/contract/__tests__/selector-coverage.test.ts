@@ -19,26 +19,9 @@ import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
 import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
 import { Projector } from "../project.ts";
-import { RULE_REGISTRY } from "../rules.ts";
 import { Translator } from "../translate.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
-
-/** The shape-gate rule ids the LEGACY charter's prose is exempt from — named explicitly,
- *  never derived from `skipWhenClosed`: a later row that shares the closed-document
- *  exemption must not join this exemption silently (the family read was a key that
- *  admitted any future row). The exemption is scoped to the one legacy corpus document
- *  the assertion below judges — the charter written before the shape gate existed — and
- *  it retires with the charter's own self-repair (the shape gate's acceptance arm owns
- *  the charter's shape-clean state, not this selector matrix). */
-const SHAPE_RULE_IDS: ReadonlySet<string> = new Set([
-  "measure-literal",
-  "line-coordinate",
-  "live-arithmetic",
-  "temporal-indicator",
-  "single-home",
-  "change-history-date-shape",
-]);
 
 /** The fixture document of one doc type — the repository's own doc, canonicalized
  *  through the same translation face the judgment plane applies. */
@@ -146,18 +129,7 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
   });
 
-  it("keeps every exempted shape id a declared row, so the list cannot rot quietly", () => {
-    // The exemption above is a NAME LIST, and a name that stops existing is the silent
-    // failure it exists to prevent: a renamed rule would drop out of the filter without
-    // a red arm, and the charter's prose would be judged by a row this file never
-    // intended to exempt.
-    const declared = new Set(RULE_REGISTRY.map((row) => row.id));
-    for (const id of SHAPE_RULE_IDS) {
-      expect(declared.has(id), `${id} is no longer a declared rule row`).toBe(true);
-    }
-  });
-
-  it("locates every overall table, then reads the charter's non-shape rules clean", () => {
+  it("locates every overall table, then reads the charter's rules clean", () => {
     const charter = path.join(
       REPO_ROOT,
       "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
@@ -206,9 +178,8 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(
       findings
         .filter((finding) => finding.kind !== "change-history-row-shape")
-        .filter((finding) => !SHAPE_RULE_IDS.has(finding.kind))
         .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
-      "the canonical charter's non-shape rules judge clean",
+      "the canonical charter's rules judge clean (its shape state is no longer exempt)",
     ).toEqual([]);
   });
 

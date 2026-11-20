@@ -12,8 +12,11 @@
 //
 // P28 T3 — the volatile-facts discipline: the narrative body names the three claim
 // shapes a spec may pin (a symbol, a census form, a condition) instead of accepting
-// today's shape, while the plan variant stays byte-frozen — a plan's `path:line` is a
-// delivery target, not a spec claim.
+// the tree as it stands, while the plan variant stays byte-frozen. The plan bytes keep
+// the PIN form — a colocated pin's `path:line` is what the read-back resolves — while a
+// plan's PROSE may carry none: `line-coordinate` declares `docKeys: "all"` and a plan's
+// `#### Steps` is a decision face, so a prose coordinate is refused there exactly as it
+// is in a spec.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -186,8 +189,9 @@ const SHAPE_RULE_IDS = [
 ] as const;
 
 /** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the
- *  spec variant only: a plan's `path:line` is the delivery target of a task, so
- *  banning it there buys nothing. */
+ *  spec variant only: the frozen bytes keep the pin form (`path:line` inside a colocated
+ *  pin, which is what the read-back resolves), and a plan's PROSE coordinate is refused
+ *  by the plan face's own decision-face rule instead of by this rubric's bytes. */
 const PLAN_GUIDE_PREFIX =
   "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ";
 

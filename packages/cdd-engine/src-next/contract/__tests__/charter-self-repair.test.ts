@@ -115,16 +115,18 @@ const REPAIRED_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
   ["## Constraints", [BACKFILL_POINTER, "- 面间派生单源：`next:` 派生恰住一处"]],
 ];
 
+/** The findings of one document's judgment over the fixture body. */
+const findingsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md") =>
+  new Contract().validate({
+    docKey: "overall",
+    path: path.join(REPO_ROOT, rel),
+    content: body,
+    root: REPO_ROOT,
+  });
+
 /** The kinds of one document's judgment over the fixture body. */
 const kindsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md"): string[] =>
-  new Contract()
-    .validate({
-      docKey: "overall",
-      path: path.join(REPO_ROOT, rel),
-      content: body,
-      root: REPO_ROOT,
-    })
-    .map((finding) => finding.kind);
+  findingsOf(body, rel).map((finding) => finding.kind);
 
 /** One kind's findings of the real charter — the AFTER-migration read. */
 const charterFindings = (docKey: DocKey = "overall") => {
@@ -175,6 +177,32 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
       charterBody(restated as readonly (readonly [string, readonly string[]])[]),
     );
     expect(kinds.filter((kind) => kind === "single-home").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("catches the copy that keeps ONLY the backfill family (one family, one arm)", () => {
+    // The arm above restores all three families at once, so it stays green while any ONE
+    // of them stops being read. This copy keeps the gate and release families as
+    // pointers and restates the backfill discipline alone: the four neighbours that hold
+    // that sentence are the refusal's own evidence, so a right domain that quietly
+    // dropped the family would redden here by name.
+    const backfillOnly = [
+      ...REPAIRED_SECTIONS.slice(0, 4),
+      ["## Constraints", [BACKFILL_CRITERION, "- 面间派生单源：`next:` 派生恰住一处"]] as const,
+    ];
+    const findings = findingsOf(
+      charterBody(backfillOnly as readonly (readonly [string, readonly string[]])[]),
+    );
+    const singleHome = findings.filter((finding) => finding.kind === "single-home");
+    expect(singleHome.length).toBeGreaterThanOrEqual(1);
+    for (const neighbour of ["p9-design", "p10-design", "tooling-p1.md", "tooling-p2.md"]) {
+      expect(
+        singleHome.some((finding) => finding.message.includes(neighbour)),
+        `the backfill family names its ${neighbour} holder`,
+      ).toBe(true);
+    }
+    // The two grammars stay silent — the refusal is the missing home, never a token.
+    expect(findings.filter((finding) => finding.kind === "temporal-indicator")).toHaveLength(0);
+    expect(findings.filter((finding) => finding.kind === "measure-literal")).toHaveLength(0);
   });
 });
 

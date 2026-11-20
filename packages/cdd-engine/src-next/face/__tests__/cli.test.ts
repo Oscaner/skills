@@ -12826,3 +12826,50 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P41 T5 — one command, one snapshot. Every per-root seam of the composition
+// root (the identity index · the pin audit · the production pre-flight) and the
+// judgment instance's own right-domain corpus are dropped at the command
+// boundary, so a second `runArgv` on ONE `Cli` answers from the tree it reads
+// then — never from the snapshot the first command took.
+// ---------------------------------------------------------------------------
+
+describe("P41 T5 — the command boundary drops every per-root snapshot", () => {
+  it("re-reads the closure cell on the next command of the same instance", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const charter = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
+      const charterBody = (done: boolean): string =>
+        [
+          "---",
+          "title: Fixture Charter",
+          "doc-type: overall",
+          "version: v1.0",
+          "date: 2026-11-20",
+          "slug: x-overall",
+          "---",
+          "",
+          "## Phase inventory",
+          "",
+          "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+          "| --- | --- | --- | --- | --- | --- | --- |",
+          `| P1 | design | scope | ${done ? "✔ Done（`s1-design.md` · 2026-11-20）" : "[Pending]"} | [Pending] | criteria |  |`,
+          "",
+        ].join("\n");
+      writeFileSync(charter, charterBody(true), "utf8");
+      const argv = ["review", "--type", "phase-spec", "--spec", spec, "--dry-run"];
+      expect(await command.runArgv(argv)).toBe(0);
+      expect(io.stderrText).toContain("measure-literal: skipped (closed document)");
+      writeFileSync(charter, charterBody(false), "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(argv)).toBe(0);
+      expect(io.stderrText).toContain("measure-literal: passed");
+      expect(io.stderrText).not.toContain("measure-literal: skipped (closed document)");
+    } finally {
+      cleanup();
+    }
+  });
+});

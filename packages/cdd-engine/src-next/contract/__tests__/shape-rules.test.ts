@@ -26,7 +26,8 @@ import { RULE_REGISTRY } from "../rules.ts";
  *  strategies on the same policy do (they must not touch the real tree). */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
 
-/** The four shape rows this file judges, plus the date row — all `warn` at landing. */
+/** The six shape rows this file judges — the four variable classes, `single-home` and
+ *  the date row — all `warn` at landing. */
 const SHAPE_RULE_IDS = [
   "measure-literal",
   "line-coordinate",
@@ -275,6 +276,13 @@ describe("P41 T2 — measure-literal: an independent integer beside a closed-set
   it("leaves the number inside a dotted id alone", () => {
     expect(measure("v1.2 rows 不是整数。")).toEqual([]);
   });
+
+  it("leaves a bare integer whose unit is outside the closed set (the exit arm)", () => {
+    // The closed unit set IS the grammar: a number that counts widgets is outside it,
+    // so the row judges nothing there. Without this arm, widening `MEASURE_UNITS` would
+    // refuse prose the criterion never named, and no test would say so.
+    expect(measure("本相位补了 42 widgets 的一档。")).toEqual([]);
+  });
 });
 
 describe("P41 T2 — line-coordinate: the three declared shapes", () => {
@@ -323,6 +331,15 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
     expect(findingsOf(recordDoc(["第 41 行 与 line 41"]), "line-coordinate")).toEqual([]);
   });
 
+  it("reports `第 N 行` once — the measurement grammar does not claim the coordinate's integer", () => {
+    // `第 N 行` is the coordinate's OWN shape, and `行` is also a measurement unit: an
+    // unnarrowed measurement read reports the same sentence a second time and blames "a
+    // bare measurement" for a coordinate. One fact, one rule.
+    const content = designDoc(["参照第 41 行。"]);
+    expect(findingsOf(content, "measure-literal")).toEqual([]);
+    expect(findingsOf(content, "line-coordinate")).toHaveLength(1);
+  });
+
   it("reports nothing inside `## Change history`'s own prose (the record face)", () => {
     // `## Change history` is the recorded face named by the brief, not a decision
     // section: the coordinate it carries is a record of what was measured, so it is
@@ -354,6 +371,12 @@ describe("P41 T2 — live-arithmetic: three glyphs, one verdict", () => {
       expect(findingsOf(designDoc([`差值口径：${line}`]), "live-arithmetic")).toHaveLength(1);
     },
   );
+
+  it("leaves the same difference restated as a condition (the restatement arm)", () => {
+    // The criterion bans an arithmetic over live counts, not the word "difference":
+    // restated as a condition that must hold, no arithmetic shape survives to judge.
+    expect(findingsOf(designDoc(["差值由某守卫维持。"]), "live-arithmetic")).toEqual([]);
+  });
 });
 
 describe("P41 T2 — temporal-indicator: the mount is a grammar", () => {
@@ -368,6 +391,13 @@ describe("P41 T2 — temporal-indicator: the mount is a grammar", () => {
   it("splits clauses at a doubled em dash only", () => {
     expect(temporal("豁免面仍为空——形面 `schema get` 已冻结。")).toEqual([]);
     expect(temporal("豁免面仍为空—形面 `schema get`。")).toHaveLength(1);
+  });
+
+  it("leaves the clause restated as a condition that must hold (the restatement arm)", () => {
+    // The symbol candidate survives the rewrite; the temporal word does not. This row
+    // refuses the MOUNT, not the symbol, so the condition sentence is silent — and the
+    // arm is what keeps a widened indicator set from refusing it.
+    expect(temporal("形面 `schema get` 的输出须涵盖该元素。")).toEqual([]);
   });
 });
 

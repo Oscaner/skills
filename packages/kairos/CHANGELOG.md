@@ -1,5 +1,11 @@
 # @oscaner-skills/kairos
 
+## 1.8.0
+
+### Minor Changes
+
+- [#507](https://github.com/Oscaner/skills/pull/507) [`638f4f9`](https://github.com/Oscaner/skills/commit/638f4f92413f0485784e0f44dca1b9f20adae06c) Thanks [@Oscaner](https://github.com/Oscaner)! - The `doc-contract` gate now refuses the claims a document cannot verify. Six rule rows land in `contract/rules.ts#RULE_REGISTRY` — `measure-literal` · `line-coordinate` · `live-arithmetic` · `temporal-indicator` (the four variable classes) · `single-home` (one criterion, one home) · `change-history-date-shape` — and they ship at `block`, so a hit refuses the round instead of annotating it. The `checked:` face gains the tiered words (`warned — <n> warning(s)`) and the two skips (`skipped (closed document)` · `skipped (no doc target)`), the refusal gains one `details` row naming a missing closure registration, findings gain the `evidence` key (`CDD_BLOCKED: evidence-missing:` is the one new refusal message), and the rulings sidecar gains `verdict` / `probe`. The claim-shape vocabulary the spec review rubric and the two authoring skills share now states a count only as `census:<id> = <n>`, the id taken from the census registry — naming the guard that maintains the value is the reason for the reference, not the form — and `cdd-plan`'s `author-plan` node carries the same three lines `cdd-spec-writer`'s `author-spec` node does. Closed documents are exempt from the six shape rows; every other rule keeps judging them. A `第 N 行` coordinate is refused by `line-coordinate` alone — `行` is also a measurement unit, so the count grammar steps off that shape rather than refusing one sentence twice.
+
 ## 1.7.0
 
 ### Minor Changes

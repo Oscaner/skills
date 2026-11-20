@@ -47,7 +47,8 @@ import {
   type RowStation,
 } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
-import type { Words } from "../face/words.ts";
+import type { RuleDeclaration } from "../contract/rules.ts";
+import type { CheckedWords, Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
@@ -445,14 +446,19 @@ export class PreFlight {
           // face) — a visible degradation, never a dispatch-time refusal.
           layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
         };
-        if (findings.length > 0) {
+        // The verdict is graded by the declaration's own severity (spec §1.3): a `warn`
+        // rule reports, a `block` rule refuses. The details list only the blocking
+        // findings — otherwise a refusal would put a warning beside a real stop and the
+        // reader would repair a line that was never the reason.
+        const blocking = findings.filter((finding) => finding.severity === "block");
+        if (blocking.length > 0) {
           return this.#refusal(
             {
               ok: false,
               gate: "doc-contract",
               reason: "doc-contract",
               message: this.#words.preflightWords().docContract,
-              details: findings.map(
+              details: blocking.map(
                 (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
               ),
             },
@@ -630,11 +636,11 @@ export class PreFlight {
           rows.push(`${declaration.id}: ${words.planLayersUnavailable}`);
         else
           rows.push(
-            `${declaration.id}: ${
-              doc.findings.some((finding) => finding.kind === declaration.id)
-                ? words.failed
-                : words.passed
-            }`,
+            `${declaration.id}: ${PreFlight.#docRowWordOf(
+              declaration,
+              doc.findings.filter((finding) => finding.kind === declaration.id).length,
+              words,
+            )}`,
           );
         continue;
       }
@@ -651,6 +657,23 @@ export class PreFlight {
       }
     }
     return rows;
+  }
+
+  /** One doc-scope rule row's word — the SAME grading the verdict uses, read from the
+   *  declaration's severity: a `warn` rule that reported reads `warned — <n> warning(s)`
+   *  and the dispatch proceeds, a `block` rule that reported reads `failed`. The two
+   *  words therefore cannot drift from the verdict, and a rule never reads `passed`
+   *  while it reported something. */
+  static #docRowWordOf(
+    declaration: RuleDeclaration,
+    hitCount: number,
+    words: CheckedWords,
+  ): string {
+    if (hitCount === 0) return words.passed;
+    if (declaration.scope === "doc" && declaration.severity === "warn") {
+      return words.warned.replace("{count}", String(hitCount));
+    }
+    return words.failed;
   }
 
   /** The ledger fact bundle of one dispatch — built from the ledger, the plan read

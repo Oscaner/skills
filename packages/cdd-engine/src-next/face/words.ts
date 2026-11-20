@@ -173,8 +173,12 @@ export interface CheckedWords {
   heading: string;
   /** The rule ran and found nothing. */
   passed: string;
-  /** The rule ran and reported findings. */
+  /** The rule ran and reported findings of a `block` rule — the dispatch is refused. */
   failed: string;
+  /** The rule ran and reported findings of a `warn` rule only — the dispatch proceeds.
+   *  The count is the number of findings for THAT rule, so the row states what it
+   *  judged without a second list (`warned — {count} warning(s)`). */
+  warned: string;
   /** A doc-scope rule on a dispatch with no doc target (wave / branch). */
   skippedNoDocTarget: string;
   /** A ledger-scope rule with no ledger fact bundle. */
@@ -289,6 +293,7 @@ export const CAPSULE_WORDS = {
     heading: "checked:",
     passed: "passed",
     failed: "failed",
+    warned: "warned — {count} warning(s)",
     skippedNoDocTarget: "skipped (no doc target)",
     skippedNoLedgerFacts: "skipped (no ledger facts)",
     skippedNotJudged: "skipped (not judged)",

@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -101,18 +101,18 @@ validate(input: ContractInput, closed = false): Finding[];   // 闭合时跳过 
 - `pins.guard.test.ts` 的 `CORPUS_SIZE` 复位到批后的语料文件数（取值 85），一对断言：语料文件数等于该常量 ⇒ 规模那一臂绿；把它改成批前的旧值 ⇒ 立即红 — checkable: 规模断言的期望值等于 `PinAudit.filesOf(corpusOf(root)).length` 的实测值（本步落地的取值即实测值）；该文件的零命中臂属窗口内预期红（见 `## Constraints`），不在此步判据内
 - 在 `contract/declare.ts` 把 `### 设计决策留存` 补成 facet 元素（`anchor: "### 设计决策留存"` · `presence: "optional"` · `valuePattern: "^### 设计决策留存"` · `home: "facet"` · `selector: SelectorSpec.heading("### 设计决策留存")`）— checkable: `schema get overall --output json` 的 `properties` 多出该键、`shape` 的 facet 组多一条、`slices` 多一行，且 `--output skeleton` 的字节不变（`git diff` 对该命令输出为空）；同批的既有用例随该元素收紧——`declare.test.ts` 的算术行与两张 overall 快照一起改，`pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿
 - 写 `FaceMap.ROWS`：从 `ElementRegistry` 里筛「锚以 `## ` · `### ` · `#### ` 起头」的元素，每行带该元素的 `headingMatch`（由其 `valuePattern` 编译；无 `valuePattern` 时取 `selector` 的标题判法；两者都无则不进 `ROWS`，由 `gaps()` 报出来，故没有元素能按 `anchor` 字面解析），按 §1.4 的逐 docKey 表给角色；四个 docKey 各一组 — checkable: `FaceMap.gaps()` 返回空数组；成对反证——拿掉任一域内元素的角色 ⇒ `gaps()` 非空
-- 写 `FaceMap.roleOf` 的解析规则：标题归一后按 `headingMatch` 逐行比，自身命中最内层的注册元素即取它的角色；自身不命中时收第三个可选参数 `ancestors`（标题栈，最内层在前）随最近的注册祖先继承（`### N.` 与 `#### N.M` 随 `## Design`）——不按 `anchor` 的字面比，也不起第二张名单 — checkable: 一对夹具——`### Task 1: 面图` 经 `### Task N:` 元素的 `valuePattern` 解析出角色、`### 1. 形状面` 与其下的 `#### 1.1 面图是声明` 随 `## Design` 读 `decision`；把解析面换成 `anchor` 字面比 ⇒ 三条都读 `unmapped`；语料一臂——四级子标题 `#### 7.5.1` 自带读 `unmapped`，带上祖先栈（`### 7.` · `## Design`）读 `decision`，祖先栈里也没有注册节时仍读 `unmapped`
+- 写 `FaceMap.roleOf` 的解析规则：标题归一后按 `headingMatch` 逐行比，自身命中最内层的注册元素即取它的角色；自身不命中时收第三个可选参数 `ancestors`（标题栈，最内层在前）随最近的注册祖先继承（`### N.` 与 `#### N.M` 随 `## Design`）——不按 `anchor` 的字面比，也不起第二张名单 — checkable: 一对夹具——`### Task 1: 面图` 经 `### Task N:` 元素的 `valuePattern` 解析出角色、`### 1. 形状面` 与其下的 `#### 1.1 面图是声明` 随 `## Design` 读 `decision`；把解析面换成 `anchor` 字面比 ⇒ 三条都读 `unmapped`；语料一臂——四级子标题 `#### 7.5.1` 自带读 `unmapped`，带上祖先栈（`### 7.` · `## Design`）读 `decision`，祖先栈里也没有注册节时读作缺口
 - 写 `faces.guard.test.ts` 第一对用例：一份 phase-spec 夹具，同一行 `第 41 行` 只放 `## Change history` ⇒ `FaceMap.roleOf` 返回 `"record"`；同一行搬进 `## Design` ⇒ 返回 `"decision"` — checkable: 两条断言同时通过
 - 写第二对：把所有列表条目与 token 类锚（`Constraint delta bullet` · `Task id token`）从 `FaceMap.ROWS` 里剔除后 `gaps()` 为空——证明它们随所在节继承角色，不需要第二张名单 — checkable: 断言 `ROWS` 里不存在 `anchor` 以 `- ` 起头的行，且 `gaps()` 为空
 - 写第三对（overall docKey）：带后缀的标题 `### 设计决策留存（2026-10-10 —— 元层裁定 + 注册）` 经该元素的**前缀式 `valuePattern`** 解析出 `"registration"`，`## Constraints` 下的同一行读 `"decision"` — checkable: 两条断言同时通过；把该元素的 `valuePattern` 换成 `anchor` 字面比 ⇒ 第一臂读 `"unmapped"`
 - 既有读法的随动：`judge.test.ts` 里 `Contract.policy()` 的 `.name` 改读 `binding.strategy.name`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新 — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit -p .` 通过；`pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿（该命令下的四处随动文件即本步的坐标）
 - `contract/rules.ts` 的 `RuleDeclaration` 两份 scope 增 `severity` 与 `skipWhenClosed`，既有二十六行（doc 面与 ledger 面各一组）一律 `"block"` 与 `false` — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 通过；`rules-severity.test.ts` 按一份**既有二十六行的显式名册**断言档位全为 `block`、闭合豁免全为 `false`（名册外的行不在这一臂的判据里，故后续任务新增或翻位规则行不改它）；ledger 面的两行同读
 - `contract/invariants.ts` 把 `Finding` 拆成 `FindingDraft` 与 `Finding`：`Invariant#finding` · `LedgerRuleBase#finding` 返回草稿，既有子类的局部数组随基类返回型机械改型 — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 通过；`rules-severity.test.ts` 的草稿臂——一个测试策略经基类 `finding()` 交出的对象不带 `severity` 键
-- `contract/judge.ts`：`Contract.policy` 收可注入的注册表（默认 `RULE_REGISTRY`）并返回「声明 + 策略」的成对行；`Contract.stamped` 是已声明规则的唯一盖章点（`doc-syntax` 那条由 `#syntaxFinding` 自己盖，是这一句点名的例外）；`Contract.validate` 收 `closed = false`，闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的一条按既有阻断语义盖 `"block"`；注册表落在实例上，`ruleRows()` 与 ledger 面的 `#ledgerFindings` 同读它 — checkable: `rules-severity.test.ts` 第二对在**注入的注册表**上成立——一条 `severity: "warn"` 的测试规则命中时 `findings[0].severity === "warn"`，把该声明的档位改成 `block` 后同读 `block`（夹具不碰任何真实行，故 Task 8 的翻位不改它）；一份语法面夹具读 `block`；注入注册表的实例 `ruleRows()` 只回注入的那一行，无参构造仍回 `RULE_REGISTRY`
+- `contract/judge.ts`：`Contract.policy` 收可注入的注册表（默认 `RULE_REGISTRY`）并返回「声明 + 策略」的成对行；`Contract.stamped` 是已声明规则的唯一盖章点（`doc-syntax` 那条由 `#syntaxFinding` 自己盖，是这一句点名的例外）；`Contract.validate` 收 `closed = false`，闭合时跳过 `skipWhenClosed` 的行；`#syntaxFinding` 的一条按既有阻断语义盖 `"block"`；注册表落在实例上，`ruleRows()` 与 ledger 面的 `#ledgerFindings` 同读它 — checkable: `rules-severity.test.ts` 第二对在**注入的注册表**上成立——一条 `severity: "warn"` 的测试规则命中时 `findings[0].severity === "warn"`，把该声明的档位改成 `block` 后同读 `block`（夹具不碰任何真实行，故 Task 8 的翻位不改它）；一份语法面夹具读 `block`；注入注册表的实例 `ruleRows()` 只回注入的那一行，无参构造回到默认注册表
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
-`FaceMap.gaps()` 在四个 docKey 上为空，且缺口可被成对反证（拿掉一个域内元素的角色即非空）；解析面是元素的 `valuePattern`/`selector` 而非 `anchor` 字面——`### Task N:` · `### N.` · `#### N.M` 与带后缀的 `### 设计决策留存（…）` 都解析出角色（各有一对夹具，换成字面比即读 `unmapped`），无 `valuePattern` 也无标题判法的元素不进 `ROWS` 而落进 `gaps()`；自身不命中的标题随祖先栈里最近的注册祖先继承（`#### 7.5.1` 一臂），祖先栈里没有注册节时仍读 `unmapped`；面图对同一行文案在两个节里给出两个角色（成对），overall 上 `## Constraints` 与登记面各一角色（成对）；`ROWS` 里没有以 `- ` 起头的 anchor，故列表条目与 token 类锚没有第二张名单；`schema get overall` 的 json 面三条投影各增一条（`properties` · `shape` 的 facet 组 · `slices`），`--output skeleton` 的字节逐字节相同；策略交出的是 `FindingDraft`（无 `severity` 键），`Finding.severity` 只由 `Contract.stamped` 盖，且政策可注入——一条 `warn` 测试规则在注入注册表上读 `warn`、声明改 `block` 后读 `block`，语法面的一条按既有阻断语义盖 `block`；`Contract.stamped` 的独占性只对已声明规则成立——`doc-syntax` 由 `#syntaxFinding` 自盖；注入的注册表就是 `ruleRows()` 报告的同一份（判定面与 `checked:` 面同源），既有二十六行按显式名册读 `block` 与 `false`；`CORPUS_SIZE` 等于批后语料文件数；既有 `Contract.policy()` 读法改读 `binding.strategy.name` 与契约实例的 `ruleRows()`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新。
+`FaceMap.gaps()` 在四个 docKey 上为空，且缺口可被成对反证（拿掉一个域内元素的角色即非空）；解析面是元素的 `valuePattern`/`selector` 而非 `anchor` 字面——`### Task N:` · `### N.` · `#### N.M` 与带后缀的 `### 设计决策留存（…）` 都解析出角色（各有一对夹具，换成字面比即读 `unmapped`），无 `valuePattern` 也无标题判法的元素不进 `ROWS` 而落进 `gaps()`；自身不命中的标题随祖先栈里最近的注册祖先继承（`#### 7.5.1` 一臂），祖先栈里没有注册节时读作缺口；面图对同一行文案在两个节里给出两个角色（成对），overall 上 `## Constraints` 与登记面各一角色（成对）；`ROWS` 里没有以 `- ` 起头的 anchor，故列表条目与 token 类锚没有第二张名单；`schema get overall` 的 json 面三条投影各增一条（`properties` · `shape` 的 facet 组 · `slices`），`--output skeleton` 的字节逐字节相同；策略交出的是 `FindingDraft`（无 `severity` 键），`Finding.severity` 只由 `Contract.stamped` 盖，且政策可注入——一条 `warn` 测试规则在注入注册表上读 `warn`、声明改 `block` 后读 `block`，语法面的一条按既有阻断语义盖 `block`；`Contract.stamped` 的独占性只对已声明规则成立——`doc-syntax` 由 `#syntaxFinding` 自盖；注入的注册表就是 `ruleRows()` 报告的同一份（判定面与 `checked:` 面同源），既有二十六行按显式名册读 `block` 与 `false`；`CORPUS_SIZE` 等于批后语料文件数；既有 `Contract.policy()` 读法改读 `binding.strategy.name` 与契约实例的 `ruleRows()`，`declare.test.ts` 的算术行与两张 overall 快照随那个 facet 元素同批更新。
 
 #### DependsOn
 none
@@ -131,7 +131,7 @@ none
 - Create: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
 
 #### Consumes
-- `FaceMap.roleOf`（Task 1）——规则只扫 `decision` 面
+- `FaceMap.roleOf`（Task 1）——规则只扫 `decision` 面，第三个参数收散文扫描器的标题栈（最内层在前，故交入时把入栈序翻一次）
 - `CensusGate` / `CensusTable`（既有，`contract/census.ts`）——`measure-literal` 的合法形态判定
 - `PinSpans`（既有，`contract/pins.ts`）——围栏跳过这一处定义的持有者；本任务给它加一条围栏感知的散文行读 `proseOf(text)`，`ProseLines` 在它上面取行，不新起第二份判法
 - 行源 `#rowSource`（既有，`contract/judge.ts`）——正文的唯一来处；`ProseLines.of` 的实参就是它交出的那段正文（经 `JudgeContext.text` 到位），与 `tree` 同一批归一字节
@@ -158,12 +158,12 @@ export class TemporalIndicatorInvariant extends Invariant { readonly name = "tem
 - `line-coordinate` 文法：`第 N 行` · `line N` · 路径后接 `:N` — checkable: 三种形态各报一条 finding，`kind` 均为 `line-coordinate`
 - `live-arithmetic` 文法：整数、可选空格、运算符（`−` U+2212 · `-` ASCII · `–` en dash 三者同判）、可选空格、整数、`=`、整数 — checkable: 三份只差运算符字形的夹具各报一次
 - `temporal-indicator` 文法：闭集 `today` · `currently` · `今天` · `今日` · `仍`，所在分句（按 `，` · `；` · `。` · `·` · `——` 切）里须有符号候选（一个行内代码段，或一个带 `/` `.` `#` 的裸词元）；分句切分只认双写的 `——`，单写的一个 `—` 不是分隔符（`—+` 那种宽松读法不作数） — checkable: 一对反证——`豁免面清单仍为空` 零报，`` 今日形面 `schema get` `` 报
-- 四条规则只扫 `FaceMap.roleOf(...) === "decision"` 的行，`unmapped` 也交一条 finding（缺口即判词） — checkable: 把一条违规放进 `## Change history` 零报，放进 `## Design` 报
+- 四条规则只扫 `FaceMap.roleOf` 判作 `decision` 的行：散文扫描器沿行推进时维护标题栈（入栈序即最外层在前），交给第三个参数的是 `[...ancestors].reverse()`（最内层在前），故 `### 7.` 下的 `#### 7.5.1` 随最近的注册祖先继承角色；`unmapped` 也交一条 finding（缺口即判词） — checkable: 把一条违规放进 `## Change history` 零报，放进 `## Design` 报；继承臂——`FaceMap.roleOf` 对 `### 7. 某节` 与它下面的 `#### 7.5.1 某条` 都回 `decision`（P15 · P21 语料里的既有形状），故那两行里的一条 `line-coordinate` 违例，其 `kind` 读 `line-coordinate`；成对反证——把调用退回两参形态（不交标题栈）⇒ `#### 7.5.1` 那一行改读缺口判词、`kind` 不再是 `line-coordinate`
 - overall docKey 的成对臂：一行 `第 41 行` 只放 `## Constraints` ⇒ `line-coordinate` 报一条；同一行搬进 `### 设计决策留存（2026-10-10 —— 元层裁定 + 注册）` ⇒ 零报（登记面不判） — checkable: 两条断言同时通过，且登记面那条不以 `unmapped` 落判
 - 提交 — checkable: 四条规则行在 `RULE_REGISTRY` 里出现，且各带 `severity: "warn"` 与 `skipWhenClosed: true`
 
 #### Acceptance
-四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；围栏跳过只有一处定义（`PinSpans#proseOf`），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿。
+四类各有一条报与一条不报的成对；`measure-literal` 对 `census` 引用零报、对占位形态与中文数词零报、对小数与带点编号里的数字零报（左边界成对）；`live-arithmetic` 三字形同判；`temporal-indicator` 的孤立副词零报而挂符号的报，分句切分只认双写的 `——`（单写的一个 `—` 不切分句）；四条规则都只扫判据面（记录面与登记面零报，overall 上 `## Constraints` 报而登记面零报——成对）；继承面同判——`### 7.` 下的 `#### 7.5.1` 判作 `decision`、违例的 `kind` 是规则自己的名字（成对：不交标题栈即落缺口判词，`kind` 不再是那个名字）；围栏跳过只有一处定义（`PinSpans#proseOf`），`ProseLines` 不持有第二份；扫描面是行源交出的正文（`ctx.text`）——front-matter 头里带测量字面与坐标 ⇒ 零报（成对：同一串搬进判据面 ⇒ 报）；全量 `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 绿。
 
 #### DependsOn
 1
@@ -247,7 +247,7 @@ export class SingleHomeInvariant extends Invariant { readonly name = "single-hom
 把档位与范围落到消费者能读的地方：规则行按档位渲染（`passed` · `failed` · `warned — <n> warning(s)` · `skipped (closed document)` · `skipped (no doc target)`）；`doc-contract` 的 `details` 只列 block 命中；闭合读 `contract/pins.ts#ForwardPaths` 已解析的那份 Phase inventory（两个命名格任一 `✔ Done` 点名本文件即闭合），并向形状门暴露同一个读数；没有总体时拒绝里多一条 `details` 行直说「无可用的闭合登记」。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DocOutcome` 的 `judged` 增 `closed`；`#ruleRows` 按声明渲染——`skipWhenClosed` 且 `closed` ⇒ `skipped (closed document)`，其余行按档位；拒绝判词改成「存在 block 命中」；`doc-contract` 拒绝的 `details` 过滤到 block；无总体时追加那条 `details` 行——触发键是门内已建的那份 `SlugIndex`（`entries` 里有一项 `docType` 为 `overall` 即登记可用），门只多一次列表读、不另列一次语料，也不经端口；构造面增一个单方法的闭合端口 `provenClosed` 与一张可注入的规则行表 `ruleRows`——后者缺省读 `Contract.ruleRows()`，渲染臂由此注入一张带 `warn` 行的表，不要求真实注册表里留着 warn 行，也不给 `Contract` 加第二个注册表面）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DocOutcome` 的 `judged` 增 `closed`；`#ruleRows` 按声明渲染——`skipWhenClosed` 且 `closed` ⇒ `skipped (closed document)`，其余行按档位；拒绝判词改成「存在 block 命中」；`doc-contract` 拒绝的 `details` 过滤到 block；无总体时追加那条 `details` 行——触发键是门内已建的那份 `SlugIndex`（`entries` 里有一项 `docType` 为 `overall` 即登记可用），门只多一次列表读、不另列一次语料，也不经端口；构造面增一个单方法的闭合端口 `provenClosed?: (rel: string) => boolean` 与一张可注入的规则行表 `ruleRows?: readonly RuleDeclaration[]`——两者的缺省形态同处声明：端口缺省 `() => false`（没有真实访问器时没有任何文档算「已证明闭合」，故未供端口的构造站点零改动，`session/__tests__/plan-read-consistency.test.ts` 不进本任务的改动面；组装点恒供端口，缺省值只服务不判闭合的构造站点）；行表缺省读 `Contract.ruleRows()`，渲染臂由此注入一张带 `warn` 行的表，不要求真实注册表里留着 warn 行，也不给 `Contract` 加第二个注册表面）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（`checkedWords()` 增 `warned` 与 `skippedClosedDocument` 两个词）
 - Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`ForwardPaths` 暴露 `provenClosed(rel)`：两个命名格任一 `✔ Done` 且 `basename` 恰一份命中 ⇒ 闭合；`PinAudit` 上一条同名访问器把它交出去——形状门不自己 new 一个 `ForwardPaths`，也不新起第二份材料）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（组装点持那条按首次使用构造的审计访问器——`PinAudit` 的一次派发唯一构造处，并把同一个访问器交给 `PreFlight`（闭合端口）与 `CliLifecycle`（`contract.path` 回读）：一次 review 派发的形状门与回读落在同一份审计上，wave 与 branch 派发一次语料扫描都不付；`PreFlight` 只收访问器、不自己 new，而 `vet` 跑在 `#lifecycleOf` 之前，读数在那一刻已可取）
@@ -278,7 +278,9 @@ type DocOutcome =
 provenClosed(rel: string): boolean;             // 两个命名格同判；零命中与多命中都不算闭合
 // 闭合端口只有这一个方法：审计由组装点按首次使用构造，形状门与 contract.path 回读共用同一份
 // 「登记可用」不是端口的一条读法——门在自己建的那份 SlugIndex 的 entries 上判（零份总体即那条 details 行的唯一触发）
-// 构造面另收一张行表：ruleRows?: readonly RuleDeclaration[] —— 缺省读 Contract.ruleRows() 的既有读数
+// 构造面另收两个可缺省项：闭合端口 provenClosed?: (rel: string) => boolean —— 缺省 () => false
+// （无访问器即无文档被证明闭合，故未供端口的构造站点不欠编辑）；行表
+// ruleRows?: readonly RuleDeclaration[] —— 缺省读 Contract.ruleRows() 的既有读数
 ```
 
 #### Steps
@@ -293,7 +295,7 @@ provenClosed(rel: string): boolean;             // 两个命名格同判；零�
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance
-五档渲染各有一对（`passed` · `failed` · `warned` · `skipped (closed document)` · `skipped (no doc target)`）；后两档字节与既有形态一致的档（`passed` · `failed` · `skipped (no doc target)`）逐字节不变；拒绝判词成对可核（只有 warn 命中 ⇒ 不拒，含 block 命中 ⇒ 拒一次）；闭合只豁免带 `skipWhenClosed` 的六行（成对：闭合夹具上的非形状违例照拒，未闭合副本里六行照判）；`details` 只列 block；无总体那条 `details` 行读门内那份 `SlugIndex` 的 `entries`，出现条件收窄成立（有总体时不出现，与 `provenClosed` 的假值不混形）；`provenClosed` 的两格同判与「恰一份命中」都有反证；两条计数臂相反相成——无文档目标的派发不构造审计，带 `contract.path` 的 review 派发只构造一份（形状门与回读共用同一实例）；无格点名的 single-spec 照判（成对：格点名后六条形状行读 `skipped (closed document)`、其余行照判）；五条档位臂建在构造面注入的 `ruleRows` 上（含那条 `warn` 行），翻位之后仍绿。
+五档渲染各有一对（`passed` · `failed` · `warned` · `skipped (closed document)` · `skipped (no doc target)`）；后两档字节与既有形态一致的档（`passed` · `failed` · `skipped (no doc target)`）逐字节不变；拒绝判词成对可核（只有 warn 命中 ⇒ 不拒，含 block 命中 ⇒ 拒一次）；闭合只豁免带 `skipWhenClosed` 的六行（成对：闭合夹具上的非形状违例照拒，未闭合副本里六行照判）；`details` 只列 block；无总体那条 `details` 行读门内那份 `SlugIndex` 的 `entries`，出现条件收窄成立（有总体时不出现，与 `provenClosed` 的假值不混形）；`provenClosed` 的两格同判与「恰一份命中」都有反证；两条计数臂相反相成——无文档目标的派发不构造审计，带 `contract.path` 的 review 派发只构造一份（形状门与回读共用同一实例）；无格点名的 single-spec 照判（成对：格点名后六条形状行读 `skipped (closed document)`、其余行照判）；五条档位臂建在构造面注入的 `ruleRows` 上（含那条 `warn` 行），翻位之后仍绿；构造面的两项都可缺省（端口缺省读「无文档被证明闭合」、行表缺省读 `Contract.ruleRows()`），故未供这两项的构造站点（`session/__tests__/plan-read-consistency.test.ts` 那一臂）不欠编辑、本任务的 `tsc --noEmit` 也不因它变红。
 
 #### DependsOn
 2, 3, 4
@@ -432,6 +434,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.6 | 2026-11-20 | 第五轮评审回填（plan fix 5）：① 本文件自身的三处时序措辞退到无符号分句——`## Constraints` 声明的「无挂符号的时序指示词」现由本文件满足（祖先栈的空读法写作「读作缺口」、无参构造写作「回到默认注册表」）；② Task 2 的散文扫描步骤补标题栈——扫描器把 `[...ancestors].reverse()` 交给 `FaceMap.roleOf` 的第三个参数，并补继承臂（`### 7.` 下的 `#### 7.5.1` 判作 `decision`）与两参形态的反证；③ Task 5 的构造面两项都声明缺省形态——闭合端口 `provenClosed?` 缺省 `() => false`（未供端口的构造站点零改动），行表 `ruleRows?` 缺省读 `Contract.ruleRows()`。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.5 | 2026-11-20 | 第四轮评审回填（plan fix 4）：① Task 6 的单判据句改写，分句切分口径钉在双写 `——` 上——Task 2 的文法声明与 Acceptance 补同一条读法（单写的一个 `—` 不切分句）；② 三处计数钉住的用例入册：`rules.test.ts` 随 Task 2 · 3 · 4 各改一次（批后终态 `toHaveLength(32)` · `30` · `2`），`preflight.test.ts` 的两处与 `cli.test.ts` 的一处随 Task 5 改到 `30`；③ `selector-coverage.test.ts` 的两处元素总数随 Task 1 的 facet 元素加一（`expect(total).toBe(112)`）；④ `handoff-schema.test.ts` 入 Task 6 的测试面，并点名两条带 `criterion` 的 `toEqual` 与一条混合载荷臂；⑤ 闭合端口收成单方法 `provenClosed`——「登记可用」由门读自己那份 `SlugIndex` 回答，审计的唯一构造处上移到组装点 `face/cli.ts`，`PreFlight` 与 `CliLifecycle` 收同一个访问器；⑥ 渲染面多一张可注入的规则行表（`PreFlight` 构造面的 `ruleRows`），五条档位成对臂建在它上面，翻位不改。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.4 | 2026-11-20 | 第三轮评审回填（plan fix 3）：① Task 8 的 changeset 记两层——`@oscaner-skills/cdd-engine` 与 `@oscaner-skills/kairos` 各 minor，两个 skill 节点是交付的 kairos 一半（`.changeset/README.md` 对 `packages/kairos/` 的改动同样要求 changeset），Acceptance 与 Objective 同改；② 扫描面的输入点名为 `JudgeContext.text`（行源交出的正文，YAML 头不在其中），`contract/judge.ts` 入 Task 2 与 Task 4 的改动面，并补 front-matter 臂（头里的测量字面与坐标零报）；③ Task 1 的改动面补 `judge.test.ts` · `declare.test.ts` 与两张 overall 快照，`.name` 改读 `binding.strategy.name`；④ `GradingViolation` 增 `criterion` 判别键，`#gradingRefusal` 按词分组逐段渲染并补混合轮臂；⑤ 闭合读数的构造处收在 `face/lifecycle.ts` 的记忆化访问器上（`face/lifecycle.ts` 入 Task 5 的改动面），并补 review 派发的计数臂；⑥ 闭合端口增 `closureProvable()`，无总体那条 `details` 行有了唯一触发键；⑦ `roleOf` 的第二个参数改名 `heading`；⑧ 「唯一盖章点」限定为已声明规则。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.3 | 2026-11-20 | 第二轮评审回填（plan fix 2）：① 闭合范围收窄到六条形状行——`RuleDeclaration` 增 `skipWhenClosed`，`DocOutcome` 不加 `closed-document` 类（`judged` 增 `closed`），`#ruleRows` 只对带旗标的行读 `skipped (closed document)`，并补一条闭合夹具上非形状违例照拒的成对臂；② 面图的解析面写成元素的 `valuePattern`/`selector` 加继承规则，补 `### Task 1:` 与 `### N.`/`#### N.M` 的夹具；③ 补 overall docKey 的成对臂（`## Constraints` 报、带后缀的 `### 设计决策留存（…）` 零报）；④ `PinSpans` 长一条围栏感知的散文行读 `proseOf` 并进 Task 2 的改动面；⑤ 档位改由草稿与盖章两形分离——`FindingDraft` 归策略、`Finding` 由 `Contract.stamped` 盖，`policy` 收可注入注册表，`warn` 夹具不碰真实行；⑥ 闭合端口点名 `PinAudit#provenClosed` 并要求按首次使用解析；⑦ 测量字面补左边界（小数与带点编号）的夹具；⑧ Task 6 删去 `census.guard.test.ts` 的「无关」改动行，改为核对说明。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |

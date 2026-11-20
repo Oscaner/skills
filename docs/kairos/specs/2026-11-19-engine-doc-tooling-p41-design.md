@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.19
+version: v0.20
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -166,6 +166,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.20 | 2026-11-20 | **closeout：交付记录**。四组判据全部落地并各自过成对用例：形状门六行 · 证据面（含语料面 `criteria.rows` 与四行引用）· 一份住所（含工作项不进域与散文下界两条域收窄）· 消费面（五档渲染 · 三处说明书 · 两包 changeset）。本相位给自己的章程做的自修是同一批交付：五节条件句 + 两族指针，三族齐零由 `cdd review --type overall` 实测为零拒绝 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.19 | 2026-11-20 | 第十二轮评审回填（fix 12）：① **跳过词汇不再数词**（F1）——§1.3 的两处计数与 §4 的「两个原因两个词」同批撤掉：跳过词汇的唯一住所是 `face/words.ts#CheckedWords`，§4 只声明闭合文档那一行是**追加**、既有 skip 行一字不动，成员数目不再由散文保管（否则下一个新词又把两处计数拉成两个答案）。② **`skipped (not judged)` 补上验收臂**（F2）——§1.3 与 §4 都登记了这条消费面字节，而「范围按生命周期」只写了闭合与无文档目标两支；补第三支：plan 夹具在 `doc-contract` 之前的门上被拒 ⇒ 六行全读 `skipped (not judged)`，成对的那半过门后读 `passed` / `failed`，故该词的回归必红，不再无主。③ **逐字对读臂补上住户**（F3）——§4 与验收两处把手写对读的住户写成 `packages/kairos/tests/claim-shapes.test.ts`（期望常量 `CLAIM_SHAPES` · 两节点逐行相等），并撤掉挂在标题面用例上的悬垂括注「（那个用例不数段落）」。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 12） |
 | v0.18 | 2026-11-20 | 分支评审回填（branch fix 1）：① **章程的写手收成一个**（F6）——§1.4 · §3.2 · §4 三处原本写「章程的写入由编排者执行」，而本相位的 plan 把章程登记在章程自修任务的 `#### Files` 面、交付史里也是那次派发写的；三处同批改成「章程的写入落在该任务的改动面上，未登记章程的 fix 轮不写它」，两次写手并存正是 v4.46 记下的版本号撞车 | [human] · Claude Opus 5（kairos:cdd-dev · branch-fix） |
 | v0.17 | 2026-11-20 | 第十一轮评审回填（fix 11）：① **narrative 的姊妹许可一并撤回**（F1）——`line-coordinate` 声明 `docKeys: "all"`，plan 的 `#### Steps` 一类判据面同判，故「`path:line` 引用归 plan」与 `author-plan` 的 `Citations` 一条是同一句许可的两个半句；三处住户（两个 skill 节点与 rubric）同批改成「plan 拥有的是工作项（`- Modify: <path>`），不是坐标」，`author-plan` 的 `Citations` 随之改口，`packages/kairos/tests/claim-shapes.test.ts` 的期望串与 `render/templates.ts#docNarrativeAxes` 同批；既有锚 `belongs to the plan` 改挂在工作项那一半上，仍是 rubric 的一处稳定子串。② **plan 面补上缺的载具**（F1）——`contract/__tests__/shape-rules.test.ts` 只建 `phase-spec` 与 `overall` 两种载体，plan 面一条用例都没有；补一对：`#### Steps` 里的散文 `path:line` 报一次，行内代码段与工作项零拒绝。③ **章程自修登记第三族**（F2）——§1.4 的「两处实账」改成三处，回填纪律（章程的 `## Boundary rules` 与 `## Constraints`）指向 P9 design 的 `## Constraints`，§4 的交付面随之读「三处指针」，验收臂补一对（只恢复该族 ⇒ 四处命中）。④ **rubric 的关系按实情重写**（F3）——它与两个节点同措辞、差别在形态，撤掉「不抄引文 · 同判据不同形」的误述，反向对读因此读作整条守卫而不是半条。P28 章程行的验收格记的是当日交付的 grep 断言，已闭合相位的验收记录不在此列。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 11） |

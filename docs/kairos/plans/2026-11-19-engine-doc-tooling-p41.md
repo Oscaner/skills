@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.17
+version: v0.18
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -476,6 +476,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.18 | 2026-11-20 | **delivery record**：八个任务四波全部交付，每波走实现 → 波评审 → 修复链；分支终审一轮八条全修（其中一条修掉了上一相位登记为「不属其交付面」的锁竞态 teardown）。波次结构按注册形态落地：W1 面图与档位基座 + 证据面 · W2 四条规则 + 日期行 + 一份住所 · W3 渲染与范围 + 章程自修 · W4 说明书与翻位 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.17 | 2026-11-20 | 第十三轮评审回填（plan fix 13）：① **三条零臂落地**（F1）——Task 2 的 `measure-literal` 步多一条出集零臂（`42 widgets`）、`live-arithmetic` 步与 `temporal-indicator` 步各多一条重述零臂（差值与时序句改成必须成立的条件），Acceptance 的「四类各有一对」因此对四类都为真，不再只有三类；② **两形按已落地的形状声明**（F2）——`#### Produces` 与 Files 行把标题栈走读从 `ProseFace` 里分出来，`ProseWalk` 与判框都不导出，`SingleHomeInvariant` 同读那条走读，`ProseFace.gaps` 的单一调用点因此是模块内部事实；③ **facet 元素的三个投影按面拆开**（F3）——`properties` 读 json 面、facet 组读 `project.shape.overall.snap`、`slices` 读 `project.test.ts` 的派生等式，该命令不再替另两面作证。Task id 集与 `DependsOn` 集未动。正文按本文件自己要落的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.16 | 2026-11-20 | 第十二轮评审回填（plan fix 12）：① **Task 8 的 claim shape 面追上 spec v0.17**（F1）——`#### Produces` 的 narrative 一条换成 spec §4 的同一段字节（plan 拥有的是工作项，不是一句散文 `path:line`，点名 `temporal-indicator` · `line-coordinate` 两行），`templates.test.ts` 的第三条锚 `belongs to the plan` 改挂到工作项那一半，`docNarrativeAxes` 那一行同时认领 narrative 一句，`cdd-plan` 的 `Citations` 一条入 Files 与第二步且其字节有 checkable 对读。② **`PreflightWords.closureUnavailable` 有了声明与逐字句子**（F2）——Task 5 的 `words.ts` 行转成第三个词、Objective 与推送那一步引 spec 的整句，checkable 两条成对断言以该词本身对读。③ **缺口的上报行点名**（F3）——Task 2 声明 `ProseFace.gaps` 的唯一调用点与「一条缺口恰一条 finding、其余三条文法零 finding」的臂。④ **plan 面自带载具**（F4）——Task 2 的坐标臂补一份 `#### Steps` 夹具（散文 `path:line` 报，行内代码段与工作项零报）。Task id 集与 `DependsOn` 集未动。正文按本文件自己要落的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.15 | 2026-11-20 | **W8 wave 评审回填（fix 1）**：① **narrative 一条撤回「快照归 plan」的许可**（F2）——`temporal-indicator` 声明 `docKeys: "all"`，故「现在时叙述归 plan」是一句被它自己点名的规则行拒绝的许可；`#### Produces` 的引文改成「两个文档一律不许快照：`path:line` 引用归 plan，必须成立的条件归 spec」，两个 skill 节点与本任务 §4 引文同批；既有三条锚一字不动。② **rubric 的反向对读落地**（F1）——`templates.test.ts` 补一条：`REVIEWS.spec.axesGuide` 不含子弹行、不含四条规则行 id，本任务 Files 行随之登记。正文按本文件自己要落的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-fix 1） |

@@ -1,7 +1,7 @@
 ---
 title: '文档声明的机检面 — Phase Spec'
 doc-type: phase-spec
-version: v0.15
+version: v0.16
 date: 2026-11-20
 slug: '2026-11-19-engine-doc-tooling-p41-design'
 program: 2026-10-10-engine-doc-tooling
@@ -124,7 +124,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 ```
 - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
 - **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form
-- **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)
+- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: the `path:line` citation belongs to the plan, the condition that must hold to the spec; restate such a description as that condition (`temporal-indicator`)
 ```
 
 - 新增：`CDD_BLOCKED: evidence-missing:` 一种拒绝报文；finding 的 `evidence` 嵌套键是它的输入面。
@@ -165,6 +165,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q17 落�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.16 | 2026-11-20 | **W8 wave 评审回填（fix 1）**：① **narrative 一条撤回「快照归 plan」的许可**（F2）——`temporal-indicator` 声明 `docKeys: "all"`，plan 的 `#### Steps` 一类判据面同判，故「现在时叙述归 plan」是一句被它自己点名的规则行拒绝的许可；三处住户同批改成「两个文档一律不许快照：`path:line` 引用归 plan，必须成立的条件归 spec」，`claim-shapes.test.ts` 的期望串与本段引文随之；既有三条锚一字不动（`belongs to the plan` 改挂在引用那一半上，仍是 rubric 里的一处稳定子串）。② **rubric 的反向对读落地**（F1）——`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 补一条：`REVIEWS.spec.axesGuide` 不含以 `- **` 起头的子弹行、不含四条规则行 id，预置一份复制的 skill 块即红。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-fix 1） |
 | v0.15 | 2026-11-20 | 第十轮评审回填（fix 10）：① **rubric 那一处的守卫改成它真正守的东西**（F1）——验收臂写明既有锚只守三个 claim shape 各一条稳定子串与更早的三条、不读行形状，并把「无 `- **pin** —` 子弹行 · 无规则行 id」这半条登记成同批新增的反向对读（`packages/cdd-engine/src-next/render/__tests__/templates.test.ts` 对 `render/templates.ts#docNarrativeAxes`）；预置一份复制的 skill 块即红。② **§3.1 的两个数各补一处取值住所**（F2）——阈值住 `contract/invariants.ts#SentenceIndex.THRESHOLD`、散文长度下界住 `contract/invariants.ts#SentenceIndex.MIN_LENGTH`，本节写出的两个数只是这两个常量的读法。③ **§1.3 的挡门括号补 `plan-ledger`**（F3）——它在 `doc-contract` 之前一格，plan 派发经它拒绝时六行照读 `skipped (not judged)`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 10） |
 | v0.14 | 2026-11-20 | 第九轮评审回填（fix 9）：① **无总体时那条 `details` 行改成引真字节**（F1）——§1.4 · §4 · 验收臂三处撤掉原先登记的中文句子，改成 `face/words.ts#PreflightWords.closureUnavailable` 的整句，并点名唯一推送点 `session/preflight.ts#PreFlight#vet`；那串中文在引擎与 kairos 源码里零命中，v0.4 行 ③ 的点名因此按本行更正：那条行的字节是英文整句，不是一个中文标签。② **claim shape 的三处住户改成两种关系**（F2）——两个 skill 节点逐字同文，rubric 是散文轴承载同一组判据（无 `- **pin** —` 子弹行、无规则行 id、不抄引文），逐字臂只守那两个节点；v0.13 行 ② 的「同一组三行」按本行更正：rubric 与那两个节点不同文。③ **面图缺口指定上报行**（F3）——§1.1 写明缺口只报一次、只由族内第一条声明行 `measure-literal` 报（`contract/invariants.ts#ProseFace.gaps` 的唯一调用点），验收臂写明一条缺口恰一条 finding。④ **第四档补进消费面**（F4）——文档面在 `doc-contract` 之前被挡时六行读 `skipped (not judged)`（`face/words.ts#CheckedWords.skippedNotJudged`），§1.3 与 §4 同改，`skipped` 的三个原因列成三个词（闭合 · 无文档目标 · 未判）。⑤ **标题面的守卫补路径 pin**（F5）——`packages/kairos/tests/skill-anatomy.test.ts`。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · docs-fix 9） |
 | v0.13 | 2026-11-20 | **消费面收口（本相位最后一批）**：① **六条规则行翻成 `block`**——warn 只是本相位内的过渡值，翻位之后 `RULE_REGISTRY` 里没有一条声明 warn（`rules-severity.test.ts` 的终态断言守着）；② **claim shape 的第三处住户**——`render/templates.ts#docNarrativeAxes` 与两个 skill 节点并列，同一组三行，count 只认 `census:<id> = <n>`（id 取自 census 登记表），「点名维持该值的守卫或测试」不再是合法形态，doc comment 与正文同批改口；`templates.test.ts` 的第二条锚随之重锚为 `census registry`；③ **两处说明书逐字对齐**——`cdd-spec-writer` 的 `author-spec` 与 `cdd-plan` 的 `author-plan` 各三条、逐字相同、各点名其规则行；④ **章程 P28 行重锚登记**——验收格里第二条子串从 `pinned by the named guard` 换成 `census registry`，并写明由本相位重锚；⑤ **changeset 两层 minor**——六条规则行 · 五档渲染词 · 一条 `details` 行 · `evidence` 键 · 侧车两键 · 一种拒绝报文。正文按本相位自己的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-implement） |

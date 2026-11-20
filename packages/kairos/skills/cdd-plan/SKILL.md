@@ -49,7 +49,7 @@ flowchart TD
   - **Citations** — citations stay in the plan: a task's `path:line` is a delivery target the implementer re-derives each round, so leave it here and never carry it into the spec.
   - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
   - **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form
-  - **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)
+  - **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: the `path:line` citation belongs to the plan, the condition that must hold to the spec; restate such a description as that condition (`temporal-indicator`)
 - **Read**: approved spec + `backfill-design` output + the plan's structural contract (the same structure fact the review reads)
 - **Exit**: File written → `self-review`
 - **Fail**: Schema read fails or the draft plan is unusable → BLOCKED (missing plan input)

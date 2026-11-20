@@ -1,7 +1,7 @@
 ---
 title: 'P41 · 文档声明的机检面：形状门 + 证据面 + 一份住所'
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-11-20
 slug: 2026-11-19-engine-doc-tooling-p41-design
 base: develop
@@ -412,7 +412,7 @@ none
 - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（`author-spec` 的三行 claim shape）
 - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（`author-plan` 的同一组三行）
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（`docNarrativeAxes` 的 count 一形改成只认 `census:<id> = <n>`——id 取自 census 登记表，新措辞沿用 claim shape 的 count 一条（`a count is stated only as census:<id> = <n>, the id taken from the census registry`），「点名维持该值的守卫或测试」不再是合法形态，而 `measure-literal` 拒的正是它；该函数的 doc comment 里把散文计数称作 `the guard's business` 那一句与同一括号里把计数称作 `a guarded count` 的那一处同批改口，计数改称 census 形态的名字——正文与注释要一起动，只改正文等于让注释继续教旧形态。这是三种 claim shape 的第三个住户，也是 spec 评审 prompt 的唯一来源；它的住户登记由本任务的 spec 行承担）
-- Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`（`VOLATILE_FACT_ANCHORS` 的第二条稳定子串从 `pinned by the named guard` 换成新措辞里的 `census registry`，与上一条同一批落地；锚仍是三条、一条守一种 shape，`keeps every other narrative anchor` 那条与 plan 变体字节冻结那条零改动）
+- Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`（`VOLATILE_FACT_ANCHORS` 的第二条稳定子串从 `pinned by the named guard` 换成新措辞里的 `census registry`，与上一条同一批落地；锚仍是三条、一条守一种 shape，`keeps every other narrative anchor` 那条与 plan 变体字节冻结那条零改动；同批落地 spec §4 · 验收臂登记的反向对读——`REVIEWS.spec.axesGuide` 不含以 `- **` 起头的子弹行、不含四条规则行 id（`line-coordinate` · `measure-literal` · `live-arithmetic` · `temporal-indicator`），预置一份复制 skill 块的形态即红；第三条锚 `belongs to the plan` 不动，它守的是 narrative 一句里「`path:line` 引用归 plan」那一半）
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`（六条新行的 `severity` 翻成 `"block"`）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`（六条形状行的档位断言随翻位改口：`expect(row.severity, id).toBe("warn")` 的期望值改成 `block`，`it` 标题里的档位字面同改成 `block`，`describe` 标题按改口后断言的事重写（`the six shape rows carry` 起头，落 `block` 与 `skip a closed document` 两处字面，`land as warn` 那半句删掉），文件头那句 `all warn at landing` 一字不动——`at landing` 就是这段历史，标题说事实、注释记登记面，两者不再拆台；`skipWhenClosed` 那一臂一字不动。漏了这一行，本任务的 `pnpm run validate` 不可能 exit 0——该文件此前的波次里只以 `Create:` 与 `Test:` 出现，翻位之后那条断言即红）
 - Create: `.changeset/p41-doc-shape-gate.md`（两个包键，档位同为 `minor`）
@@ -432,7 +432,7 @@ none
 # 两个节点逐字照抄、不另造（spec §4 的同一段引文）
 - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
 - **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form
-- **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)
+- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: the `path:line` citation belongs to the plan, the condition that must hold to the spec; restate such a description as that condition (`temporal-indicator`)
 ```
 ```ts
 // rules-severity.test.ts 的终态断言
@@ -460,6 +460,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.15 | 2026-11-20 | **W8 wave 评审回填（fix 1）**：① **narrative 一条撤回「快照归 plan」的许可**（F2）——`temporal-indicator` 声明 `docKeys: "all"`，故「现在时叙述归 plan」是一句被它自己点名的规则行拒绝的许可；`#### Produces` 的引文改成「两个文档一律不许快照：`path:line` 引用归 plan，必须成立的条件归 spec」，两个 skill 节点与本任务 §4 引文同批；既有三条锚一字不动。② **rubric 的反向对读落地**（F1）——`templates.test.ts` 补一条：`REVIEWS.spec.axesGuide` 不含子弹行、不含四条规则行 id，本任务 Files 行随之登记。正文按本文件自己要落的规则书写 | [human] · Claude Opus 5（kairos:cdd-dev · tasks-8-fix 1） |
 | v0.14 | 2026-11-20 | 第十一轮评审回填（plan fix 11）：① **重锚拿到登记面**（F1）——Task 8 增重锚登记步与章程 Files 行：`## Phase inventory` 的 P28 行验收格第二条子串换成 `census registry`、另两条与既有三个 pin 不重锚，章程历史记一行、版本同批 bump；② **第三个住户的登记有了主**（F2）——spec §4 的 claim-shape 住户名单补进 `render/templates.ts` 的 `docNarrativeAxes`（与两个 skill 节点并列、同一组三行、计数只认 `census:<id> = <n>`），spec 历史记一行、版本同批 bump，「登记归设计面、不在改动面」的悬空处置撤掉；③ **注释随正文一起改**（F3）——`a guarded count` 与 `the guard's business` 同批改口，那一步的 checkable 同时断言注释行。Task id 集与 `DependsOn` 集未动。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.13 | 2026-11-20 | 第十轮评审回填（plan fix 10）：① **spec 评审 rubric 补进 Task 8 的改动面**（F1）——`render/templates.ts` 的 `docNarrativeAxes` 与承它的 `templates.test.ts` 锚同批改口：计数只认 `census:<id> = <n>`，「点名维持该值的守卫或测试」不再是合法形态，doc comment 里那句同批改口；三个 claim shape 的住户对同一句话给同一个答案，第三个住户的登记归设计面；② **changeset 那一步换成会红的判据**（F2）——checkable 改读 `pnpm exec changeset status`（点错包名即红），`version-sync` 交回全量门；③ **翻位那一步的标题口径统一**（F3）——`describe` 按改口后的事实重写、`it` 只换档位字面，文件头 `at landing` 留作历史。Task id 集与 `DependsOn` 集未动。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |
 | v0.12 | 2026-11-20 | 第九轮评审回填（plan fix 9）：① **渲染面只留一条注册表**（F1）——Task 5 的构造面撤掉 `ruleRows?`，五条档位臂与 `skipped (closed document)` 臂改经既有的 `contract` 项注入测试注册表（`new Contract(testRegistry)`）：盖章的档位与渲染读的 `Contract.ruleRows()` 因此是同一条清单，某行重排档位时两侧一起动、不可能只红一处；Files · Consumes · Produces · Steps · Acceptance 与 Task 8 的翻位步同批改口，「一处定义」在 `session/` 面同样成立。正文按本相位自己的规则书写 | [human] · Claude（kairos:cdd-plan · docs-fix） |

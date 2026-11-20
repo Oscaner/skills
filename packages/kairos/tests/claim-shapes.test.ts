@@ -31,11 +31,12 @@ const PLAN_SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 const CLAIM_SHAPES = [
   "- **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)",
   "- **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form",
-  "- **narrative** — a present-tense description of the tree as it stands belongs to the plan; restate it as the condition that must hold (`temporal-indicator`)",
+  "- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: the `path:line` citation belongs to the plan, the condition that must hold to the spec; restate such a description as that condition (`temporal-indicator`)",
 ] as const;
 
-/** The four rule rows the three lines point at — the count line names three of them
- *  (`measure-literal` · `live-arithmetic` beside the legal `census:` form). */
+/** The four rule rows the three lines point at — the count line names two of them
+ *  (`measure-literal` · `live-arithmetic`), beside the legal `census:<id> = <n>` form
+ *  whose id lives in the census registry rather than in a rule id. */
 const NAMED_RULE_IDS = [
   "line-coordinate",
   "measure-literal",
@@ -44,7 +45,11 @@ const NAMED_RULE_IDS = [
 ] as const;
 
 /** The node's segment — from its own H3 heading to the next H3/H2 marker, so a sibling
- *  node's or a table's wording can never satisfy a pin this node must carry itself. */
+ *  node's or a table's wording can never satisfy a pin this node must carry itself.
+ *  `skill-anatomy.test.ts#nodeBlocks` walks the same heading grammar and is deliberately
+ *  not shared: that walker hands back `name` + block for the anatomy registry, this one
+ *  hands back one named segment, so a common helper would need a shape neither suite
+ *  reads. */
 const nodeText = (file: string, name: string): string => {
   const text = readFileSync(file, "utf8");
   const start = text.indexOf(`### \`${name}\``);

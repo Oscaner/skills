@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.20
+version: v0.21
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -137,6 +137,16 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **数字的红落在「第二个家」而不是数字本身（留指针）**：契约数字（阈值、比值、包体基线）应当只住一处并被文档引用，观测数字只进交付记录；`census:<id> = <n>` 是这条取向里最典型的一类。作者侧的这条约定属独立立项。
 
 
+### 9. 符号 pin 的文件归位
+
+`contract/pins.ts#PinIndex` 的符号表是全树并集，`path#Symbol` 的路径部分只用于识别「这是不是一枚 pin」，不参与解析——一枚写着错文件的 pin 与一枚路径压根不存在的 pin 都能通过，而 `PinShape` 认的 `path` 形状又只覆盖不带 `#` 的那一半。
+
+- **索引按文件分区**：符号表改成「文件 → 该文件里声明或出现的名字」，判据查的是**解析到的那个文件**的集合，不是全树的并集。
+- **成员形态要认得**：pin 的主体是 `path#Class.member` 与 `path#member`，故一个名字算「在那个文件里」的条件是它以声明形态出现（类、接口、类型、常量、函数、枚举，或类体里的方法与字段），不是「文中出现过这个词」——按词出现算是把注释里的提及当成坐标。
+- **迁移归本相位**：改成文件归位之后，语料里路径对而符号在别处的 pin 会一次性变红；它们逐条改到正确的文件，改法与判据同批落地——不留「门已经严了、语料还红着」的中间态。
+- **报文与档位不变**：仍是一条 `pin` 形状的 finding，档位与既有的 `pins.guard` 一致；变的是它现在真的校验了路径。
+
+
 ### Acceptance criteria
 
 - `session/ledger.ts#FindingSeverity` 与 `contract/review-criteria.ts#CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值——成对：同一份载体把该值改 `warn` ⇒ 接受。
@@ -179,6 +189,9 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 - `contract/invariants.ts` 的新顺序判据（id `change-history-newest-last`，`doc` 档）：把章程历史表的最新行挪走一位（不再是末行）⇒ 该规则恰一条；同一份表格恢复原序 ⇒ 零拒绝（成对：只改一行的位置）。候选臂：一份没有 `## Change history` 表的文档 ⇒ 候选 0 且零 finding（成对：同一份文档写一张表、最新行不在末尾 ⇒ 恰一条）。登记面同批：`contract/rules.ts#RULE_REGISTRY` 加这一行后 `contract/__tests__/rules.test.ts` 的行数断言读 36（34 doc + 2 ledger），`## Constraints` 的 warn 起步清单四条，翻 `block` 后 pin 断言为真；`contract/rules.ts` 头部「Version ORDER stays presentation」一句同批改成本相位之后的读法（注释与注册表不能各说一句）。同一形状上，`packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 里那条位置断言退休，而它对引擎的调用仍在。
 
+- `contract/pins.ts#PinIndex` 的文件归位：一枚路径可解析、符号住在**别的**文件里的 pin ⇒ 报一条；同一枚把路径改成符号真正所在的那份文件 ⇒ 零拒绝（成对：只改路径这一段）。
+- 成员形态：`path#Class.member` 与 `path#member` 两种写法在符号确实住在该文件时都零拒绝（成对：把成员名改成一个只在该文件的注释里出现过的词 ⇒ 照报）。
+
 ## Constraints
 
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
@@ -192,6 +205,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.21 | 2026-11-20 | 编排者回填（用户裁定：已知债务不交付消费者）：§8 的符号 pin 盲区由指针改为本相位交付，新增 §9——符号表按文件分区、成员形态纳入判据、迁移同批，两条成对臂 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.20 | 2026-11-21 | 评审第 14 轮回填（一条 blocker · 三条 warn · 一条 nit 全数采纳）：顺序面只留一读——顺序断言搬进引擎的 `change-history-newest-last`（`doc` 档 · `warn` 起步 · 末任务翻 `block`），§6 与验收里「行序无判据」与「两态同读零 finding」两句换成同一条规则的读数（最新行在旧行之上而表头版本等于最大 ⇒ 版本对账零 finding、顺序判据恰一条）· §3.2 与 `rules.test.ts` 的行数由三条改四条（34 doc + 2 ledger = 36），`## Constraints` 的 warn 清单四条、例外登记由九处扩到十处（⑩ 新增顺序判据）、§1.1 的合计由八处改为十处· §5 新增 ⑧ 与 ⑭ 把这条规则登记进 P42 行并同批收窄 scope ⑤ 的「删」· 归位组改写成条件、去掉对树上 `v4.54` 位置的此刻描述，归约的钉改成 `contract/invariants.ts#Invariant.historyVersions` | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.18 | 2026-11-21 | 评审第 13 轮回填（六条 warn · 两条 nit 全数采纳）：§8 的计数与表述收口——标题与开篇从「两处收口」改成一条修（比值被读成坐标）加两条指针，坐标改点名 `contract/invariants.ts#LINE_COORDINATES` 的第三条 · 符号 pin 的子弹改写真实现状（载体半是判过的 · 成员半全树查、从不进载体 · 裸 `symbol` 无路径），删掉「路径不存在也通过」那半句 · §5 新增一组把 §8 登记成 P42 行 ⑦ 与验收 ⑬（章程 `## Maintenance` 要求相邻缺口同样回填追加）· §5 的验收格组改成它真正欠的那一处改动（⑧ 的括注从「选择器永不匹配」换成候选读数形，D98 ① 同批加收窄注），⑨ 与 scope ⑤ 已登记、一字不改 · §7 的差分删掉「按 `kind@field` 分组比条数」这条与同句禁令相冲的替代读法 · `## Constraints` 的例外登记由八处扩到九处，守恒句写成实际成立的条件（`4.5:1` 一类的拒绝被收回） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.17 | 2026-11-20 | 编排者回填（github#506 第三条评论 · 用户裁定）：新增 §8 形状面两处收口——比值误判的修法（要求冒号前含字母）与两条不修的指针（符号 pin 不校验路径 · 数字的红落在第二个家） | Oscaner M. · Claude（kairos:cdd-design） |

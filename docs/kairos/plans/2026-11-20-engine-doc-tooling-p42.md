@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -10,7 +10,7 @@ base: develop
 ## Constraints
 
 - 三条新规则行先以告警档上线，Task 8 的末步把它们的档位抬到阻断；那条「没有一条规则停在告警档」的断言到那时成立，此前不成立是登记在案的过渡态。
-- **波次即依赖层**：每一层是声明的 `DependsOn` 边的闭包——无依赖的任务在第 1 层，其余每个任务的依赖全部落在前面某层，层宽不超过三个；按声明的边当前分层是 `{1,4,10}` → `{2,3,5}` → `{6,8,9}` → `{7}`（Task 8 的边只到 Task 5，故它与 Task 6 · Task 9 同层；Task 7 等 Task 6，落在末层）。末层是 Task 7，全量门的收口因此归它；Task 10 无依赖——它只要既有的 `doc-contract` 腿与门自己测得的 findings 那一格，与档位词表的落法无关。
+- **波次即依赖层**：每一层是声明的 `DependsOn` 边的闭包——无依赖的任务在第 1 层，其余每个任务的依赖全部落在前面某层，层宽不超过三个；按声明的边当前分层是 `{1,4,10}` → `{2,3,5}` → `{6,8,9}` → `{7,11}`（Task 8 的边只到 Task 5，故它与 Task 6 · Task 9 同层；Task 7 等 Task 6；Task 11 等 Task 9——两笔改同一份守卫文件，先后有序）。末层是 Task 7，全量门的收口因此归它；Task 10 无依赖——它只要既有的 `doc-contract` 腿与门自己测得的 findings 那一格，与档位词表的落法无关。
 - **一处定义**：档位词表只住 `contract/review-criteria.ts#CRITERIA_ROWS` 与 `session/ledger.ts#FindingSeverity` 各一处；`Files` 行的文法只住 `contract/task-blocks.ts`；`face/` 不新起第二份清单。
 - **读侧与写侧分开**：写入面收两档，读回面对存量载体的 `nit` 保持可读（投影成三值联合，见 spec §1.1）。这不是豁免层——它是一条边界归一，由成对用例钉住两个方向。
 - **对外字节**：这一刀的破坏面被 spec §1.1 逐处点名，每一处都走 changeset minor；`next:` 行与退出码这两样不在其中，改动它们需要单独的理由。
@@ -437,10 +437,47 @@ none
 #### DependsOn
 none
 
+### Task 11: 符号 pin 的文件归位
+
+#### Objective
+让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员形态（`Class.member` 与裸成员）算在内。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区；符号判据认成员形态）
+- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（写错文件的 pin 改到正确的那份）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p8.md`
+- Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p8-design.md`
+- Modify: `docs/kairos/specs/2026-11-20-engine-doc-tooling-p42-design.md`
+- Test: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
+
+#### Consumes
+- `contract/pins.ts#PinIndex` 的既有解析面与 `PinAudit` 的三处判定点
+- Task 9 清完之后的那份 `pins.guard.test.ts`（语料规模常量已不在，惰性臂已在）
+- 语料里现有的 `path#Symbol` pin
+
+#### Produces
+- 按文件分区的符号集
+- 成员形态的符号判据
+- 语料里零条「路径对而符号在别处」的 pin
+
+#### Steps
+- 符号表按文件分区 — checkable: 一枚路径可解析、符号住在别的文件里的 pin ⇒ 报一条；同一枚把路径改到符号真正所在的文件 ⇒ 零拒绝（成对：只改路径）
+- 成员形态纳入判据 — checkable: `path#Class.member` 与 `path#member` 在符号确实住该文件时都零拒绝（成对：成员名换成只在该文件注释里出现过的词 ⇒ 照报）
+- 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；把任一处改回错的路径 ⇒ 红
+- 提交 — checkable: `git log -1 --format=%s` 以 `fix(p42):` 起头
+
+#### Acceptance
+一枚 pin 说「这个文件里的这个符号」，引擎就真的去那份文件里找；写成别的文件时它红，而报文形状与档位不变。
+
+#### DependsOn
+9
+
+
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.14 | 2026-11-20 | 编排者回填（用户裁定）：新增 Task 11「符号 pin 的文件归位」——`PinIndex` 按文件分区 + 成员形态 + 语料同批迁移；等 Task 9（同一份守卫文件） | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.13 | 2026-11-20 | 编排者回填（D98 实施细则）：Task 9 加一步——把「末行是最新版本」这条自验断言搬成引擎的顺序不变量，而非删除 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.12 | 2026-11-21 | 评审第 8 轮回填（两条 blocker · 两条 warn 全数采纳）：Task 10 把组合根接线接进 Files 行并补两步——`face/cli.ts` 的 `preflight.gate` 交出已批准的判决（`ok ? null : preflight` 让基准在生产里恒空），`CliLifecycle` 的构造接到根上那一个 `Contract`，同批补一条走生产构造的基准臂 · Constraints 的窗口次序写定层内顺序（`{6,8,9}` 里 Task 8 翻位先落、Task 9 删除后落），故 Task 9 与 Task 7 头上的绿有据 · Task 4 把比值臂与 pin 极性臂的读数落点接进 Files 行（`shape-rules.test.ts` 的 `P41 T2 — line-coordinate` 家族 · `pins.guard.test.ts`）· Task 6 的发布面步钉住孪生 pin 的两侧（新 pattern 单串点名 `warn` 与 `REVIEW_FIX`，六处 `warn/nit` 换成点名「只 warn」的整句，弱成 `/warn/i` 不算达成） · Task 7 的第 8 组改成末行核对（`v4.54` 的移动已由既有提交落地） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.11 | 2026-11-21 | 评审第 7 轮回填（一条 blocker · 四条 warn 全数采纳）：Task 10 按 spec §7 重写——座位改到 `face/lifecycle.ts#verdictOf` 的 graded entry 面（与 `#structureViolations` 同一趟），基准改成门测得的 findings（`PreFlightVerdict` 增一格加 `OpenFrame` 一格），`不提交` / `不出提交` / `照常提交` 三处换成「不到下一跳」的读法，多重集差按 `kind@field@message` 的整身份并补同标题替换臂与基准非空臂，`session/run.ts` 进 Files 行（帧格加 `PlanStructure` 注释读两个判定点） · Task 9 收下 `judge.test.ts` 的合成表顺序臂（两种排法同读零 finding，成对臂是表头版本低于表内最大版本） · Task 7 的组数由五组改成 spec §5 的八组并逐组点名 · Task 8 的 changeset 步补 §8 的 ⑨ 收回那一句，Task 4 的比值步补退出码改动的单独理由 · Constraints 的 Task 10 基准读法同批改 | Oscaner M. · Claude（kairos:cdd-fix） |

@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.34
+version: v0.35
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -135,6 +135,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 - **座位是规则声明的一列（新增）**：判据在三个位置生效——派发门 `session/preflight.ts`、收口 `face/lifecycle.ts#verdictOf`、语料守卫 `*.guard.test.ts`。`contract/rules.ts` 的声明行加 `seat`，取值是闭集 `dispatch` · `close` · `corpus` · `ledger` 的**非空子集**（多值，一行写下它生效的每一个座位）。**没有 `close` 专属的那一族**：§7 的收口腿跑的是同一张 `contract/judge.ts#Contract.validate`，§6 的语料守卫也跑它，故注册表里每一行 doc 面规则三处都生效、一律声明 `dispatch` · `close` · `corpus` 三值——把既有行写成只 `dispatch`、再把「收口那一族」声明成 `close`，会让收口腿看起来不判任何既有规则（与 §7 相反），而那一族并不存在。**ledger 面的两行占闭集里的第四格**：`closed-wave-fits-depends-on-layers` 与 `planned-tasks-vs-recorded-tasks` 只在 `session/preflight.ts` 的 `plan-ledger` 门经 `contract/judge.ts#Contract.validateLedger` 生效，从不进 `validate` 的 doc 面、也不进任何语料守卫——原有三格没有一格描述它们，故闭集补 `ledger` 一格，两行各声明恰好这一个值；把 `dispatch` 与 `close` 也盖到它们头上是一条假声明，下一任读者会照它去派发门找这两条规则。**谁读它、错了什么红**：读它的是 `contract/__tests__/rules.test.ts` 新增的一组断言加上那张**逐 id 的字面表**（从注册表抄一次、此后靠漂移变红，与 `contract/__tests__/rules-severity.test.ts` 钉 `PRE_GATE_DOC_IDS` / `PRE_GATE_LEDGER_IDS` 是同一形；不每次从注册表现算——现算就是拿注册表跟它自己对账，那一格永远绿。常量名随实现命名、不在本文钉字面：钉一个尚不存在的符号就是给交付树留一枚死 pin）。那张表按 §3.2 的新分值取全集：三十四条 doc 行（含六条形状行）各写 `dispatch` · `close` · `corpus` 三格、两条 ledger 行各写 `ledger` 一格，共三十六行——六条形状行与两条 ledger 行**都在表内**，不靠「本节的逐行清单」这只不存在的清单。断言三条：每个取值落在闭集内（表外值即红）· doc 行三格齐而 ledger 行恰一格 `ledger`（多一格或少一格即红）· 注册表与那张字面表逐 id 逐格相等（漂移即红）。**它不是过滤器**：三处消费者跑整张注册表、不看这一格，故一格写错不会让哪条规则静默跳过，只会让那条对账用例红。加这一列不是新层：它与既有的 `scope` 与 `severity` 是同一份声明的第三列。
 - **读数门的窄域是设计，不是缺口（撤回加宽）**：`measure-literal` 只认阿拉伯数字配八词闭集。曾计划把域加宽到「数词 + 量词」，实测撤回：中文里「一条判据」「两处修改」是普通量词用法，与读数不可区分，加宽会把整片正常散文判成违例——英文的闭集成立，是因为英文散文里「阿拉伯数字 + tests」罕见。故这门只抓**无歧义**的形态；中文读数的收法在作者侧（不写读数）与 `census:<id> = <n>` 的约定里，不在文法里。
+- **`temporal-indicator` 整条退出（撤，不是收窄）**：两段真实会话里它拦下数十次，全是语气词与状态句的措辞，零个真问题；而真正腐坏的读数一句都不含它。同一份文档里 `## Change history` 的同一个字放行——判据判的是字形，不是「这句是不是陈述了会腐坏的状态」。故整条撤：规则行、它的类与词表、四处引用它的夹具、「三族齐零」那条断言、两个 skill 的 narrative 子弹里对它的点名，同批改。`MEASURE_UNITS` 同时收窄到英文五值——中文三值（`行` · `处` · `条`）拦到的是文档内计数，不是树上的读数。防腐蚀由三条在位的东西承担：`census:<id> = <n>`（读数的唯一真判据）· 评审 · 「命名即实测」。
 - **比值被读成坐标（修）**：`contract/invariants.ts#LINE_COORDINATES` 的第三条（`path:line` 那一形）把 `4.5:1` 逐段读成 `path:line`——`4` 吃前缀、`.` 吃点号、`5` 吃扩展名、`1` 吃行号。修法是要求冒号前至少含一个字母：文件名的必要条件，而小数比值没有。成对臂：`4.5:1` · `2.25:1` · `1.5:1` 三种比值一律通过，`cli.ts:41` 与 `contract/declare.ts:12` 照报——三项都带小数点、修前各报一条，故三枚探针同向；`3:1` 不带点、修前就已经通过，作探针两态同绿，不取。
 - **符号 pin 的成员半归 §9（本相位交付，不是指针）**：`contract/pins.ts#PinAudit` 的 `symbol` 形状分两半判。**载体半是判过的**：载体解析不出来就报一条 `its carrier … resolves nowhere in the tree`（报文中段是该 pin 写的载体路径），歧义与行号范围同批判——载体解析不出来的成员 pin 报一条，报文点名那个载体。实例给在围栏里、正文不写：本 spec 自己就在 pin 语料里（`corpusOf` 含 `docs/kairos`），一行内代码段就是一整枚活坐标，写进来就是给语料守卫留一条死 pin——围栏是示例代码，`PinSpans.tokensOf` 只读围栏外的行内代码段：
 
@@ -206,6 +207,10 @@ no/such/dir/missing.ts#PinAudit  ⇒  its carrier `no/such/dir/missing.ts` resol
 
 - `contract/invariants.ts` 的读数门保持窄域：`一行` · `二处` 这类中文量词短语 ⇒ 零拒绝（成对：同一份夹具里 `42 arrived` 一类阿拉伯数字配闭集单位 ⇒ 报）；这条臂同时是加宽方案的否决证据。
 
+- 规则注册表里 `temporal-indicator` 零命中，`contract/rules.ts` 的行数注释与实际行数相等；`MEASURE_UNITS` 的取值集恰为英文五值。
+- 一份决策面夹具带 `仍` 与 `今天` ⇒ `doc-contract` 零拒绝（成对：同一份夹具里英文闭集单位配数字照报）。
+- 两个 skill 的 narrative 子弹不再点名 `temporal-indicator`，而 `line-coordinate` 的比值例外保留在册。
+
 ## Constraints
 
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
@@ -219,6 +224,7 @@ no/such/dir/missing.ts#PinAudit  ⇒  its carrier `no/such/dir/missing.ts` resol
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.35 | 2026-11-20 | 编排者回填（用户裁定）：`temporal-indicator` 整条退出，`MEASURE_UNITS` 收窄到英文五值——两段会话拦下数十次零个真问题，而真正腐坏的读数不含它 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.34 | 2026-11-21 | 评审第 23 轮回填（一条 warn · 一条 nit 全数采纳）：§3.1 的行内方言语料句子撤掉两个分值（原写「九十一行分布在十二份 plan 上，第四类的十一行在第十三份 `p4` 上」）——两个数在树上都复现不出来（行内动词形与冒号形的文档集并不构成「十二份 plan + 第十三份 `p4`」），而 §6 与 §9 都要求正文不写未登记的分值；正文因此只留条件「每一条 `Files` 行都必须在上面这套解析下给出它的动词与路径」，要一个数先按 `census:<id> = <n>` 登记再引用 · §7 引用 `contract/__tests__/rules-severity.test.ts` 的那条用例时按它出厂的拼写写「declares no `warn` row in the shipped registry」（成员半带反引号），与 `## Constraints` 的同一处引用同形，逐字 grep 可复现 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.33 | 2026-11-21 | 评审第 22 轮回填（一条 blocker · 一条 warn 全数采纳）：§5 归位组删掉存活的那句与方向绑定的落款散文（原句把「追加在末尾」当断言，与同组「插在表头」相冲），该组从此只说条件（表的版本序列单调）与「位置的红由那条规则报」，落款行的插入端由本表自己的方向定（本表新在上 ⇒ 表头）；同批改正 v0.32 行的记录，使它如实写「撤掉的是断言、正文只留一句明令不写」，记录与正文不再各说一句 · §6 的语料前提去掉方向归因（原句把 `plan` / `phase-spec` 说成新在上、`overall` 说成旧在上），只留条件「两种方向在语料里都出现，且都合法」——实测语料偏向旧在上（spec 31/3/6 · plan 29/7/4 · 章程 1/0/0），归因会把读者引向反面，若要计数仍先按本仓约定登记 `census:<id> = <n>` 再引用；结论（单调性两向都放行）不动，消费面零字节变化 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.32 | 2026-11-21 | 评审第 21 轮回填（两条 blocker · 一条 warn · 一条 nit 全数采纳）：顺序判据只留一读——取 §6 的单调判据，撤掉同一处仍在的「全表最大版本那一行居末」读面与它的成对臂（§6 的两条子弹 · §5 scope ⑨ 与验收 ⑯ · 验收的两格 · `## Constraints` ⑩），成对臂逐臂点名方向（全升与全降都零 finding，一处反号恰一条，翻向那一臂就是判别臂）· 语料前提改成条件陈述（两种方向都合法，缺陷是插错位的非单调形状），正文不写分值、要数先登记 `census:<id> = <n>` · `skipWhenClosed` 补齐声明格 `contract/rules.ts#RuleDeclarationBase.skipWhenClosed`（本行 `true`）与生效处 `contract/judge.ts#Contract.validate` 的 `closed` 分支 · 归位条件改成「版本序列单调」，撤掉「追加在末尾」的断言（正文只留一句明令不写，残留那半句由 v0.33 删净），本表按自己的方向（新在上）把新行插在表头 · id 保留 `change-history-newest-last` 并注明它是历史名（p42 的 plan 也按这个 id 登记，本轮只改本 spec，改名就是造一处本轮修不了的跨文档漂移） | Oscaner M. · Claude（kairos:cdd-fix） |

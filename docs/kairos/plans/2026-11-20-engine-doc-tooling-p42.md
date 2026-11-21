@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.20
+version: v0.21
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -185,6 +185,7 @@ none
 - 三条静默臂 — checkable: 任务 3 的 `- Modify: a.ts` 行在括号里引另一个同级文件名作范例、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 的 `- Not in this task: b.ts` 行指向同一份文件、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 `- Modify: a.ts`、任务 7 `- Create: b.ts` ⇒ 零拒绝（成对：任务 3 与任务 7 都写 `- Create: b.ts` ⇒ 报）
 - 写判据本体 — checkable: 任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报（三条夹具只改任务号与动词）
 - 坐标文法的比值误判 — checkable: `4.5:1` · `2.25:1` · `1.5:1` 三种比值各一条用例全过，而 `cli.ts:41` 与 `contract/declare.ts:12` 照报（成对：两侧只差冒号前有无字母；三枚探针都带小数点、修前各报一条，故同向，而 `3:1` 不带点、修前就已通过，作探针两态同绿故不取，见 spec §8）。这一步改的是一个输入类的退出码（`line-coordinate` 是 `block` 行，故 `4.5:1` 一类由非零转零），而 Constraints 要求这类改动带单独理由，理由就记在这里：`path:line` 那一形要求冒号前至少含一个字母（文件名的必要条件），小数比值没有，故那一类是误报而不是判据——它是 §8 的 ⑨ **收回**，不是新增，`next:` 与既有拒绝报文一字不动。读数落在 `shape-rules.test.ts` 的 `P41 T2 — line-coordinate: the three declared shapes` 家族，不在本任务创建的 `single-create.test.ts` 里
+- 词法代理退出 — checkable: 注册表里 `temporal-indicator` 零命中、`MEASURE_UNITS` 只余英文五值、行数注释与实际相等；带 `仍` 与 `今天` 的决策面夹具零拒绝（成对：英文闭集单位配数字照报）；同批把四处引用它的夹具与「三族齐零」断言改成两族（成对：留一处旧点名 ⇒ 该用例红）
 - pin 表极性 — checkable: 一条 `- Modify: <未落地路径>` 的声明 ⇒ pin 审计照旧报那条未落地 pin；同一行换成 `- Create:` ⇒ 被豁免（成对：只改动词）。读数落在 `pins.guard.test.ts`（该文件已有这一对的 `Create:` 夹具），`single-create.test.ts` 不接这一臂
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
@@ -492,6 +493,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.21 | 2026-11-20 | 编排者回填（用户裁定）：Task 4 加一步——`temporal-indicator` 整条退出与 `MEASURE_UNITS` 收窄，连带四处夹具与「三族齐零」断言 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.20 | 2026-11-21 | 评审第 11 轮回填（三条 warn · 一条 nit 全数采纳）：顺序行的语料对账扩到第三份在飞文档——`PinAudit.provenClosed` 在 specs · plans · overalls 三个根上读假的三份里，章程的表逐行升（v1.0 → v4.55）故同样单调，而该行声明 `docKeys: "all"`（与五条既有历史行同形），故 `overall` 键在判域内、`charter-self-repair.test.ts` 那条不交 `closed` 的全量契约用例是它的读数面（Constraints · Task 5 · Task 8 同读）· Task 5 的 `seat` 列把两处 typechecked 字面接进 Files 行并补一条补格步（`rules-severity.test.ts#probeDeclaration` 与 `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts#markerRow` 各写 `dispatch` · `close` · `corpus`，`tsc` 为本任务头上的读数）· Task 9 把 `describe` 标题 `… its registration face carries the narrowings` 接进 Files 行与零命中读法（标题不是正文断言，`\bnit\b` 扫面见不到它）· Task 7 组五的 Objective 与它自己的步对齐（`两种写法` 的措辞被两具载体替换，三段的 `path#Class.member` 拼写作废、不是零命中臂） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.19 | 2026-11-21 | 评审第 10 轮回填（一条 blocker · 六条 warn · 两条 nit 全数采纳）：顺序行按 spec v0.34 §6 改成**单调**判据（读 `Invariant.historyVersions` 的**行序相邻对**、逐对按 `versionRank` 比大小、`skipWhenClosed: true`、方向不进判据），并同批登记语料对账——81 份带表的文档里 71 份单调、10 份非单调而全部由章程的 `` ✔ Done（`file` · date） `` 单元格证明已闭合故豁免，在飞的本 plan 与本 spec 都逐行降，翻位后零拒绝（Constraints · Task 5 · Task 7 · Task 8 · Task 9 同读一份对账），语料守卫不钉这一条的理由写明 · Task 4 的比值探针改成 `4.5:1` · `2.25:1` · `1.5:1`（`3:1` 两态同绿，spec 已不取）· Task 6 的发布面补 README 家族的可核扫面（四处 `\bnit\b` 各给替换字节、按段定位）并把图表源的替换字节补到十二处（`next-loop.en.json:247,249` 与 zh-CN 同两行逐处点名，教学句改成 `notes` 行）· Task 6 的重生成步补 `pnpm run emit` · Task 9 的第二处头部注释改读行内可见片段 `the file list is a pinned` · Task 4 的 `other` 桶改成两张闭集 + 比较规则 + 默认（`按首词语义` 退出）· Task 7 的第 5 组去掉死半句 `path#Class.member`（章程 `Class\.` 零命中）· Task 4 的合成 token 理由改成已知扩展名无数分隔符 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.18 | 2026-11-20 | 编排者回填（实测撤回）：删掉读数门加宽那一步——中文量词与散文不可区分 | Oscaner M. · Claude（kairos:cdd-plan） |

@@ -65,17 +65,17 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 ### Acceptance criteria
 
-- **A1 · 档位词表**：`FindingSeverity` 与 `CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值。成对：同一份载体把该值改 `warn` ⇒ 接受。
-- **A2 · 结论三臂**：空 findings ⇒ `APPROVED`；仅 `warn` ⇒ `REVIEW_FIX`；含 `blocker` ⇒ `CHANGES_REQUESTED`。三臂共用一份夹具的三种填法，且 `warn` 那一臂的报文逐字节等于本相位之前的同一份夹具。
-- **A3 · 判据表不动行**：`CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
-- **A4 · 渲染两档**：`renderRubric()` 的产物含两段且只含两段；一份注册表带着 `nit` 行 ⇒ 抛错。成对：同一份注册表删掉那一行 ⇒ 正常渲染。
-- **A5 · 降级可记**：上一轮 `blocker`、本轮同一条 `warn` ⇒ `regradeNote` 给出标记；上一轮 `warn`、本轮 `warn` ⇒ 无标记（成对：只改本轮那一档）。
-- **A6 · notes 可读**：一条 note 进载体后结论不变（空 findings ⇒ `APPROVED`），本线下一轮 brief 与板面轮次块各出现它一次；删掉该条 ⇒ 两处都不出现。成对臂只改这一条 note。
-- **A7 · notes 不跨线**：同一份载体进入下一条线的首轮 ⇒ brief 与板面都不读它；同一份内容放进本线下一轮 ⇒ 两处都读（成对：只改线）。
-- **A8 · `Create:` 判据**：任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报。三条夹具只有任务号与动词不同。
-- **A9 · 任务图**：`（Task 42）` 指向不存在的任务 ⇒ 报 `dangling-task-ref`；同一行去掉标记 ⇒ 零拒绝；`DependsOn` 成环 ⇒ 报 `depends-on-cycle`；无环链 ⇒ 零拒绝。
-- **A10 · 消费面零残留**：三处已发面里 `nit` 零命中，review 指令只写两档。
-- **A11 · 全量门**：`pnpm run validate` 退出码为零。
+- `session/ledger.ts#FindingSeverity` 与 `contract/review-criteria.ts#CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值——成对：同一份载体把该值改 `warn` ⇒ 接受。
+- `session/handoff-schema.ts#rollup` 三臂：空 findings ⇒ `APPROVED`；仅 `warn` ⇒ `REVIEW_FIX`；含 `blocker` ⇒ `CHANGES_REQUESTED`。三臂共用一份夹具的三种填法，且 `warn` 那一臂的报文逐字节等于本相位之前同一份夹具的输出。
+- `contract/review-criteria.ts#CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`contract/__tests__/census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
+- `contract/review-criteria.ts#CriteriaRegistry.renderRubric` 的产物含两段且只含两段；一份注册表带着 `nit` 行 ⇒ 抛错——成对：同一份注册表删掉那一行 ⇒ 正常渲染。
+- `contract/review-criteria.ts#regradeNote` 在上一轮 `blocker`、本轮同一条 `warn` 时给出标记；上一轮 `warn`、本轮 `warn` 时不给（成对：只改本轮那一档）。
+- `session/handoff-schema.ts#CARRIER` 的 `notes` 一条进载体后结论不变（空 findings ⇒ `APPROVED`），本线下一轮 brief 与板面轮次块各出现它一次；删掉该条 ⇒ 两处都不出现（成对臂只改这一条 note）。
+- 同一份载体进入下一条线的首轮 ⇒ brief 与板面都不读它的 `notes`；同一份内容放进本线下一轮 ⇒ 两处都读（成对：只改线）。
+- `contract/pins.ts#ForwardPaths` 的 `Create:` 判据：任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报。三条夹具只有任务号与动词不同。
+- `contract/task-blocks.ts#TaskBlock` 的任务图：`（Task 42）` 指向不存在的任务 ⇒ 报 `dangling-task-ref`；同一行去掉标记 ⇒ 零拒绝；`DependsOn` 成环 ⇒ 报 `depends-on-cycle`；无环链 ⇒ 零拒绝。
+- `packages/kairos/skills/cdd-spec-writer/SKILL.md` · `packages/kairos/skills/cdd-plan/SKILL.md` · `render/templates.ts#REVIEWS` 三处已发面里 `nit` 零命中，review 指令只写两档。
+- `pnpm run validate` 退出码为零。
 
 ## Constraints
 
@@ -88,6 +88,6 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 ## Change history
 
-| Version | Date | Change | Owner |
+| Version | date | summary | author |
 |---|---|---|---|
 | v0.1 | 2026-11-20 | 首版。三笔：档位收两档（词表与判据表同批）· `notes` 转正为承载面（brief 与板面）· 任务块两族判据（`Create:` 唯一且最早 · 悬挂与成环） | Oscaner M. · Claude（kairos:cdd-design） |

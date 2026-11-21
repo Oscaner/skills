@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.27
+version: v0.28
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -461,7 +461,7 @@ none
 ### Task 11: 符号 pin 的文件归位
 
 #### Objective
-让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员 pin 按三具写法分判——路径载体（`path#member`）与裸类名载体（`Class#member` · `Class.member`）都归位到载体解析到的那一份文件，裸 `symbol` 没有载体、判据不动。裸类名载体走同一张表的反查方向：落到**声明**它的那份文件，落不成恰一份（零份或多份）⇒ 恰一条 finding 点名该载体与它的候选，与路径第三层「不替文档挑一个候选」同一读法。**声明只在绑定处算，导入子句不算**：`import { type RoundRecord }` 一类导入子句点名的是一份既有绑定，它不造绑定，故不让 `RoundRecord` 在每一份导入它的文件里各添一处「声明」——否则裸类名载体的反查落成多份、按「落不成恰一份」报一条歧义 finding，而语料里每一枚 `RoundRecord.carrierPath` 都被判成歧义，本任务自己的语料迁移臂永远绿不了。成员「在那个文件里」由一处声明识别器判，吃 `contract/pins.ts#PinSource.codeOf` 的输出（注释正文已抹掉、字符串字面量保留），认两栏：声明一栏（类 · 接口 · 类型 · 常量 · 函数 · 枚举）与成员一栏四形（类体 · 接口体 · 类型字面量 · 对象字面量属性键）。三段的 `path#Class.member` 不是一枚被读的 pin（成员半带点过不了 `PinVocabulary.isSymbol`），本任务不放松那道筛。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。裸类名载体落不成恰一份的那一类与它同批：成员住在别处的改路径，声明的类名不唯一的改指取代它的实现，已无对应实现的 claim 则删掉。
+让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员 pin 按三具写法分判——路径载体（`path#member`）与裸类名载体（`Class#member` · `Class.member`）都归位到载体解析到的那一份文件，裸 `symbol` 没有载体、判据不动。裸类名载体走同一张表的反查方向：落到**声明**它的那份文件，落不成恰一份（零份或多份）⇒ 恰一条 finding 点名该载体与它的候选，与路径第三层「不替文档挑一个候选」同一读法。**声明只在绑定处算，导入子句不算**：`import { type RoundRecord }` 一类导入子句点名的是一份既有绑定，它不造绑定，故不让 `RoundRecord` 在每一份导入它的文件里各添一处「声明」——否则裸类名载体的反查落成多份、按「落不成恰一份」报一条歧义 finding，而语料里每一枚 `RoundRecord.carrierPath` 都被判成歧义，本任务自己的语料迁移臂永远绿不了。成员「在那个文件里」由一处声明识别器判，吃 `contract/pins.ts#PinSource.codeOf` 的输出，并在它之上把字符串与模板字面量一并抹掉——字面量是一个值而不是一条绑定，`codeOf` 保留它们是给标识符索引那一面用的（`face/words.ts` 那族正是从字面量里读活词汇的），成员面要的是绑定；不抹就出假歧义：`contract/__tests__/pins.guard.test.ts` 与 `session/__tests__/doc-revision-body.test.ts` 把 `export class HandoffSchema {` 与 `export class ReviewRefs` 写成夹具串，保留字面量时这两个类名各在两份文件里「声明」，裸类名载体的成员 pin 因此一律落成多份、按「落不成恰一份」报一条歧义 finding，而语料里成片的 `HandoffSchema` 与 `ReviewRefs` 成员 pin 都得跟着改。识别器认两栏：声明一栏（类 · 接口 · 类型 · 常量 · 函数 · 枚举）与成员一栏四形（类体 · 接口体 · 类型字面量 · 对象字面量属性键）。三段的 `path#Class.member` 不是一枚被读的 pin（成员半带点过不了 `PinVocabulary.isSymbol`），本任务不放松那道筛。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。裸类名载体落不成恰一份的那一类与它同批：成员住在别处的改路径，声明的类名不唯一的改指取代它的实现，已无对应实现的 claim 则删掉。成员面的判域写死在「解析到的那一份文件里的声明」上，故第三种落法要写明：载体解析到的那一份是数据文件（`package.json` 一类），成员面在那里没有槽——声明面问的是绑定，数据文件没有绑定，故这一形判零条而不是报一条缺成员（`package.json#devDependencies` 就是它，见 p28 plan 的依赖步骤）。历史阶段文档同批迁移、不新设冻结面：本任务已经在 p8 · p10 · p35 · p40-design 上按同一落法改过成员 pin，故其余带 class ① 成员的文档进 Files 行，不另立一条「这份历史文档豁免」的规则。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区 + 裸类名载体的反查方向 + 吃 `PinSource.codeOf` 输出的声明识别器——改的是作用域：`Class.member` 的分段解析已经存在；路径形状判者与 `PlanTaskBlocksReader` 收成一处）
@@ -472,30 +472,45 @@ none
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md`（`routeWords` 那一族载体在树里零份声明）
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p35.md`（`pipelineFacts` 零份声明 · `planSource` 被两处函数局部 `const` 声明）
 - Modify: `docs/kairos/specs/2026-11-17-engine-doc-tooling-p40-design.md`（`inFlight` 被两处函数局部 `const` 声明）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p1.md`（`declaredRegistries` 的成员 pin 落不成恰一份）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p9.md`（`BoardView` · `RepoRoot` 的成员 pin，载体解析到的那份文件不提该成员）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p15.md`（`ChainRoot` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p22.md`（`NextHopInput` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p24.md`（`SlugIndex` 的成员 pin）
+- Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p26-design.md`（`SlugIndex` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p31.md`（`CarrierIntegrity` · `RoundNaming` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p33.md`（`CliLifecycle` 的成员 pin，成员住在另一份文件）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p34.md`（`CarrierIntegrity` 的成员 pin）
+- Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md`（`RoundNaming` · `CarrierIntegrity` 的成员 pin）
+- Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md`（`SlugIndex` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p36.md`（`SlugIndex` 的成员 pin）
+- Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p36-design.md`（`SlugIndex` · `PlanOrphan` 的成员 pin）
+- Modify: `docs/kairos/plans/2026-11-17-engine-doc-tooling-p38.md`（`CliLifecycle` 的成员 pin，成员住在 `session/carrier-rulings.ts`）
+- Modify: `docs/kairos/plans/2026-11-17-engine-doc-tooling-p40.md`（`CliLifecycle` 的成员 pin）
 - Modify: `docs/kairos/specs/2026-11-20-engine-doc-tooling-p42-design.md`
 - Test: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
 
 #### Consumes
 - `contract/pins.ts#PinIndex` 的既有解析面与 `PinAudit` 的三处判定点
-- `contract/pins.ts#PinSource.codeOf`——声明识别器的输入（注释正文已抹掉、字符串字面量保留）；`PinVocabulary.memberOf` 已把两具载体的载体段与成员段分开
+- `contract/pins.ts#PinSource.codeOf`——声明识别器的输入（注释正文已抹掉）；识别器在它之上再抹字符串与模板字面量（字面量是值，不是绑定）；`PinVocabulary.memberOf` 已把两具载体的载体段与成员段分开
 - Task 9 清完之后的那份 `pins.guard.test.ts`（语料规模常量已不在，惰性臂已在）
 - 语料里现有的 `path#Symbol` pin
 
 #### Produces
 - 按文件分区的符号集
 - 裸类名载体的反查方向，与零份 / 多份声明时的歧义拒绝（恰一条 finding 点名载体与候选）
-- 吃 `PinSource.codeOf` 输出的声明识别器：声明一栏六形 + 成员一栏四形
-- 语料里零条「路径对而符号在别处」的 pin，且裸类名载体在整份语料上都落成恰一份（零份与多份都在本任务的迁移面上）
+- 吃 `PinSource.codeOf` 输出、并在其上抹掉字符串与模板字面量的声明识别器：声明一栏六形 + 成员一栏四形（字面量保留时 `HandoffSchema` 与 `ReviewRefs` 各在两份文件里「声明」，整片语料的裸类名载体都落成多份）
+- 语料里零条「路径对而符号在别处」的 pin，且裸类名载体在整份语料上都落成恰一份（零份与多份都在本任务的迁移面上）；成员面的判域外一形写明：载体解析到数据文件（`package.json` 一类）时判零条——声明面问的是绑定，数据文件没有绑定
 
 #### Steps
 - 符号表按文件分区 — checkable: 一枚路径可解析、符号住在别的文件里的 pin ⇒ 报一条；同一枚把路径改到符号真正所在的文件 ⇒ 零拒绝（成对：只改路径）
-- 成员形态纳入判据 — checkable: `<tmp>/src/carrier.ts` 里按声明形态写 `export const DepthMap = …`、pin 写作 `<tmp>/src/carrier.ts#DepthMap` ⇒ 零拒绝；同一枚把那段声明删掉、名字只在字符串字面量里剩（`export const label = "DepthMap";`）⇒ 恰一条 finding（成对：只改声明形态）。注释里出现过的名字不算坐标（`codeOf` 已抹掉注释正文，那一态在相位之前就是绿的，不单独作臂）。接口载体那一臂同批：`<tmp>/src/carrier-body.ts` 写 `export interface CarrierBody { readonly DepthMap?: string }` ⇒ 零拒绝；同一枚把属性改写成 `readonly depthMap?: string`（pin 一字不动）⇒ 恰一条 finding（识别器只认类体时两态都读一条，第一态当场红）。覆盖面写进同一条：类体 · 接口体 · 类型字面量 · 对象字面量属性键（语料里成片的是 interface / type 载体）。夹具的成员名带内层大写或下划线（`isSymbol` 只认 `#` 前缀 · 下划线 · 内层大写）。三段的 `path#Class.member` 不进任何臂：成员半带点过不了 `isSymbol`，本任务不放松这道筛，写它等于让臂在零实现下也绿
+- 成员形态纳入判据 — checkable: `<tmp>/src/carrier.ts` 里按声明形态写 `export const DepthMap = …`、pin 写作 `<tmp>/src/carrier.ts#DepthMap` ⇒ 零拒绝；同一枚把那段声明删掉、名字只在字符串字面量里剩（`export const label = "DepthMap";`）⇒ 恰一条 finding（成对：只改声明形态）。注释里出现过的名字不算坐标（`codeOf` 已抹掉注释正文，那一态在相位之前就是绿的，不单独作臂）。接口载体那一臂同批：`<tmp>/src/carrier-body.ts` 写 `export interface CarrierBody { readonly DepthMap?: string }` ⇒ 零拒绝；同一枚把属性改写成 `readonly depthMap?: string`（pin 一字不动）⇒ 恰一条 finding（识别器只认类体时两态都读一条，第一态当场红）。覆盖面写进同一条：类体 · 接口体 · 类型字面量 · 对象字面量属性键（语料里成片的是 interface / type 载体）。夹具的成员名带内层大写或下划线（`isSymbol` 只认 `#` 前缀 · 下划线 · 内层大写）。三段的 `path#Class.member` 不进任何臂：成员半带点过不了 `isSymbol`，本任务不放松这道筛，写它等于让臂在零实现下也绿。字面量那一对同批：两个夹具串只在 `pins.guard.test.ts` 与 `session/__tests__/doc-revision-body.test.ts` 里出现，识别器抹掉字面量之后 `HandoffSchema` 与 `ReviewRefs` 各只落一份声明、零拒绝（成对：识别器保留字面量 ⇒ 两个类名各在两份文件里「声明」，裸类名载体的成员 pin 一律报一条歧义 finding）；数据文件那一形同批一条：载体解析到 `package.json` 这类数据文件 ⇒ 成员面判零条（成对：同一成员写成源文件载体、而那份文件不声明它 ⇒ 恰一条 finding）
 - 裸类名载体的反查 — checkable: 一枚载体是裸类名、该类名在树里只被唯一一份文件声明、而它的成员不在那份文件里 ⇒ 恰一条 finding；同一枚把成员改成那份文件里声明过的名字 ⇒ 零拒绝（成对：只改成员）。歧义臂：类名被两份文件声明、或一份也没有 ⇒ 恰一条 finding 点名该载体与它的候选（与路径第三层同一读法）；同一枚把载体改写成路径载体 ⇒ 按路径载体那一臂判。两态在相位之前都读零（全树并集），故这一臂只在反查落地后才红。导入子句臂：`RoundRecord` 在 `session/ledger.ts` 里绑定、另几份文件把它写进导入表 ⇒ 反查落成那一份、`RoundRecord.carrierPath` 零 finding（成对：把导入子句读成声明 ⇒ 反查落成多份、该枚报一条歧义 finding，与上一条歧义臂同时红）
-- 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；迁移面按 spec §9 的两类分开走，不留一类没有落法：① 载体点了文件而成员住在别处的一类，把路径改到成员真正所在的那一份；② 载体落不成恰一份的一类（`routeWords` · `pipelineFacts` 与章程 D16 那一行的裸类名载体在树里零份声明，`planSource` · `inFlight` 各被两处函数局部 `const` 声明），把坐标改指取代它的那份实现、或删掉那条已无对应实现的 claim——绝不改到同名的测试 helper 上；两类都在本任务 Files 行点名的文档集里改，改完零命中臂在整份语料上绿（成对：把任一处改回错的路径，或把一条已无实现的 claim 写回 ⇒ 红）
+- 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；迁移面按 spec §9 的两类分开走，不留一类没有落法：① 载体点了文件而成员住在别处的一类，两种载体拼法各给落法——路径载体把路径改到成员真正所在的那一份；裸类名载体先从声明反查到那一份文件，成员不在其中时把坐标写成成员真正所在那份文件的 `path#member`，或改指真正持有它的类；② 载体落不成恰一份的一类（`routeWords` · `pipelineFacts` 与章程 D16 那一行的裸类名载体在树里零份声明，`planSource` · `inFlight` 各被两处函数局部 `const` 声明），把坐标改指取代它的那份实现、或删掉那条已无对应实现的 claim——绝不改到同名的测试 helper 上；③ 载体解析到数据文件的一类不迁移——成员面在那里没有槽、判零条，故它是判域外而不是遗留（p28 plan 的 `package.json#devDependencies` 就是它，故那份文档不进 Files 行）。带成员 pin 的历史阶段文档共十六份，其中十五份进 Files 行、第十六份落 class ③ 不需改动；class ①② 那十五份都在 Files 行点名的文档集里改，历史阶段文档同批进 Files 行、不新设冻结面（本任务已经在 p8 · p10 · p35 · p40-design 上按同一落法改过），改完零命中臂在整份语料上绿（成对：把任一处改回错的路径，或把一条已无实现的 claim 写回 ⇒ 红；把一份历史文档从 Files 行摘掉 ⇒ 它上面的 class ① 成员 pin 当场红，因为那条臂读的是整份语料）
 - 提交 — checkable: `git log -1 --format=%s` 以 `fix(p42):` 起头
 
 #### Acceptance
-一枚 pin 说「这个文件里的这个符号」，引擎就真的去那份文件里找；写成别的文件时它红，而报文形状与档位不变。成员 pin 的三具写法各有落法：路径载体与裸类名载体按声明文件判，裸 `symbol` 不动；裸类名落不成恰一份时恰一条 finding（导入子句不算声明，故 `RoundRecord` 落成一份），三段的 `path#Class.member` 与 `isSymbol` 的放松都不在交付面上。
+一枚 pin 说「这个文件里的这个符号」，引擎就真的去那份文件里找；写成别的文件时它红，而报文形状与档位不变。成员 pin 的三具写法各有落法：路径载体与裸类名载体按声明文件判，裸 `symbol` 不动；裸类名落不成恰一份时恰一条 finding（导入子句不算声明，故 `RoundRecord` 落成一份），三段的 `path#Class.member` 与 `isSymbol` 的放松都不在交付面上。成员判据的输入是绑定而不是字面量——夹具串不造第二份声明；载体解析到数据文件时成员面判零条，而这一形是判域外、不是遗留。
 
 #### DependsOn
 9
@@ -505,6 +520,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.28 | 2026-11-22 | 波 `{7,11}` 评审第 17 轮回填（一条 blocker · 一条 warn 全数采纳）：Task 11 的迁移面按实测收全——Files 行补进十五份带 class ① 成员 pin 的历史阶段文档（p1 · p9 · p15 · p22 · p24 · p26-design · p31 · p33 · p34 plan+design · p35-design · p36 plan+design · p38 plan · p40 plan），Objective 与迁移步写开 class ① 的两种载体拼法（路径载体改路径 · 裸类名载体改写成成员真正所在那份文件的成员坐标），登记成员面的判域外一形（载体解析到数据文件时判零条；p28 plan 的 `package.json#devDependencies` 是这一形，故十六份带成员 pin 的文档里它不进 Files 行），并写明「历史阶段文档同批迁移、不新设冻结面」的理由 · 声明识别器的输入改成抹掉字符串与模板字面量之后的 `PinSource.codeOf` 输出——字面量是值不是绑定，保留它会让 `HandoffSchema` · `ReviewRefs` 各在两份文件里「声明」、整片语料的裸类名载体成员 pin 都落成多份，Consumes · Produces · 字面量成对臂 · Acceptance 同批 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.27 | 2026-11-22 | 波 `{2,3,5}` 评审第 16 轮回填（一条 blocker · 三条 warn 全数采纳）：Task 11 的迁移面按 spec §9 收全——Files 行补进 p10 plan · p10 design · p35 plan · p40 design 四份文档，迁移步分成两类（成员住在别处的改路径 · 载体落不成恰一份的改指取代它的实现或删掉已无对应实现的 claim），并点名 `routeWords` · `pipelineFacts` · `planSource` · `inFlight` 与章程 D16 那一行的裸类名载体，Objective 与 Produces 同批 · Constraints 的预期红按交付态重述：只剩 `rules-severity` 那条 pin，`rules.test.ts` 在波 1 回填里已重基到三十 + 二、Task 5 只欠到三十五的重基，两处红改一处 · Task 5 的行数步按其上方注册表重基（三十 + 二 = 三十二 ⇒ 三十三 + 二 = 三十五），去掉归属 Task 4 的撤离句，形状面那两句改读交付态 · Task 9 的 `scan-coverage.test.ts` 有了承载它的步与 Produces 落点（小树覆盖证明：`census.files` 等于该树文件数、`scan` 恰一条，删一个语料根即红），pins.guard 的 Files 行同批改读 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.26 | 2026-11-22 | 波 `{1,4,10}` 评审第 1 轮回填（五条 blocker · 三条 warn 全数采纳）：`temporal-indicator` 整条退出落到树上——类 · 闭集 · 分句文法 · 模块头一条 · 注册行 · 四份夹具同批删，两章程序题目按 spec §6 改名，形状行与变量类的计数同批读五与三，`RULE_REGISTRY` 的注释按它上方那张表读三十 + 二 = 三十二 · `MEASURE_UNITS` 收英文五值、`第` 后顾与它的理由同批删 · 认领面收全四词表动词（`FileClaim` 不再折 `test` / `delete`），行内首词落集外也记 `other` 而不继承前段 · `DOCS_FIX_SHAPE_RULES` 三个名字 · 两个 skill 的 narrative 子弹与 `CLAIM_SHAPES` 同一次编辑落地 · 收口腿的注释改读 §7 · 组合根补生产形臂（`Cli` 建出的 docs-fix 轮，帧上基准等于派发门的读数） · **本任务的文件表同批订正**：Task 4 不再 `Test:` Task 10 新建的那份夹具（认领面收全之后，那条 `Test:` 让本任务先认领一条更晚的 `Create:`——语料臂当场报出，故 Files 行删一处、步里四份夹具读三份并点名第四处归 Task 10） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.25 | 2026-11-21 | 评审第 15 轮回填（两条 warn 全数采纳）：Task 9 收下 `charter-self-repair.test.ts` 的模块头族清单——`The delivery is three families at zero` 一句读两族、首条子弹只点名 `measure-literal`、`## Phase inventory` 那条改读作登记面而不数作一族，Files 行 · Produces 与头部步各补一处，并给 `three families at zero` 的零命中成对臂（数词无人判：`temporal-indicator` 那条只撤得掉第二个文法名）· Task 6 的孪生 pin pattern 加负向前瞻，读作 `/warn(?!\s*\/\s*nit)[\s\S]*REVIEW_FIX/i`：`carrying` 逐串测，松口径对退役拼写照命中，原「写回 ⇒ 新 pattern 零命中」的成对臂本不成立；改后两侧互为对方的零命中，Files 行与那一步的括号同批改到这一读法 | Oscaner M. · Claude（kairos:cdd-fix） |

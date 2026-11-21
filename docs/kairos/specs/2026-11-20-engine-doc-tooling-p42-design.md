@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.13
+version: v0.14
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -110,6 +110,16 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **同一次编辑改掉三份文件的头部注释**（§2.2 对 `face/lifecycle.ts#materialize` 的同一纪律——自己的注释同批改掉）：`packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts` 的头部（「its file count is a constant: a document entering or leaving the corpus goes red」，头部两处）与 `CORPUS_SIZE` 的文档注释改成「覆盖由已知小树夹具证明」的读法；`packages/kairos/tests/claim-shapes.test.ts` 的 `Two legs, both byte-level` 块（含「a reworded bullet goes red」与「byte-identical to each other」）与 `CLAIM_SHAPES` 的文档注释改成结构断言的读法（措辞自由 · 映射固定 · 两节点同措辞）；`packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 改成三对——registration face 那条随本相位删除。漏改的代价是下一任作者照注释把规模常量或第二份措辞写回来，而三道门都不红。
 - **不动打包物**：图表双生、README、变更集、清单四类验的是打包物，引擎没有对应判据，删掉只会失去护栏。
 
+### 7. fix 轮的回合内判定
+
+`cdd fix` 的 `checked` 列表里已经有 `doc-contract`，但判定落在**下一次派发**：修复轮写出一份违反形状规则的文档、提交，下一条命令才被拒。写的人在自己的回合里看不到红，代价是一次 hygiene 修复 + 一笔提交 + 一次重发。
+
+- **判定提前到提交之前**：修复轮写回被审文档之后、提交之前，跑同一条 `doc-contract` 腿。
+- **差分而非绝对**：判据是「本轮新增的违例」，基准是本轮开始时该文档的已审身份（`contract/doc-body.ts#DocBodyProjection` 交付的摘要）。绝对判定会让修复轮被自己接手时的历史残留卡死——那种文档永远提交不了。
+- **红则本回合内返回**：新增违例作为本轮的 findings 交回 child，同一回合改完再提交；不推进下一跳。
+- **四条形状规则同批进写入约束**：修轮 prompt 把 `measure-literal` · `line-coordinate` · `live-arithmetic` · `temporal-indicator` 写成写文档时的硬约束，与既有「禁止 `any`」同级——软约束与硬判定同源，否则只是建议。
+
+
 ### Acceptance criteria
 
 - `session/ledger.ts#FindingSeverity` 与 `contract/review-criteria.ts#CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值——成对：同一份载体把该值改 `warn` ⇒ 接受。
@@ -143,6 +153,11 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - `packages/kairos/tests/claim-shapes.test.ts` 的断言改成结构断言（§6 的两格）：删掉某个 claim shape 的子弹行 ⇒ 红（存在臂）；只改一个节点的某个措辞词、两节点不再一致 ⇒ 红（孪生臂），成对：同一处措辞两个节点一起改 ⇒ 绿；把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点仍一致）⇒ 红（映射臂），成对：只改措辞词 ⇒ 绿。
 - `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 里对章程正文的字符串比对零命中（`registration face: …` 那条用例整条删除），而它对引擎的调用仍在：成对臂落在夹具上，不落在真实章程上——`#reports the original wording: seven temporal indicators and one bare measurement` 报出七条 `temporal-indicator` 与一条 `measure-literal`；把 P41 那几格判据措辞改回旧写法 ⇒ `#reports nothing on the real charter — all three families at zero` 保持绿（判据正文已无任何断言，这是 §6 写明的残留，不是遗漏）。
 
+- `packages/cdd-engine/src-next/face/lifecycle.ts` 的修复轮在写回被审文档后、提交前跑 `doc-contract`：本轮新写进一条 `measure-literal` 违例 ⇒ 不出提交，报文列出那条新违例（成对：同一句改回可写形态 ⇒ 提交照常）。
+- 差分基准：文档在本轮开始时就带着历史残留违例 ⇒ 修复轮照常提交且不报它（成对：在残留之外再加一条新违例 ⇒ 只报新增的那条）。
+- 修轮 prompt 的写入约束点名四条形状规则；删掉其中任一条 ⇒ 该用例红（成对：四条齐 ⇒ 绿）。
+
+
 ## Constraints
 
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
@@ -156,6 +171,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.14 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 §7 fix 轮的回合内判定与三条成对臂——判定提前到提交前 · **差分而非绝对**（基准是本轮的已审身份，避免历史残留把修复轮卡死）· 四条形状规则同批进写入约束 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.13 | 2026-11-21 | 评审第 10 轮回填（六条 warn 全数采纳）：§6 的三处站点全部写成 `路径#用例标题`，并点出被删的七条比对所在的那条用例 · 「改由形状规则判」改成诚实的残留说法——五条判据句此后无护栏，被守的是它们描述的行为（三处引擎夹具） · 惰性臂从「选择器永不匹配」改成按规则自己读面的候选读数（doc-corpus 钉 `change-history-row-shape` · pins 钉 `PinAudit.census` 三项 · charter 钉 `measure-literal` 的面缺裁决），逐处给出座位 · `claim-shapes` 的两格写清（两节点仍逐字节相同 · shape → 规则 id 的映射常量），验收补存在 / 孪生 / 映射三臂 · 验收的 charter 成对臂改挂夹具，点名「改回旧写法仍绿」的是判据措辞而非引擎臂 · §6 新增一条头部注释同批改写，§5 的验收格回填句同批对齐 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.12 | 2026-11-20 | 编排者回填（用户裁定 · 章程 D98）：新增 §6 验证面追溯与四条成对臂——删章程字面断言 · 三处零 finding 臂各补惰性臂 · 语料规模常量与 claim-shape 措辞常量改由夹具与结构断言承担 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.11 | 2026-11-21 | 评审第 9 轮回填（三条 warn · 一条 nit 全数采纳）：验收里「只有一条 artifact 偏移句」那一臂换成手搭夹具，并点明 P8 那份实为七条（后六条是 child note，读面照印），P8 只留作 §2.2 的 `notes[0]` 实例 · §5 两处把 D97 的 notes 事实按它自己的未编号句点名，格数由四改三（P42 行 ② · P42 验收 ⑥ · D97 那句） · §2.2 的派生软计数钉到真实链 `counterOf` → `softViolations` → `#softOf`，`softViolationsOf` 标明为派生 key 不读的兄弟读面 · 验收的 `- Modified` 臂改成「无 ASCII 冒号 ⇒ 标签剥不出 ⇒ ② 的余量首词」 | Oscaner M. · Claude（kairos:cdd-fix） |

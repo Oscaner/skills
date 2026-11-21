@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -16,7 +16,7 @@ base: develop
 - **对外字节**：这一刀的破坏面被 spec §1.1 逐处点名，每一处都走 changeset minor；`next:` 行与退出码这两样不在其中，改动它们需要单独的理由。
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
 - 这份计划自己也要过它正在立的那道门：坐标、读数、时序词三样都不写进判据面，工作项行不算散文。
-- **实现前窗口的预期红**：本 plan 是语料的一行。三条新规则行起步 `warn`，故窗口内它们对语料零拒绝；但 `contract/__tests__/rules-severity.test.ts` 的 pin「declares no `warn` row in the shipped registry」（`RULE_REGISTRY.filter((row) => row.severity === "warn")` 为空）读的正是已发注册表，**第一条新行落地（Task 4）就把它判红**，Task 8 的翻位才把它恢复绿。同一窗口里 `contract/__tests__/rules.test.ts` 的行数断言也随行数走：Task 4 的 `single-create` 落地即红，Task 5 同批把注释与数字改到批后总分值（33 doc-scope + 2 ledger-scope = 35）才转绿。故 `pnpm run validate` 在 Task 4–7 之间预期红、Task 8 闭合后转绿——这两条红都是登记在案的过渡态，不是实现者的回归，实现者不得为「保住绿」提前翻位或跳门。语料规模常量不由任何任务上调——它在 Task 9 连同第二处手写读数一并删除。
+- **实现前窗口的预期红**：本 plan 是语料的一行。三条新规则行起步 `warn`，故窗口内它们对语料零拒绝；但 `contract/__tests__/rules-severity.test.ts` 的 pin「declares no `warn` row in the shipped registry」（`RULE_REGISTRY.filter((row) => row.severity === "warn")` 为空）读的正是已发注册表，**第一条新行落地（Task 4）就把它判红**，Task 8 的翻位才把它恢复绿。同一窗口里 `contract/__tests__/rules.test.ts` 的行数断言也随行数走：Task 4 的 `single-create` 落地即红，Task 5 同批把注释与数字改到批后总分值（33 doc-scope + 2 ledger-scope = 35）才转绿。故 `pnpm run validate` 的红窗口两端是 **Task 4 落地**与 **Task 8 翻位**，不是 Task 4–7：按上面那条波次，Task 9 与 Task 8 同层（`{6,8,9}`）、Task 7 在末层（`{7}`），两者都在这条边界之后收口，故 Task 9 与 Task 7 头上的树必须已经是绿的——Task 8 的本层门与 Task 7 的末步各自这么要求。这两条红都是登记在案的过渡态，不是实现者的回归，实现者不得为「保住绿」提前翻位或跳门。语料规模常量不由任何任务上调——它在 Task 9 连同第二处手写读数一并删除。
 
 ### Task 1: 档位词表与判决面
 
@@ -26,15 +26,14 @@ base: develop
 `rollup` 不是本任务的改动面而是**守恒条件**：它的判法本就按档位（`blockers > 0 ? CHANGES_REQUESTED : findings.length > 0 ? REVIEW_FIX : APPROVED`），本任务只把它钉成四臂验收，源码一格不动。**读侧不收窄**：`findingsOf` 的取值集照旧是 `blocker` / `warn` / `nit`，装它的是投影面自己声明的三值联合（与写侧 `FindingSeverity` 分开声明，不复用），`RoundFinding.severity` 与 `#tierRankOf` 的入参都挂这三值。`#tierRankOf` 的三级排名 2 / 1 / 0 逐字节保留——把 `nit` 并进 `warn` 会静默丢掉存量 `warn → nit` 的降级标记。改变的只有写侧词表。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（写侧 `FindingSeverity` 收成两值；投影面另立 `"blocker" | "warn" | "nit"` 联合给 `RoundFinding.severity`，与写侧词表分开声明）
-- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`CARRIER` 的 `findings.items.severity` enum 收两档；`findingsOf` 与 `#tierRankOf` 一字不动；`rollup` 一字不动）
+- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（写侧 `FindingSeverity` 收成两值；投影面另立 `"blocker" | "warn" | "nit"` 联合给 `RoundFinding.severity` 与 `#tierRankOf` 的入参，与写侧词表分开声明）
+- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`CARRIER` 的 `findings.items.severity` enum 收两档；`#tierRankOf` 的三级排名 2 / 1 / 0 与函数体逐字节不动，但它的**入参类型**要从写侧 `FindingSeverity` 挪到投影面的三值联合——它按 `row.severity` 比档，而那一格挂三值，留着两值就是类型错，用 `as` 兜住等于把读侧在类型上又收窄一遍；`findingsOf` 与 `rollup` 一字不动）
 - Create: `packages/cdd-engine/src-next/session/__tests__/tier-vocabulary.test.ts`
 
 #### Consumes
 - `session/handoff-schema.ts#HandoffSchema.rollup` 与它周边两个判据（P41 的证据面判据 · 改档判据）——同一处投影的既有住户
 - `session/handoff-schema.ts#CARRIER` 的 `findings.items.severity` 与 `#HandoffSchema.schemaText` 的 `#writable(plane)` 过滤——写侧 enum 的唯一来源
 - `session/ledger.ts#Ledger#round` → `session/next.ts#NextStepRouter.next` 的 review 臂（按投影条数分流）
-- `packages/cdd-engine/src-next/contract/pins.ts#corpusOf` 的语料根声明——扫描覆盖由夹具证明，不靠手写计数
 
 #### Produces
 - 写侧 `FindingSeverity` 的取值集恰为 `blocker` 与 `warn`
@@ -208,21 +207,21 @@ none
 
 #### Produces
 - `dangling-task-ref` 与 `depends-on-cycle` 两行（`warn` 起步），各占一个不变量类、一个 `name`、一条报文
-- `validate()` 的 `cycle` issue 被逐字节复用（`cycle@T{residue-min}: …`）
+- `validate()` 的 `cycle` issue 的 `task` 与 `message` 两半被逐字节复用，判据报出的渲染形是 `cycle@T{task}: {message}`——与 `graph` 门 `details` 那一行同一个字节面
 - 两处 `graph.ts` 注释改成残值最小值，`message` 字节不动
 - `RULE_REGISTRY` 的类注释与 `rules.test.ts` 的行数断言同读一个新分值
 
 #### Steps
 - 悬挂臂 — checkable: `（Task 42）` 指向不存在的任务 ⇒ 报；同一行去掉标记 ⇒ 零拒绝；括号里带多个任务时逐个体判（其一不存在即报）；裸续写臂 `（Task 4 · 42）` 而 42 未声明 ⇒ 同一判决（成对：只改第二个 id 的 `Task` 前缀）
-- 成环臂 — checkable: `DependsOn 3, 7` 且环从 7 闭合 ⇒ 在 `Contract().validate` 面上报 `depends-on-cycle`，报文逐字节等于 `TaskGraph.validate()` 那条 `cycle@T{n}: …`；无环链 ⇒ 零拒绝
-- 残值臂 — checkable: 环是 3 ↔ 7 而任务 1 经 9 依赖 3 ⇒ 报文逐字节等于 `TaskGraph.validate()` 的 `cycle@T1: …`（`1` 是残值最小、不在环上）；判据不另判环成员、不改 `#cycleMember` 的报文
+- 成环臂 — checkable: `DependsOn 3, 7` 且环从 7 闭合（夹具声明任务 1 · 2 · 3 · 7，1 与 2 无依赖先被 Kahn 摘掉，环上只剩 3 与 7，故残值恰为 `{3, 7}`）⇒ 在 `Contract().validate` 面上报 `depends-on-cycle`，报文逐字节等于 `cycle@T3: a directed dependency cycle closes over task 3: task dependencies must form a DAG`——两半各有出处：`message` 与 `task` 逐字节复用 `TaskGraph.validate()` 那条 `GraphIssue` 的两格，`cycle@T{task}: ` 前缀由 `session/preflight.ts` 的 graph 门 `details` 拼出、**不在** `validate()` 的 `message` 里，故这一臂与 graph 门读同一个字节面，而不是给判据另编一句；无环链 ⇒ 零拒绝
+- 残值臂 — checkable: 环是 3 ↔ 7 而任务 1 经 9 依赖 3 ⇒ 报文逐字节等于 `cycle@T1: a directed dependency cycle closes over task 1: task dependencies must form a DAG`（`1` 是残值最小、不在环上；渲染形同 `graph` 门的 `details` 那一行）；判据不另判环成员、不改 `#cycleMember` 的报文
 - 两条注释对齐残值 — checkable: `GraphIssue.task` 的括注与 `#cycleMember` 的类注释都读「Kahn 残值里的最小任务号」，两处都不再声称「inside the cycle」（成对：残值臂就是它们的反例）
 - 两个类两个名字 — checkable: 两条声明的 `create().name` 分别等于各自的 `id`（`rules.test.ts` 的 name 断言绿），两条报文互不相同
 - 行数注释与新分值 — checkable: `contract/rules.ts` 里 `30 doc-scope` 零命中，`rules.test.ts` 的行数断言读 35（33 doc + 2 ledger）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
-两条判据各有一对成对臂，且各占一个不变量类；悬挂的判域只覆盖带标记的行，散文不因形似而被判。环的报文逐字节复用 `TaskGraph.validate()`，残值臂成立而判据不另算成员。注册表的行数注释与断言同读一个新分值。
+两条判据各有一对成对臂，且各占一个不变量类；悬挂的判域只覆盖带标记的行，散文不因形似而被判。环的报文逐字节复用 `TaskGraph.validate()` 的 `task` 与 `message` 两半、渲染形与 graph 门同一句，残值臂成立而判据不另算成员。注册表的行数注释与断言同读一个新分值。
 
 #### DependsOn
 4
@@ -294,7 +293,7 @@ none
 - 按 spec §5 逐组改 — checkable: 五组各有一条可点的落点
 - 版本与血缘行同批 — checkable: `change-history-latest-matches-front-matter` 绿
 - 章程的判定输出由夹具钉住 — checkable: 一份带违例的章程夹具 ⇒ 对应规则行读 `failed`；同一份夹具改成合规 ⇒ 读 `passed`。**不拿本仓章程当判据**：它此刻为零拒绝这件事由 CLI 级语料跑覆盖，不由用例断言——章程改措辞不该让测试红
-- 收口全量门 — checkable: 本任务落在末层（Constraints 的波次），故 `pnpm run validate` 在本任务头上退出码为零；章程最新一条历史行的日期沿用 `2026-11-20` 那一字面——`charter-self-repair.test.ts` 的版本行日期对账读的就是它，写别的日期就红
+- 收口全量门 — checkable: 本任务落在末层（Constraints 的波次），故 `pnpm run validate` 在本任务头上退出码为零；章程最新一条历史行的日期沿用 `2026-11-20`（与本 plan 的 front matter 同日）是**约定，不是门**——读那格日期值的是 `charter-self-repair.test.ts` 的 `registration face: …` 用例，而那条用例归 Task 9（上一层 `{6,8,9}`）整条删除；本任务头上的树里没有判据钉日期值（`change-history-latest-matches-front-matter` 只判版本号，`change-history-date-shape` 只判 ISO 形状），故写别的日期不会红，本条不写成红
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p42):` 起头
 
 #### Acceptance
@@ -342,7 +341,7 @@ none
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条候选读数臂；头部 `Four pairs, each with its counter-arm` 改三对）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（补惰性臂：`change-history-row-shape` 的候选读数）
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除；扫描覆盖由小树夹具证明；补惰性臂：`PinAudit.census` 的候选读数；头部「its file count is a constant …」与 `CORPUS_SIZE` 的文档注释改成「覆盖由已知小树夹具证明」的读法）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除；扫描覆盖由小树夹具证明；补惰性臂：`PinAudit.census` 的候选读数——临时语料上非零、空根上全零；头部两处「file count is a constant …」与「the file list is a pinned constant」、加 `CORPUS_SIZE` 的文档注释，改成「覆盖由已知小树夹具证明」的读法）
 - Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言；`Two legs, both byte-level` 块与 `CLAIM_SHAPES` 的文档注释改成「措辞自由 · shape→规则 id 映射固定 · 两节点仍逐字节相同」的读法）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
 
@@ -352,16 +351,16 @@ none
 - `contract/pins.ts#corpusOf` 的语料根声明
 
 #### Produces
-- 三处候选读数臂：`change-history-row-shape` 的临时根 · `PinAudit.census` 的交付语料与空根 · `measure-literal` 的面缺口，每处要求那条「零 finding」是测得的零
+- 三处候选读数臂：`change-history-row-shape` 的临时根 · `PinAudit.census` 的临时语料（一条死 symbol pin 加一条死 path pin）与空根 · `measure-literal` 的面缺口，每处要求那条「零 finding」是测得的零
 - 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点仍同措辞 · 三对）
 - 语料规模常量从测试里消失，覆盖由一棵已知小树证明
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `temporal-indicator` · `line-coordinate`）
 
 #### Steps
 - 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂仍绿）
-- 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：交付语料上 `PinAudit.census` 的 `total` · `symbol` · `path` 各大于 0（成对：空根上三项各为 0，那一半已在同文件的语料 ONE way 用例里）；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
+- 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
 - 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
-- 三份头部注释同批改 — checkable: `its file count is a constant` · `Two legs, both byte-level` · `Four pairs, each with its counter-arm` 三句在交付树上零命中，且三条注释各自读新落法；成对：把任一句写回 ⇒ 红
+- 三份头部注释同批改 — checkable: `pins.guard.test.ts` 那一份按**在场**读、三处各一条断言——`file count is a constant`（行内可见的片段：原句在盘上折成 `… and its` / `//     file count is a constant: …` 两行，整句 `its file count is a constant` 零命中，拿它当断言是改写前后都绿的假臂）· 头部的第二句 `the file list is a pinned constant` · `CORPUS_SIZE` 的文档注释 `pinned HERE, as a literal`——三处随常量一起改成「覆盖由已知小树夹具证明」的读法，漏一处即红；`claim-shapes.test.ts` 的 `Two legs, both byte-level` 与 `charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 两句按**零命中**读，且各自读新落法。成对：把任一处写回 ⇒ 红
 - `claim-shapes` 改结构断言 — checkable: 三条臂——存在臂：删掉某个 claim shape 的子弹行 ⇒ 红；孪生臂：只改一个节点的某一个措辞词、两节点不再一致 ⇒ 红（成对：同一处措辞两个节点一起改 ⇒ 绿）；映射臂：把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点仍一致）⇒ 红（成对：只改措辞词 ⇒ 绿）
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p42):` 起头
 
@@ -375,6 +374,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.5 | 2026-11-21 | 评审第 3 轮回填（一条 blocker · 六条 warn · 一条 nit 全数采纳）：Task 9 的 pins 非空臂改成临时语料（一条死 symbol pin 加一条死 path pin），交付语料只留体量读数，空根半边补 `symbol` / `path` 两条断言 · Task 9 的头部注释臂取行内可见的 `file count is a constant`（原句在盘上折行、整句零命中），并补第二句与 `CORPUS_SIZE` 的文档注释 · Task 1 的 `#tierRankOf` 改成排名与函数体不动、入参类型挪到三值联合，并删掉指向语料的 `corpusOf` 行 · Task 5 的两条成环臂改成 `task` 与 `message` 两半复用、`cycle@T` 前缀归 graph 门 `details`，残值臂同批 · Task 7 的日期从「写别的就红」改成约定（读它的用例归 Task 9 删除） · Constraints 的预期红窗口改成 Task 4 落地到 Task 8 翻位，并点明 Task 9 与 Task 7 都在绿树上收口 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.4 | 2026-11-21 | 评审第 2 轮回填（一条 blocker · 十条 warn · 一条 nit 全数采纳）：Task 9 的三处惰性臂从「选择器永不匹配」改成按规则自己读面的候选读数（`change-history-row-shape` 的临时根 · `PinAudit.census` 的交付语料与空根 · `measure-literal` 的面缺口），同批补三份头部注释的改写 · `claim-shapes` 补存在 / 孪生 / 映射三臂与 shape→规则 id 的映射常量 · Task 6 的 prompt 面改指 `FIX_SHELL`、删掉 rubric 的 preamble/tail，零命中扫面改读渲染字节 · Task 3 补软通道的两笔后果（一行 `CDD_WARN:` · 派生计数抬一）、`#materialize` 的两句反话与 brief 的三处字节 pin，并去掉无改动的 `session/handoff-schema.ts` 行 · Task 1 的 `face/capsule.ts` 行与步归 Task 6 的注释面 · Task 4 去掉 `contract/declare.ts` 行与面图步 · Task 5 去掉 `session/preflight.ts` 行 · 波次按声明的边重述为 `{1,4} → {2,3,5} → {6,8,9} → {7}`，末层 Task 7 收口全量门 · Constraints 删掉「语料常量随本文件上调」 · Task 8 的 changeset 括号写准 Task 9 是测试面 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.3 | 2026-11-20 | 编排者回填（用户裁定 · 章程 D98）：新增 Task 9 验证面追溯并接第五波；删 Task 1 的语料规模常量步；Task 7 的章程判据改成夹具钉住引擎输出（不拿本仓章程当判据）；Task 8 按声明的边只等 Task 5 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.2 | 2026-11-21 | 评审第 1 轮回填（六条 blocker · 九条 warn 全数采纳）：Task 1 把 `rollup` 从「三臂改动」改回守恒条件（四臂验收、源码不动），读侧三值联合与 `#tierRankOf` 三级排名明确不收窄，只有写侧 enum 与 `schemaText` 围栏收两档，并补存量 `nit` 的 `Ledger#round` → `next:` 成对臂与降级标记成对臂 · Task 2 逐格钉死 §1.2 五格的英文替换字节（`regrade-mark` 三格不动），补整张 `SEVERITY_RUBRIC` 的零命中臂，并把 `CRITERIA_ROWS` 表注释与 `CriteriaRegistry` 两处档序注释同批改写（去逐档计数、六条边界名） · Task 3 补 `#readFresh` 早退放宽与 work 轮载体臂、读侧逐字节前缀谓词三臂，`displayReason` 的导出与 `contract/review-criteria.ts` 进 Files · Task 4 把词表与声明集拆成两个面（`Add:` · `新建：` · `修改：` · `Modified` 在词表里是 `other`、在声明集里是认领），补三条静默臂、`Add:` / `修改：` / `Modified` 三组成对臂，以及第四类方言 · 分隔符切分 · `pathOf` 过滤 · 行内去重四条规则 · Task 5 改为两个不变量类两个名字，环的读面改述为 Kahn 残值最小（残值臂 `cycle@T1`），两处 `graph.ts` 注释同批对齐，`RULE_REGISTRY` 行数注释与 `rules.test.ts` 的 35 同批 · Task 6 的文件集补上五处源码注释文件，源码扫面拆成登记完整性（十三行）与发布门（一行豁免）两条断言 · Task 7 的章程验收换成 `doc-contract` 腿 · Task 8 的 changeset 收成一包 minor · Constraints 的「预期红」改述为 `rules-severity` 的 warn pin 与 `rules.test` 行数两条过渡红 · 历史行的波次记为 `{1,4} → {2,3} → {5,6} → {7,8}`（八任务时代的读数；v0.3 引入 Task 9 后由 v0.4 按声明的边重述为 `{1,4} → {2,3,5} → {6,8,9} → {7}`） | Oscaner M. · Claude（kairos:cdd-fix） |

@@ -67,9 +67,9 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 - **A1 · 档位词表**：`FindingSeverity` 与 `CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值。成对：同一份载体把该值改 `warn` ⇒ 接受。
 - **A2 · 结论三臂**：空 findings ⇒ `APPROVED`；仅 `warn` ⇒ `REVIEW_FIX`；含 `blocker` ⇒ `CHANGES_REQUESTED`。三臂共用一份夹具的三种填法，且 `warn` 那一臂的报文逐字节等于本相位之前的同一份夹具。
-- **A3 · 判据表不动行**：`CRITERIA_ROWS` 仍是 `census:criteria.rows = 6` 行，两条原 `nit` 行读 `warn` 档；`census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
+- **A3 · 判据表不动行**：`CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
 - **A4 · 渲染两档**：`renderRubric()` 的产物含两段且只含两段；一份注册表带着 `nit` 行 ⇒ 抛错。成对：同一份注册表删掉那一行 ⇒ 正常渲染。
-- **A5 · 降级仍可记**：上一轮 `blocker`、本轮同一条 `warn` ⇒ `regradeNote` 给出标记；上一轮 `warn`、本轮 `warn` ⇒ 无标记（成对：只改本轮那一档）。
+- **A5 · 降级可记**：上一轮 `blocker`、本轮同一条 `warn` ⇒ `regradeNote` 给出标记；上一轮 `warn`、本轮 `warn` ⇒ 无标记（成对：只改本轮那一档）。
 - **A6 · notes 可读**：一条 note 进载体后结论不变（空 findings ⇒ `APPROVED`），本线下一轮 brief 与板面轮次块各出现它一次；删掉该条 ⇒ 两处都不出现。成对臂只改这一条 note。
 - **A7 · notes 不跨线**：同一份载体进入下一条线的首轮 ⇒ brief 与板面都不读它；同一份内容放进本线下一轮 ⇒ 两处都读（成对：只改线）。
 - **A8 · `Create:` 判据**：任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报。三条夹具只有任务号与动词不同。

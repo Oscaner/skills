@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.16
+version: v0.17
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -185,6 +185,7 @@ none
 - 三条静默臂 — checkable: 任务 3 的 `- Modify: a.ts` 行在括号里引另一个同级文件名作范例、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 的 `- Not in this task: b.ts` 行指向同一份文件、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 `- Modify: a.ts`、任务 7 `- Create: b.ts` ⇒ 零拒绝（成对：任务 3 与任务 7 都写 `- Create: b.ts` ⇒ 报）
 - 写判据本体 — checkable: 任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报（三条夹具只改任务号与动词）
 - 坐标文法的比值误判 — checkable: `4.5:1` · `3:1` · `1.5:1` 三种比值各一条用例全过，而 `cli.ts:41` 与 `contract/declare.ts:12` 照报（成对：两侧只差冒号前有无字母）。这一步改的是一个输入类的退出码（`line-coordinate` 是 `block` 行，故 `4.5:1` 一类由非零转零），而 Constraints 要求这类改动带单独理由，理由就记在这里：`path:line` 那一形要求冒号前至少含一个字母（文件名的必要条件），小数比值没有，故那一类是误报而不是判据——它是 §8 的 ⑨ **收回**，不是新增，`next:` 与既有拒绝报文一字不动。读数落在 `shape-rules.test.ts` 的 `P41 T2 — line-coordinate: the three declared shapes` 家族，不在本任务创建的 `single-create.test.ts` 里
+- 读数门的域改宽 — checkable: 中文数词配任意量词的读数报一条；同一句改成 `census:<id> = <n>` ⇒ 零拒绝（成对：只改那一处形态）；语料跑到零（闭合文档按既有范围跳过）
 - pin 表极性 — checkable: 一条 `- Modify: <未落地路径>` 的声明 ⇒ pin 审计照旧报那条未落地 pin；同一行换成 `- Create:` ⇒ 被豁免（成对：只改动词）。读数落在 `pins.guard.test.ts`（该文件已有这一对的 `Create:` 夹具），`single-create.test.ts` 不接这一臂
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
@@ -489,6 +490,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.17 | 2026-11-20 | 编排者回填（用户裁定）：Task 4 加一步——读数门的域改成数词配量词，语料同批跑到零 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.16 | 2026-11-21 | 评审第 9 轮回填（三条 blocker · 三条 warn 全数采纳）：§6 的顺序行与 §8 的 `seat` 列落进 Task 5（顺序行 `doc` 档 · `warn` 起步 · 自占一个策略类 · 读 `Invariant.historyVersions` 的最后一行、无 `## Change history` 表时零候选；`seat` 闭集 `dispatch` · `close` · `corpus` · `ledger` 的非空子集 + 三十六行逐 id 字面表 + 三条断言），行数面随之读 34 doc + 2 ledger = 36，Constraints 的 warn 清单与 Task 8 的翻位改成四条 · Task 9 的顺序面合成表按 spec §6 重写（最新行在旧行之上 ⇒ 版本腿零 finding、顺序腿恰一条；移回表尾 ⇒ 两条零 finding；表头版本低于表内最大版本 ⇒ 恰一条版本腿），删掉「行序本身仍无判据」 · Task 11 的成员臂按 spec §9 重写（三具写法 · 裸类名反查与歧义拒绝 · 吃 `PinSource.codeOf` 的声明识别器 · 字符串字面量判别臂 · 接口载体那一臂），三段的 `path#Class.member` 与 `isSymbol` 的放松都排除在臂外 · Task 7 按 spec §5 的九组重写（补 ⑧/⑮ 与 ⑨/⑯ 两组、第 4 组改成收窄 scope ⑤），去掉章程历史行的具体版本号、改读「最新一条版本行是表尾且与 front matter 同版」这一条件 · Constraints 的末层写定 Task 7 与 Task 11 的层内次序 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.15 | 2026-11-20 | 编排者回填（用户裁定 · 抽象整理）：Task 4 改为「既有读面停止丢弃动词标签」+ `RuleDeclaration.seat` 一列（该列的实际落点见 v0.16：Task 5） · Task 10 改称收口座位 · Task 11 改称改作用域而非解析，路径形状判者收成一处。零新增任务 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.14 | 2026-11-20 | 编排者回填（用户裁定）：新增 Task 11「符号 pin 的文件归位」——`PinIndex` 按文件分区 + 成员形态 + 语料同批迁移；等 Task 9（同一份守卫文件） | Oscaner M. · Claude（kairos:cdd-plan） |

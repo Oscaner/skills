@@ -120,7 +120,7 @@ export interface OpenFrame {
    *  in `progress.json`, in the round carrier or in the in-flight record, and an absent
    *  value (no plan fact) judges nothing. */
   structure?: PlanStructure | null;
-  /** The document's CONTRACT baseline of this round (P42 §1.3) — the approved dispatch
+  /** The document's CONTRACT baseline of this round (P42 §7) — the approved dispatch
    *  gate's own findings, the same discipline as `structure`: it rides the frame alone
    *  (never `progress.json`, the carrier or the in-flight record), and an absent value
    *  judges nothing because no gate measured this document. A fix round compares its
@@ -147,7 +147,7 @@ export type PlanStructureRead =
  * face (the round's graded `violations`): no doc-contract rule row is registered for it,
  * because the engine has TWO doc-contract evaluation points — the pre-dispatch gate (a
  * `block` row refuses before any child exists) and the fix round's close-out leg (a
- * round that wrote a new violation into a document is BLOCKED in its own turn, P42 §1.3).
+ * round that wrote a new violation into a document is BLOCKED in its own turn, P42 §7).
  * A rule row would be a third reading of the same facts.
  */
 export class PlanStructure {
@@ -479,7 +479,7 @@ export class Lifecycle {
     const frame = this.#openFrame();
     if (frame === null) return null;
     // The approved gate's findings ride the frame as the round's contract baseline
-    // (P42 §1.3) — read off the SAME verdict the gate judged with, never a second
+    // (P42 §7) — read off the SAME verdict the gate judged with, never a second
     // pre-flight call. A gate-less lifecycle carries no baseline and judges nothing.
     let baseline: readonly Finding[] | null = null;
     if (this.#preflight !== null) {

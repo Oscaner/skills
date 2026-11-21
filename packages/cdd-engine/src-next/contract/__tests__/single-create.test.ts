@@ -1,9 +1,10 @@
 // packages/cdd-engine/src-next/contract/__tests__/single-create.test.ts
-// P42 T4 — the declaration SET behind `Files` (design spec §1.2). Two faces answer for
+// P42 T4 — the declaration SET behind `Files` (design spec §3.1). Two faces answer for
 // one row: the VERB face says what its label states (five values, `other` catching every
-// spelling outside the vocabulary), and the CLAIM face says whether the row declares its
-// path at all (two closed label sets, everything else claiming nothing). The rule reads
-// the second face, so one defect's two legal spellings get one verdict.
+// spelling outside the vocabulary), and the CLAIM face says whether the row claims its
+// path (the four vocabulary verbs claim by their own spelling, the two closed label sets
+// widen the `other` bucket, everything else claims nothing). The rule reads the second
+// face, so one defect's two legal spellings get one verdict.
 //
 // Every arm is a PAIR: the form reported and the neighbouring legal form silent. The
 // fixtures differ only in the task id, the verb or the path, so a rule that judged
@@ -12,11 +13,17 @@
 // Zero module-level bare functions — the helpers are `const` (the repository's
 // zero-`function`-declaration discipline).
 
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { DocFs } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 import { PinVocabulary } from "../pins.ts";
 import { PlanTaskBlocksReader, type TaskBlock } from "../task-blocks.ts";
+
+/** The repo root — the plan corpus this rule is acceptance-judged on. */
+const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 
 /** The hermetic filesystem seam — the policy's sibling strategies read no real file. */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
@@ -109,10 +116,25 @@ describe("P42 T4 — the `Files` row grammar and its dialect projection", () => 
     ]);
   });
 
-  it("reads the inline dialect as three segments — two claiming paths and the test row", () => {
+  it("reads the inline dialect as three segments — three claiming paths, each by its own verb", () => {
     expect(
       declarationsOf("- **Files**: Modify: `a.ts`；Create: `b.ts`、`c.ts`；Test: `d.ts`"),
-    ).toEqual(["modify/modify/a.ts", "create/create/b.ts", "create/create/c.ts", "test/none/d.ts"]);
+    ).toEqual(["modify/modify/a.ts", "create/create/b.ts", "create/create/c.ts", "test/test/d.ts"]);
+  });
+
+  it("gives a prose lead-in its own reading — an out-of-vocabulary word never inherits", () => {
+    // A segment that opens with a bare word carries that word as its label (verb `other`,
+    // claim off both closed sets), so the prose lead-in below claims nothing even though
+    // the segment before it said `Create`. The pair: a label-less continuation still
+    // inherits the previous segment's reading.
+    expect(declarationsOf("- Create `a.ts` · 测试 `b.ts`")).toEqual([
+      "create/create/a.ts",
+      "other/none/b.ts",
+    ]);
+    expect(declarationsOf("- Create `a.ts` · `b.ts`")).toEqual([
+      "create/create/a.ts",
+      "create/create/b.ts",
+    ]);
   });
 
   it("buckets an out-of-vocabulary spelling as `other` while the claim face still reads it", () => {
@@ -208,6 +230,41 @@ describe("P42 T4 — the declaration set, not a line count", () => {
 });
 
 describe("P42 T4 — the claim whitelist", () => {
+  it("claims through the four vocabulary verbs — `Test:` and `Delete:` sit beside `Modify:`", () => {
+    // One defect, three spellings, one verdict: a task that already named the path and a
+    // later `Create:` of it. Only the spelling of the FIRST row changes across the three
+    // arms, so a claim face that folded `test` / `delete` to `none` would read zero on
+    // two of them while still reporting the third.
+    const canonical = singleCreateOf([
+      { id: 3, files: ["- Modify: `b.ts`"] },
+      { id: 5, files: ["- Create: `b.ts`"] },
+    ]);
+    expect(canonical).toHaveLength(1);
+    expect(canonical[0]?.message).toContain("task 5");
+    for (const spelling of ["- Delete: `b.ts`", "- Test: `b.ts`"]) {
+      expect(
+        singleCreateOf([
+          { id: 3, files: [spelling] },
+          { id: 5, files: ["- Create: `b.ts`"] },
+        ]),
+      ).toEqual(canonical);
+    }
+    // the pair: a `Create:` that is the OWNER is no violation, and an unclaimed label
+    // makes the same two rows silent
+    expect(
+      singleCreateOf([
+        { id: 3, files: ["- Delete: `b.ts`"] },
+        { id: 5, files: ["- Modify: `b.ts`"] },
+      ]),
+    ).toEqual([]);
+    expect(
+      singleCreateOf([
+        { id: 3, files: ["- Confirm: `b.ts`"] },
+        { id: 5, files: ["- Create: `b.ts`"] },
+      ]),
+    ).toEqual([]);
+  });
+
   it("claims through the two closed label sets — `Add:` and `修改：` claim, an unclaimed spelling does not", () => {
     // `Add:` is outside the verb vocabulary and inside the create set
     expect(
@@ -283,5 +340,30 @@ describe("P42 T4 — the three silent arms", () => {
         { id: 7, files: ["- Create: `b.ts`"] },
       ]),
     ).toHaveLength(1);
+  });
+});
+
+describe("P42 T4 — the plan corpus reads zero findings", () => {
+  it("judges every stored plan at zero — the dialect projection is the corpus's own grammar", () => {
+    // The corpus IS the acceptance condition (design spec §3.1): every `Files` line in
+    // `docs/kairos/plans/*.md` is read by this projection, so a plan the engine would
+    // dispatch must not read a `single-create` finding. A plan that trips here is either
+    // a real defect or a dialect the reader mis-parses — both are this rule's business.
+    const dir = path.join(REPO, "docs", "kairos", "plans");
+    const contract = new Contract();
+    const trip: string[] = [];
+    for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".md"))) {
+      const rel = `docs/kairos/plans/${name}`;
+      const findings = contract
+        .validate({
+          docKey: "plan",
+          path: path.join(REPO, rel),
+          content: readFileSync(path.join(dir, name), "utf8"),
+          root: REPO,
+        })
+        .filter((finding) => finding.kind === "single-create");
+      for (const finding of findings) trip.push(`${rel} :: ${finding.message}`);
+    }
+    expect(trip).toEqual([]);
   });
 });

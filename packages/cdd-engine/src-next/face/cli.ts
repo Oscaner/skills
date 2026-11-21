@@ -1190,7 +1190,7 @@ export class Cli {
       // structurally never passed to the child (the lifecycle's hard "child zero-dispatch"
       // guarantee; the CLI already returned above when the seam refused). The APPROVED
       // verdict is handed over too, not folded to `null`: its `findings` cell is the fix
-      // round's contract baseline (P42 §1.3), so folding it here would leave every
+      // round's contract baseline (P42 §7), so folding it here would leave every
       // production round with an empty baseline while the tests still passed.
       preflight: { gate: () => preflight },
       dispatch: async (frame) => {
@@ -1459,7 +1459,7 @@ export class Cli {
       reviews: parsed.paths.reviews,
       // The ONE contract instance the pre-flight gate judged with — the fix round's
       // close-out leg runs the same `Contract.validate`, so both readings come from one
-      // registry (P42 §1.3). A second instance here would be a second source of truth.
+      // registry (P42 §7). A second instance here would be a second source of truth.
       contract: this.#contract,
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
       // standing in-flight record — and only when its holder is dead. The caller's ONE

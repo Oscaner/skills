@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/session/__tests__/fix-round-gate.test.ts
-// P42 T10 — the fix round's IN-ROUND contract gate (design spec §1.3). The
+// P42 T10 — the fix round's IN-ROUND contract gate (design spec §7). The
 // `doc-contract` judgment stops being only the next hop's refusal: a fix round that
 // writes a NEW violation into the document it repaired is BLOCKED in its own turn. The
 // comparison is a delta against the findings the approved dispatch gate measured, never
@@ -20,12 +20,14 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import type { Finding } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
 import { PinAudit } from "../../contract/pins.ts";
+import type { CliOptions } from "../../face/cli.ts";
+import { Cli } from "../../face/cli.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../../face/lifecycle.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../../face/termination.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -68,11 +70,11 @@ const specDoc = (body: readonly string[]): string =>
   ].join("\n");
 
 /** The one violation this file writes — a bare measurement on the decision face. */
-const MEASURE = "这一相位补了 42 行。";
+const MEASURE = "这一相位补了 42 rows。";
 
 /** A second violation under the SAME heading — repairing the first and writing this one
  *  leaves the `kind@field` set unchanged while a defect is genuinely new. */
-const MEASURE_OTHER = "这一相位又补了 7 条。";
+const MEASURE_OTHER = "这一相位又补了 7 tests。";
 
 /** The IO seam — captures both channels (the soft-entry warn rides stderr). */
 class CaptureIo implements CliIo {
@@ -418,9 +420,9 @@ describe("P42 T10 — the close-out leg", () => {
       );
       const entries = contractEntries(outcome);
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.message).toContain("7 条");
+      expect(entries[0]?.message).toContain("7 tests");
       // the inherited row is not restated as new
-      expect(entries[0]?.message).not.toContain("42 行");
+      expect(entries[0]?.message).not.toContain("42 rows");
     } finally {
       f.cleanup();
     }
@@ -437,7 +439,7 @@ describe("P42 T10 — the close-out leg", () => {
       const outcome = await runFix(f, fixFrame(f, baseline), new DocFixRunner(() => MEASURE_OTHER));
       const entries = contractEntries(outcome);
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.message).toContain("7 条");
+      expect(entries[0]?.message).toContain("7 tests");
     } finally {
       f.cleanup();
     }
@@ -451,7 +453,7 @@ describe("P42 T10 — the close-out leg", () => {
       // pin the close-out's reading: a same-identity row is KNOWN whatever its tier, so
       // the leg never re-blames reading it. The baseline is the gate's measurement, never
       // an absolute standard the round is held to.
-      const written = specDoc(["这一处补了 5 处。"]);
+      const written = specDoc(["这一处补了 5 rows。"]);
       writeFileSync(f.doc, written, "utf8");
       const inherited = baselineOf(f, written).map((finding) => ({
         ...finding,
@@ -508,18 +510,20 @@ describe("P42 T10 — the close-out leg", () => {
   });
 });
 describe("P42 T10 — the fix prompt's write constraints", () => {
-  it("names each of the four shape rules exactly once in the docs-fix shell", () => {
+  it("names each of the three shape rules exactly once in the docs-fix shell", () => {
     const shell = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
-    for (const rule of [
-      "measure-literal",
-      "line-coordinate",
-      "live-arithmetic",
-      "temporal-indicator",
-    ]) {
+    const NAMED = ["measure-literal", "line-coordinate", "live-arithmetic"] as const;
+    for (const rule of NAMED) {
       expect(shell.split(rule).length - 1, rule).toBe(1);
     }
+    // The row names the WRITE constraints and nothing else: the two remaining
+    // closed-document-exempt rows describe a record the round does not write, so a
+    // fourth name is the row drifting, not the shell growing.
+    for (const rule of ["single-home", "change-history-date-shape"]) {
+      expect(shell, rule).not.toContain(rule);
+    }
     // the pair: a shell that names none of them is what this arm would catch, and the
-    // work shells never carry the four (they write no document)
+    // work shells never carry the three (they write no document)
     const work = TEMPLATE_PROMPT.modes.implement.shell.join("\n");
     expect(work).not.toContain("measure-literal");
   });
@@ -536,5 +540,144 @@ describe("P42 T10 — the structure comment reads two evaluation points", () => 
     expect(source).toContain("TWO doc-contract evaluation points");
     expect(source).toContain("pre-dispatch gate");
     expect(source).toContain("close-out leg");
+  });
+});
+
+/** The composition root's own fixture — a real repo holding a plan whose two tasks
+ *  both declare `Create:` of one path (the `single-create` row is `warn`, so the
+ *  production dispatch gate APPROVES the round and hands its reading over as the
+ *  baseline) plus the completed review round that owes the fix. */
+const PRODUCTION_PLAN = [
+  "---",
+  "title: Production Plan",
+  "doc-type: plan",
+  "version: v1.0",
+  "date: 2026-11-20",
+  "slug: p3",
+  "base: develop",
+  "---",
+  "",
+  "## Constraints",
+  "",
+  "- delta",
+  "",
+  ...[1, 2].flatMap((id) => [
+    `### Task ${id}:`,
+    "- **Objective**: objective",
+    "- **Files**: Create `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - step — checkable: green",
+    "- **Acceptance**: ok",
+    `- **DependsOn**: ${id === 1 ? "none" : "1"}`,
+    "",
+  ]),
+  "## Change history",
+  "",
+  "| Version | date | summary | author |",
+  "|---|---|---|---|",
+  "| v1.0 | 2026-11-20 | init | [human] |",
+  "",
+].join("\n");
+
+/** The child stand-in for the production round — lands the docs-fix carrier with the
+ *  one requested finding disposed, and edits no document. */
+class ProductionFixRunner implements ChildRunner {
+  readonly calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, "plan-fix-1.json"),
+      JSON.stringify({
+        status: "APPROVED",
+        artifacts: {},
+        dispositions: { F1: { status: "fixed" } },
+      }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P42 T10 — the composition root carries the gate's readings to the frame", () => {
+  it("a Cli-built docs-fix round dispatches with the gate's own non-empty baseline", async () => {
+    // The arm the stub gate cannot be: the wiring under test is the CLI's own
+    // `preflight: { gate: () => preflight }`. A folded gate (`ok ? null : preflight`)
+    // leaves the frame's cell empty here while every stub-fed arm stays green — the
+    // production round then compares against nothing and reports the document's own
+    // inherited reading as new.
+    const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "fix-gate-prod-")));
+    const cwd = process.cwd();
+    const frames: OpenFrame[] = [];
+    const originalStep = CliLifecycle.prototype.step;
+    const spy = vi.spyOn(CliLifecycle.prototype, "step").mockImplementation(function (
+      this: CliLifecycle,
+    ) {
+      const step = originalStep.call(this);
+      return async (frame: OpenFrame) => {
+        frames.push(frame);
+        return step(frame);
+      };
+    });
+    try {
+      for (const args of [
+        ["init", "-q"],
+        ["config", "user.email", "fix-gate@test"],
+        ["config", "user.name", "fix-gate-test"],
+      ]) {
+        spawnSync("git", args, { cwd: repo });
+      }
+      writeFileSync(path.join(repo, ".gitignore"), ".kairos\n", "utf8");
+      const planPath = path.join(repo, "docs", "kairos", "plans", "p3.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, PRODUCTION_PLAN, "utf8");
+      // The identity documents the slug index reads — the same-slug spec and the
+      // program overall, so the plan path resolves to exactly one identity.
+      const specPath = path.join(repo, "docs", "kairos", "specs", "p3-design.md");
+      mkdirSync(path.dirname(specPath), { recursive: true });
+      writeFileSync(
+        specPath,
+        "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: p3-overall\n---\n",
+        "utf8",
+      );
+      writeFileSync(
+        path.join(repo, "docs", "kairos", "specs", "p3-overall.md"),
+        "---\ntitle: O\ndoc-type: overall\nslug: p3-overall\n---\n",
+        "utf8",
+      );
+      spawnSync("git", ["add", "-A"], { cwd: repo });
+      spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repo });
+      // The requesting review round: one `warn` finding, so the fix is owed and the
+      // plan line's pending fix is the round's reason to exist.
+      const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      ledger.persistHandoff(
+        "review",
+        "plan",
+        { round: 1 },
+        { findings: [{ id: "F1", severity: "warn", summary: "the plan creates a.ts twice" }] },
+      );
+      ledger.recordRound("plan", { op: "review" });
+      process.chdir(repo);
+      const io = new CaptureIo();
+      const options: CliOptions = { io, sync: new ProductionFixRunner() };
+      const code = await Cli.create(options).runArgv(["fix", "--type", "plan", "--plan", planPath]);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(frames).toHaveLength(1);
+      const baseline = frames[0]?.contract;
+      expect(baseline).toBeDefined();
+      // The cell IS the gate's reading of this document — a non-empty set naming the
+      // one rule the plan trips, never a copy and never a re-judgment.
+      expect(baseline?.map((finding) => finding.kind)).toEqual(["single-create"]);
+      expect(code).toBe(0);
+    } finally {
+      spy.mockRestore();
+      process.chdir(cwd);
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });

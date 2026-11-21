@@ -40,11 +40,12 @@ export interface TaskStep {
  *  spelling meant). */
 export type FileVerb = "create" | "modify" | "test" | "delete" | "other";
 
-/** The CLAIM face's answer — whether a row's path is declared by a creating or
- *  modifying line. Deliberately a SECOND fact: `test` / `delete` are in the verb
- *  vocabulary without claiming anything, and the `other` bucket's spellings claim only
- *  through the two closed label sets below. */
-export type FileClaim = "create" | "modify" | "none";
+/** The CLAIM face's answer — whether a row's path is claimed by the line that names it,
+ *  and with which spelling. Deliberately a SECOND fact, wider than "created or modified":
+ *  the claim face covers the whole verb vocabulary (spec §3.1 ①), so `Test:` and
+ *  `Delete:` claim their path exactly as `Create:` and `Modify:` do, and the `other`
+ *  bucket's spellings claim only through the two closed label sets below. */
+export type FileClaim = "create" | "modify" | "test" | "delete" | "none";
 
 /** One `Files` row's declaration — the (verb, claim, path) triple one inline segment
  *  names. `verb` and `claim` are inherited by a segment that carries no label of its own
@@ -129,10 +130,12 @@ export class PlanTaskBlocksReader {
    *  because the corpus spells the modify verb either way. */
   static readonly FILE_ROW_LABEL = /^([^:：`/.]{1,40}?)\s*[:：]\s*/;
 
-  /** The leading label in its BARE-word form (`- Create \`x\`` · `- Modified \`y\``) —
-   *  the first word, taken only when it is a KNOWN vocabulary or claim word, so a plain
-   *  path (`a.ts`) is never read as a verb. */
-  static readonly FILE_WORD = /^(\S+)\s+/;
+  /** The leading label in its BARE-word form (`- Create \`x\`` · `- Modified \`y\`` ·
+   *  `· 测试 \`z\``) — the first word, taken whenever it is shaped like a label rather
+   *  than like a value: no colon, no quote, no path separator, no dot, and followed by
+   *  whitespace. A quoted or path-shaped opening token (`\`a.ts\`（…）` · `a.ts …`) is
+   *  the segment's own value and never a label. */
+  static readonly FILE_WORD = /^([^:：`/.\s]{1,40})\s+/;
 
   /** The parenthetical span of a segment — a cited example beside the row's own path,
    *  never a second declaration. Paired with a quoted span in ONE alternation so a
@@ -213,9 +216,7 @@ export class PlanTaskBlocksReader {
    *  parenthetical span) falls to the same `none` default. */
   static claimOf(label: string): FileClaim {
     const word = PlanTaskBlocksReader.#labelWordOf(label);
-    if (PlanTaskBlocksReader.FILE_VERBS.has(word)) {
-      return word === "create" || word === "modify" ? (word as FileClaim) : "none";
-    }
+    if (PlanTaskBlocksReader.FILE_VERBS.has(word)) return word as FileClaim;
     if (PlanTaskBlocksReader.CREATE_LABELS.has(word)) return "create";
     if (PlanTaskBlocksReader.MODIFY_LABELS.has(word)) return "modify";
     return "none";
@@ -227,26 +228,19 @@ export class PlanTaskBlocksReader {
     return (label.trim().split(/\s+/)[0] ?? "").toLowerCase().replace(/[:：]$/, "");
   }
 
-  /** Whether a bare word can be a label at all — the closed vocabulary plus the two
-   *  claim sets. An unknown word before a space is a value, never a verb. */
-  static #isLabelWord(word: string): boolean {
-    return (
-      PlanTaskBlocksReader.FILE_VERBS.has(word) ||
-      PlanTaskBlocksReader.CREATE_LABELS.has(word) ||
-      PlanTaskBlocksReader.MODIFY_LABELS.has(word)
-    );
-  }
-
   /** One segment's label in either form — the colon form first (`Create:` · `修改：` ·
-   *  `Not in this task:`), then the bare known word (`- Create \`x\``). Absent when the
-   *  segment opens with its value. */
+   *  `Not in this task:`), then the opening bare word. The bare form is the segment's
+   *  first word whenever it is shaped like a label (no colon, no quote, no path
+   *  separator and no dot, followed by whitespace): an out-of-vocabulary word is the
+   *  segment's label too, read as `other` on the verb face and off both closed sets on
+   *  the claim face — so a prose lead-in never inherits the previous segment's verb and
+   *  claim. Absent only when the segment opens with its own value (a quoted or
+   *  path-shaped token). */
   static #labelOf(segment: string): { readonly label: string; readonly rest: string } | null {
     const colon = PlanTaskBlocksReader.FILE_ROW_LABEL.exec(segment);
     if (colon !== null) return { label: colon[1] ?? "", rest: segment.slice(colon[0].length) };
     const bare = PlanTaskBlocksReader.FILE_WORD.exec(segment);
     if (bare === null) return null;
-    const word = PlanTaskBlocksReader.#labelWordOf(bare[1] ?? "");
-    if (!PlanTaskBlocksReader.#isLabelWord(word)) return null;
     return { label: bare[1] ?? "", rest: segment.slice(bare[0].length) };
   }
 

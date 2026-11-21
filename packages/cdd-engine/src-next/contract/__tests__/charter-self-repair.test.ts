@@ -1,11 +1,10 @@
 // packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts
-// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the six
+// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the five
 // shape rules into `block` rows, and the charter is a JUDGED corpus document: its five
 // decision sections would then refuse the program's own charter unless they stop
-// stating the tree as it stands. The delivery is three families at zero, not one:
+// stating the tree as it stands. The delivery is two families at zero, not one:
 //
-//   · the two grammars (`temporal-indicator` · `measure-literal`) report nothing on
-//     the five sections;
+//   · the measurement grammar (`measure-literal`) reports nothing on the five sections;
 //   · `single-home` reports nothing on the charter — its right domain holds the phase
 //     documents, which repeat the charter's gate / release / backfill sentences, so the
 //     charter states each of those once as a POINTER at its holder;
@@ -47,13 +46,16 @@ const charterBody = (sections: readonly (readonly [string, readonly string[]])[]
   [OVERALL_HEAD, ...sections.flatMap(([heading, lines]) => [heading, "", ...lines, ""])].join("\n");
 
 /** The original sentences — the pre-repair charter's own wording, one carrier line per
- *  reported hit, so the counter-arm counts what the five sections used to say. */
+ *  reported hit, so the counter-arm counts what the five sections used to say. The
+ *  measurement carrier states its count in the closed measurement set: the Chinese
+ *  quantifier the charter actually wrote left the grammar at P42 §8, and a verbatim
+ *  carrier would stop reporting the family this arm exists to read. */
 const ORIGINAL_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
   ["### Goal", ["② 写文档方案重设计（骨架生成 · 今日形面 `schema get --output skeleton`）"]],
   [
     "### Non-goals",
     [
-      "- **引擎行为变化在册**：动词清单读 `face/declare.ts#CLI_COMMANDS`（今日八命令：implement · review · fix · base · schema · issue · board · init），运行时依赖读 `package.json#dependencies`（今日 13 条：`commander` · `yaml`）",
+      "- **引擎行为变化在册**：动词清单读 `face/declare.ts#CLI_COMMANDS`（今日八命令：implement · review · fix · base · schema · issue · board · init），运行时依赖读 `package.json#dependencies`（13 rows in that file：`commander` · `yaml`）",
     ],
   ],
   [
@@ -140,9 +142,8 @@ const charterFindings = (docKey: DocKey = "overall") => {
 };
 
 describe("P41 T7 — the charter states conditions, not the tree as it stands", () => {
-  it("reports the original wording: seven temporal indicators and one bare measurement", () => {
+  it("reports the original wording: one bare measurement", () => {
     const kinds = kindsOf(charterBody(ORIGINAL_SECTIONS));
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(7);
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(1);
   });
 
@@ -153,9 +154,8 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
         : ([heading, lines] as const),
     );
     const kinds = kindsOf(charterBody([...duplicated, ["## Constraints", [BACKFILL_CRITERION]]]));
-    // The two grammars are silent on this copy — the refusal is the missing home, not a
-    // token shape.
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(0);
+    // The measurement grammar is silent on this copy — the refusal is the missing home,
+    // not a token shape.
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
     expect(kinds.filter((kind) => kind === "single-home").length).toBeGreaterThanOrEqual(1);
   });
@@ -163,7 +163,6 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
   it("passes the repaired pointers themselves", () => {
     const kinds = kindsOf(charterBody(REPAIRED_SECTIONS));
     expect(kinds.filter((kind) => kind === "single-home")).toHaveLength(0);
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(0);
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
   });
 
@@ -200,14 +199,13 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
         `the backfill family names its ${neighbour} holder`,
       ).toBe(true);
     }
-    // The two grammars stay silent — the refusal is the missing home, never a token.
-    expect(findings.filter((finding) => finding.kind === "temporal-indicator")).toHaveLength(0);
+    // The measurement grammar stays silent — the refusal is the missing home, never a token.
     expect(findings.filter((finding) => finding.kind === "measure-literal")).toHaveLength(0);
   });
 });
 
 describe("P41 T7 — the charter itself judges zero, and its registration face carries the narrowings", () => {
-  it("reports nothing on the real charter — all three families at zero", () => {
+  it("reports nothing on the real charter — both families at zero", () => {
     expect(charterFindings()).toEqual([]);
   });
 

@@ -243,14 +243,14 @@ const IMPLEMENT_SHELL: readonly string[] = [
 const RULINGS_READING =
   "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten. `INPUT_RULINGS` is a path, or the literal `none` when this round has no ruling sidecar.";
 
-/** The docs-fix shell's OWN write constraints (P42 §1.3) — the four shape rules the
+/** The docs-fix shell's OWN write constraints (P42 §7) — the three shape rules the
  *  dispatch gate judges, named where the round that WRITES a document reads them. The
  *  round's close-out leg re-reads the document and refuses the advance on any violation
  *  the round did not already carry, so the rules are the fix's own discipline, not the
- *  author's. One row, four names, no per-rule sentence: the criteria table carries the
+ *  author's. One row, three names, no per-rule sentence: the criteria table carries the
  *  wording and the names here are the identifiers a report prints. */
 const DOCS_FIX_SHAPE_RULES =
-  "**Written shape:** the edit obeys the four shape rules the gate judges — `measure-literal` (state no bare count in prose), `line-coordinate` (cite a module path and symbol, never a line number), `live-arithmetic` (state no arithmetic over counts), `temporal-indicator` (state no present-tense claim about the tree) — because the round's close re-reads the document and blocks the advance on every violation this round adds.";
+  "**Written shape:** the edit obeys the three shape rules the gate judges — `measure-literal` (state no bare count in prose), `line-coordinate` (cite a module path and symbol, never a line number), `live-arithmetic` (state no arithmetic over counts) — because the round's close re-reads the document and blocks the advance on every violation this round adds.";
 
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_TYPED_INSTRUCTIONS: readonly string[] = [

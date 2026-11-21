@@ -286,7 +286,7 @@ export class CliLifecycle {
   /** The composition root's audit accessor, when supplied — the ONE construction point of
    *  the dispatch's pin audit, shared with the pre-flight closure port. */
   readonly #pinAuditFactory: (() => PinAudit) | null;
-  /** The doc-contract coordinator this face's close-out leg runs (P42 §1.3) — the SAME
+  /** The doc-contract coordinator this face's close-out leg runs (P42 §7) — the SAME
    *  instance the pre-dispatch gate judged with, handed in at the composition root.
    *  Required: a lifecycle that built its own would read a second registry, and the two
    *  readings of one document would then be two sources of truth. */
@@ -320,7 +320,7 @@ export class CliLifecycle {
      *  port, so one dispatch scans the doc roots once. Absent → this class builds its
      *  own memoized audit (the eleven construction sites that never supply one). */
     pinAudit?: () => PinAudit;
-    /** The doc-contract coordinator the close-out leg judges with (P42 §1.3) — the
+    /** The doc-contract coordinator the close-out leg judges with (P42 §7) — the
      *  composition root's ONE instance, the same object its pre-flight seam holds. */
     contract: Contract;
   }) {
@@ -570,9 +570,9 @@ export class CliLifecycle {
       ...(await this.#criterionViolations(frame, outcome, evidence)),
       ...evidence,
       ...this.#structureViolations(frame),
-      // The doc-contract close-out runs in the SAME pass as the structure face (P42
-      // §1.3): both compare the round's own write against a dispatch-time baseline,
-      // and both refuse the round's ADVANCE, never its commit.
+      // The doc-contract close-out runs in the SAME pass as the structure face (P42 §7):
+      // both compare the round's own write against a dispatch-time baseline, and both
+      // refuse the round's ADVANCE, never its commit.
       ...this.#docContractViolations(frame),
       ...logEntries,
     ];
@@ -719,7 +719,7 @@ export class CliLifecycle {
     ];
   }
 
-  /** The document's CONTRACT delta as one graded entry (P42 §1.3) — a fix round's own
+  /** The document's CONTRACT delta as one graded entry (P42 §7) — a fix round's own
    *  write-back judged at the round's close against the baseline the approved dispatch
    *  gate measured. The comparison is a MULTISET difference on the finding's whole
    *  identity (`kind@field@message`), so a defect the round repaired and a different

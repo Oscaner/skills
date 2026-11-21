@@ -59,7 +59,6 @@ import {
   SingleHomeInvariant,
   SlugRefInvariant,
   TaskIdUniqueInvariant,
-  TemporalIndicatorInvariant,
   WaveWidthInvariant,
 } from "./invariants.ts";
 import type { LedgerFacts } from "./judge.ts";
@@ -76,7 +75,7 @@ export interface RuleDeclarationBase {
   /** The tier a hit carries: `block` refuses the round, `warn` only annotates it. The
    *  value is stamped onto every finding this row produces (never filled by a strategy). */
   readonly severity: "block" | "warn";
-  /** Whether a CLOSED document exempts this row (design spec §1.4): the six shape
+  /** Whether a CLOSED document exempts this row (design spec §1.4): the five shape
    *  rules do, the long-standing structural rules do not. */
   readonly skipWhenClosed: boolean;
 }
@@ -106,8 +105,8 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
-/** The rule registry — doc scope 31 rows + ledger scope 2 rows = 33 (the count is
- *  re-totalled with the P42 rows' arrival). The six shape rows (the four variable
+/** The rule registry — doc scope 30 rows + ledger scope 2 rows = 32 (the count is
+ *  re-totalled with the P42 rows' arrival). The five shape rows (the three variable
  *  classes · single-home · the record face's date shape) are P41's additions; they land
  *  at `block` beside the pre-existing block rows, the flip from their transitional
  *  `warn` being the phase's own last action. */
@@ -314,8 +313,9 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     skipWhenClosed: false,
     create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
   },
-  // P41's shape gate — six rows, flipped to `block` by the phase's own last action (they
-  // landed as `warn`, so no half-flipped state was ever registered).
+  // P41's shape gate — five rows, flipped to `block` by the phase's own last action (they
+  // landed as `warn`, so no half-flipped state was ever registered). P42 §8 withdrew the
+  // sixth: a present-tense description of the tree is prose, not a shape violation.
   {
     scope: "doc",
     id: "measure-literal",
@@ -339,14 +339,6 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     severity: "block",
     skipWhenClosed: true,
     create: () => new LiveArithmeticInvariant(),
-  },
-  {
-    scope: "doc",
-    id: "temporal-indicator",
-    docKeys: "all",
-    severity: "block",
-    skipWhenClosed: true,
-    create: () => new TemporalIndicatorInvariant(),
   },
   {
     scope: "doc",

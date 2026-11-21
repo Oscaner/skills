@@ -15,8 +15,7 @@
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
 //                 the shape gate (P41) — measure-literal · line-coordinate ·
-//                  live-arithmetic · temporal-indicator · single-home ·
-//                  change-history-date-shape;
+//                  live-arithmetic · single-home · change-history-date-shape;
 //   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
 //                  tasks (a `LedgerRule`, judged with the ledger fact bundle).
 // Each doc strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; each
@@ -1826,12 +1825,13 @@ export class WaveWidthInvariant extends Invariant {
 }
 
 /** single-create — one path is CREATED once, and its `Create:` row comes before every
- *  other declaring row (P42 §1.2). The judgment needs two answers the `Files` reader
+ *  other declaring row (P42 §3.1). The judgment needs two answers the `Files` reader
  *  keeps apart: the VERB face says what a row's label states, and the CLAIM face says
- *  whether the row declares its path at all. A `Test:` row is a verb the vocabulary
- *  knows without claiming, and an out-of-vocabulary `Add:` / `修改` spelling claims
- *  through its own closed label set — so two spellings of one defect get one verdict
- *  instead of one being read as prose.
+ *  whether the row claims its path at all. The claim face covers the whole verb
+ *  vocabulary — a `Test:` or a `Delete:` row claims its path exactly as `Modify:` does —
+ *  and an out-of-vocabulary `Add:` / `修改` spelling claims through its own closed label
+ *  set, so two spellings of one defect get one verdict instead of one being read as
+ *  prose.
  *
  *  The rule reads the declaration SET, never a line count: a path declared twice on one
  *  row is one declaration, a path restated as `Modify:` after its `Create:` is the
@@ -1911,19 +1911,18 @@ export class SingleCreateInvariant extends Invariant {
 
 /** The closed measurement-unit set of the `measure-literal` grammar (§1.2). A count
  *  unit is a WORD: a bare integer beside one of these states a measurement in prose.
- *  The closed set IS the grammar — a unit outside it is not a judgment. */
-const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows", "行", "处", "条"] as const;
+ *  The closed set IS the grammar — a unit outside it is not a judgment. It holds the
+ *  tree's own measurement words only: a Chinese quantifier counts prose spans rather
+ *  than the tree, so it is outside the judgment and `第 N 行` stays the coordinate row's
+ *  shape alone. */
+const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows"] as const;
 
 /** The `measure-literal` token grammar — an independent decimal integer, one space,
- *  one word of the closed unit set. "Independent" is the three lookarounds: a decimal's
- *  fractional part and the number inside a dotted id are not integers; "word" is the
- *  right lookahead, which also refuses a Chinese unit embedded in a longer compound;
- *  and an integer behind `第` is not a count at all — `第 N 行` is the `line-coordinate`
- *  row's own shape, and `行` is in the unit set, so without that lookbehind one
- *  coordinate would be refused twice and the second refusal would blame "a bare
- *  measurement" for it. One fact, one rule. */
+ *  one word of the closed unit set. "Independent" is the two lookarounds: a decimal's
+ *  fractional part and the number inside a dotted id are not integers; "one word" is
+ *  the right lookahead, which also refuses a unit embedded in a longer compound. */
 const MEASURE_LITERAL = new RegExp(
-  `(?<!第\\s{0,2})(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
+  `(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
   "g",
 );
 
@@ -1942,15 +1941,6 @@ const LINE_COORDINATES: readonly RegExp[] = [
  *  optional spaces, integer, `=`, integer. Where the operands come from is NOT part of
  *  the grammar: the shape alone is the violation. */
 const LIVE_ARITHMETIC = /(?<![\w.])\d+\s*[−–-]\s*\d+\s*=\s*\d+(?![\w.])/g;
-
-/** The `temporal-indicator` closed set (§1.2) — the words that state the tree as it
- *  stands. The word alone is not a violation; the clause must also carry a symbol. */
-const TEMPORAL = /\btoday\b|\bcurrently\b|今天|今日|仍/i;
-
-/** The clause delimiters of the `temporal-indicator` mount grammar (§1.2). A clause
- *  ends at a Chinese comma / semicolon / full stop / middle dot, or at a DOUBLE em
- *  dash: a single `—` is not a delimiter, so a loose `—+` reading is never admissible. */
-const CLAUSE_DELIMITERS = "，；。·";
 
 /** One prose line of a document body — the shared line read of the shape grammars and
  *  the sentence index (one line face, so a fence and a code span are judged once). */
@@ -2003,7 +1993,7 @@ export class ProseLines {
 // biome-ignore lint/complexity/noStaticOnlyClass: the heading-stack prose walk is a declared static reader set — the repo's zero-bare-function discipline admits no standalone walker.
 class ProseWalk {
   /** Every non-blank prose line of the judged body with its face role — the ONE
-   *  heading-stack advance behind the four shape grammars and the shared sentence
+   *  heading-stack advance behind the three shape grammars and the shared sentence
    *  read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
    *  innermost-first, so a `#### 7.5.1` item inherits the role of the `### 7.` group
    *  above it. */
@@ -2039,8 +2029,8 @@ class ProseWalk {
 
 // biome-ignore lint/complexity/noStaticOnlyClass: the shared shape-rule frame is a declared static walk frame — the repo's zero-bare-function discipline admits no standalone frame.
 class ProseFace {
-  /** The shared evaluation frame of the four shape grammars: only a DECISION-face line
-   *  is judged. A line whose heading the map cannot place is not a token question — it
+  /** The shared evaluation frame of the three shape grammars: only a DECISION-face
+   *  line is judged. A line whose heading the map cannot place is not a token question — it
    *  is the map's own gap, reported once by `gaps()`. */
   static judge(
     ctx: JudgeContext,
@@ -2057,7 +2047,7 @@ class ProseFace {
   /** The gap verdict — ONE finding per heading the map cannot place (the `unmapped`
    *  face cannot be judged for a token, so the gap itself is the verdict, never a
    *  silence). It is produced by the family's first row alone: the gap is a property of
-   *  the face, so the same gap under four grammars must not report four times, and the
+   *  the face, so the same gap under three grammars must not report three times, and the
    *  reporting row has to be a declared one — a kind no declaration owns would leave the
    *  `checked:` face with a finding no row accounts for. */
   static gaps(ctx: JudgeContext, kind: string): FindingDraft[] {
@@ -2185,72 +2175,6 @@ export class LiveArithmeticInvariant extends Invariant {
       }
       return findings;
     });
-  }
-}
-
-/** temporal-indicator — the decision face states no present-tense description of the
- *  tree as it stands (P41 §1.2). The mount is a grammar: the indicator alone is not a
- *  violation, the clause must also carry a symbol candidate (an inline code span or a
- *  bare token carrying `/`, `.` or `#`), so an isolated adverb is never misread. */
-export class TemporalIndicatorInvariant extends Invariant {
-  readonly name = "temporal-indicator";
-
-  evaluate(ctx: JudgeContext): FindingDraft[] {
-    return ProseFace.judge(ctx, (record) => this.#clausesOf(ctx, record));
-  }
-
-  /** The clauses of one line that both carry an indicator and mount it on a symbol. */
-  #clausesOf(ctx: JudgeContext, record: ProseLineRecord): FindingDraft[] {
-    const findings: FindingDraft[] = [];
-    for (const clause of TemporalIndicatorInvariant.#clauses(record)) {
-      if (!TEMPORAL.test(clause.blanked)) continue;
-      if (!TemporalIndicatorInvariant.#hasSymbol(clause)) continue;
-      findings.push(
-        this.finding(
-          ctx,
-          ProseFace.fieldOf(record),
-          `the decision face states the tree as it stands: ${clause.raw.trim()}`,
-          "restate the clause as the condition that must hold",
-        ),
-      );
-    }
-    return findings;
-  }
-
-  /** The clause split of one line — the offsets come off the BLANKED read (so a
-   *  delimiter quoted in a code span never splits) and slice the raw line, which keeps
-   *  the code span available as a symbol candidate. */
-  static #clauses(record: ProseLineRecord): readonly { blanked: string; raw: string }[] {
-    const clauses: { blanked: string; raw: string }[] = [];
-    let from = 0;
-    let at = 0;
-    while (at < record.blanked.length) {
-      const pair = record.blanked.startsWith("——", at);
-      if (!pair && !CLAUSE_DELIMITERS.includes(record.blanked[at] ?? "")) {
-        at += 1;
-        continue;
-      }
-      clauses.push({
-        blanked: record.blanked.slice(from, at),
-        raw: record.raw.slice(from, at),
-      });
-      at += pair ? 2 : 1;
-      from = at;
-    }
-    clauses.push({ blanked: record.blanked.slice(from), raw: record.raw.slice(from) });
-    return clauses;
-  }
-
-  /** Whether a clause carries a symbol candidate — an inline code span, or a bare token
-   *  carrying a path separator, a fragment marker or an internal dot. */
-  static #hasSymbol(clause: { blanked: string; raw: string }): boolean {
-    if (PinSpans.blankedOf(clause.raw) !== clause.raw) return true;
-    for (const token of clause.blanked.split(/[\s，；。·、：！？!?()（）「」『』【】"'`]+/)) {
-      if (token === "") continue;
-      if (token.includes("/") || token.includes("#")) return true;
-      if (/\w\.\w/.test(token)) return true;
-    }
-    return false;
   }
 }
 

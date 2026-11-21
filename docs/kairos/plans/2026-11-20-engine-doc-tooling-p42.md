@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -90,9 +90,9 @@ none
 
 #### Steps
 - 收 `CriteriaTier` 与 `TIER_ORDER` 为两档 — checkable: `review-criteria.test.ts` 断言取值集恰两值
-- 两条原 `nit` 行改判 `warn`；五格按上列字节替换 — checkable: 行数不变；整张 `CRITERIA.renderRubric()` 的渲染结果按 `\bnit\b` 扫零命中（成对：只把 `regrade-mark` 的 `tier` 改回 `nit` ⇒ 第三档落表外、`renderRubric` 的第二条守卫同时红）
+- 两条原 `nit` 行改判 `warn`；五格按上列字节替换 — checkable: 行数不变；整张 `CRITERIA.renderRubric()` 的渲染结果按 `\bnit\b` 扫零命中（成对：只把 `regrade-mark` 的 `tier` 改回 `nit` ⇒ 第三档落表外、`renderRubric` 的第二条守卫同时红）。同批把两处 counterexample 的 `toContain` pin 改读替换句的句尾——`debt-consequence` 的 `is a warn, not a nit` 改 `is a warn:`、`expression-only` 的 `is a nit, not a warn` 改 `` is a `notes` line, not a finding ``（两条旧串正是替换删掉的那半句，留着 ⇒ 两条 `toContain` 红，而替换本身是对的）
 - `expression-only` 的 `duty` 写进档位代价 — checkable: 断言该格的字符串含 fix 轮与「不复评」两处；删掉那句 ⇒ 该用例红
-- `renderRubric` 增表外档守卫 — checkable: 一份带 `nit` 行的注册表 ⇒ 抛错（成对：删掉那一行 ⇒ 正常渲染）
+- `renderRubric` 增表外档守卫 — checkable: 一份带 `nit` 行的注册表 ⇒ 抛错（成对：删掉那一行 ⇒ 正常渲染）；同批把 `covers every tier — a tier with no row throws at assembly` 的 `missingNit` 臂从「缺一档」改成「表外一档」——一条 `tier` 被断言成 `"nit"` 的行（`as` 越过收窄后的 `CriteriaTier`）⇒ `renderRubric` 抛表外档（成对：删掉那一行 ⇒ 正常渲染）。旧臂的 `CRITERIA_ROWS.filter((row) => row.tier !== "nit")` 在两值 `TIER_ORDER` 下返回整张表，永远不抛，故它必须跟着守卫换读法而不是留着
 - 三处注释改写 — checkable: `CRITERIA_ROWS` 的表注释与 `CriteriaRegistry` 的两处档序注释都不带逐档计数，六条边界名逐条可断言（成对：删掉任一条边界名 ⇒ 该条断言红；把 `regrade-mark` 的 `tier` 改回 `nit` ⇒ 该档落表外、`renderRubric` 的第二条守卫抛错，而六名断言不动——六条名住的是静态表注释，没有一行的 `tier` 移动它的字节）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
@@ -128,7 +128,7 @@ none
 - wave 线 brief 的 notes 段（doc 线不带该段）
 - 载体 `notes` 只剩 child 自己写的内容
 - 一条 note 不改变任何轮的结论
-- 两个面的展示字节都过 `displayReason` 这一道 fold
+- 板面的展示字节过 `displayReason` 这一道 fold；brief 的 notes 段印载体里存的原文（spec §2.1 的 brief 半句：逐条原样列出，不改写、不附加动作要求）
 
 #### Steps
 - 板面 notes 的读回投影（`notesOf(record)`）— checkable: 把该投影对 `notes` 的读摘掉 ⇒ 板面 token 与 brief 段同时读零、用例红；恢复 ⇒ 一条 note 读 `notes +1`（成对：同一份载体删掉那条 note ⇒ 同一读数）
@@ -142,7 +142,7 @@ none
 - 软通道的两笔后果（spec §2.2）— checkable: 同一份带非声明键的草稿 ⇒ stderr 恰一行 `CDD_WARN:`（报文 `dropped non-declared draft field(s): … — engine-reserved, never written`）且该行派生 `contractViolationCount` 抬一；成对：删掉那个非声明键 ⇒ stderr 静默、计数回到原值，而两份草稿的 `next:` 与退出码逐字节相同
 - `#materialize` 的两句反话同批改 — checkable: 该函数的两处注释里 `AT MOST ONE WARN on the carrier's notes` 与 `silent on the warn channel` 零命中，改后的读法点名 soft 通道与它的两笔后果（成对：把任一句写回 ⇒ 红）；这两句都不带 `nit` 字面，§4 的登记-扫面门到不了它们，只能由本条钉住
 - 不跨线 — checkable: 同一份载体进入下一条线的首轮 ⇒ 板面与 brief 都不读它
-- 既有 pin 跟随新落点 — checkable: 两份夹具重跑绿，逐处读新落点：① `a free-named declared artifact path is corrected to the canonical OUTPUT_* path + surfaced on the notes (find #5 self-derivation)`——载体 `toEqual` 里那两条 `artifact …` note 改到 soft violation，同用例的 `contractViolationCount` 由 0 改 2（artifact 族两条各一条 soft）；② `§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK …`——`carrier.notes` 长度 1 的 pin 改读 child 的 notes（本例空 ⇒ 该键缺席），而同一条的 `stderrText` 由空改读恰一行 `CDD_WARN:`；③ `§8.7 — a findings-face draft carrying a stray status …`——后两处同上；④ `D62 — a docs-fix round writes a WORK carrier with status`——键集由 `artifacts · dispositions · notes · status` 改 `artifacts · dispositions · status`（child 不写 notes 时载体不取该键）；⑤ `a decorative slot outside its declared shape is DROPPED, never a BLOCK (P34 T6 §2.1)`——`carrier.notes` 的 `toContain` 改读 soft violation（同一用例已有的 soft 断言就是它的新落点）；⑥ `a missing test-evidence file is a HARD violation of the round — the carrier keeps its declared status` 与 ⑦ `a MALFORMED test-evidence file → BLOCKED reporting the true cause (malformed JSON), never the misleading 'missing' (D27)`——`outcome.violations` 的长度与下标 pin 改读 hard 项的内容：软项排在 hard 项之前，故长度由 1 变 3、`[0]` 不再是 hard，读法改成按 `grade` 取那一条；⑧ `lifecycle.test.ts` 的 `drops a judge-plane artifacts / notes outside its declared shape — two losses, ONE soft entry, a conforming carrier`——标题与断言同读两条 soft 项（装饰族与保留族各一），`carrier.notes` 缺席。成对：上述任一 pin 留旧落点 ⇒ 该用例红
+- 既有 pin 跟随新落点 — checkable: 两份夹具重跑绿，逐处读新落点：① `a free-named declared artifact path is corrected to the canonical OUTPUT_* path + surfaced on the notes (find #5 self-derivation)`——载体 `toEqual` 里那两条 `artifact …` note 改到 soft violation，同用例的 `contractViolationCount` 由 0 改 2（artifact 族两条各一条 soft）；② `§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK …`——`carrier.notes` 长度 1 的 pin 改读 child 的 notes（本例空 ⇒ 该键缺席），而同一条的 `stderrText` 由空改读恰一行 `CDD_WARN:`；③ `§8.7 — a findings-face draft carrying a stray status …`——后两处同上；④ `D62 — a docs-fix round writes a WORK carrier with status`——键集由 `artifacts · dispositions · notes · status` 改 `artifacts · dispositions · status`（child 不写 notes 时载体不取该键），同用例那句 `((outcome.carrier?.notes ?? []) as string[]).join("\n")` 的 `toContain` 改读 soft 项——该键缺席后 `join` 读空串，故那句断言改写 `outcome.violations` 里那条 `dropped non-declared draft field(s): findings — engine-reserved, never written`（成对：载体 `notes` 留着引擎那串 ⇒ 该断言红）；⑤ `a decorative slot outside its declared shape is DROPPED, never a BLOCK (P34 T6 §2.1)`——`carrier.notes` 的 `toContain` 改读 soft violation（同一用例已有的 soft 断言就是它的新落点）；⑥ `a missing test-evidence file is a HARD violation of the round — the carrier keeps its declared status` 与 ⑦ `a MALFORMED test-evidence file → BLOCKED reporting the true cause (malformed JSON), never the misleading 'missing' (D27)`——`outcome.violations` 的长度与下标 pin 改读 hard 项的内容：软项排在 hard 项之前，故长度由 1 变 3、`[0]` 不再是 hard，读法改成按 `grade` 取那一条；同一用例的另外两处同批跟随——载体 `toEqual` 去掉 `notes` 键（两条 `artifact report` / `artifact test_evidence` 句改读 soft 项），派生计数 `contractViolationCount` 由 0 改 2（artifact 族两个 prescribed slot 各一条 soft）；⑧ `lifecycle.test.ts` 的 `drops a judge-plane artifacts / notes outside its declared shape — two losses, ONE soft entry, a conforming carrier`——标题逐字节保留（它读的正是实测读数），断言读**恰一条** soft 项（装饰族那一句 `dropped decorative draft field(s) outside their declared shape: artifacts, notes — never written`），`carrier.notes` 缺席。该夹具的两格坏值都落在**声明**槽上（`{ artifacts: "nope", notes: 7 }`），`HandoffSchema.droppedKeys` 只收非声明键，故保留族不触发；要凑成两条 soft 项得另加一份带非声明键的夹具，那不在本任务的改动面。成对：上述任一 pin 留旧落点 ⇒ 该用例红
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
@@ -418,6 +418,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.10 | 2026-11-21 | 评审第 6 轮回填（一条 blocker · 三条 warn 全数采纳）：Task 3 的 ⑧ 改回实测读数——该夹具两格坏值都落在声明槽上，`droppedKeys` 返回空数组，故恰一条 soft 项、标题逐字节保留（两条 soft 项要另加带非声明键的夹具，不在本任务改动面）· Task 3 的 ④ 补 `carrier.notes` 的 `toContain` 改读 soft 项（键缺席后 `join` 读空串），⑥ 补载体 `toEqual` 去掉 `notes` 键与 `contractViolationCount` 由 0 改 2 · Task 2 补两处 counterexample pin 改读替换句句尾（`is a warn:` · `` is a `notes` line, not a finding ``），`missingNit` 臂改成表外一档（两值 `TIER_ORDER` 下旧臂永不抛） · Task 3 的 Produces 把 `displayReason` 折叠收在板面，brief 印载体原文（spec §2.1 的 brief 半句） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.9 | 2026-11-20 | 编排者回填（用户裁定）：Task 4 加一步——坐标文法的比值误判修复与成对臂（`4.5:1` 不再被读成 `path:line`） | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.8 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 Task 10「fix 轮的回合内判定」——无依赖，落第一层；判据是差分（基准为本轮的已审身份），绝对判定会把修复轮卡死。分层行同批更新 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.7 | 2026-11-21 | 评审第 5 轮回填（两条 blocker · 三条 warn · 一条 nit 全数采纳）：Task 1 把三份夹具接进 Files 行并补一步——读回报文改两值、五份假孩子草稿的 `nit` 改 `warn`（`severity` 在 `FINDING` 的 `required` 里，留 `nit` 是被拒不是无声丢格），Constraints 的红窗口补一句「它落在窗口之前」，Acceptance 同批 · Task 3 把两份夹具接进 Files 行并补一步，逐处点名八条旧落点 pin（artifact 偏移那一条的 `contractViolationCount` 由 0 改 2、§8.7 两条的空 stderr 改恰一行 `CDD_WARN:`、docs-fix 键集去掉 `notes`、两条 evidence 用例的 `violations` 长度与下标改成按 `grade` 取 hard 项、decorative 用例与 lifecycle 那条的标题与 soft 读数）· Task 1 的写侧词表给了消费者——`CarrierValue.findings[].severity` 挂 `FindingSeverity`，`findingsOf` 的 `as FindingSeverity` 删掉，`grep FindingSeverity` 的读数写进判据步 · Task 5 把环详情行收成一处（`session/graph.ts` 的一个 `TaskGraph` 静态方法），`session/preflight.ts` 进 Files 行，`@T${` 的扫面与 cross-face 臂进 Steps · Task 6 的发布门补一条计数臂——模块头的 `the three tier` 零命中（整句在盘上折行，按行内片段读） · Task 9 的 Consumes 改成三条惰性臂读的是树里已有的三个座位，「同层先落规则」是操作序 | Oscaner M. · Claude（kairos:cdd-fix） |

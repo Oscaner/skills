@@ -143,7 +143,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 `contract/pins.ts#PinIndex` 的符号表是全树并集，`path#Symbol` 的路径部分只用于识别「这是不是一枚 pin」，不参与解析——一枚写着错文件的 pin 与一枚路径压根不存在的 pin 都能通过，而 `PinShape` 认的 `path` 形状又只覆盖不带 `#` 的那一半。
 
 - **改的是作用域，不是解析**：`PinAudit` 已经会把 `Class.member` 拆成载体与成员两段（`member.carrier` · `member.member`），错的是两段都拿去查全树并集。符号表因此改成「文件 → 该文件的符号集」，判据查**解析到的那个文件**。
-- **路径形状判者收成一个**：「这个 token 像不像路径」今天有两个判者（`contract/pins.ts#PinVocabulary.pathOf` 与 `contract/task-blocks.ts#PlanTaskBlocksReader#fileTokensOf` 的前导判断），收成一处，另一处读它。
+- **路径形状判者收成一个**：「这个 token 像不像路径」现有两个判者（`contract/pins.ts#PinVocabulary.pathOf` 与 `contract/task-blocks.ts#PlanTaskBlocksReader#fileTokensOf` 的前导判断），收成一处，另一处读它。
 - **成员形态要认得**：pin 的主体是 `path#Class.member` 与 `path#member`，故一个名字算「在那个文件里」的条件是它以声明形态出现（类、接口、类型、常量、函数、枚举，或类体里的方法与字段），不是「文中出现过这个词」——按词出现算是把注释里的提及当成坐标。
 - **迁移归本相位**：改成文件归位之后，语料里路径对而符号在别处的 pin 会一次性变红；它们逐条改到正确的文件，改法与判据同批落地——不留「门已经严了、语料还红着」的中间态。
 - **报文与档位不变**：产出的依旧是一条 `pin` 形状的 finding，档位与既有的 `pins.guard` 一致；变的是它现在真的校验了路径。

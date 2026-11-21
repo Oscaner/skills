@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -43,7 +43,12 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 - `session/handoff-schema.ts#CARRIER` 的 `notes` 槽从「声明但无人读」升为承载面，两个面各有一个名字：
   - **板面（每一条线）**：`face/board-view.ts#LineCarriers` 增一个 `notesOf(record)` 投影，与 `countOf` / `findingsOf` 共用同一次载体读与解析（`#contentOf` 缓存），读 `CARRIER` 的 `notes` 槽。这个投影覆盖**两种 plane** 的载体（`judge` 与 `work` 都算）：M 是这个 token 报告的那几条记录各自的 note 条数之和（求和面就是 `#summaryToken` 收到的 `run`，与 `+N` 同一处），既不是整条线的 note 总数，也不是判官面的条数——`face/board-view.ts#LineCarriers.#readFresh` 现有的「无 `findings` 数组 ⇒ `EMPTY_CARRIER_CONTENT`」早退必须同批放宽成「无 `findings` 且无 `notes` ⇒ 空」，否则 work 轮的 note（引擎自己在 `render/templates.ts#DOCS_FIX_SHELL` 里让 child 写进 `notes` 的那一条：`else BLOCKED + the reason in notes`）永远读成零。`face/board-view.ts#BoardView` 的行 token 在既有 findings 的 `+N` 之后追加 `notes +M`：M 是这个 token 报告的那几条记录各自的 note 条数之和——`#summaryToken(verb, body, mark, run, carriers)` 拿到的 `run` 是什么就数什么，与 `+N` 的 `countOf` 同一个 `reduce` 面（成功面合一的 token 数它的那组成功记录，失败面的 token 只数那一条记录），故一条线上 review 载体与 fix 载体各带一条 note 时两个 token 各读 `notes +1`，不是各自 `notes +2`；计数逐条以 `REGRADE_NOTE_SEPARATOR` 同一分隔符紧随其后——与降级标记同一处、同一行，不新起行、不新起段；两者同时在场时**降级标记在前、`notes +M` 在后**（`#summaryToken` 先拼 `+N` 再拼标记，notes 段接在标记之后）。**每条 note 上板前先过降级理由同一道展示折叠**：`contract/review-criteria.ts` 的 `displayReason` 从模块私有升为导出（`regradeNote` 与板面共读这一个 fold，不复制第二份），` · ` 折成 `; `、连续空白（含换行）折成单空格——`notes` 是无约束字符串数组，原样上板的一条带换行或 ` · ` 的 note 会把板面的一行拆成两行、把一条 note 读成两格。折叠只发生在展示面，不落回载体：`carrier.notes` 存的是 child 的原文。
-  - **brief（只 wave 线）**：`render/brief.ts#BriefRenderer.render` 与 `face/gate.ts#CliGate.renderBrief` 的入参是 plan 文本、那一份 plan 解析与任务号，不含任何载体，**故 brief 读 `notes` 是一条新读**。三处各钉一句：**读哪一条**——本线（同一 `(line, key)`）上最后一条已完成的 **review 载体**（`(cycle, attempt)` 最大）；**经哪个读面**——`face/gate.ts#CliGate.renderBrief` 从 `face/lifecycle.ts#DispatchScene` 的 `ledger` 取，经 `face/board-view.ts#LineCarriers` 的 `notesOf(record)`（归属判定 + `CarrierIntegrity.read` 摘要校验，与板面同一次读）拿到投影，随文本与解析一起交给渲染器——不新起裸 `readFileSync`（那是「单事实单份」禁止的第二台读机）；**落在哪**——`BriefRenderer.render` 在 `## Constraints` 镜像**之后**拼 notes 段，`#taskBody` 的字节一字不动（`session/ledger.ts#Ledger#briefDrifted` 两侧都哈希 `taskBody`，notes 落进 `taskBody` 会让散列投影与 child 实际读到的 brief 字节分家）。brief 的 notes 段逐条原样列出——不改写、不附加动作要求。doc 线（phase-spec / plan / overall）的评审轮没有 brief 段可承载，note 在那些线上只走板面。
+  - **brief（只 wave 线）**：`render/brief.ts#BriefRenderer.render` 与 `face/gate.ts#CliGate.renderBrief` 的入参是 plan 文本、那一份 plan 解析与任务号，不含任何载体，**故 brief 读 `notes` 是一条新读**。三处各钉一句：**读哪一条**——本线（同一 `(line, key)`）上最后一条已完成的 **review 载体**（`(cycle, attempt)` 最大）；**经哪个读面**——`face/gate.ts#CliGate.renderBrief` 从 `face/lifecycle.ts#DispatchScene` 的 `ledger` 取，经 `face/board-view.ts#LineCarriers` 的 `notesOf(record)`（归属判定 + `CarrierIntegrity.read` 摘要校验，与板面同一次读）拿到投影，随文本与解析一起交给渲染器——不新起裸 `readFileSync`（那是「单事实单份」禁止的第二台读机）；**落在哪**——`BriefRenderer.render` 在 `- `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts` 里不再出现手写的语料规模常量；扫描覆盖由一棵已知小树夹具证明（成对：删掉一个语料根 ⇒ 该夹具红）。
+- 三处零 finding 臂各带一条惰性臂：把注册表里的选择器改成永不匹配 ⇒ 该规则报出零候选且用例红（成对：正常注册表 ⇒ 绿）。
+- `packages/kairos/tests/claim-shapes.test.ts` 的断言改成结构断言：删掉某个 claim shape 的子弹行 ⇒ 红；只改它一个措辞词 ⇒ 不红（成对：只改这一处）。
+- `charter-self-repair` 里对章程正文的字符串比对零命中，而它对引擎的调用仍在（成对：把章程正文改回旧措辞 ⇒ 该用例不红）。
+
+## Constraints` 镜像**之后**拼 notes 段，`#taskBody` 的字节一字不动（`session/ledger.ts#Ledger#briefDrifted` 两侧都哈希 `taskBody`，notes 落进 `taskBody` 会让散列投影与 child 实际读到的 brief 字节分家）。brief 的 notes 段逐条原样列出——不改写、不附加动作要求。doc 线（phase-spec / plan / overall）的评审轮没有 brief 段可承载，note 在那些线上只走板面。
 - 不进 `rollup`：一条 note 不改变结论、不产生 fix 需求、不欠 `dispositions`。转正的是「可读」，不是「可判」。
 - **不跨线**：note 不继承到下一条线，因为它的引文指向本线那份文档的具体一句。
 - 派发输入表零新增行：`notes` 走 brief 渲染器的入参，不新起 `INPUT_*` token，P38 的必填表不动。这是范围收窄不是遗漏——新 token 会让每条派发线都欠一个值。
@@ -98,6 +103,15 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **验收的 notes 臂**：「板面轮次块出现它一次」换成板面行 token `notes +M`（§2.1）；同批把 §2.1 的两条限定落满三格：Phase inventory P42 行 ② 的「进下一轮 brief 与板面轮次块」与 P42 验收 ⑥ 的「下一轮 brief 与板面轮次块各出现它一次」都补上 brief 那半句的两个限定——只在 wave 线上成立、只读本线最后一条已完成的 review 载体（§2.1），doc 线与 work 线的 note 只走板面。D97 那条未编号的 `notes` 转正句（附录只编到 ③ / ④，note 那句没有编号）与 P42 的 ② / ⑥ 是同一句 note 事实的三格，一组限定必须落满三格：只改 D97 那一句，收口时 P42 行仍要求一条 phase-spec 线上的 brief 出现，而那条线没有 brief 段——本 spec 的验收臂正是把「没有 brief 段」钉成正确读数。
 - **P42 行里被本相位反转的四句**：同一格还留着四处与本 spec 反向的说法，一字不改就成了两份互斥的路线。① 路线里的「`rollup` 读档位而非「findings 非空」」不是一项变化而是一条必须成立的条件——判定本就按档位（§1.1），故那半句改成守恒条件的陈述，验收臂保留；② 路线的「`#tierRankOf` 收缩两端」删掉，换成「三级排名留在投影面的三值联合上，逐字节不动」（§1.1 给出理由：并档会丢掉存量 `warn → nit` 的降级标记）；③ D97 的「`notes` 转正后跟到下一轮 brief 与板面轮次块」加上本 spec 的限定——brief 那半句只在 wave 线上成立，且只读本线最后一条已完成的 review 载体（§2.1），doc 线与 work 线的 note 只走板面；④ 同格验收 ⑥ 的「下一轮 brief 与板面轮次块各出现它一次」同批换成这两条限定（brief 半句同 ③，板面半句已是 `notes +M`）。
 
+### 6. 验证面追溯
+
+章程的 D98 把「物料不判自己」立成方法论裁定，本相位是它落地的第一处：
+
+- **删字面断言**：`charter-self-repair` 里针对章程正文的那几条字符串比对，验的是文档此刻的措辞，与引擎行为无关；它们改由形状规则判，测试只留引擎那一臂。
+- **补惰性臂**：`doc-corpus.guard` · `pins.guard` · `charter-self-repair` 三处都写成「对真实语料断言零 finding」，规则惰性时同样为绿。每处加一条：注册表里的选择器改成永不匹配 ⇒ 该规则必须报出零候选，用例红。
+- **搬读数**：`pins.guard` 里手写的语料规模常量删除，扫描覆盖改由一棵已知小树夹具证明；`claim-shapes` 的措辞常量改成结构断言——三个 claim shape 各在节点里出现且点名它对应的规则行。
+- **不动打包物**：图表双生、README、变更集、清单四类验的是打包物，引擎没有对应判据，删掉只会失去护栏。
+
 ### Acceptance criteria
 
 - `session/ledger.ts#FindingSeverity` 与 `contract/review-criteria.ts#CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值——成对：同一份载体把该值改 `warn` ⇒ 接受。
@@ -139,6 +153,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.12 | 2026-11-20 | 编排者回填（用户裁定 · 章程 D98）：新增 §6 验证面追溯与四条成对臂——删章程字面断言 · 三处零 finding 臂各补惰性臂 · 语料规模常量与 claim-shape 措辞常量改由夹具与结构断言承担 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.11 | 2026-11-21 | 评审第 9 轮回填（三条 warn · 一条 nit 全数采纳）：验收里「只有一条 artifact 偏移句」那一臂换成手搭夹具，并点明 P8 那份实为七条（后六条是 child note，读面照印），P8 只留作 §2.2 的 `notes[0]` 实例 · §5 两处把 D97 的 notes 事实按它自己的未编号句点名，格数由四改三（P42 行 ② · P42 验收 ⑥ · D97 那句） · §2.2 的派生软计数钉到真实链 `counterOf` → `softViolations` → `#softOf`，`softViolationsOf` 标明为派生 key 不读的兄弟读面 · 验收的 `- Modified` 臂改成「无 ASCII 冒号 ⇒ 标签剥不出 ⇒ ② 的余量首词」 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.10 | 2026-11-21 | 评审第 8 轮回填（一条 blocker · 两条 warn · 一条 nit 全数采纳）：§3.1 的声明集从「四词表加两个建文件同义词」改成覆盖整张五值词表的白名单——`other` 那一格按首词语义再分两半，建（`Add:` · `新建：`）与改（`修改：` · `Modified`）都算认领，其余走同一个默认不进认领集，验收补 `- Modified` 一条成对臂，故 `- 修改：` + `- Create:` 与 `- Modify:` + `- Create:` 只有一条判决 · §5 的 Issue 行与 D97 正文那一组扩到 D97 附录 ④ 的悬挂读面，命名读面的三格（P42 行 ③ · 验收 ⑤ · D97 ④）同一次编辑落满，验收的章程臂同批补 ④ · §3.2 的裸续写形只留 p41 的 `#### Consumes` 两条实例，p15 那次改成「骑在 `未覆盖输入面` 上、不在这两个字段上」的诚实说法 · §1.2 的 doc comment 改写由两条边界名改成六条（`blocker` 两条 + `warn` 四条），验收臂同批钉六条 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.9 | 2026-11-21 | 评审第 7 轮回填（一条 blocker · 五条 warn 全数采纳）：§3.1 的顺序臂改钉「认领」声明集——四词表动词加 `Add:` · `新建：` 两个建文件同义词算认领，免责标签（`Not in this task:` · `Not in this phase:`）· 核对与改名标签（`Confirm:` · `Verify:` · `Remove:` · `Rename:`）· 括号里的 span（附注）三类不算，并给三条静默臂与成对臂 · §5 的 Issue 行回填扩到 D97 正文（两个旧规则 id 与括注定义换成三条 grilling 落定的 id）· §1.2 的五格替换字节全部按英文原样钉死（含 `debt-consequence` 的开头否定式与 `expression-only` 三格）· §3.2 把 `GraphIssue.task` 与 `#cycleMember` 的注释改写列为同一次编辑的工作项（残值最小值），`message` 字节不动 · §3 补 `RULE_REGISTRY` 的行数注释与 `rules.test.ts` 断言的同批改分 · §2.2 删掉「板面与统计读同一个派生值」那句（板面读 `hard` 档，软项到不了） | Oscaner M. · Claude（kairos:cdd-fix） |

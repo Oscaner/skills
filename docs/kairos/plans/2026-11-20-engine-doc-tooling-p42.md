@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -10,7 +10,7 @@ base: develop
 ## Constraints
 
 - 三条新规则行先以告警档上线，Task 8 的末步把它们的档位抬到阻断；那条「没有一条规则停在告警档」的断言到那时成立，此前不成立是登记在案的过渡态。
-- **波次即依赖层**：每个无依赖的任务各占一层，层宽不超过三个；当前分层是 `{1,4}` → `{2,3}` → `{5,6}` → `{7,8}`。
+- **波次即依赖层**：每个无依赖的任务各占一层，层宽不超过三个；当前分层是 `{1,4}` → `{2,3}` → `{5,6}` → `{7,9}` → `{8}`。
 - **一处定义**：档位词表只住 `contract/review-criteria.ts#CRITERIA_ROWS` 与 `session/ledger.ts#FindingSeverity` 各一处；`Files` 行的文法只住 `contract/task-blocks.ts`；`face/` 不新起第二份清单。
 - **读侧与写侧分开**：写入面收两档，读回面对存量载体的 `nit` 保持可读（投影成三值联合，见 spec §1.1）。这不是豁免层——它是一条边界归一，由成对用例钉住两个方向。
 - **对外字节**：这一刀的破坏面被 spec §1.1 逐处点名，每一处都走 changeset minor；`next:` 行与退出码这两样不在其中，改动它们需要单独的理由。
@@ -30,20 +30,18 @@ base: develop
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`CARRIER` 的 `findings.items.severity` enum 收两档；`findingsOf` 与 `#tierRankOf` 一字不动；`rollup` 一字不动）
 - Modify: `packages/cdd-engine/src-next/face/capsule.ts`（档位计数随投影走，不读三值字面）
 - Create: `packages/cdd-engine/src-next/session/__tests__/tier-vocabulary.test.ts`
-- Test: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量 `CORPUS_SIZE` 随本 plan 上调）
 
 #### Consumes
 - `session/handoff-schema.ts#HandoffSchema.rollup` 与它周边两个判据（P41 的证据面判据 · 改档判据）——同一处投影的既有住户
 - `session/handoff-schema.ts#CARRIER` 的 `findings.items.severity` 与 `#HandoffSchema.schemaText` 的 `#writable(plane)` 过滤——写侧 enum 的唯一来源
 - `session/ledger.ts#Ledger#round` → `session/next.ts#NextStepRouter.next` 的 review 臂（按投影条数分流）
-- `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts` 的语料规模常量——本 plan 是本语料的一行
+- `packages/cdd-engine/src-next/contract/pins.ts#corpusOf` 的语料根声明——扫描覆盖由夹具证明，不靠手写计数
 
 #### Produces
 - 写侧 `FindingSeverity` 的取值集恰为 `blocker` 与 `warn`
 - 投影面 `"blocker" | "warn" | "nit"` 三值联合与写侧词表分开声明
 - `CARRIER` 的 `severity` enum 两值；`schemaText("judge", false)` 的围栏同批两值，`schemaText("work", …)` 的围栏不含 `severity`
 - `HandoffSchema.rollup` 的四臂守恒（源码不动）：含 blocker ⇒ `CHANGES_REQUESTED`；任一非 blocker 的 finding（含存量 `nit`）⇒ `REVIEW_FIX`；零 finding ⇒ `APPROVED`
-- 语料规模常量等于批后实测值
 
 #### Steps
 - 收写侧 `FindingSeverity` 为两值，投影面另立三值联合 — checkable: `tier-vocabulary.test.ts` 断言写侧拒 `nit`（报文点名两值）、读侧把 `nit` 原样读回三值联合（成对：同一份载体改 `warn` ⇒ 同一读数）
@@ -52,7 +50,6 @@ base: develop
 - 存量载体的跳转成对臂 — checkable: 一份 findings 全为 `nit` 的存量载体过 `Ledger#round` ⇒ 结论 `REVIEW_FIX` 且 `next:` 走 fix 臂（不关线）；同一份把该档改 `warn` ⇒ 与批前逐字节同一跳；零条 findings ⇒ `APPROVED` 且走关线臂
 - 降级标记成对臂 — checkable: 上一轮 `warn`、本轮同一条降为 `nit` 的存量载体 ⇒ `#tierRankOf` 判降级、`regradeNote` 给标记，与批前同一份 fixture 逐字节相同（成对：本轮那一档写成 `warn` ⇒ 无标记）
 - `capsule` 的档位计数改读投影 — checkable: 三值字面在该文件零命中
-- 复位语料规模常量 — checkable: 该常量的期望值等于 `PinAudit.filesOf(corpusOf(root)).length` 的实测值
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
@@ -302,7 +299,7 @@ none
 #### Steps
 - 按 spec §5 逐组改 — checkable: 五组各有一条可点的落点
 - 版本与血缘行同批 — checkable: `change-history-latest-matches-front-matter` 绿
-- 章程自己过自己那道门 — checkable: 跑 `doc-contract` 腿（`Contract` 判 `session/graph.ts` 之外的 `overall` doc key，或 `contract/__tests__` 里跑它的那条用例）⇒ 章程零拒绝。不用 `cdd review --dry-run --type overall`：`--type overall` 要求 `--spec <path>`，缺它时命令以 `error: --spec required when --type overall` 退出 2，而 `--dry-run` 预览的是下一步派发、不判文档契约
+- 章程的判定输出由夹具钉住 — checkable: 一份带违例的章程夹具 ⇒ 对应规则行读 `failed`；同一份夹具改成合规 ⇒ 读 `passed`。**不拿本仓章程当判据**：它此刻为零拒绝这件事由 CLI 级语料跑覆盖，不由用例断言——章程改措辞不该让测试红
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p42):` 起头
 
 #### Acceptance
@@ -342,9 +339,45 @@ none
 #### DependsOn
 5
 
+### Task 9: 验证面追溯
+
+#### Objective
+把「物料判自己」这一类收掉。章程的 D98 立了三条：规则行为由夹具判，打包物只经 `emit:check`，语料读数不进测试。本任务处置本仓现存的三族：章程字面断言 · 三处「对真实语料断言零 finding」 · 两处手写读数。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条惰性臂）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（补惰性臂）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除；扫描覆盖由小树夹具证明；补惰性臂）
+- Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言）
+- Create: `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
+
+#### Consumes
+- 章程的两条裁定正文与它点名的正反例
+- 本相位 Task 4 与 Task 5 落地的三条规则行（惰性臂要有规则可失效）
+- `contract/pins.ts#corpusOf` 的语料根声明
+
+#### Produces
+- 三处惰性臂：选择器永不匹配 ⇒ 规则报零候选、用例红
+- 语料规模常量从测试里消失，覆盖由一棵已知小树证明
+- `claim-shapes` 只判结构，不判措辞
+
+#### Steps
+- 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂仍绿）
+- 补三处惰性臂 — checkable: 每处置一份选择器永不匹配的注册表 ⇒ 用例红；恢复 ⇒ 绿
+- 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
+- `claim-shapes` 改结构断言 — checkable: 删掉某个 claim shape 的子弹行 ⇒ 红；只改一个措辞词 ⇒ 不红
+- 提交 — checkable: `git log -1 --format=%s` 以 `test(p42):` 起头
+
+#### Acceptance
+三类各有一对成对臂，且「零 finding」从此能区分「干净」与「没跑」。
+
+#### DependsOn
+5
+
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.2 | 2026-11-20 | 编排者回填（用户裁定 · 章程 D98）：新增 Task 9 验证面追溯并接第五波；删 Task 1 的语料规模常量步；Task 7 的章程判据改成夹具钉住引擎输出（不拿本仓章程当判据）；Task 8 改等 Task 7 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.2 | 2026-11-21 | 评审第 1 轮回填（六条 blocker · 九条 warn 全数采纳）：Task 1 把 `rollup` 从「三臂改动」改回守恒条件（四臂验收、源码不动），读侧三值联合与 `#tierRankOf` 三级排名明确不收窄，只有写侧 enum 与 `schemaText` 围栏收两档，并补存量 `nit` 的 `Ledger#round` → `next:` 成对臂与降级标记成对臂 · Task 2 逐格钉死 §1.2 五格的英文替换字节（`regrade-mark` 三格不动），补整张 `SEVERITY_RUBRIC` 的零命中臂，并把 `CRITERIA_ROWS` 表注释与 `CriteriaRegistry` 两处档序注释同批改写（去逐档计数、六条边界名） · Task 3 补 `#readFresh` 早退放宽与 work 轮载体臂、读侧逐字节前缀谓词三臂，`displayReason` 的导出与 `contract/review-criteria.ts` 进 Files · Task 4 把词表与声明集拆成两个面（`Add:` · `新建：` · `修改：` · `Modified` 在词表里是 `other`、在声明集里是认领），补三条静默臂、`Add:` / `修改：` / `Modified` 三组成对臂，以及第四类方言 · 分隔符切分 · `pathOf` 过滤 · 行内去重四条规则 · Task 5 改为两个不变量类两个名字，环的读面改述为 Kahn 残值最小（残值臂 `cycle@T1`），两处 `graph.ts` 注释同批对齐，`RULE_REGISTRY` 行数注释与 `rules.test.ts` 的 35 同批 · Task 6 的文件集补上五处源码注释文件，源码扫面拆成登记完整性（十三行）与发布门（一行豁免）两条断言 · Task 7 的章程验收换成 `doc-contract` 腿 · Task 8 的 changeset 收成一包 minor · Constraints 的「预期红」改述为 `rules-severity` 的 warn pin 与 `rules.test` 行数两条过渡红 · 历史行的波次改成与依赖边一致的 `{1,4} → {2,3} → {5,6} → {7,8}` | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.1 | 2026-11-20 | 首版：八任务四波 `{1,4} → {2,3} → {5,6} → {7,8}`。切分按 spec 的三笔交付走：档位词表与判决面 · 判据表改判 · `notes` 承载 · `Create:` 判据 · 任务图 · 消费面与发布孪生 · 章程回填 · 翻位。正文按本相位自己在建的规则书写：判据只引 spec 的节号，不复述内部方法名——本相位的 spec 线为此付了九轮 | Oscaner M. · Claude（kairos:cdd-plan） |

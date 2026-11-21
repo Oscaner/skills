@@ -368,7 +368,19 @@ none
 
 #### Steps
 - 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂保持绿）
-- 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `### Task 10: fix 轮的回合内判定
+- 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
+- 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
+- 三份头部注释同批改 — checkable: `pins.guard.test.ts` 那一份按**在场**读、三处各一条断言——`file count is a constant`（行内可见的片段：原句在盘上折成 `… and its` / `//     file count is a constant: …` 两行，整句 `its file count is a constant` 零命中，拿它当断言是改写前后都绿的假臂）· 头部的第二句 `the file list is a pinned constant` · `CORPUS_SIZE` 的文档注释 `pinned HERE, as a literal`——三处随常量一起改成「覆盖由已知小树夹具证明」的读法，漏一处即红；`claim-shapes.test.ts` 的 `Two legs, both byte-level` 与 `charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 两句按**零命中**读，且各自读新落法。成对：把任一处写回 ⇒ 红
+- `claim-shapes` 改结构断言 — checkable: 三条臂——存在臂：删掉某个 claim shape 的子弹行 ⇒ 红；孪生臂：只改一个节点的某一个措辞词、两节点不再一致 ⇒ 红（成对：同一处措辞两个节点一起改 ⇒ 绿）；映射臂：把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点一致）⇒ 红（成对：只改措辞词 ⇒ 绿）
+- 提交 — checkable: `git log -1 --format=%s` 以 `test(p42):` 起头
+
+#### Acceptance
+三类各有一对成对臂，且「零 finding」从此能区分「干净」与「没跑」。
+
+#### DependsOn
+5
+
+### Task 10: fix 轮的回合内判定
 
 #### Objective
 把 `doc-contract` 从「下一跳的拒绝」提前到「本回合提交前的拦截」。判据是**本轮新增的违例**，基准是本轮开始时那份文档的已审身份——绝对判定会让修复轮被自己接手时的历史残留卡死。
@@ -401,23 +413,11 @@ none
 #### DependsOn
 none
 
-## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
-- 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
-- 三份头部注释同批改 — checkable: `pins.guard.test.ts` 那一份按**在场**读、三处各一条断言——`file count is a constant`（行内可见的片段：原句在盘上折成 `… and its` / `//     file count is a constant: …` 两行，整句 `its file count is a constant` 零命中，拿它当断言是改写前后都绿的假臂）· 头部的第二句 `the file list is a pinned constant` · `CORPUS_SIZE` 的文档注释 `pinned HERE, as a literal`——三处随常量一起改成「覆盖由已知小树夹具证明」的读法，漏一处即红；`claim-shapes.test.ts` 的 `Two legs, both byte-level` 与 `charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 两句按**零命中**读，且各自读新落法。成对：把任一处写回 ⇒ 红
-- `claim-shapes` 改结构断言 — checkable: 三条臂——存在臂：删掉某个 claim shape 的子弹行 ⇒ 红；孪生臂：只改一个节点的某一个措辞词、两节点不再一致 ⇒ 红（成对：同一处措辞两个节点一起改 ⇒ 绿）；映射臂：把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点一致）⇒ 红（成对：只改措辞词 ⇒ 绿）
-- 提交 — checkable: `git log -1 --format=%s` 以 `test(p42):` 起头
-
-#### Acceptance
-三类各有一对成对臂，且「零 finding」从此能区分「干净」与「没跑」。
-
-#### DependsOn
-5
-
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
-| v0.8 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 Task 10「fix 轮的回合内判定」——无依赖，落第一层；判据是差分（基准为本轮的已审身份），绝对判定会把修复轮卡死。Commands 的分层行同批更新 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.8 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 Task 10「fix 轮的回合内判定」——无依赖，落第一层；判据是差分（基准为本轮的已审身份），绝对判定会把修复轮卡死。分层行同批更新 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.7 | 2026-11-21 | 评审第 5 轮回填（两条 blocker · 三条 warn · 一条 nit 全数采纳）：Task 1 把三份夹具接进 Files 行并补一步——读回报文改两值、五份假孩子草稿的 `nit` 改 `warn`（`severity` 在 `FINDING` 的 `required` 里，留 `nit` 是被拒不是无声丢格），Constraints 的红窗口补一句「它落在窗口之前」，Acceptance 同批 · Task 3 把两份夹具接进 Files 行并补一步，逐处点名八条旧落点 pin（artifact 偏移那一条的 `contractViolationCount` 由 0 改 2、§8.7 两条的空 stderr 改恰一行 `CDD_WARN:`、docs-fix 键集去掉 `notes`、两条 evidence 用例的 `violations` 长度与下标改成按 `grade` 取 hard 项、decorative 用例与 lifecycle 那条的标题与 soft 读数）· Task 1 的写侧词表给了消费者——`CarrierValue.findings[].severity` 挂 `FindingSeverity`，`findingsOf` 的 `as FindingSeverity` 删掉，`grep FindingSeverity` 的读数写进判据步 · Task 5 把环详情行收成一处（`session/graph.ts` 的一个 `TaskGraph` 静态方法），`session/preflight.ts` 进 Files 行，`@T${` 的扫面与 cross-face 臂进 Steps · Task 6 的发布门补一条计数臂——模块头的 `the three tier` 零命中（整句在盘上折行，按行内片段读） · Task 9 的 Consumes 改成三条惰性臂读的是树里已有的三个座位，「同层先落规则」是操作序 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.6 | 2026-11-21 | 评审第 4 轮回填（一条 blocker · 四条 warn · 一条 nit 全数采纳）：Task 5 的行数注释臂改读那份注释自己的字节（`doc scope` / `ledger scope` 两形零命中），不再拿 `rules.test.ts` 标题的 `30 doc-scope` 形去扫 `rules.ts`（那个字串在该文件里本就不存在，是改写前后都绿的假臂）· Task 3 的 `face/board-view.ts` Files 行点名读侧谓词的**三族**（两条装饰族字面加 artifact 族句形），并补一条装饰族的成对臂 · Task 2 的注释臂去掉「六名断言一起红」（六条边界名住的是静态表注释，`tier` 变动不移动它的字节），只留 `renderRubric` 的第二条守卫一红，守卫编号改与 §1.2 一致 · Task 9 的 Produces 登记 `PinAudit.census` 三项是 finding 计数这一事实取代 spec §6 与验收的两条同读（共三处），spec 本体不在本 plan 的改动面 · Task 7 把「不由用例断言」改成树里的事实（真实章程的零拒绝由 `charter-self-repair.test.ts` 钉住，Task 9 只删 `registration face` 那条），并在收口步补一次局部重跑 · Task 6 的 `render/templates.ts` Files 行补上 `SEVERITY_RUBRIC` 注释（§4 登记表第 ① 处） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.5 | 2026-11-21 | 评审第 3 轮回填（一条 blocker · 六条 warn · 一条 nit 全数采纳）：Task 9 的 pins 非空臂改成临时语料（一条死 symbol pin 加一条死 path pin），交付语料只留体量读数，空根半边补 `symbol` / `path` 两条断言 · Task 9 的头部注释臂取行内可见的 `file count is a constant`（原句在盘上折行、整句零命中），并补第二句与 `CORPUS_SIZE` 的文档注释 · Task 1 的 `#tierRankOf` 改成排名与函数体不动、入参类型挪到三值联合，并删掉指向语料的 `corpusOf` 行 · Task 5 的两条成环臂改成 `task` 与 `message` 两半复用、`cycle@T` 前缀归 graph 门 `details`，残值臂同批 · Task 7 的日期从「写别的就红」改成约定（读它的用例归 Task 9 删除） · Constraints 的预期红窗口改成 Task 4 落地到 Task 8 翻位，并点明 Task 9 与 Task 7 都在绿树上收口 | Oscaner M. · Claude（kairos:cdd-fix） |

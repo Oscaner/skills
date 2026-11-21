@@ -223,7 +223,7 @@ none
 - 悬挂臂 — checkable: `（Task 42）` 指向不存在的任务 ⇒ 报；同一行去掉标记 ⇒ 零拒绝；括号里带多个任务时逐个体判（其一不存在即报）；裸续写臂 `（Task 4 · 42）` 而 42 未声明 ⇒ 同一判决（成对：只改第二个 id 的 `Task` 前缀）
 - 成环臂 — checkable: `DependsOn 3, 7` 且环从 7 闭合（夹具声明任务 1 · 2 · 3 · 7，1 与 2 无依赖先被 Kahn 摘掉，环上只剩 3 与 7，故残值恰为 `{3, 7}`）⇒ 在 `Contract().validate` 面上报 `depends-on-cycle`，报文逐字节等于 `cycle@T3: a directed dependency cycle closes over task 3: task dependencies must form a DAG`——两半各有出处：`message` 与 `task` 逐字节复用 `TaskGraph.validate()` 那条 `GraphIssue` 的两格，`cycle@T{task}: ` 前缀由 `session/graph.ts` 那个拼装点给出（`graph` 门的 `details` 与判据报文同读它）、**不在** `validate()` 的 `message` 里，故这一臂与 graph 门读同一个字节面，而不是给判据另编一句；无环链 ⇒ 零拒绝
 - 残值臂 — checkable: 环是 3 ↔ 7 而任务 1 经 9 依赖 3 ⇒ 报文逐字节等于 `cycle@T1: a directed dependency cycle closes over task 1: task dependencies must form a DAG`（`1` 是残值最小、不在环上；渲染形同 `graph` 门的 `details` 那一行）；判据不另判环成员、不改 `#cycleMember` 的报文
-- 详情行的唯一拼装点 — checkable: `@T${` 在 `packages/cdd-engine/src-next` 下恰一处（`session/graph.ts`），`session/preflight.ts` 零命中；同一份带环夹具上，判据报文逐字节等于 `PreFlight` 的 `graph` 门 `details` 里同一条（成对：只改那个拼装点的模板 ⇒ 两面同时变而 arm 仍绿；把模板抄回 `preflight.ts` ⇒ 上面那条扫面读两处；两面各写一句 ⇒ 同夹具上两串不再相等）
+- 详情行的唯一拼装点 — checkable: `@T${` 在 `packages/cdd-engine/src-next` 下恰一处（`session/graph.ts`），`session/preflight.ts` 零命中；同一份带环夹具上，判据报文逐字节等于 `PreFlight` 的 `graph` 门 `details` 里同一条（成对：只改那个拼装点的模板 ⇒ 两面同时变而 arm 保持绿；把模板抄回 `preflight.ts` ⇒ 上面那条扫面读两处；两面各写一句 ⇒ 同夹具上两串不再相等）
 - 两条注释对齐残值 — checkable: `GraphIssue.task` 的括注与 `#cycleMember` 的类注释都读「Kahn 残值里的最小任务号」，两处都不再声称「inside the cycle」（成对：残值臂就是它们的反例）
 - 两个类两个名字 — checkable: 两条声明的 `create().name` 分别等于各自的 `id`（`rules.test.ts` 的 name 断言绿），两条报文互不相同
 - 行数注释与新分值 — checkable: `contract/rules.ts` 的 `RULE_REGISTRY` 类注释按「去掉逐 scope 计数」落，故 `doc scope` 与 `ledger scope` 两个逐 scope 计数形在该文件里零命中（那份注释此刻逐字节是 `doc scope 30 rows + ledger scope 2 rows = 32`，改写后两形都不再出现；`rules.test.ts` 标题的 `30 doc-scope` 形在 `rules.ts` 里本就不存在，拿它作断言是改写前后都绿的假臂），`rules.test.ts` 的行数断言读 35（33 doc + 2 ledger）
@@ -273,7 +273,7 @@ none
 - 发布面改两档 — checkable: `next-loop-twin.test.ts` 绿；四个图表源里 `nit` 零命中
 - 重生成图表 HTML — checkable: `pnpm run emit:check` 报 fresh（手改 HTML 会红）
 - 源码注释面：登记完整性 — checkable: 读改写前的树（本相位起始提交），`packages/cdd-engine/src-next` 下非测试 `.ts` 的注释行按 `\bnit\b` 扫，命中集恰为 §4 点名的十二处加 `#tierRankOf` 那一行（共十三行），登记外多一行即红（一次性核对，不在交付树上复跑）
-- 源码注释面：发布门 — checkable: 读交付树，命中集恰为 `#tierRankOf` 那一行（`blocker 2 · warn 1 · nit 0`），其余零命中（成对：把任一处登记项的 `nit` 字面留在交付树 ⇒ 红）；同一步多一条计数臂——`contract/review-criteria.ts` 的模块头改写后不再声称三档，`the three tier` 在该文件里零命中（成对：把那一句写回 ⇒ 红）。这一条不是 `\bnit\b` 能看见的：它的陈旧处在计数词上（盘上那句折成 `… : the three tier` / `boundaries with their evidence duty …` 两行，故整句 `the three tier boundaries` 零命中、拿它作断言是改写前后都绿的假臂；按行内可见片段读），而同头的另两个数字（`three executable cells` · `Two distinct validation contracts`）仍正确，横扫数字也不是可用的替身
+- 源码注释面：发布门 — checkable: 读交付树，命中集恰为 `#tierRankOf` 那一行（`blocker 2 · warn 1 · nit 0`），其余零命中（成对：把任一处登记项的 `nit` 字面留在交付树 ⇒ 红）；同一步多一条计数臂——`contract/review-criteria.ts` 的模块头改写后不再声称三档，`the three tier` 在该文件里零命中（成对：把那一句写回 ⇒ 红）。这一条不是 `\bnit\b` 能看见的：它的陈旧处在计数词上（盘上那句折成 `… : the three tier` / `boundaries with their evidence duty …` 两行，故整句 `the three tier boundaries` 零命中、拿它作断言是改写前后都绿的假臂；按行内可见片段读），而同头的另两个数字（`three executable cells` · `Two distinct validation contracts`）正确，横扫数字也不是可用的替身
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
@@ -351,7 +351,7 @@ none
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条候选读数臂；头部 `Four pairs, each with its counter-arm` 改三对）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（补惰性臂：`change-history-row-shape` 的候选读数）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除；扫描覆盖由小树夹具证明；补惰性臂：`PinAudit.census` 的候选读数——临时语料上非零、空根上全零；头部两处「file count is a constant …」与「the file list is a pinned constant」、加 `CORPUS_SIZE` 的文档注释，改成「覆盖由已知小树夹具证明」的读法）
-- Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言；`Two legs, both byte-level` 块与 `CLAIM_SHAPES` 的文档注释改成「措辞自由 · shape→规则 id 映射固定 · 两节点仍逐字节相同」的读法）
+- Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言；`Two legs, both byte-level` 块与 `CLAIM_SHAPES` 的文档注释改成「措辞自由 · shape→规则 id 映射固定 · 两节点逐字节相同」的读法）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
 
 #### Consumes
@@ -362,16 +362,16 @@ none
 #### Produces
 - 三处候选读数臂：`change-history-row-shape` 的临时根 · `PinAudit.census` 的临时语料（一条死 symbol pin 加一条死 path pin）与空根 · `measure-literal` 的面缺口，每处要求那条「零 finding」是测得的零
 - spec 的三处读数由本 plan 取代，就地登记：`PinAudit.census` 的 `symbol` · `path` · `total` 是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零，故非空半边落在一棵临时语料上、交付语料那一半只留 `files` 体量读数——这一句取代 spec §6 的「交付语料上三项各大于 0」与验收里的两条同读（共三处）；改 spec 本体需要另一个带 `may.amend` 的轮，不在本 plan 的改动面
-- 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点仍同措辞 · 三对）
+- 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点措辞相同 · 三对）
 - 语料规模常量从测试里消失，覆盖由一棵已知小树证明
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `temporal-indicator` · `line-coordinate`）
 
 #### Steps
-- 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂仍绿）
+- 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂保持绿）
 - 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
 - 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
 - 三份头部注释同批改 — checkable: `pins.guard.test.ts` 那一份按**在场**读、三处各一条断言——`file count is a constant`（行内可见的片段：原句在盘上折成 `… and its` / `//     file count is a constant: …` 两行，整句 `its file count is a constant` 零命中，拿它当断言是改写前后都绿的假臂）· 头部的第二句 `the file list is a pinned constant` · `CORPUS_SIZE` 的文档注释 `pinned HERE, as a literal`——三处随常量一起改成「覆盖由已知小树夹具证明」的读法，漏一处即红；`claim-shapes.test.ts` 的 `Two legs, both byte-level` 与 `charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 两句按**零命中**读，且各自读新落法。成对：把任一处写回 ⇒ 红
-- `claim-shapes` 改结构断言 — checkable: 三条臂——存在臂：删掉某个 claim shape 的子弹行 ⇒ 红；孪生臂：只改一个节点的某一个措辞词、两节点不再一致 ⇒ 红（成对：同一处措辞两个节点一起改 ⇒ 绿）；映射臂：把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点仍一致）⇒ 红（成对：只改措辞词 ⇒ 绿）
+- `claim-shapes` 改结构断言 — checkable: 三条臂——存在臂：删掉某个 claim shape 的子弹行 ⇒ 红；孪生臂：只改一个节点的某一个措辞词、两节点不再一致 ⇒ 红（成对：同一处措辞两个节点一起改 ⇒ 绿）；映射臂：把某个 shape 点名的规则 id 在两个节点上一起换成映射常量外的 id（两节点一致）⇒ 红（成对：只改措辞词 ⇒ 绿）
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p42):` 起头
 
 #### Acceptance

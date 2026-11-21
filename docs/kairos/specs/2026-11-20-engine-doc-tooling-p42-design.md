@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.16
+version: v0.17
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -124,6 +124,15 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **同批改掉一句反向注释**：`session/run.ts#PlanStructure` 的类注释现写结构面「不登记 doc-contract 规则行，因为引擎唯一的 doc-contract 判定点是派发门」——本相位之后有两个判定点（派发门 + 收口腿），那句要在同一次编辑里改成它读到的两个点，否则下一任作者会照它先删这条腿。
 
 
+### 8. 形状面的两处收口
+
+本相位顺带修掉 P41 交付的形状门里两处「判据比名字弱或宽」的地方，并留一处不修的指针。
+
+- **比值被读成坐标（修）**：`contract/invariants.ts` 的坐标文法第三条把 `4.5:1` 逐段读成 `path:line`——`4` 吃前缀、`.` 吃点号、`5` 吃扩展名、`1` 吃行号。修法是要求冒号前至少含一个字母：文件名的必要条件，而小数比值没有。成对臂：`4.5:1` · `3:1` · `1.5:1` 三种比值一律通过，`cli.ts:41` 与 `contract/declare.ts:12` 照报。
+- **符号 pin 不校验路径（不修，留指针）**：`contract/pins.ts#PinAudit` 的 `symbol` 形状只查全树符号并集，路径部分不参与解析——实测一枚路径根本不存在的 pin 同样通过，一枚写着错文件的 pin 也通过。改成按文件分区会让全库所有写错路径的 pin 同时变红，须配一次普查，属独立立项。
+- **数字的红落在「第二个家」而不是数字本身（留指针）**：契约数字（阈值、比距、包体基线）应当只住一处并被告档引用，观测数字只进交付记录；`census:<id> = <n>` 是这条取向里最典型的一类。作者侧的这条约定属独立立项。
+
+
 ### Acceptance criteria
 
 - `session/ledger.ts#FindingSeverity` 与 `contract/review-criteria.ts#CriteriaTier` 的取值集恰为 `blocker` 与 `warn`；一份 `severity: "nit"` 的载体被拒，报文点名这两个取值——成对：同一份载体把该值改 `warn` ⇒ 接受。
@@ -162,6 +171,8 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - 修轮 prompt 的写入约束点名四条形状规则（`render/templates.ts#DOCS_FIX_SHELL`）；删掉其中任一条 ⇒ 该用例红（成对：四条齐 ⇒ 绿）。
 
 
+- `contract/invariants.ts` 的坐标文法不再命中比值：`4.5:1` · `3:1` · `1.5:1` 各一条用例全通过，而 `cli.ts:41` 与 `contract/declare.ts:12` 照报（成对：两侧只差冒号前有无字母）。
+
 ## Constraints
 
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
@@ -175,6 +186,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.17 | 2026-11-20 | 编排者回填（github#506 第三条评论 · 用户裁定）：新增 §8 形状面两处收口——比值误判的修法（要求冒号前含字母）与两条不修的指针（符号 pin 不校验路径 · 数字的红落在第二个家） | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.16 | 2026-11-21 | 评审第 12 轮回填（一条 blocker · 四条 warn 全数采纳）：§5 补上 §7 反转的三格——P42 路线 ⑥ 的座位改成本轮收口、验收 ⑩ 的「不出提交」与「照常提交」两半、D97 的 2026-11-20 追加的基准改成门测得的 findings——并把同一组的反转计数由四处重排成七处；同批新增一组把章程变更历史里错位的 `v4.54` 行归位，并写明「最新行在末尾」不是判据（`front-matter-version-matches-last-row` 是退役 id） · §6 点名被接过的只有版本对账、对行序无感，替顺序面出手的是一条合成表的夹具级断言 · §7 的差分改成按 finding 整个身份做多重集差（`kind@field` 是同标题两条 finding 共用的键），两处 `session/run.ts` 的类坐标改 `#Lifecycle` · §6 与 §7 的注册表行数改成条件句（`rules-severity.test.ts` 钉住全 block） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.15 | 2026-11-21 | 评审第 11 轮回填（两条 blocker · 四条 warn 全数采纳）：§7 的判定座位从「写回之后、提交之前」改成**本轮收口**（`face/lifecycle.ts#verdictOf` 的 graded entry 面，与 `#structureViolations` 同一处；child 的 `cl:atomic-commit` 先落地，故删掉「不出提交」、改钉「不到下一跳」，报文走既有 hard / `CDD_BLOCKED` 面、载体零新增字段）· 差分基准改成**门测得的 findings**本身（`PreFlightVerdict` 新项 → 帧一格，与 `frame.structure` 同一纪律；摘要只说正文动过、说不出哪条是新的），并写清闭合态下它恒空、`warn` 过渡窗口里才非空 · §6 的 doc-corpus 坐标改钉 `#PINNED_KINDS`（那四条标题是 `for (const kind of PINNED_KINDS)` 渲染的，字面标题不在文件字节里、会落一条死 pin），臂改成与循环并列的新增用例 · `## Constraints` 的例外登记由六处扩到八处（补 §7 的 prompt 写约束句与 ⑧ 收口拒绝面） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.14 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 §7 fix 轮的回合内判定与三条成对臂——判定提前到提交前 · **差分而非绝对**（基准是本轮的已审身份，避免历史残留把修复轮卡死）· 四条形状规则同批进写入约束 | Oscaner M. · Claude（kairos:cdd-design） |

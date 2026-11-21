@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -182,6 +182,7 @@ none
 - 认领白名单 — checkable: 任务 3 `- Add:` 而任务 5 `- Create:` 同一路径 ⇒ 报（成对：两个任务都写 `- Add:` 同一路径 ⇒ 零拒绝；第三对：任务 3 `- Add:` 而任务 5 `- Modify:` ⇒ 零拒绝）；任务 3 `- 修改：` 而任务 5 `- Create:` ⇒ 报，任务 3 `- Modified <路径>` ⇒ 同一判决（成对：只改拼法，任务号与路径不动）
 - 三条静默臂 — checkable: 任务 3 的 `- Modify: a.ts` 行在括号里引另一个同级文件名作范例、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 的 `- Not in this task: b.ts` 行指向同一份文件、任务 7 `- Create: b.ts` ⇒ 零拒绝；任务 3 `- Modify: a.ts`、任务 7 `- Create: b.ts` ⇒ 零拒绝（成对：任务 3 与任务 7 都写 `- Create: b.ts` ⇒ 报）
 - 写判据本体 — checkable: 任务 3 `- Create:` 而任务 5 `- Modify:` ⇒ 零拒绝；两个任务都 `- Create:` ⇒ 报；任务 3 `- Modify:` 而任务 5 `- Create:` ⇒ 报（三条夹具只改任务号与动词）
+- 坐标文法的比值误判 — checkable: `4.5:1` · `3:1` · `1.5:1` 三种比值各一条用例全过，而 `cli.ts:41` 与 `contract/declare.ts:12` 照报（成对：两侧只差冒号前有无字母）
 - pin 表极性 — checkable: 一条 `- Modify: <未落地路径>` 的声明 ⇒ pin 审计照旧报那条未落地 pin；同一行换成 `- Create:` ⇒ 被豁免（成对：只改动词）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
@@ -417,6 +418,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.9 | 2026-11-20 | 编排者回填（用户裁定）：Task 4 加一步——坐标文法的比值误判修复与成对臂（`4.5:1` 不再被读成 `path:line`） | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.8 | 2026-11-20 | 编排者回填（用户裁定 · github#506 新评论）：新增 Task 10「fix 轮的回合内判定」——无依赖，落第一层；判据是差分（基准为本轮的已审身份），绝对判定会把修复轮卡死。分层行同批更新 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.7 | 2026-11-21 | 评审第 5 轮回填（两条 blocker · 三条 warn · 一条 nit 全数采纳）：Task 1 把三份夹具接进 Files 行并补一步——读回报文改两值、五份假孩子草稿的 `nit` 改 `warn`（`severity` 在 `FINDING` 的 `required` 里，留 `nit` 是被拒不是无声丢格），Constraints 的红窗口补一句「它落在窗口之前」，Acceptance 同批 · Task 3 把两份夹具接进 Files 行并补一步，逐处点名八条旧落点 pin（artifact 偏移那一条的 `contractViolationCount` 由 0 改 2、§8.7 两条的空 stderr 改恰一行 `CDD_WARN:`、docs-fix 键集去掉 `notes`、两条 evidence 用例的 `violations` 长度与下标改成按 `grade` 取 hard 项、decorative 用例与 lifecycle 那条的标题与 soft 读数）· Task 1 的写侧词表给了消费者——`CarrierValue.findings[].severity` 挂 `FindingSeverity`，`findingsOf` 的 `as FindingSeverity` 删掉，`grep FindingSeverity` 的读数写进判据步 · Task 5 把环详情行收成一处（`session/graph.ts` 的一个 `TaskGraph` 静态方法），`session/preflight.ts` 进 Files 行，`@T${` 的扫面与 cross-face 臂进 Steps · Task 6 的发布门补一条计数臂——模块头的 `the three tier` 零命中（整句在盘上折行，按行内片段读） · Task 9 的 Consumes 改成三条惰性臂读的是树里已有的三个座位，「同层先落规则」是操作序 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.6 | 2026-11-21 | 评审第 4 轮回填（一条 blocker · 四条 warn · 一条 nit 全数采纳）：Task 5 的行数注释臂改读那份注释自己的字节（`doc scope` / `ledger scope` 两形零命中），不再拿 `rules.test.ts` 标题的 `30 doc-scope` 形去扫 `rules.ts`（那个字串在该文件里本就不存在，是改写前后都绿的假臂）· Task 3 的 `face/board-view.ts` Files 行点名读侧谓词的**三族**（两条装饰族字面加 artifact 族句形），并补一条装饰族的成对臂 · Task 2 的注释臂去掉「六名断言一起红」（六条边界名住的是静态表注释，`tier` 变动不移动它的字节），只留 `renderRubric` 的第二条守卫一红，守卫编号改与 §1.2 一致 · Task 9 的 Produces 登记 `PinAudit.census` 三项是 finding 计数这一事实取代 spec §6 与验收的两条同读（共三处），spec 本体不在本 plan 的改动面 · Task 7 把「不由用例断言」改成树里的事实（真实章程的零拒绝由 `charter-self-repair.test.ts` 钉住，Task 9 只删 `registration face` 那条），并在收口步补一次局部重跑 · Task 6 的 `render/templates.ts` Files 行补上 `SEVERITY_RUBRIC` 注释（§4 登记表第 ① 处） | Oscaner M. · Claude（kairos:cdd-fix） |

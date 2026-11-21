@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -24,7 +24,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 #### 1.2 删档不删行
 
 - `contract/review-criteria.ts#CRITERIA_ROWS` 保持 `census:criteria.rows = 6` 行——删的是档，不是行。两条 `nit` 行改判 `warn`，正文重写成「这条观察该去哪」：
-  - `expression-only`：从「pure expression 是 nit」改写为「纯表达的观察进 `notes`，留在 findings 里的必须点名它改变了哪一项判断」。`duty` 从「欠一句为什么不是 warn」改为「欠一句它改变的那项判断」。
+  - `expression-only`：从「pure expression 是 nit」改写为「纯表达的观察进 `notes`，留在 findings 里的必须点名它改变了哪一项判断」。`duty` 从「欠一句为什么不是 warn」改为两半：它改变的那项判断，**以及这一档的代价——欠一个 fix 轮，且不对它复评**。代价写在这一行而不是新起一行：这一行本就在教「轻的东西去哪」，而代价正是同一条分界的另一半；新起一行要动 `census:criteria.rows` 与两份已闭合 P37 文档的四处引用，为一个句子付两次账。改名（把 `warn` 换成 `fix`）同样不做：那会把判档从「它是什么」改成「它要多少」，且让存量载体的读侧欠第二张映射表。
   - `regrade-mark`：教学保留（降档要写理由），结论不变——标记是展示事实（`face/board-view.ts#LineCarriers` 的 `regradeNoteOf` 与 capsule 那一行），不是一条 finding。
 - 路线与章程注册的「删掉两条 `nit` 行、回填 `census:criteria.rows`」不同，理由在同一句里：两条行的教学价值（一条教「什么不该进 findings」，一条教「降档要写理由」）删行后无处可去，而保留行既不移动 census 也不动 `contract/__tests__/census.guard.test.ts` 的既有对账。章程那几格的回填见 §5。
 - `contract/review-criteria.ts#TIER_ORDER` 收成 `blocker` → `warn`；`contract/review-criteria.ts#CriteriaRegistry.renderRubric` 的「每档至少一行」保持抛错语义，**同批新增第二条守卫**：任何一行的 `tier` 落在 `TIER_ORDER` 之外 ⇒ 抛错。既有装配只遍历 `TIER_ORDER`，落在表外的行被静默跳过、正文消失而不报，故「出现第三档即抛」是新守卫，不是既有行为。成对臂：一份带 `nit` 行的注册表必红，删掉那一行 ⇒ 正常渲染。
@@ -88,6 +88,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - `contract/review-criteria.ts#CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`contract/__tests__/census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
 - `contract/review-criteria.ts#CriteriaRegistry.renderRubric` 两条守卫：一份注册表带着 `nit` 行（`tier` 落在 `TIER_ORDER` 之外）⇒ 抛错；同一份注册表删掉那一行 ⇒ 正常渲染（成对臂只改这一行）。计数面读 `contract/review-criteria.ts#CriteriaRegistry` 的 `rows`：每行的 `tier` 落在 `TIER_ORDER` 内、每档至少一行、按档分组后的行数之和等于 `census:criteria.rows`。
 - `contract/review-criteria.ts#regradeNote` 在上一轮 `blocker`、本轮同一条 `warn` 时给出标记；上一轮 `warn`、本轮 `warn` 时不给（成对：只改本轮那一档）。
+- `contract/review-criteria.ts#CRITERIA_ROWS` 的 `expression-only` 行 `duty` 点名 fix 轮与「不复评」两件事；删掉那句代价 ⇒ 该用例红（成对：只删这一句，行仍在、`census:criteria.rows` 不变）。
 - `session/handoff-schema.ts#CARRIER` 的 `notes` 一条进载体后结论不变（空 findings ⇒ `APPROVED`）：wave 线下一轮 brief 出现它的原文一次，板面该行 token 读 `notes +1`；删掉该条 ⇒ 两处都不出现（成对臂只改这一条 note）。
 - 一条 phase-spec 评审轮的载体带 note ⇒ 板面行 token 计数它，且该线下一轮没有 brief 段可承载（成对：同一条 note 放进 wave 线 ⇒ brief 出现它一次）——note 的 brief 面只在 wave 线。
 - 同一份载体进入下一条线的首轮 ⇒ brief 与板面都不读它的 `notes`；同一份内容放进本线下一轮 ⇒ 两处都读（成对：只改线）。
@@ -112,4 +113,4 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 | Version | date | summary | author |
 |---|---|---|---|
 | v0.1 | 2026-11-20 | 首版。三笔：档位收两档（词表与判据表同批）· `notes` 转正为承载面（brief 与板面）· 任务块两族判据（`Create:` 唯一且最早 · 悬挂与成环） | Oscaner M. · Claude（kairos:cdd-design） |
-| v0.2 | 2026-11-20 | 评审第 1 轮回填：`rollup` 的非 blocker 臂写成「任一非 `blocker`」并补存量 `nit` 的读法 · pin 表保持 Create-only 而判据投影单列 · `Create:` 判据的候选集收窄到带声明的路径 · `notes` 的两个承载面各给名字（板面行 token `notes +M` · wave 线的 brief 段）· `renderRubric` 的第三档守卫标为新守卫并给出可数面 · 消费面换成渲染面 + 发布面（补 fix 壳与四个图表源、README 家族、孪生 pin）· 新增 §5 章程回填 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.3 | 2026-11-20 | 编排者回填（grilling 追加裁定）：`warn` 档的代价写进 `expression-only` 的 `duty`——欠一个 fix 轮、不复评——并加一条成对臂钉住那句。不加第七行判据（省掉 `census:criteria.rows` 与两份 P37 文档的四处引用），不改名 `warn`（那会把判档从「它是什么」改成「它要多少」） | Oscaner M. · Claude（kairos:cdd-design） |

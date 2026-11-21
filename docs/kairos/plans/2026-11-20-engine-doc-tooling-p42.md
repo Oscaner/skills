@@ -309,7 +309,7 @@ none
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p42):` 起头
 
 #### Acceptance
-章程的 P42 两行（含 scope 格的 ⑦ 与验收格的 ⑬）与 D 表两格、以及历史行同读一条路线；`notes +M` 同批落，`v4.54` 仍在历史表末行（归位已落地，本组只核对）；章程自己过自己那道门；本任务在末层收口，`pnpm run validate` 在它头上转绿。
+章程的 P42 两行（含 scope 格的 ⑦ 与验收格的 ⑬）与 D 表两格、以及历史行同读一条路线；`notes +M` 同批落，`v4.54` 落在历史表末行（归位已落地，本组只核对）；章程自己过自己那道门；本任务在末层收口，`pnpm run validate` 在它头上转绿。
 
 #### DependsOn
 6
@@ -372,7 +372,7 @@ none
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `temporal-indicator` · `line-coordinate`）
 
 #### Steps
-- 顺序不变量搬家 — checkable: 新不变量在「最新行被挪走一位」的夹具上报一条，恢复原序 ⇒ 零拒绝（成对：只改一行的位置）；`charter-self-repair` 里那条位置断言退休而引擎臂仍在
+- 顺序不变量搬家 — checkable: 新不变量在「最新行被挪走一位」的夹具上报一条，恢复原序 ⇒ 零拒绝（成对：只改一行的位置）；`charter-self-repair` 里那条位置断言退休而引擎臂保留
 - 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂保持绿）
 - 顺序面的合成表替身 — checkable: `judge.test.ts` 新增一条用例，一张合成的变更历史表两种排法（最新行在末尾 · 最新行排在旧行之上）同读零 finding（成对：表头版本低于表内最大版本 ⇒ 恰一条 `change-history-latest-matches-front-matter`）。新用例落在既有的变更历史夹具族里（`P21 T2` 那两组与 `P30 T3` 那组，后者的标题行在 `judge.test.ts` 的 `P30 T3 — change-history-latest-matches-front-matter` 一带），不另起一份夹具：被删掉的那条顺序断言替身就是它，行序本身仍无判据
 - 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）

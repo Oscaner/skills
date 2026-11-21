@@ -9,10 +9,11 @@ base: develop
 
 ## Constraints
 
-- 三条新规则行一律 **warn 起步**，翻位是 Task 8 的最后一个动作；pin 断言「无一规则声明 warn」在翻位后为真。
+- 三条新规则行先以告警档上线，Task 8 的末步把它们的档位抬到阻断；那条「没有一条规则停在告警档」的断言到那时成立，此前不成立是登记在案的过渡态。
+- **波次即依赖层**：每个无依赖的任务各占一层，层宽不超过三个；当前分层是 `{1,4}` → `{2,3}` → `{5,6}` → `{7,8}`。
 - **一处定义**：档位词表只住 `contract/review-criteria.ts#CRITERIA_ROWS` 与 `session/ledger.ts#FindingSeverity` 各一处；`Files` 行的文法只住 `contract/task-blocks.ts`；`face/` 不新起第二份清单。
 - **读侧与写侧分开**：写入面收两档，读回面对存量载体的 `nit` 保持可读（投影成三值联合，见 spec §1.1）。这不是豁免层——它是一条边界归一，由成对用例钉住两个方向。
-- **消费面守恒**：`next:` 字面 · 退出码 · `CDD_BLOCKED` 通道 · 既有拒绝报文逐字节不变。破坏性字节只有 spec §1.1 登记的那几处，一律 changeset minor。
+- **对外字节**：这一刀的破坏面被 spec §1.1 逐处点名，每一处都走 changeset minor；`next:` 行与退出码这两样不在其中，改动它们需要单独的理由。
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
 - 本文件的正文按本相位自己在建的规则书写：无行号坐标 · 无裸测量字面（计数写成中文数词或 `census:<id> = <n>`）· 无挂符号的时序指示词 · 工作项行不进重复句的域。
 - **实现前窗口的预期红**：本 plan 是语料的一行。三条新规则行起步 `warn`，故窗口内它们对语料零拒绝；翻位在 Task 8，那之前 `pnpm run validate` 的引擎腿不因新行而红。语料规模常量随本文件上调（Task 1 持有该步）。
@@ -35,7 +36,7 @@ base: develop
 #### Produces
 - `FindingSeverity` 的取值集恰为 `blocker` 与 `warn`
 - `HandoffSchema.rollup` 的三臂：空 findings ⇒ `APPROVED`；仅 warn ⇒ `REVIEW_FIX`；含 blocker ⇒ `CHANGES_REQUESTED`
-- 读回投影：存量 `nit` 读作 `warn`，写侧仍拒 `nit`
+- 读回投影：存量 `nit` 读作 `warn`，写侧不接受 `nit`
 - 语料规模常量等于批后实测值
 
 #### Steps
@@ -54,7 +55,7 @@ none
 ### Task 2: 判据表的两条行改判
 
 #### Objective
-判据表**删档不删行**：两条原 `nit` 行改判 `warn`，正文重写成「这条观察该去哪」。同一批给 `renderRubric` 加第二条守卫——落在 `TIER_ORDER` 之外的行今天被静默跳过，正文消失而不报。
+判据表**删档不删行**：两条原 `nit` 行改判 `warn`，正文重写成「这条观察该去哪」。同一批给 `renderRubric` 加第二条守卫——落在 `TIER_ORDER` 之外的行被静默跳过，正文消失而不报。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`（`CriteriaTier` 与 `TIER_ORDER` 收两档；两条行改判并重写正文；`renderRubric` 增表外档守卫；`warn` 档的代价写进 `expression-only` 的 `duty`）
@@ -80,7 +81,7 @@ none
 表仍旧是那些行、档只剩两档，而表外档从「静默消失」变成「抛错」。代价那一句住在判据行里，可被断言读。
 
 #### DependsOn
-none
+1
 
 ### Task 3: `notes` 的承载面
 
@@ -118,7 +119,7 @@ none
 `notes` 在两处可读、在结论里不可见、在下一条线里不继承；引擎自己的三串不再冒充 child 的观察。
 
 #### DependsOn
-none
+1
 
 ### Task 4: `Create:` 的声明集与唯一性
 

@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.15
+version: v0.16
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -9,14 +9,14 @@ base: develop
 
 ## Constraints
 
-- 三条新规则行先以告警档上线，Task 8 的末步把它们的档位抬到阻断；那条「没有一条规则停在告警档」的断言到那时成立，此前不成立是登记在案的过渡态。
-- **波次即依赖层**：每一层是声明的 `DependsOn` 边的闭包——无依赖的任务在第 1 层，其余每个任务的依赖全部落在前面某层，层宽不超过三个；按声明的边当前分层是 `{1,4,10}` → `{2,3,5}` → `{6,8,9}` → `{7,11}`（Task 8 的边只到 Task 5，故它与 Task 6 · Task 9 同层；Task 7 等 Task 6；Task 11 等 Task 9——两笔改同一份守卫文件，先后有序）。末层是 Task 7，全量门的收口因此归它；Task 10 无依赖——它只要既有的 `doc-contract` 腿与门自己测得的 findings 那一格，与档位词表的落法无关。
+- 四条新规则行（`single-create` · `dangling-task-ref` · `depends-on-cycle` · `change-history-newest-last`）先以告警档上线，Task 8 的末步把它们的档位抬到阻断；那条「没有一条规则停在告警档」的断言到那时成立，此前不成立是登记在案的过渡态。
+- **波次即依赖层**：每一层是声明的 `DependsOn` 边的闭包——无依赖的任务在第 1 层，其余每个任务的依赖全部落在前面某层，层宽不超过三个；按声明的边当前分层是 `{1,4,10}` → `{2,3,5}` → `{6,8,9}` → `{7,11}`（Task 8 的边只到 Task 5，故它与 Task 6 · Task 9 同层；Task 7 等 Task 6；Task 11 等 Task 9——两笔改同一份守卫文件，先后有序）。末层是 Task 7 与 Task 11，全量门的收口归 Task 7——两个任务改同一份章程文件，层内次序写定在这里：Task 11 的语料迁移先落，Task 7 的收口门读的是迁移之后的树；Task 10 无依赖——它只要既有的 `doc-contract` 腿与门自己测得的 findings 那一格，与档位词表的落法无关。
 - **一处定义**：档位词表只住 `contract/review-criteria.ts#CRITERIA_ROWS` 与 `session/ledger.ts#FindingSeverity` 各一处；`Files` 行的文法只住 `contract/task-blocks.ts`；`face/` 不新起第二份清单。
 - **读侧与写侧分开**：写入面收两档，读回面对存量载体的 `nit` 保持可读（投影成三值联合，见 spec §1.1）。这不是豁免层——它是一条边界归一，由成对用例钉住两个方向。
 - **对外字节**：这一刀的破坏面被 spec §1.1 逐处点名，每一处都走 changeset minor；`next:` 行与退出码这两样不在其中，改动它们需要单独的理由。
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
 - 这份计划自己也要过它正在立的那道门：坐标、读数、时序词三样都不写进判据面，工作项行不算散文。
-- **实现前窗口的预期红**：本 plan 是语料的一行。三条新规则行起步 `warn`，故窗口内它们对语料零拒绝；但 `contract/__tests__/rules-severity.test.ts` 的 pin「declares no `warn` row in the shipped registry」（`RULE_REGISTRY.filter((row) => row.severity === "warn")` 为空）读的正是已发注册表，**第一条新行落地（Task 4）就把它判红**，Task 8 的翻位才把它恢复绿。同一窗口里 `contract/__tests__/rules.test.ts` 的行数断言也随行数走：Task 4 的 `single-create` 落地即红，Task 5 同批把注释与数字改到批后总分值（33 doc-scope + 2 ledger-scope = 35）才转绿。故 `pnpm run validate` 的红窗口两端是 **Task 4 落地**与 **Task 8 翻位**，不是 Task 4–7。层内次序是这条窗口读得准的前提：`{6,8,9}` 里 Task 8 的翻位先落、Task 9 的删除后落，故窗口在 Task 8 自己的末步闭合——它的 `本层全量门` 读的是本层收口态，不是本层起点；Task 9 与 Task 7 头上的树因此必须已经是绿的（Task 9 排在翻位之后、Task 7 在末层）。波次只给层，层内次序由这一句写定。这两条红都是登记在案的过渡态，不是实现者的回归，实现者不得为「保住绿」提前翻位或跳门。Task 1 自己的夹具改写在 Task 1 内落地（读回报文的一处 pin 加五份假孩子草稿），故它落在红窗口**之前**：Task 1 头上的树必须已经是绿的——章程的 `v4.54` 行坐在历史表末行，`charter-self-repair.test.ts` 的那条顺序断言因此不红；那六条断言不属于这条窗口。语料规模常量不由任何任务上调——它在 Task 9 连同第二处手写读数一并删除。
+- **实现前窗口的预期红**：本 plan 是语料的一行。四条新规则行起步 `warn`，故窗口内它们对语料零拒绝；但 `contract/__tests__/rules-severity.test.ts` 的 pin「declares no `warn` row in the shipped registry」（`RULE_REGISTRY.filter((row) => row.severity === "warn")` 为空）读的正是已发注册表，**第一条新行落地（Task 4）就把它判红**，Task 8 的翻位才把它恢复绿。同一窗口里 `contract/__tests__/rules.test.ts` 的行数断言也随行数走：Task 4 的 `single-create` 落地即红，Task 5 同批把注释与数字改到批后总分值（34 doc-scope + 2 ledger-scope = 36）才转绿。故 `pnpm run validate` 的红窗口两端是 **Task 4 落地**与 **Task 8 翻位**，不是 Task 4–7。层内次序是这条窗口读得准的前提：`{6,8,9}` 里 Task 8 的翻位先落、Task 9 的删除后落，故窗口在 Task 8 自己的末步闭合——它的 `本层全量门` 读的是本层收口态，不是本层起点；Task 9 与 Task 7 头上的树因此必须已经是绿的（Task 9 排在翻位之后、Task 7 在末层）。波次只给层，层内次序由这一句写定。这两条红都是登记在案的过渡态，不是实现者的回归，实现者不得为「保住绿」提前翻位或跳门。Task 1 自己的夹具改写在 Task 1 内落地（读回报文的一处 pin 加五份假孩子草稿），故它落在红窗口**之前**：Task 1 头上的树必须已经是绿的——章程最新一条版本行落在历史表末行且与 front matter 同版，`charter-self-repair.test.ts` 的那条顺序断言因此不红；那六条断言不属于这条窗口。语料规模常量不由任何任务上调——它在 Task 9 连同第二处手写读数一并删除。
 
 ### Task 1: 档位词表与判决面
 
@@ -203,16 +203,20 @@ none
 
 环的读面写准：`#cycleMember` 返回的是 **Kahn 残值里的最小任务号**（`Math.min(...remaining)`），而残值既含环上成员也含传递地依赖环的任务，故它**不承诺是环上成员**。判据不建在旧注释的承诺上，也不新起第二个成员判定——它逐字节复用 `validate()` 那条 `GraphIssue` 的 `task` 与 `message`。同批把两处承诺过头的注释改成它读到的值：`GraphIssue.task` 的括注（「for a cycle — the lowest task inside the cycle」）与 `#cycleMember` 的类注释（「the lowest task closing a directed cycle」），`message` 与 `fix` 的字节一字不动。
 
+同一次编辑收下另外两笔，因为行数面把它们绑在一处（spec §3.2 的「四条行同一次编辑落地」）：§6 的顺序行 `change-history-newest-last` 与 §8 的 `seat` 列。顺序行 `doc` 档、起步 `warn`、自占一个策略类，读面是 `contract/invariants.ts#Invariant.historyVersions` 的最后一行（全表最大版本那一行），一份没有 `## Change history` 表的文档它是零候选；它的成对臂与候选臂住在 Task 9 的 `judge.test.ts` 合成表上，本任务只落这一行与注册表。`seat` 列落在 `contract/rules.ts#RuleDeclarationBase`：闭集 `dispatch` · `close` · `corpus` · `ledger` 的非空子集，doc 面三十四行各写前三值、ledger 面两行各写 `ledger`；读它的是 `contract/__tests__/rules.test.ts` 的逐 id 字面表（三十六行）与三条断言。两笔都必须落在 Task 8 之前——它翻的是四条行，而它的 `DependsOn` 只到本任务。
+
 #### Files
-- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（新增**两个**策略类，各占一条规则行，各接 `contract/invariants.ts#Invariant`）
-- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（两行规则，起步 `warn`；`RULE_REGISTRY` 的类注释去掉逐 scope 计数，只留恒真的那一句）
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（新增**三个**策略类，各占一条规则行，各接 `contract/invariants.ts#Invariant`——两条任务图判词加顺序行 `change-history-newest-last`）
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（三行规则，起步 `warn`——两条任务图判词加 §6 的顺序行；`RuleDeclarationBase` 加 `seat` 列（§8）；`RULE_REGISTRY` 的类注释去掉逐 scope 计数，只留恒真的那一句；头部「Version ORDER stays presentation, not data integrity」改成顺序腿有判据之后的读法）
 - Modify: `packages/cdd-engine/src-next/session/graph.ts`（环的读面：`GraphIssue.task` 的括注与 `#cycleMember` 的类注释同批对齐 Kahn 残值最小值，`message` / `fix` 字节不动；环详情行的唯一拼装点落在本文件的一个 `TaskGraph` 静态方法上——`${issue.kind}@T${issue.task}: ${issue.message}` 现只住在 `session/preflight.ts` 的 `graph` 门里，判据要同一句就得有第二个作者，故把它挪进本文件、由两处共读）
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`graph` 门的 `details` 改读那个拼装点；该门的报文、`gates` 与顺序逐字节不动）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/task-graph.test.ts`
-- Test: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（行数断言随三条新行改到 33 doc-scope + 2 ledger-scope = 35）
+- Test: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（行数断言随四条新行改到 34 doc-scope + 2 ledger-scope = 36；`seat` 的逐 id 字面表与三条断言也住这份文件）
 
 #### Consumes
 - `contract/task-blocks.ts#TaskBlock.fields` 的 `DependsOn` · `Consumes` · `Produces`
+- `contract/invariants.ts#Invariant.historyVersions` 的最后一行——顺序行的读面（全表最大版本那一行；一份没有 `## Change history` 表的文档是零候选）
+- `contract/rules.ts#RuleDeclarationBase` 的四格与它的两个子接口——`seat` 列落在这里，读它的是 `contract/__tests__/rules.test.ts`
 - `session/graph.ts#TaskGraph.validate` 的既有逐节点判法与它交出的 `GraphIssue` 形状（`task` 的取值是 Kahn 残值最小，不是环上成员）
 - `session/preflight.ts#PreFlight` 的 `graph` 门与 `doc-contract` 腿的既有顺序
 
@@ -221,6 +225,8 @@ none
 - `validate()` 的 `cycle` issue 的 `task` 与 `message` 两半被逐字节复用，判据报出的渲染形是 `cycle@T{task}: {message}`——与 `graph` 门 `details` 那一行同一个字节面，而这一句的拼装只有一处（`session/graph.ts` 导出的那个方法），`details` 与判据同读它，不是两处各拼一遍同一个模板
 - 两处 `graph.ts` 注释改成残值最小值，`message` 字节不动
 - `RULE_REGISTRY` 的类注释与 `rules.test.ts` 的行数断言同读一个新分值
+- `change-history-newest-last` 一行（`scope: "doc"` · `warn` 起步 · 自占一个不变量类），读 `contract/invariants.ts#Invariant.historyVersions` 的最后一行，无 `## Change history` 表时零候选；它的成对臂与候选臂归 Task 9 的 `judge.test.ts` 合成表
+- `contract/rules.ts#RuleDeclarationBase.seat`：闭集 `dispatch` · `close` · `corpus` · `ledger` 的非空子集，doc 面三十四行各写 `dispatch` · `close` · `corpus` 三格、ledger 面两行各写 `ledger` 一格；`contract/__tests__/rules.test.ts` 的逐 id 字面表三十六行与三条断言（表外值即红 · doc 行三格齐而 ledger 行恰一格 `ledger` · 注册表与字面表逐 id 逐格相等）
 
 #### Steps
 - 悬挂臂 — checkable: `（Task 42）` 指向不存在的任务 ⇒ 报；同一行去掉标记 ⇒ 零拒绝；括号里带多个任务时逐个体判（其一不存在即报）；裸续写臂 `（Task 4 · 42）` 而 42 未声明 ⇒ 同一判决（成对：只改第二个 id 的 `Task` 前缀）
@@ -229,11 +235,13 @@ none
 - 详情行的唯一拼装点 — checkable: `@T${` 在 `packages/cdd-engine/src-next` 下恰一处（`session/graph.ts`），`session/preflight.ts` 零命中；同一份带环夹具上，判据报文逐字节等于 `PreFlight` 的 `graph` 门 `details` 里同一条（成对：只改那个拼装点的模板 ⇒ 两面同时变而 arm 保持绿；把模板抄回 `preflight.ts` ⇒ 上面那条扫面读两处；两面各写一句 ⇒ 同夹具上两串不再相等）
 - 两条注释对齐残值 — checkable: `GraphIssue.task` 的括注与 `#cycleMember` 的类注释都读「Kahn 残值里的最小任务号」，两处都不再声称「inside the cycle」（成对：残值臂就是它们的反例）
 - 两个类两个名字 — checkable: 两条声明的 `create().name` 分别等于各自的 `id`（`rules.test.ts` 的 name 断言绿），两条报文互不相同
-- 行数注释与新分值 — checkable: `contract/rules.ts` 的 `RULE_REGISTRY` 类注释按「去掉逐 scope 计数」落，故 `doc scope` 与 `ledger scope` 两个逐 scope 计数形在该文件里零命中（那份注释此刻逐字节是 `doc scope 30 rows + ledger scope 2 rows = 32`，改写后两形都不再出现；`rules.test.ts` 标题的 `30 doc-scope` 形在 `rules.ts` 里本就不存在，拿它作断言是改写前后都绿的假臂），`rules.test.ts` 的行数断言读 35（33 doc + 2 ledger）
+- 顺序行与注册表同批 — checkable: `RULE_REGISTRY` 收下 `change-history-newest-last`（`scope: "doc"` · `severity: "warn"` · `create().name === "change-history-newest-last"`），四条新行同批落地；`contract/rules.ts` 头部 `Version ORDER stays presentation` 零命中，改后的读法点名「最大版本那一行在末尾」这一条位置腿（成对：把那句写回 ⇒ 红）。这一行先于 Task 8 落地：Task 8 的翻位读四条行，而它的 `DependsOn` 只到本任务
+- `seat` 列的逐 id 字面表 — checkable: `rules.test.ts` 的字面表恰三十六行（三十四条 doc 行各 `dispatch` · `close` · `corpus`，两条 ledger 行各 `ledger`）；三条断言各有一条红向：表外取值 ⇒ 红（成对：把一条 doc 行的 `corpus` 换成 `gate` ⇒ 红）；doc 行缺一格或 ledger 行多一格 ⇒ 红（成对：把一条 ledger 行的 `dispatch` 补上 ⇒ 第二条与第三条同时红）；注册表与字面表逐 id 逐格漂移 ⇒ 红（成对：只改字面表的一行 ⇒ 红；只改注册表的一行 ⇒ 同一条也红）。表从注册表抄一次，不每次现算
+- 行数注释与新分值 — checkable: `contract/rules.ts` 的 `RULE_REGISTRY` 类注释按「去掉逐 scope 计数」落，故 `doc scope` 与 `ledger scope` 两个逐 scope 计数形在该文件里零命中（那份注释此刻逐字节是 `doc scope 30 rows + ledger scope 2 rows = 32`，改写后两形都不再出现；`rules.test.ts` 标题的 `30 doc-scope` 形在 `rules.ts` 里本就不存在，拿它作断言是改写前后都绿的假臂），`rules.test.ts` 的行数断言读 36（34 doc + 2 ledger）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
-两条判据各有一对成对臂，且各占一个不变量类；悬挂的判域只覆盖带标记的行，散文不因形似而被判。环的报文逐字节复用 `TaskGraph.validate()` 的 `task` 与 `message` 两半、渲染形与 graph 门同一句且这一句只有一处拼装（`details` 与判据报文同读它，改一侧两面同时变），残值臂成立而判据不另算成员。注册表的行数注释与断言同读一个新分值。
+两条判据各有一对成对臂，且各占一个不变量类；悬挂的判域只覆盖带标记的行，散文不因形似而被判。环的报文逐字节复用 `TaskGraph.validate()` 的 `task` 与 `message` 两半、渲染形与 graph 门同一句且这一句只有一处拼装（`details` 与判据报文同读它，改一侧两面同时变），残值臂成立而判据不另算成员。注册表的行数注释与断言同读一个新分值。同批收下的两笔各有读面：顺序行的臂住 Task 9 的合成表，`seat` 的三条断言住 `rules.test.ts` 的逐 id 字面表。
 
 #### DependsOn
 4
@@ -288,28 +296,28 @@ none
 ### Task 7: 章程回填
 
 #### Objective
-把章程与本 spec 读到的路线对齐。要改的**八组**由 spec §5 点名——已有五组（`Phase inventory` · `Issue inventory / D97` · `D70 的两格` · `验收格的三处追溯臂` · `被本相位反转的七处`）之外，spec §5 还落了三组：`P42 行的 ⑦ 登记 §8 的形状面收口`（⑦ 落 scope 格、⑬ 落验收格，`line-coordinate` 的收窄因此有登记出处）· `验收的 notes 臂`（`notes +M` 与 brief 那半句的两条限定）· `变更历史的归位`（`v4.54` 那一行落在表尾——本组只核对该行是历史表末行且与 front matter 同版，移动由既有提交落地，不重做）。其中一组是**反转**：本相位起初登记的「三处说明书」里有两个 skill 文件其实是零档位词的，它们退出该表。
+把章程与本 spec 读到的路线对齐。要改的**九组**由 spec §5 点名——已有五组（`Phase inventory` · `Issue inventory / D97` · `D70 的两格` · `验收 ⑧ 的括注与 D98 ① 的收窄注` · `被本相位反转的七处`）之外，spec §5 还落了四组：`P42 行的形状面收口登记（scope ⑧ · 验收 ⑮）`（⑮ 落比值臂与 `seat` 的守卫臂，同批把 scope ⑦ 的 `验收 ⑬` 改写成两具载体与两条红半——`两种写法` 与三段的 `path#Class.member` 拼写因此退出章程）· `P42 行的顺序判据登记（scope ⑨ · 验收 ⑯）`（顺序行的成对臂落 ⑯，同批把 scope ⑤ 的「删」收窄成「措辞比对删除、顺序那一条搬进引擎，见 ⑨」）· `验收的 notes 臂`（`notes +M` 与 brief 那半句的两条限定，三格落满：P42 行 ② · P42 验收 ⑥ · D97 那句）· `变更历史的归位`（条件而不是一处待搬的行：最新一条版本行就是历史表末行、与 front matter 同版，位置的红由 §6 的顺序行报，本组只核条件）。其中一组是**反转**：本相位起初登记的「三处说明书」里有两个 skill 文件其实是零档位词的，它们退出该表。
 
 #### Files
 - Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`
 
 #### Consumes
 - 章程的 Phase inventory · Issue inventory · D 表的两格 · 历史表
-- spec §5 的八组清单
+- spec §5 的九组清单
 - `contract/judge.ts#Contract` 的 `doc-contract` 腿——判定章程那个 doc key 的面
 
 #### Produces
-- 章程八组回填落地，版本与前缀同步
+- 章程九组回填落地，版本与前缀同步
 
 #### Steps
-- 按 spec §5 逐组改 — checkable: spec §5 的每一组各有一条可点的落点（八组逐组点名：第 1 组 `Phase inventory` 的 P42 行 ① ③ ④ 与验收 ① ⑤ ⑦；第 2 组 `Issue inventory` 的 P42 行与 D97 正文的三条规则 id（含附录 ④）；第 3 组 `D70` 的跨切条目与 `| D70 |` 行；第 4 组验收格 ⑧ 的括注与 D98 ① 的收窄注（⑨ 与 scope ⑤ 一字不改）；第 5 组 scope 格的 ⑦ 与验收格的 ⑬；第 6 组 `notes +M` 的三格；第 7 组被本相位反转的七处；第 8 组 `v4.54` 的末行核对——历史表末行即该行、与 front matter 同版）
+- 按 spec §5 逐组改 — checkable: spec §5 的每一组各有一条可点的落点（九组逐组点名：第 1 组 `Phase inventory` 的 P42 行 ① ③ ④ 与验收 ① ⑤ ⑦；第 2 组 `Issue inventory` 的 P42 行与 D97 正文的三条规则 id（含附录 ④ 的 `Consumes` · `Produces` 读面）；第 3 组 `D70` 的跨切条目与 `| D70 |` 行；第 4 组验收 ⑧ 的括注（候选读数形）与 D98 ① 的收窄注；第 5 组 scope ⑧ 与验收 ⑮——比值臂加 `seat` 的三条断言的读数，同批把 scope ⑦ 的 `验收 ⑬` 改写成两具载体（`path#member` 与裸类名载体）与两条红半，`两种写法` 与三段的 `path#Class.member` 拼写在章程上零命中；第 6 组 scope ⑨ 与验收 ⑯——顺序行，同批收窄 scope ⑤ 那句为「删章程的措辞断言（顺序那一条搬进引擎，见 ⑨）」；第 7 组 `notes +M` 的三格；第 8 组被本相位反转的七处；第 9 组变更历史的归位——最新一条版本行就是历史表末行、且与 front matter 同版，不写版本号：树上是哪一行就核哪一行）
 - 版本与血缘行同批 — checkable: `change-history-latest-matches-front-matter` 绿
 - 章程的判定输出由夹具钉住 — checkable: 一份带违例的章程夹具 ⇒ 对应规则行读 `failed`；同一份夹具改成合规 ⇒ 读 `passed`。**本仓章程同在这一面上**：`charter-self-repair.test.ts` 的 `reports nothing on the real charter — all three families at zero` 对真实章程跑整份 `Contract` 并要求 `[]`，Task 9 删的是 `registration face: …` 那一条、留的正是这一条；`### Cross-cutting` 是它读的五个面之一，故本任务写进去的 D70 跨切条目与 D97 的规则 id 是被判的散文，不是自由的描述——写之前先重跑 `pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/charter-self-repair.test.ts`，语法错句当场定位到本轮那一句
-- 收口全量门 — checkable: 本任务落在末层（Constraints 的波次），故重跑 `charter-self-repair.test.ts`（章程散文的红先在这一条上露出、定位到本轮改的那句）与 `pnpm run validate` 两条，各自在本任务头上退出码为零；章程最新一条历史行的日期沿用 `2026-11-20`（与本 plan 的 front matter 同日）是**约定，不是门**——读那格日期值的是 `charter-self-repair.test.ts` 的 `registration face: …` 用例，而那条用例归 Task 9（上一层 `{6,8,9}`）整条删除；本任务头上的树里没有判据钉日期值（`change-history-latest-matches-front-matter` 只判版本号，`change-history-date-shape` 只判 ISO 形状），故写别的日期不会红，本条不写成红
+- 收口全量门 — checkable: 本任务与 Task 11 同在末层（Constraints 的波次），两个任务改同一份章程文件，故本任务的收口门读的是 Task 11 的语料迁移之后的树（次序见 Constraints 那一行）；重跑 `charter-self-repair.test.ts`（章程散文的红先在这一条上露出、定位到本轮改的那句）与 `pnpm run validate` 两条，各自在本任务头上退出码为零；章程最新一条历史行的日期沿用 `2026-11-20`（与本 plan 的 front matter 同日）是**约定，不是门**——读那格日期值的是 `charter-self-repair.test.ts` 的 `registration face: …` 用例，而那条用例归 Task 9（上一层 `{6,8,9}`）整条删除；本任务头上的树里没有判据钉日期值（`change-history-latest-matches-front-matter` 只判版本号，`change-history-date-shape` 只判 ISO 形状），故写别的日期不会红，本条不写成红
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p42):` 起头
 
 #### Acceptance
-章程的 P42 两行（含 scope 格的 ⑦ 与验收格的 ⑬）与 D 表两格、以及历史行同读一条路线；`notes +M` 同批落，`v4.54` 落在历史表末行（归位已落地，本组只核对）；章程自己过自己那道门；本任务在末层收口，`pnpm run validate` 在它头上转绿。
+章程的 P42 两行（含 scope ⑧ 与 ⑨、验收 ⑮ 与 ⑯，以及验收 ⑬ 的两具载体与两条红半）与 D 表两格、以及历史行同读一条路线；`notes +M` 同批落，最新一条版本行落在历史表末行且与 front matter 同版（归位是条件，本组只核对）；章程自己过自己那道门；末层的收口门归本任务，且它读的是 Task 11 的语料迁移之后的树（Constraints 的波次），`pnpm run validate` 在它头上转绿。
 
 #### DependsOn
 6
@@ -317,20 +325,20 @@ none
 ### Task 8: 翻位与交付
 
 #### Objective
-三条新规则行从 `warn` 翻到 `block`，自毁面烧掉；changeset 一包 minor（`cdd-engine`，D74）；全量门。
+四条新规则行从 `warn` 翻到 `block`，自毁面烧掉；changeset 一包 minor（`cdd-engine`，D74）；全量门。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（三行翻位）
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（四行翻位）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/rules-severity.test.ts`
 - Create: `.changeset/p42-two-ranks.md`
 
 #### Consumes
-- `contract/rules.ts#RULE_REGISTRY` 的三条新行
+- `contract/rules.ts#RULE_REGISTRY` 的四条新行
 - `contract/review-criteria.ts#CRITERIA_ROWS`（changeset 描述引它的两档）
 - spec §8 的 ⑨ 登记与 spec Constraints 的例外清单——changeset 的措辞要盖住「收回」那一类（一份此前被拒的 decision-face 文档现在通过）
 
 #### Produces
-- 三条新行读 `block`
+- 四条新行读 `block`
 - 一包（`cdd-engine`）minor 的 changeset
 - 全量门绿
 
@@ -349,14 +357,14 @@ none
 ### Task 9: 验证面追溯
 
 #### Objective
-把「物料判自己」这一类收掉。章程的 D98 立了三条：规则行为由夹具判，打包物只经 `emit:check`，语料读数不进测试。本任务处置本仓现存的三族：章程字面断言 · 三处「对真实语料断言零 finding」 · 两处手写读数。
+把「物料判自己」这一类收掉。章程的 D98 立了三条：规则行为由夹具判，打包物只经 `emit:check`，语料读数不进测试。本任务处置本仓现存的三族：章程字面断言 · 三处「对真实语料断言零 finding」 · 两处手写读数。另接一条新规则（`change-history-newest-last`，行与注册表归 Task 5）的成对臂与候选臂——被删掉的那条位置断言搬进引擎之后，它的读数就落在本任务的合成表上。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条候选读数臂；头部 `Four pairs, each with its counter-arm` 改三对）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（补惰性臂：`change-history-row-shape` 的候选读数）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除；扫描覆盖由小树夹具证明；补惰性臂：`PinAudit.census` 的候选读数——临时语料上非零、空根上全零；头部两处「file count is a constant …」与「the file list is a pinned constant」、加 `CORPUS_SIZE` 的文档注释，改成「覆盖由已知小树夹具证明」的读法）
 - Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言；`Two legs, both byte-level` 块与 `CLAIM_SHAPES` 的文档注释改成「措辞自由 · shape→规则 id 映射固定 · 两节点逐字节相同」的读法）
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（变更历史夹具族新增一条用例：合成表两种排法同读零 finding，成对臂是表头版本低于表内最大版本）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（变更历史夹具族新增一条用例：合成表的最新行排在旧行之上而表头版本等于表内最大版本 ⇒ `change-history-latest-matches-front-matter` 零 finding、`change-history-newest-last` 恰一条；成对一：那一行移回表尾 ⇒ 两条都零 finding；成对二：同一张表把表头版本降到表内最大版本之下、行序不动 ⇒ 恰一条 `change-history-latest-matches-front-matter`）
 - Create: `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
 
 #### Consumes
@@ -366,15 +374,16 @@ none
 
 #### Produces
 - 三处候选读数臂：`change-history-row-shape` 的临时根 · `PinAudit.census` 的临时语料（一条死 symbol pin 加一条死 path pin）与空根 · `measure-literal` 的面缺口，每处要求那条「零 finding」是测得的零
+- 顺序行的成对臂与候选臂（`judge.test.ts` 的变更历史夹具族）：最新行在旧行之上 ⇒ 版本腿零 finding、顺序腿恰一条；移回表尾 ⇒ 两条都零 finding；表头版本降到表内最大版本之下 ⇒ 恰一条版本腿
 - spec 的三处读数由本 plan 取代，就地登记：`PinAudit.census` 的 `symbol` · `path` · `total` 是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零，故非空半边落在一棵临时语料上、交付语料那一半只留 `files` 体量读数——这一句取代 spec §6 的「交付语料上三项各大于 0」与验收里的两条同读（共三处）；改 spec 本体需要另一个带 `may.amend` 的轮，不在本 plan 的改动面
 - 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点措辞相同 · 三对）
 - 语料规模常量从测试里消失，覆盖由一棵已知小树证明
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `temporal-indicator` · `line-coordinate`）
 
 #### Steps
-- 顺序不变量搬家 — checkable: 新不变量在「最新行被挪走一位」的夹具上报一条，恢复原序 ⇒ 零拒绝（成对：只改一行的位置）；`charter-self-repair` 里那条位置断言退休而引擎臂保留
+- 顺序不变量搬家 — checkable: 新不变量（`change-history-newest-last`，行与注册表归 Task 5，本条只接它的臂）在「最新行被挪走一位」的夹具上报一条，恢复原序 ⇒ 零拒绝（成对：只改一行的位置）；`charter-self-repair` 里那条位置断言退休而引擎臂保留
 - 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂保持绿）
-- 顺序面的合成表替身 — checkable: `judge.test.ts` 新增一条用例，一张合成的变更历史表两种排法（最新行在末尾 · 最新行排在旧行之上）同读零 finding（成对：表头版本低于表内最大版本 ⇒ 恰一条 `change-history-latest-matches-front-matter`）。新用例落在既有的变更历史夹具族里（`P21 T2` 那两组与 `P30 T3` 那组，后者的标题行在 `judge.test.ts` 的 `P30 T3 — change-history-latest-matches-front-matter` 一带），不另起一份夹具：被删掉的那条顺序断言替身就是它，行序本身仍无判据
+- 顺序面的合成表替身 — checkable: `judge.test.ts` 新增一条用例，落在既有的变更历史夹具族里（`P21 T2` 那两组与 `P30 T3` 那组，后者的标题行在 `judge.test.ts` 的 `P30 T3 — change-history-latest-matches-front-matter` 一带），不另起一份夹具：一张合成的变更历史表、最新行排在旧行之上而表头版本等于表内最大版本 ⇒ `change-history-latest-matches-front-matter` 零 finding（行序对它无感，这一态就是它的替身）、`change-history-newest-last` 恰一条（位置就是它的判据）；成对一：把那一行移回表尾 ⇒ 两条都零 finding（只改一行的位置）；成对二：同一张表把表头版本降到表内最大版本之下、行序不动 ⇒ 恰一条 `change-history-latest-matches-front-matter`（成对：只改表头版本）。候选臂同在这一族：一份没有 `## Change history` 表的文档 ⇒ 顺序行候选 0 且零 finding（成对：同一份文档写一张表、最新行不在末尾 ⇒ 恰一条）
 - 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
 - 删语料规模常量并写小树夹具 — checkable: 该常量在测试里零命中；删掉夹具里一个语料根 ⇒ coverage 用例红
 - 三份头部注释同批改 — checkable: `pins.guard.test.ts` 那一份按**在场**读、三处各一条断言——`file count is a constant`（行内可见的片段：原句在盘上折成 `… and its` / `//     file count is a constant: …` 两行，整句 `its file count is a constant` 零命中，拿它当断言是改写前后都绿的假臂）· 头部的第二句 `the file list is a pinned constant` · `CORPUS_SIZE` 的文档注释 `pinned HERE, as a literal`——三处随常量一起改成「覆盖由已知小树夹具证明」的读法，漏一处即红；`claim-shapes.test.ts` 的 `Two legs, both byte-level` 与 `charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 两句按**零命中**读，且各自读新落法。成对：把任一处写回 ⇒ 红
@@ -440,10 +449,10 @@ none
 ### Task 11: 符号 pin 的文件归位
 
 #### Objective
-让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员形态（`Class.member` 与裸成员）算在内。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。
+让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员 pin 按三具写法分判——路径载体（`path#member`）与裸类名载体（`Class#member` · `Class.member`）都归位到载体解析到的那一份文件，裸 `symbol` 没有载体、判据不动。裸类名载体走同一张表的反查方向：落到**声明**它的那份文件，落不成恰一份（零份或多份）⇒ 恰一条 finding 点名该载体与它的候选，与路径第三层「不替文档挑一个候选」同一读法。成员「在那个文件里」由一处声明识别器判，吃 `contract/pins.ts#PinSource.codeOf` 的输出（注释正文已抹掉、字符串字面量保留），认两栏：声明一栏（类 · 接口 · 类型 · 常量 · 函数 · 枚举）与成员一栏四形（类体 · 接口体 · 类型字面量 · 对象字面量属性键）。三段的 `path#Class.member` 不是一枚被读的 pin（成员半带点过不了 `PinVocabulary.isSymbol`），本任务不放松那道筛。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区——改的是作用域：`Class.member` 的分段解析已经存在；路径形状判者与 `PlanTaskBlocksReader` 收成一处）
+- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区 + 裸类名载体的反查方向 + 吃 `PinSource.codeOf` 输出的声明识别器——改的是作用域：`Class.member` 的分段解析已经存在；路径形状判者与 `PlanTaskBlocksReader` 收成一处）
 - Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（写错文件的 pin 改到正确的那份）
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p8.md`
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p8-design.md`
@@ -452,22 +461,25 @@ none
 
 #### Consumes
 - `contract/pins.ts#PinIndex` 的既有解析面与 `PinAudit` 的三处判定点
+- `contract/pins.ts#PinSource.codeOf`——声明识别器的输入（注释正文已抹掉、字符串字面量保留）；`PinVocabulary.memberOf` 已把两具载体的载体段与成员段分开
 - Task 9 清完之后的那份 `pins.guard.test.ts`（语料规模常量已不在，惰性臂已在）
 - 语料里现有的 `path#Symbol` pin
 
 #### Produces
 - 按文件分区的符号集
-- 成员形态的符号判据
+- 裸类名载体的反查方向，与零份 / 多份声明时的歧义拒绝（恰一条 finding 点名载体与候选）
+- 吃 `PinSource.codeOf` 输出的声明识别器：声明一栏六形 + 成员一栏四形
 - 语料里零条「路径对而符号在别处」的 pin
 
 #### Steps
 - 符号表按文件分区 — checkable: 一枚路径可解析、符号住在别的文件里的 pin ⇒ 报一条；同一枚把路径改到符号真正所在的文件 ⇒ 零拒绝（成对：只改路径）
-- 成员形态纳入判据 — checkable: `path#Class.member` 与 `path#member` 在符号确实住该文件时都零拒绝（成对：成员名换成只在该文件注释里出现过的词 ⇒ 照报）
+- 成员形态纳入判据 — checkable: `<tmp>/src/carrier.ts` 里按声明形态写 `export const DepthMap = …`、pin 写作 `<tmp>/src/carrier.ts#DepthMap` ⇒ 零拒绝；同一枚把那段声明删掉、名字只在字符串字面量里剩（`export const label = "DepthMap";`）⇒ 恰一条 finding（成对：只改声明形态）。注释里出现过的名字不算坐标（`codeOf` 已抹掉注释正文，那一态在相位之前就是绿的，不单独作臂）。接口载体那一臂同批：`<tmp>/src/carrier-body.ts` 写 `export interface CarrierBody { readonly DepthMap?: string }` ⇒ 零拒绝；同一枚把属性改写成 `readonly depthMap?: string`（pin 一字不动）⇒ 恰一条 finding（识别器只认类体时两态都读一条，第一态当场红）。覆盖面写进同一条：类体 · 接口体 · 类型字面量 · 对象字面量属性键（语料里成片的是 interface / type 载体）。夹具的成员名带内层大写或下划线（`isSymbol` 只认 `#` 前缀 · 下划线 · 内层大写）。三段的 `path#Class.member` 不进任何臂：成员半带点过不了 `isSymbol`，本任务不放松这道筛，写它等于让臂在零实现下也绿
+- 裸类名载体的反查 — checkable: 一枚载体是裸类名、该类名在树里只被唯一一份文件声明、而它的成员不在那份文件里 ⇒ 恰一条 finding；同一枚把成员改成那份文件里声明过的名字 ⇒ 零拒绝（成对：只改成员）。歧义臂：类名被两份文件声明、或一份也没有 ⇒ 恰一条 finding 点名该载体与它的候选（与路径第三层同一读法）；同一枚把载体改写成路径载体 ⇒ 按路径载体那一臂判。两态在相位之前都读零（全树并集），故这一臂只在反查落地后才红
 - 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；把任一处改回错的路径 ⇒ 红
 - 提交 — checkable: `git log -1 --format=%s` 以 `fix(p42):` 起头
 
 #### Acceptance
-一枚 pin 说「这个文件里的这个符号」，引擎就真的去那份文件里找；写成别的文件时它红，而报文形状与档位不变。
+一枚 pin 说「这个文件里的这个符号」，引擎就真的去那份文件里找；写成别的文件时它红，而报文形状与档位不变。成员 pin 的三具写法各有落法：路径载体与裸类名载体按声明文件判，裸 `symbol` 不动；裸类名落不成恰一份时恰一条 finding，三段的 `path#Class.member` 与 `isSymbol` 的放松都不在交付面上。
 
 #### DependsOn
 9
@@ -477,7 +489,8 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
-| v0.15 | 2026-11-20 | 编排者回填（用户裁定 · 抽象整理）：Task 4 改为「既有读面停止丢弃动词标签」+ `RuleDeclaration.seat` 一列 · Task 10 改称收口座位 · Task 11 改称改作用域而非解析，路径形状判者收成一处。零新增任务 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.16 | 2026-11-21 | 评审第 9 轮回填（三条 blocker · 三条 warn 全数采纳）：§6 的顺序行与 §8 的 `seat` 列落进 Task 5（顺序行 `doc` 档 · `warn` 起步 · 自占一个策略类 · 读 `Invariant.historyVersions` 的最后一行、无 `## Change history` 表时零候选；`seat` 闭集 `dispatch` · `close` · `corpus` · `ledger` 的非空子集 + 三十六行逐 id 字面表 + 三条断言），行数面随之读 34 doc + 2 ledger = 36，Constraints 的 warn 清单与 Task 8 的翻位改成四条 · Task 9 的顺序面合成表按 spec §6 重写（最新行在旧行之上 ⇒ 版本腿零 finding、顺序腿恰一条；移回表尾 ⇒ 两条零 finding；表头版本低于表内最大版本 ⇒ 恰一条版本腿），删掉「行序本身仍无判据」 · Task 11 的成员臂按 spec §9 重写（三具写法 · 裸类名反查与歧义拒绝 · 吃 `PinSource.codeOf` 的声明识别器 · 字符串字面量判别臂 · 接口载体那一臂），三段的 `path#Class.member` 与 `isSymbol` 的放松都排除在臂外 · Task 7 按 spec §5 的九组重写（补 ⑧/⑮ 与 ⑨/⑯ 两组、第 4 组改成收窄 scope ⑤），去掉章程历史行的具体版本号、改读「最新一条版本行是表尾且与 front matter 同版」这一条件 · Constraints 的末层写定 Task 7 与 Task 11 的层内次序 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.15 | 2026-11-20 | 编排者回填（用户裁定 · 抽象整理）：Task 4 改为「既有读面停止丢弃动词标签」+ `RuleDeclaration.seat` 一列（该列的实际落点见 v0.16：Task 5） · Task 10 改称收口座位 · Task 11 改称改作用域而非解析，路径形状判者收成一处。零新增任务 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.14 | 2026-11-20 | 编排者回填（用户裁定）：新增 Task 11「符号 pin 的文件归位」——`PinIndex` 按文件分区 + 成员形态 + 语料同批迁移；等 Task 9（同一份守卫文件） | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.13 | 2026-11-20 | 编排者回填（D98 实施细则）：Task 9 加一步——把「末行是最新版本」这条自验断言搬成引擎的顺序不变量，而非删除 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.12 | 2026-11-21 | 评审第 8 轮回填（两条 blocker · 两条 warn 全数采纳）：Task 10 把组合根接线接进 Files 行并补两步——`face/cli.ts` 的 `preflight.gate` 交出已批准的判决（`ok ? null : preflight` 让基准在生产里恒空），`CliLifecycle` 的构造接到根上那一个 `Contract`，同批补一条走生产构造的基准臂 · Constraints 的窗口次序写定层内顺序（`{6,8,9}` 里 Task 8 翻位先落、Task 9 删除后落），故 Task 9 与 Task 7 头上的绿有据 · Task 4 把比值臂与 pin 极性臂的读数落点接进 Files 行（`shape-rules.test.ts` 的 `P41 T2 — line-coordinate` 家族 · `pins.guard.test.ts`）· Task 6 的发布面步钉住孪生 pin 的两侧（新 pattern 单串点名 `warn` 与 `REVIEW_FIX`，六处 `warn/nit` 换成点名「只 warn」的整句，弱成 `/warn/i` 不算达成） · Task 7 的第 8 组改成末行核对（`v4.54` 的移动已由既有提交落地） | Oscaner M. · Claude（kairos:cdd-fix） |

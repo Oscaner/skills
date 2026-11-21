@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -372,6 +372,7 @@ none
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `temporal-indicator` · `line-coordinate`）
 
 #### Steps
+- 顺序不变量搬家 — checkable: 新不变量在「最新行被挪走一位」的夹具上报一条，恢复原序 ⇒ 零拒绝（成对：只改一行的位置）；`charter-self-repair` 里那条位置断言退休而引擎臂仍在
 - 删章程正文的字符串比对 — checkable: 该文件里针对章程正文的字符串断言零命中（成对：把章程正文改回旧措辞 ⇒ 该用例不红，引擎臂保持绿）
 - 顺序面的合成表替身 — checkable: `judge.test.ts` 新增一条用例，一张合成的变更历史表两种排法（最新行在末尾 · 最新行排在旧行之上）同读零 finding（成对：表头版本低于表内最大版本 ⇒ 恰一条 `change-history-latest-matches-front-matter`）。新用例落在既有的变更历史夹具族里（`P21 T2` 那两组与 `P30 T3` 那组，后者的标题行在 `judge.test.ts` 的 `P30 T3 — change-history-latest-matches-front-matter` 一带），不另起一份夹具：被删掉的那条顺序断言替身就是它，行序本身仍无判据
 - 补三处候选读数臂 — checkable: ① `doc-corpus.guard.test.ts#keeps change-history-row-shape within its recorded ceiling`：一棵只放一份文档的临时根、标题写成 `## Change history (archived)` ⇒ 那张表读出 `null`、候选 0、规则零 finding（成对：同一份文档用 `## Change history` 并写一行参差行 ⇒ 恰一条 finding）；② `pins.guard.test.ts#declares the whole corpus, pins its size, and holds it at zero findings`：`PinAudit.census` 的 `symbol` · `path` · `total` 三项是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零（同文件那条零扫描 pin 说的就是这件事），故非空半边落在一棵临时语料上——`fixture()` 建的根里写一份文档、带一条死 symbol pin 与一条死 path pin（`#reports the seeded dead pins and stops reporting them after the repair` 的两个形状）⇒ `census.symbol > 0` · `census.path > 0` · `census.total > 0`；成对：空根 `census([])` 上三项各为 0，同臂补 `empty.symbol` 与 `empty.path` 两条断言（语料 ONE way 用例现只读 `files` 与 `total`，`symbol` 与 `path` 在空根上无处断言）。这一臂量的是 finding 条数，不是 `files`——`files` 是语料体量，两者不互替，交付语料那一半只留体量读数；③ `charter-self-repair.test.ts#reports nothing on the real charter — all three families at zero`：把已登记标题换成一个面表放不进的名字 ⇒ 标题下每一行落 `unmapped`、`measure-literal` 报 `this line sits under a heading with no declared face`（成对：保留标题 ⇒ 缺口 finding 消失）
@@ -440,6 +441,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.13 | 2026-11-20 | 编排者回填（D98 实施细则）：Task 9 加一步——把「末行是最新版本」这条自验断言搬成引擎的顺序不变量，而非删除 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.12 | 2026-11-21 | 评审第 8 轮回填（两条 blocker · 两条 warn 全数采纳）：Task 10 把组合根接线接进 Files 行并补两步——`face/cli.ts` 的 `preflight.gate` 交出已批准的判决（`ok ? null : preflight` 让基准在生产里恒空），`CliLifecycle` 的构造接到根上那一个 `Contract`，同批补一条走生产构造的基准臂 · Constraints 的窗口次序写定层内顺序（`{6,8,9}` 里 Task 8 翻位先落、Task 9 删除后落），故 Task 9 与 Task 7 头上的绿有据 · Task 4 把比值臂与 pin 极性臂的读数落点接进 Files 行（`shape-rules.test.ts` 的 `P41 T2 — line-coordinate` 家族 · `pins.guard.test.ts`）· Task 6 的发布面步钉住孪生 pin 的两侧（新 pattern 单串点名 `warn` 与 `REVIEW_FIX`，六处 `warn/nit` 换成点名「只 warn」的整句，弱成 `/warn/i` 不算达成） · Task 7 的第 8 组改成末行核对（`v4.54` 的移动已由既有提交落地） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.11 | 2026-11-21 | 评审第 7 轮回填（一条 blocker · 四条 warn 全数采纳）：Task 10 按 spec §7 重写——座位改到 `face/lifecycle.ts#verdictOf` 的 graded entry 面（与 `#structureViolations` 同一趟），基准改成门测得的 findings（`PreFlightVerdict` 增一格加 `OpenFrame` 一格），`不提交` / `不出提交` / `照常提交` 三处换成「不到下一跳」的读法，多重集差按 `kind@field@message` 的整身份并补同标题替换臂与基准非空臂，`session/run.ts` 进 Files 行（帧格加 `PlanStructure` 注释读两个判定点） · Task 9 收下 `judge.test.ts` 的合成表顺序臂（两种排法同读零 finding，成对臂是表头版本低于表内最大版本） · Task 7 的组数由五组改成 spec §5 的八组并逐组点名 · Task 8 的 changeset 步补 §8 的 ⑨ 收回那一句，Task 4 的比值步补退出码改动的单独理由 · Constraints 的 Task 10 基准读法同批改 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.10 | 2026-11-21 | 评审第 6 轮回填（一条 blocker · 三条 warn 全数采纳）：Task 3 的 ⑧ 改回实测读数——该夹具两格坏值都落在声明槽上，`droppedKeys` 返回空数组，故恰一条 soft 项、标题逐字节保留（两条 soft 项要另加带非声明键的夹具，不在本任务改动面）· Task 3 的 ④ 补 `carrier.notes` 的 `toContain` 改读 soft 项（键缺席后 `join` 读空串），⑥ 补载体 `toEqual` 去掉 `notes` 键与 `contractViolationCount` 由 0 改 2 · Task 2 补两处 counterexample pin 改读替换句句尾（`is a warn:` · `` is a `notes` line, not a finding ``），`missingNit` 臂改成表外一档（两值 `TIER_ORDER` 下旧臂永不抛） · Task 3 的 Produces 把 `displayReason` 折叠收在板面，brief 印载体原文（spec §2.1 的 brief 半句） | Oscaner M. · Claude（kairos:cdd-fix） |

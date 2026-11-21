@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.18
+version: v0.19
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -112,6 +112,8 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **同一次编辑改掉三份文件的头部注释**（§2.2 对 `face/lifecycle.ts#materialize` 的同一纪律——自己的注释同批改掉）：`packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts` 的头部（「its file count is a constant: a document entering or leaving the corpus goes red」，头部两处）与 `CORPUS_SIZE` 的文档注释改成「覆盖由已知小树夹具证明」的读法；`packages/kairos/tests/claim-shapes.test.ts` 的 `Two legs, both byte-level` 块（含「a reworded bullet goes red」与「byte-identical to each other」）与 `CLAIM_SHAPES` 的文档注释改成结构断言的读法（措辞自由 · 映射固定 · 两节点同措辞）；`packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 改成三对——registration face 那条随本相位删除。漏改的代价是下一任作者照注释把规模常量或第二份措辞写回来，而三道门都不红。
 - **不动打包物**：图表双生、README、变更集、清单四类验的是打包物，引擎没有对应判据，删掉只会失去护栏。
 
+- **能机械化的搬进引擎，不能机械化的删除**：本仓有一条自验断言抓过真缺陷——章程历史表的「末行是最新版本」，而引擎的 `change-history-latest-matches-front-matter` 按版本排序判、不判位置，故它在红的时候仍然绿。这条断言因此**搬**而不是删：新起一条顺序不变量，消费者同享，测试里那条随之退休。判据分两种——形态可机械化（顺序、唯一、形状）⇒ 进引擎；内容正确性（某节该说什么）⇒ 谁也不判，属评审。
+
 ### 7. fix 轮的回合内判定
 
 `cdd fix` 的 `checked` 列表里已经有 `doc-contract`，但判定落在**下一次派发**：修复轮写出一份违反形状规则的文档、提交，下一条命令才被拒。写的人在自己的回合里看不到红，代价是一次 hygiene 修复 + 一笔提交 + 一次重发。
@@ -174,6 +176,8 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 - `contract/invariants.ts` 的坐标文法不再命中比值：`4.5:1` · `3:1` · `1.5:1` 各一条用例全通过，而 `cli.ts:41` 与 `contract/declare.ts:12` 照报（成对：两侧只差冒号前有无字母）。
 
+- `contract/invariants.ts` 的新顺序不变量：把章程历史表的最新行挪走一位（不再是末行）⇒ 该规则报一条；同一份表格恢复原序 ⇒ 零拒绝（成对：只改一行的位置）。同一形状上，`packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 里那条位置断言退休，而它对引擎的调用仍在。
+
 ## Constraints
 
 - **引擎只拒不改**：任何拒绝都不移动、不改写、不删除文档；恢复归编排器。
@@ -187,6 +191,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.19 | 2026-11-20 | 编排者回填（D98 实施细则 · 用户裁定后自查）：判据分两种——形态可机械化的搬进引擎（章程历史表的顺序不变量），内容正确性的删除；同批补一条成对臂 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.18 | 2026-11-21 | 评审第 13 轮回填（六条 warn · 两条 nit 全数采纳）：§8 的计数与表述收口——标题与开篇从「两处收口」改成一条修（比值被读成坐标）加两条指针，坐标改点名 `contract/invariants.ts#LINE_COORDINATES` 的第三条 · 符号 pin 的子弹改写真实现状（载体半是判过的 · 成员半全树查、从不进载体 · 裸 `symbol` 无路径），删掉「路径不存在也通过」那半句 · §5 新增一组把 §8 登记成 P42 行 ⑦ 与验收 ⑬（章程 `## Maintenance` 要求相邻缺口同样回填追加）· §5 的验收格组改成它真正欠的那一处改动（⑧ 的括注从「选择器永不匹配」换成候选读数形，D98 ① 同批加收窄注），⑨ 与 scope ⑤ 已登记、一字不改 · §7 的差分删掉「按 `kind@field` 分组比条数」这条与同句禁令相冲的替代读法 · `## Constraints` 的例外登记由八处扩到九处，守恒句写成实际成立的条件（`4.5:1` 一类的拒绝被收回） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.17 | 2026-11-20 | 编排者回填（github#506 第三条评论 · 用户裁定）：新增 §8 形状面两处收口——比值误判的修法（要求冒号前含字母）与两条不修的指针（符号 pin 不校验路径 · 数字的红落在第二个家） | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.16 | 2026-11-21 | 评审第 12 轮回填（一条 blocker · 四条 warn 全数采纳）：§5 补上 §7 反转的三格——P42 路线 ⑥ 的座位改成本轮收口、验收 ⑩ 的「不出提交」与「照常提交」两半、D97 的 2026-11-20 追加的基准改成门测得的 findings——并把同一组的反转计数由四处重排成七处；同批新增一组把章程变更历史里错位的 `v4.54` 行归位，并写明「最新行在末尾」不是判据（`front-matter-version-matches-last-row` 是退役 id） · §6 点名被接过的只有版本对账、对行序无感，替顺序面出手的是一条合成表的夹具级断言 · §7 的差分改成按 finding 整个身份做多重集差（`kind@field` 是同标题两条 finding 共用的键），两处 `session/run.ts` 的类坐标改 `#Lifecycle` · §6 与 §7 的注册表行数改成条件句（`rules-severity.test.ts` 钉住全 block） | Oscaner M. · Claude（kairos:cdd-fix） |

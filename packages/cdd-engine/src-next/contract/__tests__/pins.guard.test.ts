@@ -53,7 +53,7 @@ const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
  *  corpus is red. It is deliberately not derived from `filesOf`: a number computed out
  *  of the same walk would agree with any corpus the walk returned, and re-emitting it
  *  could never turn this file red. */
-const CORPUS_SIZE = 85;
+const CORPUS_SIZE = 86;
 
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
 const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";

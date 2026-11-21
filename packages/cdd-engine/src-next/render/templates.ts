@@ -243,6 +243,15 @@ const IMPLEMENT_SHELL: readonly string[] = [
 const RULINGS_READING =
   "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten. `INPUT_RULINGS` is a path, or the literal `none` when this round has no ruling sidecar.";
 
+/** The docs-fix shell's OWN write constraints (P42 §1.3) — the four shape rules the
+ *  dispatch gate judges, named where the round that WRITES a document reads them. The
+ *  round's close-out leg re-reads the document and refuses the advance on any violation
+ *  the round did not already carry, so the rules are the fix's own discipline, not the
+ *  author's. One row, four names, no per-rule sentence: the criteria table carries the
+ *  wording and the names here are the identifiers a report prints. */
+const DOCS_FIX_SHAPE_RULES =
+  "**Written shape:** the edit obeys the four shape rules the gate judges — `measure-literal` (state no bare count in prose), `line-coordinate` (cite a module path and symbol, never a line number), `live-arithmetic` (state no arithmetic over counts), `temporal-indicator` (state no present-tense claim about the tree) — because the round's close re-reads the document and blocks the advance on every violation this round adds.";
+
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_TYPED_INSTRUCTIONS: readonly string[] = [
   "**Verify-then-apply:** verify each finding against the codebase's actual state before changing anything — apply a finding only when it is technically sound; a finding that does not hold up stays open with a note (never blind adoption). Apply findings one at a time and test each one before moving on.",
@@ -288,6 +297,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**Change-history rows:** a new `## Change history` row bumps the front-matter `version:` in the same edit — the header version is the lineage's newest numeric version, and the two can never disagree.",
   "**Table cells:** never hard-wrap a table cell — a wrapped continuation parses as a row whose cell count disagrees with the header, and the lineage row it was meant to be stops registering.",
   "**Escaped pipes:** a `## Change history` summary cell that needs a literal vertical bar carries `\\|` — a bare `|` splits the cell in two and the row stops matching the declared header.",
+  DOCS_FIX_SHAPE_RULES,
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   RULINGS_READING,
   SCRATCH_DISCIPLINE,

@@ -45,9 +45,10 @@ import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 import type { LedgerFacts } from "./judge.ts";
 import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
-import { PinSpans } from "./pins.ts";
+import { PinSpans, PinVocabulary } from "./pins.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 import type { LedgerRule } from "./rules.ts";
+import { PlanTaskBlocksReader } from "./task-blocks.ts";
 import { RowSource, type Translator } from "./translate.ts";
 import { MAX_TASKS_PER_WAVE } from "./wave-width.ts";
 
@@ -1824,6 +1825,86 @@ export class WaveWidthInvariant extends Invariant {
   }
 }
 
+/** single-create — one path is CREATED once, and its `Create:` row comes before every
+ *  other declaring row (P42 §1.2). The judgment needs two answers the `Files` reader
+ *  keeps apart: the VERB face says what a row's label states, and the CLAIM face says
+ *  whether the row declares its path at all. A `Test:` row is a verb the vocabulary
+ *  knows without claiming, and an out-of-vocabulary `Add:` / `修改` spelling claims
+ *  through its own closed label set — so two spellings of one defect get one verdict
+ *  instead of one being read as prose.
+ *
+ *  The rule reads the declaration SET, never a line count: a path declared twice on one
+ *  row is one declaration, a path restated as `Modify:` after its `Create:` is the
+ *  normal increment, and only two states are refused — more than one `Create:` row, and a
+ *  `Create:` row that sits after a task which already declared the path. */
+export class SingleCreateInvariant extends Invariant {
+  readonly name = "single-create";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    if (ctx.docKey !== "plan") return [];
+    const findings: FindingDraft[] = [];
+    for (const [path, tasks] of this.#claimSets(ctx)) {
+      findings.push(...this.#judgePath(ctx, path, tasks));
+    }
+    return findings;
+  }
+
+  /** Every claimed path of the plan, mapped to the tasks that claim it — with `true` on
+   *  the tasks whose row carries the canonical `Create:` verb. A path is counted once per
+   *  task: an inline restatement of the same row is one declaration. Tokens outside the
+   *  path shape (`<slug>`, a bare word, a `#`-member) name no file and claim nothing. */
+  #claimSets(ctx: JudgeContext): ReadonlyMap<string, ReadonlyMap<number, boolean>> {
+    const reader = new PlanTaskBlocksReader();
+    const paths = new Map<string, Map<number, boolean>>();
+    for (const block of ctx.tree.tasks()) {
+      for (const declaration of reader.fileDeclarationsOf(block)) {
+        if (declaration.claim === "none") continue;
+        if (PinVocabulary.pathOf(declaration.path) === null) continue;
+        const tasks = paths.get(declaration.path) ?? new Map<number, boolean>();
+        tasks.set(block.id, (tasks.get(block.id) ?? false) || declaration.verb === "create");
+        paths.set(declaration.path, tasks);
+      }
+    }
+    return paths;
+  }
+
+  /** One path's verdict — the canonical `Create:` rows against every earlier declaring
+   *  task. Only the `Create:` spelling counts as a creating row: an `Add:` claim makes a
+   *  later `Create:` late, but two `Add:` rows never claim to have created anything. */
+  #judgePath(
+    ctx: JudgeContext,
+    path: string,
+    tasks: ReadonlyMap<number, boolean>,
+  ): readonly FindingDraft[] {
+    const creates = [...tasks]
+      .filter(([, creates]) => creates)
+      .map(([task]) => task)
+      .sort((left, right) => left - right);
+    if (creates.length > 1) {
+      return [
+        this.finding(
+          ctx,
+          "Files",
+          `the Create: declaration for ${path} appears in tasks ${creates.join(", ")}`,
+          "keep one Create: row per path — the row that first claims the path owns its creation",
+        ),
+      ];
+    }
+    const owner = creates[0];
+    if (owner === undefined) return [];
+    const earlier = [...tasks.keys()].filter((task) => task < owner).sort((a, b) => a - b);
+    if (earlier.length === 0) return [];
+    return [
+      this.finding(
+        ctx,
+        "Files",
+        `task ${owner} declares Create: ${path}, after ${earlier.map((task) => `task ${task}`).join(", ")} already declared it`,
+        "move the Create: row to the first task that claims the path, and let later tasks declare Modify:",
+      ),
+    ];
+  }
+}
+
 // ---------------------------------------------------------------------------
 // the shape-gate family (P41 §1.2 · §1.5 · §3.1)
 // ---------------------------------------------------------------------------
@@ -1847,11 +1928,13 @@ const MEASURE_LITERAL = new RegExp(
 );
 
 /** The three `line-coordinate` shapes (§1.2): `第 N 行` · `line N` · a path followed
- *  by `:N`. */
+ *  by `:N`. The third shape requires at least one LETTER before its colon: a file name
+ *  carries one, a decimal ratio (`4.5:1`) does not — the colon alone does not make a
+ *  coordinate, so a ratio is prose rather than a misreported line. */
 const LINE_COORDINATES: readonly RegExp[] = [
   /第\s*\d+\s*行/g,
   /\blines?\s+\d+/gi,
-  /[\w./-]+\.\w+:\d+/g,
+  /(?=[\w./-]*[A-Za-z])[\w./-]+\.\w+:\d+/g,
 ];
 
 /** The `live-arithmetic` token grammar (§1.2) — integer, optional spaces, one operator

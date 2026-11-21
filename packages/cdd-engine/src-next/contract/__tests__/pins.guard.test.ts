@@ -76,14 +76,15 @@ const front = (docType: string, slug: string, program?: string): string =>
     "",
   ].join("\n");
 
-/** A plan body: one task block whose `Files` row declares the pending path. */
-const planBody = (slug: string, pending: string | null): string =>
+/** A plan body: one task block whose `Files` row declares the pending path — the verb
+ *  is a parameter because only `Create:` buys the §7.3 skip. */
+const planBody = (slug: string, pending: string | null, verb = "Create"): string =>
   [
     front("plan", slug),
     "### Task 1: the declared work",
     "",
     "#### Files",
-    ...(pending === null ? [] : [`- Create: \`${pending}\``]),
+    ...(pending === null ? [] : [`- ${verb}: \`${pending}\``]),
     "",
     "#### DependsOn",
     "none",
@@ -466,12 +467,17 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     readonly pending?: string | null;
     readonly program?: string;
     readonly charter?: string;
+    readonly verb?: string;
   }): Scratch => {
     const f = fixture();
     f.write(JUDGED, `${front("phase-spec", "s1", options.program)}\n# spec\n\n- \`${PENDING}\`\n`);
     f.write(
       "docs/kairos/plans/s1.md",
-      planBody(options.planSlug ?? "s1", options.pending === undefined ? PENDING : options.pending),
+      planBody(
+        options.planSlug ?? "s1",
+        options.pending === undefined ? PENDING : options.pending,
+        options.verb,
+      ),
     );
     if (options.charter !== undefined) {
       f.write("docs/kairos/overalls/prog.md", options.charter);
@@ -487,6 +493,18 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
     expect(f.audit.scanText(`# spec\n\n- \`${PENDING}\`\n`, JUDGED)).toEqual([]);
     expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(true);
+  });
+
+  it("reports the same pending path under a `Modify:` row — the skip belongs to `Create:` alone", () => {
+    // The declaration is the same path, task and plan; only the verb moves. A modify row
+    // is a claim on a path the tree already has, so it can never establish forward — the
+    // pin stays dead on both its carriers (the judged spec's body and the plan row).
+    const modified = pendingFixture({ verb: "Modify" });
+    expect(
+      pinsOf(modified.audit.scan(["docs/kairos"])).filter((pin) => pin === PENDING),
+    ).toHaveLength(2);
+    expect(modified.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+    // the pair: the same fixture one verb over is the silent arm above
   });
 
   it("skips the pending path as a MEMBER carrier too — one pending path, one answer", () => {

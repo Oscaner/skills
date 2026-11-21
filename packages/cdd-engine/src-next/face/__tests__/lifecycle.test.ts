@@ -41,6 +41,7 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
+import { Contract } from "../../contract/judge.ts";
 import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { REGRADE_MARK } from "../../contract/review-criteria.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -215,6 +216,7 @@ const dispatchFrame = async (
   });
   try {
     const lifecycle = new CliLifecycle({
+      contract: new Contract(),
       scene: f.scene,
       artifacts: new ArtifactRegistry(),
       io: f.io,
@@ -376,6 +378,7 @@ const plantStale = (f: Fixture, body: string): void => {
  *  honest fixture (the required `values` slot documents the wiring, nothing more). */
 const lifecycleOf = (f: Fixture): CliLifecycle =>
   new CliLifecycle({
+    contract: new Contract(),
     scene: f.scene,
     artifacts: new ArtifactRegistry(),
     io: f.io,
@@ -803,6 +806,7 @@ const runFix = async (
   runner: SilentRunner,
 ): Promise<DispatchOutcome> => {
   const lifecycle = new CliLifecycle({
+    contract: new Contract(),
     scene: f.scene,
     artifacts: new ArtifactRegistry(),
     io: f.io,
@@ -852,6 +856,7 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
     const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
     const frame = fixFrameOf(specPath);
     const lifecycle = new CliLifecycle({
+      contract: new Contract(),
       scene: f.scene,
       artifacts: new ArtifactRegistry(),
       io: f.io,
@@ -934,6 +939,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
   const runFixFrame = async (f: Fixture, runner: ChildRunner): Promise<void> => {
     const frame = fixFrameOf(specPathOf(f));
     const lifecycle = new CliLifecycle({
+      contract: new Contract(),
       scene: f.scene,
       artifacts: new ArtifactRegistry(),
       io: f.io,
@@ -1303,6 +1309,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
         live: async () => true,
       });
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene: f.scene,
         artifacts: new ArtifactRegistry(),
         io: f.io,
@@ -1342,6 +1349,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       const probe = new ModeProbeRunner([seeded.path], seen);
       const frame = fixFrameOf(specPath);
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene: f.scene,
         artifacts: new ArtifactRegistry(),
         io: f.io,
@@ -1521,6 +1529,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
         state: EMPTY_RUN_STATE,
         ledger: f.scene.ledger,
         dispatch: new CliLifecycle({
+          contract: new Contract(),
           scene: f.scene,
           artifacts: new ArtifactRegistry(),
           io: f.io,
@@ -1572,6 +1581,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       const frame = atAttempt(fixFrameOf(specPath), 2);
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene: f.scene,
         artifacts: new ArtifactRegistry(),
         io: f.io,
@@ -2076,14 +2086,14 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
       const doc = writeDoc(f, ["# spec"]);
       const resolved = await runDocReview(f, doc, [
         {
-          severity: "nit",
+          severity: "warn",
           lens: "standards",
           summary: "wording",
           contract: { path: "seed.txt", anchor: "§1" },
         },
       ]);
       expect(resolved.findings).toHaveLength(1);
-      expect(resolved.findings?.[0]?.severity).toBe("nit");
+      expect(resolved.findings?.[0]?.severity).toBe("warn");
     } finally {
       f.cleanup();
     }
@@ -2092,7 +2102,7 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
       const doc = writeDoc(g, ["# spec"]);
       const dead = await runDocReview(g, doc, [
         {
-          severity: "nit",
+          severity: "warn",
           lens: "standards",
           summary: "wording",
           contract: { path: "docs/kairos/specs/absent-design.md", anchor: "§1" },
@@ -2159,7 +2169,7 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
         reviewFrame,
         new ReviewDraftRunner([
           {
-            severity: "nit",
+            severity: "warn",
             lens: "standards",
             summary: "wording",
             contract: { path: "docs/kairos/specs/absent-design.md", anchor: "§1" },
@@ -2228,7 +2238,7 @@ describe("P37 T7 — the pin time face reads the judged identity at the call sit
 
   /** The child's own row — its `contract.path` is the corpus under judgment. */
   const FINDING = {
-    severity: "nit",
+    severity: "warn",
     lens: "standards",
     summary: "wording",
     contract: { path: PENDING, anchor: "§1" },
@@ -2251,7 +2261,7 @@ describe("P37 T7 — the pin time face reads the judged identity at the call sit
         specReviewOf(writeSpec(f)),
         new ReviewDraftRunner([FINDING], "phase-spec-review-1.json"),
       );
-      // the child's row only: a pending declaration is not a dead pin. The nit itself
+      // the child's row only: a pending declaration is not a dead pin. The warn itself
       // still rolls the round to REVIEW_FIX — what the skip removes is the SECOND row
       expect(outcome.findings).toHaveLength(1);
       expect(outcome.status).toBe("REVIEW_FIX");

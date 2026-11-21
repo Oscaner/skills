@@ -218,7 +218,7 @@ describe("projection ② — the read-back validation (readBack's required tier)
       schema.readBack("judge", {
         findings: [{ severity: "fatal", lens: "spec", summary: "x" }],
       }).problems,
-    ).toEqual(["findings[0].severity: must be one of blocker | warn | nit"]);
+    ).toEqual(["findings[0].severity: must be one of blocker | warn"]);
     expect(
       schema.readBack("judge", {
         findings: [{ severity: "warn", lens: "spec" }],

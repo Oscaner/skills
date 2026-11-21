@@ -19,6 +19,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
+import type { Finding } from "../contract/invariants.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
@@ -119,6 +120,12 @@ export interface OpenFrame {
    *  in `progress.json`, in the round carrier or in the in-flight record, and an absent
    *  value (no plan fact) judges nothing. */
   structure?: PlanStructure | null;
+  /** The document's CONTRACT baseline of this round (P42 §1.3) — the approved dispatch
+   *  gate's own findings, the same discipline as `structure`: it rides the frame alone
+   *  (never `progress.json`, the carrier or the in-flight record), and an absent value
+   *  judges nothing because no gate measured this document. A fix round compares its
+   *  close-time reading against this set, so the round pays only for what IT added. */
+  contract?: readonly Finding[] | null;
 }
 
 /** One plan-structure read's outcome — the three cases stay distinct so a caller never
@@ -138,7 +145,10 @@ export type PlanStructureRead =
  * structure edit is judged — a content-only amendment (facts, file lists, steps,
  * acceptance detail, cited line numbers) stays legal. The judgment has ONE presentation
  * face (the round's graded `violations`): no doc-contract rule row is registered for it,
- * because the engine's single doc-contract evaluation point is the pre-dispatch gate.
+ * because the engine has TWO doc-contract evaluation points — the pre-dispatch gate (a
+ * `block` row refuses before any child exists) and the fix round's close-out leg (a
+ * round that wrote a new violation into a document is BLOCKED in its own turn, P42 §1.3).
+ * A rule row would be a third reading of the same facts.
  */
 export class PlanStructure {
   /** The registered task ids, ascending. */
@@ -468,6 +478,10 @@ export class Lifecycle {
   async advance(): Promise<StepResult | null> {
     const frame = this.#openFrame();
     if (frame === null) return null;
+    // The approved gate's findings ride the frame as the round's contract baseline
+    // (P42 §1.3) — read off the SAME verdict the gate judged with, never a second
+    // pre-flight call. A gate-less lifecycle carries no baseline and judges nothing.
+    let baseline: readonly Finding[] | null = null;
     if (this.#preflight !== null) {
       const verdict = this.#preflight.gate(frame);
       if (verdict !== null && !verdict.ok) {
@@ -479,8 +493,11 @@ export class Lifecycle {
           preflight: verdict,
         };
       }
+      baseline = verdict?.findings ?? null;
     }
-    const outcome = await this.#dispatch(frame);
+    const outcome = await this.#dispatch(
+      baseline === null ? frame : { ...frame, contract: baseline },
+    );
     const round = this.#bookkeep(frame, outcome);
     // The closure verdict rides the recorded round's C5 route — mark the task done
     // when the route kind says the line closed (the router's single point, never a

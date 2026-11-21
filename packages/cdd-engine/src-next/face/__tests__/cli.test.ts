@@ -6856,6 +6856,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -6944,6 +6945,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "Implemented the task.\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -6978,6 +6980,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7028,6 +7031,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, taskReviewFrame),
@@ -7067,6 +7071,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7081,6 +7086,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the assembly's shape, not a fixture detail.
       const roundTwo: OpenFrame = { ...specReviewFrame, round: 2, params: { round: 2 } };
       const second = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, roundTwo),
@@ -7137,6 +7143,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7211,6 +7218,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7270,6 +7278,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7312,13 +7321,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "nit", lens: "spec", summary: "drift" }],
+          findings: [{ severity: "warn", lens: "spec", summary: "drift" }],
           status: "APPROVED",
           phase: "review",
         }),
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7328,7 +7338,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(specReviewFrame);
       // the round is NOT blocked (a non-declared field is not a semantic error) — the
-      // conclusion derives from the draft's findings (nit → REVIEW_FIX), never the
+      // conclusion derives from the draft's findings (warn → REVIEW_FIX), never the
       // dropped child status
       expect(outcome.status).toBe("REVIEW_FIX");
       expect(io.stderrText).toBe("");
@@ -7376,6 +7386,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7454,6 +7465,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(path.join(scene.workspace.path, "phase-spec-review-1.json"), draft, "utf8");
       try {
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, specReviewFrame),
@@ -7505,6 +7517,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, taskReviewFrame),
@@ -7574,6 +7587,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, fixFrame),
@@ -7633,6 +7647,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, fixFrame),
@@ -7692,6 +7707,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "docs/kairos/specs/s1-design.md",
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, docsFixFrame),
@@ -7781,6 +7797,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         // One record per instance: the loop below drives three frames through ONE
@@ -7816,6 +7833,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const failed = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7858,6 +7876,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7910,6 +7929,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 7;
       sync.stdout = "boom — the child died before writing\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7967,6 +7987,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = null;
       sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8020,6 +8041,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 143;
       sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8056,6 +8078,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8099,6 +8122,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8140,6 +8164,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8213,6 +8238,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8269,6 +8295,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8346,6 +8373,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8422,6 +8450,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "branch",
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, frame),
@@ -9236,6 +9265,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         );
         const sync = new StubRunner();
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, fixFrame),
@@ -9273,6 +9303,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           key: "docs/kairos/specs/s1-design.md",
         };
         const docsDispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, docsFrame),
@@ -9314,6 +9345,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         try {
           const review = new HarnessDispatch({
+            contract: new Contract(),
             artifacts: new ArtifactRegistry(),
             scene,
             values: valuesFor(scene, taskReviewFrame),
@@ -9340,6 +9372,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             path.join(scene.workspace.path, "tasks-1-review-1.json"),
           );
           const fix = new HarnessDispatch({
+            contract: new Contract(),
             artifacts: new ArtifactRegistry(),
             scene,
             values: valuesFor(scene, fixFrame),
@@ -9720,6 +9753,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const runner = new RecordProbeRunner(scene.workspace.path);
       runner.commit = true;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9761,6 +9795,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // the dispatch instant would read a LIVE holder dead and authorize a takeover.
       const startedAt = Date.now() - 6 * 60 * 60 * 1000;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9787,6 +9822,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9829,6 +9865,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9874,6 +9911,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
         key: path.relative(repoRoot, planPath),
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, planReview),
@@ -10304,6 +10342,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_REVIEW),
@@ -10341,6 +10380,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new CommittingCrashRunner();
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -10375,6 +10415,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -10419,6 +10460,7 @@ describe("P21 — the crash record's identity and git facts", () => {
         runner.code = entry.code;
         runner.termination = entry.termination;
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, P21_IMPLEMENT),
@@ -12117,6 +12159,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         const runner = new RecordProbeRunner(scene.workspace.path);
         runner.commit = true;
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, P21_IMPLEMENT),
@@ -12157,6 +12200,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         standingWhileHeld = String(refusalJsonOf(repoRoot).station);
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -12190,6 +12234,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         siblingCode = await sibling.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -12219,6 +12264,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
       // A truncated record written by the refusal path while the holder ran.
       runner.bytes = '{"at": "2026-11-18T00:00:00.000Z", "slug": "p3", "op": "rev';
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),

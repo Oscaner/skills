@@ -55,6 +55,7 @@ import {
   SectionOrderInvariant,
   SectionScopedDomainInvariant,
   SiblingScanInvariant,
+  SingleCreateInvariant,
   SingleHomeInvariant,
   SlugRefInvariant,
   TaskIdUniqueInvariant,
@@ -105,10 +106,11 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
-/** The rule registry — doc scope 30 rows + ledger scope 2 rows = 32. The six shape
- *  rows (the four variable classes · single-home · the record face's date shape) are
- *  P41's additions; they land at `block` beside the pre-existing block rows, the flip
- *  from their transitional `warn` being the phase's own last action. */
+/** The rule registry — doc scope 31 rows + ledger scope 2 rows = 33 (the count is
+ *  re-totalled with the P42 rows' arrival). The six shape rows (the four variable
+ *  classes · single-home · the record face's date shape) are P41's additions; they land
+ *  at `block` beside the pre-existing block rows, the flip from their transitional
+ *  `warn` being the phase's own last action. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   {
     scope: "doc",
@@ -293,6 +295,16 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     severity: "block",
     skipWhenClosed: false,
     create: () => new WaveWidthInvariant(),
+  },
+  // P42's declaration-set row — lands at `warn` and is flipped by the phase's own last
+  // action, so no half-flipped state is ever registered.
+  {
+    scope: "doc",
+    id: "single-create",
+    docKeys: ["plan"],
+    severity: "warn",
+    skipWhenClosed: false,
+    create: () => new SingleCreateInvariant(),
   },
   {
     scope: "doc",

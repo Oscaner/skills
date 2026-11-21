@@ -20,6 +20,8 @@ import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import type { Finding } from "../contract/invariants.ts";
+import type { Contract } from "../contract/judge.ts";
 import { PinAudit } from "../contract/pins.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
@@ -64,6 +66,7 @@ import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
+import { BoardView } from "./board-view.ts";
 import { RequestingCarrier, type RequestingCarrierFacts } from "./dispatch-values.ts";
 import { DISPATCH, HOSTS, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
@@ -283,6 +286,11 @@ export class CliLifecycle {
   /** The composition root's audit accessor, when supplied — the ONE construction point of
    *  the dispatch's pin audit, shared with the pre-flight closure port. */
   readonly #pinAuditFactory: (() => PinAudit) | null;
+  /** The doc-contract coordinator this face's close-out leg runs (P42 §1.3) — the SAME
+   *  instance the pre-dispatch gate judged with, handed in at the composition root.
+   *  Required: a lifecycle that built its own would read a second registry, and the two
+   *  readings of one document would then be two sources of truth. */
+  readonly #contract: Contract;
   /** The dispatch's round-context values (P40 T5) — the ONE record the composition root
    *  assembled (`DispatchValues.compose`) and the seam judged. The renderer reads it and
    *  derives nothing: a frame-bound re-assembly here would be the second derivation the
@@ -312,6 +320,9 @@ export class CliLifecycle {
      *  port, so one dispatch scans the doc roots once. Absent → this class builds its
      *  own memoized audit (the eleven construction sites that never supply one). */
     pinAudit?: () => PinAudit;
+    /** The doc-contract coordinator the close-out leg judges with (P42 §1.3) — the
+     *  composition root's ONE instance, the same object its pre-flight seam holds. */
+    contract: Contract;
   }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
@@ -333,6 +344,7 @@ export class CliLifecycle {
     };
     this.#reviews = opts.reviews ?? null;
     this.#pinAuditFactory = opts.pinAudit ?? null;
+    this.#contract = opts.contract;
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. The step boundary is
@@ -558,6 +570,10 @@ export class CliLifecycle {
       ...(await this.#criterionViolations(frame, outcome, evidence)),
       ...evidence,
       ...this.#structureViolations(frame),
+      // The doc-contract close-out runs in the SAME pass as the structure face (P42
+      // §1.3): both compare the round's own write against a dispatch-time baseline,
+      // and both refuse the round's ADVANCE, never its commit.
+      ...this.#docContractViolations(frame),
       ...logEntries,
     ];
     return {
@@ -701,6 +717,100 @@ export class CliLifecycle {
           : `the plan document became unreadable inside this round (${current.reason}) — the structure face belongs to the orchestrator and lands as its own commit`,
       ),
     ];
+  }
+
+  /** The document's CONTRACT delta as one graded entry (P42 §1.3) — a fix round's own
+   *  write-back judged at the round's close against the baseline the approved dispatch
+   *  gate measured. The comparison is a MULTISET difference on the finding's whole
+   *  identity (`kind@field@message`), so a defect the round repaired and a different
+   *  defect it wrote under the same heading read correctly: the repaired one leaves the
+   *  set, the written one enters it.
+   *
+   *  Three scope facts, all of them the gate's own: an ABSENT baseline judges nothing (no
+   *  gate measured this document); the leg runs on a fix round of a DOC shape only (a
+   *  wave / branch round has no doc face, and the round the gate admits is the round
+   *  whose document it read). The engine refuses only the ADVANCE — the child's own
+   *  `cl:atomic-commit` shell has already landed its commit, so the promise is "no next
+   *  hop", never "no commit". */
+  #docContractViolations(frame: OpenFrame): readonly RoundViolation[] {
+    const baseline = frame.contract ?? null;
+    if (baseline === null) return [];
+    if (this.#opOf(frame) !== "fix") return [];
+    if (!TargetFaceTable.isDocShape(frame.type)) return [];
+    const added = CliLifecycle.#addedFindings(baseline, this.#docFindingsOf(frame));
+    if (added.length === 0) return [];
+    return [
+      this.#hard(
+        `the document this round wrote violates its own contract: ${added
+          .map((finding) => `${finding.kind}@${finding.field}: ${finding.message}`)
+          .join("; ")}`,
+      ),
+    ];
+  }
+
+  /** The judged document's contract findings read at the round's CLOSE — the SAME
+   *  `Contract.validate` construction the pre-dispatch gate runs (doc key · absolute
+   *  path · bytes · root, the closure fact from the one pin audit nothing else builds,
+   *  and the plan layers from the graph's own `batches()`), on the ONE `Contract`
+   *  instance the composition root handed in. Unreadable / undeclared documents read
+   *  zero findings: the gate already owns those faces, and this leg is a DELTA, not a
+   *  second qualification. */
+  #docFindingsOf(frame: OpenFrame): readonly Finding[] {
+    const target = frame.target;
+    if (target.kind !== "spec" && target.kind !== "plan") return [];
+    const basis = this.#repoRootValue();
+    const repoRoot = basis.absolute;
+    const absolute = path.resolve(repoRoot, target.doc);
+    let content: string;
+    try {
+      content = readFileSync(absolute, "utf8");
+    } catch {
+      return [];
+    }
+    const rel = basis.relativize(target.doc);
+    const docKey = BoardView.readDocType(basis, rel);
+    if (docKey === null) return [];
+    const plan = this.#scene.plan;
+    const taskLayers = plan.kind === "ready" ? plan.graph()?.batches() : undefined;
+    // The index and the filesystem seam are the contract plane's own defaults: a fourth
+    // `SlugIndex.build` site is pinned out of production, and the fallback inside the
+    // contract plane is exactly the one mechanism the gate's explicit index also uses.
+    return this.#contract.validate(
+      { docKey, path: absolute, content, root: repoRoot, taskLayers },
+      this.#pinAudit().provenClosed(rel),
+    );
+  }
+
+  /** The findings `current` carries beyond `baseline`, compared as a MULTISET on the
+   *  finding's whole identity — `kind@field@message`. The multiset (not a set) matters:
+   *  a round that repairs one instance and writes a second one under the same heading
+   *  leaves a `kind@field` SET unchanged while a defect is genuinely new. */
+  static #addedFindings(
+    baseline: readonly Finding[],
+    current: readonly Finding[],
+  ): readonly Finding[] {
+    const remaining = new Map<string, number>();
+    for (const finding of baseline) {
+      const key = CliLifecycle.#identityOf(finding);
+      remaining.set(key, (remaining.get(key) ?? 0) + 1);
+    }
+    const added: Finding[] = [];
+    for (const finding of current) {
+      const key = CliLifecycle.#identityOf(finding);
+      const count = remaining.get(key) ?? 0;
+      if (count === 0) {
+        added.push(finding);
+        continue;
+      }
+      remaining.set(key, count - 1);
+    }
+    return added;
+  }
+
+  /** One finding's comparison identity — the three cells a delta must not confuse. The
+   *  printed shape (`kind@field: message`) is presentation, never this key. */
+  static #identityOf(finding: Finding): string {
+    return `${finding.kind}@${finding.field}@${finding.message}`;
   }
 
   /** One self-authored HARD entry — the ledger's existing `contract-violation` cause,

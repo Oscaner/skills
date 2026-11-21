@@ -49,6 +49,11 @@ interface SchemaNode {
  *  lens + summary required; the extra review columns — section / line / fix — are
  *  declared optional, and unknown extra fields ride along).
  *
+ *  `severity` is the WRITE vocabulary: two tiers (`blocker` / `warn`, spec §1.1). A
+ *  stored carrier may still hold the retired third value, which `findingsOf` projects
+ *  through the read face's three-value union — the read face is wider than this enum
+ *  on purpose, so narrowing the write face never blames a legacy carrier.
+ *
  *  `id` is declared OPTIONAL on purpose (P30 §2.5): the engine writes the stable key
  *  (`F1`, `F2` … in carrier order) at materialize and overwrites whatever the child
  *  put there, so the prompt shows the field exists while the child owes nothing. A
@@ -59,7 +64,7 @@ const FINDING: SchemaNode = {
   required: ["severity", "lens", "summary"],
   properties: {
     id: { type: "string" },
-    severity: { type: "string", enum: ["blocker", "warn", "nit"] },
+    severity: { type: "string", enum: ["blocker", "warn"] },
     lens: { type: "string" },
     section: { type: "string" },
     line: { type: "integer" },
@@ -186,7 +191,7 @@ export type CarrierValue = {
     /** Engine-written at materialize (carrier order → `F1`, `F2` …); a child value
      *  is overwritten, so the draft may carry it or omit it. */
     id?: string;
-    severity: "blocker" | "warn" | "nit";
+    severity: FindingSeverity;
     lens: string;
     section?: string;
     line?: number;
@@ -424,7 +429,7 @@ export class HandoffSchema {
       const impact = HandoffSchema.#impactOf(row?.impact);
       const regrade = HandoffSchema.#textOf(row?.regrade);
       rows.push({
-        severity: severity as FindingSeverity,
+        severity,
         summary: HandoffSchema.#textOf(row?.summary),
         ...(id === undefined ? {} : { id }),
         ...(impact === undefined ? {} : { impact }),
@@ -507,8 +512,10 @@ export class HandoffSchema {
     return reference;
   }
 
-  /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). */
-  static #tierRankOf(severity: FindingSeverity): number {
+  /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). The
+   *  input is the READ face's three-value union (the row cell's own type): the ladder
+   *  walks `row.severity`, whose stored cell still holds the third tier. */
+  static #tierRankOf(severity: RoundFinding["severity"]): number {
     return severity === "blocker" ? 2 : severity === "warn" ? 1 : 0;
   }
 

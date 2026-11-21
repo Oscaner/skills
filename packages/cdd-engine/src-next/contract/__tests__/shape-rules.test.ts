@@ -331,6 +331,23 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
     expect(findingsOf(recordDoc(["第 41 行 与 line 41"]), "line-coordinate")).toEqual([]);
   });
 
+  it("leaves a decimal ratio alone — a colon alone is not a line coordinate", () => {
+    // A ratio is prose: the third shape needs a file name, and a file name carries a
+    // letter. `4.5:1` · `2.25:1` · `1.5:1` are the three spellings a decision face
+    // actually writes, and each used to be reported before the letter requirement.
+    for (const ratio of ["4.5:1", "2.25:1", "1.5:1"]) {
+      expect(findingsOf(designDoc([`把比例 ${ratio} 当作上限。`]), "line-coordinate")).toEqual([]);
+    }
+    // the pair: the same colon shape WITH a letter before it is still a coordinate —
+    // the difference between the two sides is exactly the file-name condition
+    expect(findingsOf(designDoc(["对照 cli.ts:41 的现有读法。"]), "line-coordinate")).toHaveLength(
+      1,
+    );
+    expect(
+      findingsOf(designDoc(["对照 contract/declare.ts:12 的现有读法。"]), "line-coordinate"),
+    ).toHaveLength(1);
+  });
+
   it("reports `第 N 行` once — the measurement grammar does not claim the coordinate's integer", () => {
     // `第 N 行` is the coordinate's OWN shape, and `行` is also a measurement unit: an
     // unnarrowed measurement read reports the same sentence a second time and blames "a

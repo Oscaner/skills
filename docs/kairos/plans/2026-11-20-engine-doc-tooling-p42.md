@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -443,7 +443,7 @@ none
 让 `path#Symbol` 真的校验路径。符号表改成按文件分区，判据查解析到的那个文件的符号集；成员形态（`Class.member` 与裸成员）算在内。改成严判之后语料里写错文件的 pin 会一次性变红，逐条改到正确的文件——门与语料同批，不留红着的中间态。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区；符号判据认成员形态）
+- Modify: `packages/cdd-engine/src-next/contract/pins.ts`（`PinIndex` 的符号表按文件分区——改的是作用域：`Class.member` 的分段解析已经存在；路径形状判者与 `PlanTaskBlocksReader` 收成一处）
 - Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（写错文件的 pin 改到正确的那份）
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p8.md`
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p8-design.md`
@@ -477,6 +477,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.15 | 2026-11-20 | 编排者回填（用户裁定 · 抽象整理）：Task 4 改为「既有读面停止丢弃动词标签」+ `RuleDeclaration.seat` 一列 · Task 10 改称收口座位 · Task 11 改称改作用域而非解析，路径形状判者收成一处。零新增任务 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.14 | 2026-11-20 | 编排者回填（用户裁定）：新增 Task 11「符号 pin 的文件归位」——`PinIndex` 按文件分区 + 成员形态 + 语料同批迁移；等 Task 9（同一份守卫文件） | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.13 | 2026-11-20 | 编排者回填（D98 实施细则）：Task 9 加一步——把「末行是最新版本」这条自验断言搬成引擎的顺序不变量，而非删除 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.12 | 2026-11-21 | 评审第 8 轮回填（两条 blocker · 两条 warn 全数采纳）：Task 10 把组合根接线接进 Files 行并补两步——`face/cli.ts` 的 `preflight.gate` 交出已批准的判决（`ok ? null : preflight` 让基准在生产里恒空），`CliLifecycle` 的构造接到根上那一个 `Contract`，同批补一条走生产构造的基准臂 · Constraints 的窗口次序写定层内顺序（`{6,8,9}` 里 Task 8 翻位先落、Task 9 删除后落），故 Task 9 与 Task 7 头上的绿有据 · Task 4 把比值臂与 pin 极性臂的读数落点接进 Files 行（`shape-rules.test.ts` 的 `P41 T2 — line-coordinate` 家族 · `pins.guard.test.ts`）· Task 6 的发布面步钉住孪生 pin 的两侧（新 pattern 单串点名 `warn` 与 `REVIEW_FIX`，六处 `warn/nit` 换成点名「只 warn」的整句，弱成 `/warn/i` 不算达成） · Task 7 的第 8 组改成末行核对（`v4.54` 的移动已由既有提交落地） | Oscaner M. · Claude（kairos:cdd-fix） |

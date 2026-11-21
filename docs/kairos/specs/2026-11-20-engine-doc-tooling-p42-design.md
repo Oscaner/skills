@@ -112,5 +112,6 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 | Version | date | summary | author |
 |---|---|---|---|
-| v0.1 | 2026-11-20 | 首版。三笔：档位收两档（词表与判据表同批）· `notes` 转正为承载面（brief 与板面）· 任务块两族判据（`Create:` 唯一且最早 · 悬挂与成环） | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.3 | 2026-11-20 | 编排者回填（grilling 追加裁定）：`warn` 档的代价写进 `expression-only` 的 `duty`——欠一个 fix 轮、不复评——并加一条成对臂钉住那句。不加第七行判据（省掉 `census:criteria.rows` 与两份 P37 文档的四处引用），不改名 `warn`（那会把判档从「它是什么」改成「它要多少」） | Oscaner M. · Claude（kairos:cdd-design） |
+| v0.2 | 2026-11-20 | 评审第 1 轮回填：`rollup` 的非 blocker 臂写成「任一非 `blocker`」并补存量 `nit` 的读法 · pin 表保持 Create-only 而判据投影单列 · `Create:` 判据的候选集收窄到带声明的路径 · `notes` 的两个承载面各给名字（板面行 token `notes +M` · wave 线的 brief 段）· `renderRubric` 的第三档守卫标为新守卫并给出可数面 · 消费面换成渲染面 + 发布面（补 fix 壳与四个图表源、README 家族、孪生 pin）· 新增 §5 章程回填 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.1 | 2026-11-20 | 首版。三笔：档位收两档（词表与判据表同批）· `notes` 转正为承载面（brief 与板面）· 任务块两族判据（`Create:` 唯一且最早 · 悬挂与成环） | Oscaner M. · Claude（kairos:cdd-design） |

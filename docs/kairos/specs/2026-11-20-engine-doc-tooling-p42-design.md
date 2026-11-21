@@ -88,7 +88,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - `contract/review-criteria.ts#CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`contract/__tests__/census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
 - `contract/review-criteria.ts#CriteriaRegistry.renderRubric` 两条守卫：一份注册表带着 `nit` 行（`tier` 落在 `TIER_ORDER` 之外）⇒ 抛错；同一份注册表删掉那一行 ⇒ 正常渲染（成对臂只改这一行）。计数面读 `contract/review-criteria.ts#CriteriaRegistry` 的 `rows`：每行的 `tier` 落在 `TIER_ORDER` 内、每档至少一行、按档分组后的行数之和等于 `census:criteria.rows`。
 - `contract/review-criteria.ts#regradeNote` 在上一轮 `blocker`、本轮同一条 `warn` 时给出标记；上一轮 `warn`、本轮 `warn` 时不给（成对：只改本轮那一档）。
-- `contract/review-criteria.ts#CRITERIA_ROWS` 的 `expression-only` 行 `duty` 点名 fix 轮与「不复评」两件事；删掉那句代价 ⇒ 该用例红（成对：只删这一句，行仍在、`census:criteria.rows` 不变）。
+- `contract/review-criteria.ts#CRITERIA_ROWS` 的 `expression-only` 行 `duty` 点名 fix 轮与「不复评」两件事；删掉那句代价 ⇒ 该用例红（成对：只删这一句，判据行与 `census:criteria.rows` 两处都不动）。
 - `session/handoff-schema.ts#CARRIER` 的 `notes` 一条进载体后结论不变（空 findings ⇒ `APPROVED`）：wave 线下一轮 brief 出现它的原文一次，板面该行 token 读 `notes +1`；删掉该条 ⇒ 两处都不出现（成对臂只改这一条 note）。
 - 一条 phase-spec 评审轮的载体带 note ⇒ 板面行 token 计数它，且该线下一轮没有 brief 段可承载（成对：同一条 note 放进 wave 线 ⇒ brief 出现它一次）——note 的 brief 面只在 wave 线。
 - 同一份载体进入下一条线的首轮 ⇒ brief 与板面都不读它的 `notes`；同一份内容放进本线下一轮 ⇒ 两处都读（成对：只改线）。

@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.30
+version: v0.31
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -113,6 +113,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 - **同一次编辑改掉三份文件的头部注释**（§2.2 对 `face/lifecycle.ts#materialize` 的同一纪律——自己的注释同批改掉）：`packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts` 的头部（「its file count is a constant: a document entering or leaving the corpus goes red」，头部两处）与 `CORPUS_SIZE` 的文档注释改成「覆盖由已知小树夹具证明」的读法；`packages/kairos/tests/claim-shapes.test.ts` 的 `Two legs, both byte-level` 块（含「a reworded bullet goes red」与「byte-identical to each other」）与 `CLAIM_SHAPES` 的文档注释改成结构断言的读法（措辞自由 · 映射固定 · 两节点同措辞）；`packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts` 的 `Four pairs, each with its counter-arm` 改成三对——registration face 那条随本相位删除。漏改的代价是下一任作者照注释把规模常量或第二份措辞写回来，而三道门都不红。
 - **不动打包物**：图表双生、README、变更集、清单四类验的是打包物，引擎没有对应判据，删掉只会失去护栏。
 
+- **顺序判据是单调，不是「末行最新」（实测修正）**：`plan` 与 `phase-spec` 的历史表新在上、`overall` 的旧在上，故「最新一条在最末」这条判据会把一半语料判死。真正的缺陷只有一种——**插错位置**，它的形状是**非单调**。判据因此写成「该表的版本序列全升或全降」，并挂 `skipWhenClosed`：语料里已闭合的历史文档不再重排（重排是纯翻动，不产生判断），规则抓的是在飞文档里的插错位。
 - **能机械化的搬进引擎，不能机械化的删除**：本仓有一条自验断言抓过真缺陷——章程历史表的「末行是最新版本」，而引擎的 `change-history-latest-matches-front-matter` 按版本排序判、不判位置，故它在红的时候仍然绿。这条断言因此**搬**而不是删：新起一条顺序不变量，消费者同享，测试里那条随之退休。这条新行点名完整，不留实现者补：id 是 `change-history-newest-last`，`scope` 是 `doc`，起步 `warn`、本相位末任务同批翻 `block`（与 §3 的三条新行同一条纪律，`## Constraints` 的 warn 起步清单因此是四条）；它自占一个 `Invariant` 类（`Invariant.name` 是字面量，`contract/__tests__/rules.test.ts` 逐行断言 `name === declaration.id`）；读面是全表最大版本那一行对 `contract/invariants.ts#Invariant.historyVersions` 的最后一行（`versionRank` 归约），一份没有 `## Change history` 表的文档它是零候选；成对臂与候选臂就是本节上一段的同一张合成表（最新行在旧行之上 ⇒ 恰一条；移回表尾 ⇒ 零 finding；没有那张表 ⇒ 候选 0 且零 finding）。同一次编辑的账还有两笔：`contract/rules.ts#RULE_REGISTRY` 加这一行、行数面按 §3.2 改分；`contract/rules.ts` 头部那句「Version ORDER stays presentation, not data integrity」改成本相位之后的真实读法——版本排序仍不进判据，被声明的只有「最大版本那行在末尾」这一条位置腿，漏改它就是让注释与注册表各说一句。判据分两种——形态可机械化（顺序、唯一、形状）⇒ 进引擎；内容正确性（某节该说什么）⇒ 谁也不判，属评审。
 
 ### 7. fix 轮的回合内判定
@@ -218,6 +219,7 @@ no/such/dir/missing.ts#PinAudit  ⇒  its carrier `no/such/dir/missing.ts` resol
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.31 | 2026-11-20 | 编排者回填（实测修正 · 用户裁定「没价值不加」的同一条纪律）：顺序判据从「末行最新」改成「序列单调」并挂 `skipWhenClosed`——plan/spec 新在上、overall 旧在上，两种约定都合法；语料里已闭合的乱序文档不重排 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.28 | 2026-11-20 | 编排者回填（实测撤回）：读数门的加宽方案撤回——中文数字配量词与普通散文不可区分（语料内九千量级的正常量词用法），加宽会把正常散文判成违例。窄域记为设计，替代臂同批落地 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.27 | 2026-11-20 | 编排者回填（用户裁定 · 只落有消费者价值的）：§8 加「读数门的域改成数词配量词」——中文数字与任意量词都进域；同批把语料跑到零 | Oscaner M. · Claude（kairos:cdd-design） |
 | v0.26 | 2026-11-21 | 评审第 18 轮回填（四条 warn · 一条 nit 全数采纳）：§9 与 §8 的成员 pin 语料计数（1093 / 253 / 840 / 105 · 7 枚 · 23%）全部撤出正文，改写成三条条件——两具载体合起来覆盖每一枚带载体的成员 pin 且裸类名是更大的那一半 · 每枚成员 pin 在它的载体解析到的那一份文件里判 · 迁移面是判据在交付语料上读出的差集；要一个数先在 `contract/census.ts` 登记 `census:<id> = <n>`（写进正文的分值随正文自己的编辑过期；v0.24 / v0.25 两行的历史计数作当时记录保留、不追改） · §3.1 的方言语料计数按同一份语料订正（十二份非 `p4` plan 九十一行，第四类十一行在第十三份 `p4` 上） · §5 的 ⑬ 改写给 `Class.member` 补回「三段」限定，两段的点形是合法载体 · §1.2 的「唯一的一档」改钉 `CRITERIA_ROWS` 的 doc comment，`regrade-mark` 三格逐字节不动 · §2.1 的 `#taskBody` 改写成 `render/brief.ts#BriefRenderer#taskBody` | Oscaner M. · Claude（kairos:cdd-fix） |

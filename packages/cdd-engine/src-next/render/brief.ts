@@ -4,7 +4,8 @@
 // read value (`PlanParsed#taskBlocks` — the same parse the graph and the dispatch
 // reuse), the step surface carries the `— checkable:` clause (the dispatch
 // contract's evidence gate), and the rendered brief appends the plan's
-// `## Constraints` section (the complete plan mirror). The brief owns no parser: a
+// `## Constraints` section (the complete plan mirror), and then the previous review
+// round's `## Notes` section when it left any (P42 §2.1). The brief owns no parser: a
 // second parse here would be a second fact source beside the plan read seam, so
 // the three faces take the document text AND the parsed document from the caller.
 // The checkable gate blocks step surfaces that carry a step with no checkable

@@ -33,6 +33,11 @@ const PUBLIC_RULE_IDS = [
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+/** The registry's own source — the class comment above `RULE_REGISTRY` is prose with no
+ *  path to red by construction, so its counts are pinned by a COMPUTED comparison
+ *  against the table's own lengths rather than a literal grep (P42 §3.2). */
+const RULES_SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "rules.ts");
+
 /** The P30/P31 change-history hardening ids — the row-shape, header-newest and
  *  header-column-set legs the lineage family gained (the ledger count above follows
  *  this list). */
@@ -49,6 +54,24 @@ describe("RULE_REGISTRY — the declaration surface", () => {
     expect(RULE_REGISTRY).toHaveLength(35);
     expect(doc).toHaveLength(33);
     expect(ledger).toHaveLength(2);
+  });
+
+  it("keeps the class comment's counts equal to the table's own lengths — computed, never grepped", () => {
+    // The comment's spelling (`doc scope … rows + ledger scope … rows = …`) differs
+    // from this file's title spelling, so no literal grep holds either tree; the
+    // comparison reads the three declared numbers and compares them cell by cell.
+    const comment = readFileSync(RULES_SOURCE, "utf8").match(
+      /doc scope (\d+) rows \+ ledger scope (\d+) rows = (\d+)/,
+    );
+    // the pair: a comment written without per-scope counts leaves this comparison no
+    // subject — the null arm is the subject guard, not a courtesy
+    expect(comment).not.toBeNull();
+    const doc = RULE_REGISTRY.filter((row) => row.scope === "doc").length;
+    const ledger = RULE_REGISTRY.filter((row) => row.scope === "ledger").length;
+    // the pair: change any one of the three numbers in the comment and this goes red
+    expect(Number(comment?.[1]), "doc rows").toBe(doc);
+    expect(Number(comment?.[2]), "ledger rows").toBe(ledger);
+    expect(Number(comment?.[3]), "total rows").toBe(doc + ledger);
   });
 
   it("keeps every id unique and kebab-cased", () => {

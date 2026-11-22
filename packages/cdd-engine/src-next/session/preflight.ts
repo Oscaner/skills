@@ -54,7 +54,7 @@ import type { PlanRead } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { TargetFaceTable, type TargetType } from "./faces.ts";
-import { type GraphIssue, TaskGraph } from "./graph.ts";
+import { TaskGraph } from "./graph.ts";
 import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
 import { RoundRecords } from "./ledger.ts";
@@ -324,24 +324,21 @@ export class PreFlight {
     //    non-ready read never enters the gate plan, so the row is neither pushed nor
     //    reported (`checked`'s byte set stays the healthy one).
     let graph: TaskGraph | null = null;
-    let graphIssues: readonly GraphIssue[] = [];
     if ((ctx.type === "wave" || ctx.type === "plan") && ctx.plan.kind === "ready") {
       gates.push("graph");
       checked.push("graph");
       graph = ctx.plan.graph();
       if (graph !== null) {
-        graphIssues = graph.validate();
-        if (graphIssues.length > 0) {
+        const issues = graph.validate();
+        if (issues.length > 0) {
           return this.#refusal(
             {
               ok: false,
               gate: "graph",
               reason: "graph",
-              message: this.#words
-                .preflightWords()
-                .graph.replace("{count}", String(graphIssues.length)),
+              message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
               // ONE author of the line (P42 §3.2): the contract row prints the same bytes.
-              details: graphIssues.map((issue) => TaskGraph.detailLine(issue)),
+              details: issues.map((issue) => TaskGraph.detailLine(issue)),
             },
             gates,
             checked,
@@ -465,13 +462,12 @@ export class PreFlight {
             slugIndex: index,
             fs: this.#fs,
             taskLayers,
-            // The graph's own edge issues ride the judgment (P42 §3.2): the
-            // `depends-on-cycle` row reports the SAME rendered line this gate's
-            // `details` prints, and `TaskGraph.detailLine` is the one author of it.
-            graphIssues: graphIssues.map((issue) => ({
-              ...issue,
-              detail: TaskGraph.detailLine(issue),
-            })),
+            // No `graphIssues` injection here (P42 §3.2): a cycled plan is refused by
+            // the `graph` gate above before this leg runs, so the cell could only ever
+            // receive an empty array on a dispatch. The `depends-on-cycle` row's live
+            // seat is the direct `Contract.validate` face (an injected issue); the
+            // dispatch refusal belongs to the gate, and both print the same
+            // `TaskGraph.detailLine` bytes without one handing the fact to the other.
           },
           closed,
         );

@@ -16,7 +16,7 @@
 // Zero module-level bare functions — the helpers are `const` (the repository's
 // zero-`function`-declaration discipline).
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -30,6 +30,27 @@ import { Contract } from "../judge.ts";
 const FS: DocFs = { exists: () => true, read: () => null, list: () => [] };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/** The engine source root — the tree the one-author scan reads. */
+const SRC_NEXT = path.resolve(HERE, "..", "..");
+
+/** Every non-test TypeScript file under a root — `__tests__` is the scan's own shelf,
+ *  and a module anywhere else is a candidate author of the scanned literal. */
+const sourceTreeOf = (root: string): readonly string[] => {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const at = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "__tests__") walk(at);
+      } else if (entry.name.endsWith(".ts")) {
+        found.push(at);
+      }
+    }
+  };
+  walk(root);
+  return found;
+};
 
 /** A plan document over `### Task N:` heading blocks (the corpus's own shape). */
 const planDoc = (blocks: readonly (readonly string[])[]): string =>
@@ -181,8 +202,10 @@ describe("P42 §3.2 — depends-on-cycle", () => {
     expect(findings[0]?.message).toBe(
       "cycle@T3: a directed dependency cycle closes over task 3: task dependencies must form a DAG",
     );
-    // the message IS the ONE assembly point's output — the graph gate's `details` row
-    // prints these same bytes
+    // the message IS the ONE assembly point's output — this injected read is the
+    // row's LIVE seat (the direct `Contract.validate` face); the `graph` gate's
+    // `details` row prints these same bytes, and the dispatch faces never hand the
+    // fact over, because the gate refuses first (P42 §3.2)
     expect(findings[0]?.message).toBe(TaskGraph.detailLine(cycle!));
     // the pair: the same edges unchained into a chain are zero findings
     const chain = [task(1, "none"), task(2, "1"), task(3, "2"), task(7, "3")];
@@ -207,18 +230,24 @@ describe("P42 §3.2 — depends-on-cycle", () => {
   });
 
   it("keeps ONE author of the detail line — the template lives in session/graph.ts alone", () => {
-    const graphSource = readFileSync(path.resolve(HERE, "..", "..", "session", "graph.ts"), "utf8");
-    const preflightSource = readFileSync(
-      path.resolve(HERE, "..", "..", "session", "preflight.ts"),
-      "utf8",
-    );
-    // The template's ONE author: the scan looks for the two-token literal the assembly
-    // point spells, assembled here from parts so this test carries no second copy.
+    // The invariant is TREE-wide, not two-file: a third author anywhere under
+    // `src-next/` (a message built in another module, a new render site) would let the
+    // two faces drift while the two files this arm started with stayed clean.
     const TEMPLATE = ["@T", "${"].join("");
-    expect(graphSource.split(TEMPLATE)).toHaveLength(2);
+    const authors = sourceTreeOf(SRC_NEXT)
+      .map((file) => ({ file, count: readFileSync(file, "utf8").split(TEMPLATE).length - 1 }))
+      .filter(({ count }) => count > 0);
+    expect(authors.map(({ file }) => path.relative(SRC_NEXT, file))).toEqual([
+      path.join("session", "graph.ts"),
+    ]);
+    expect(authors[0]?.count).toBe(1);
+    // `preflight.ts` is the named special case: it READS the one author and carries
+    // zero copy of the template; it also injects no graph fact into the judgment,
+    // because the `graph` gate refuses before the `doc-contract` leg runs.
+    const preflightSource = readFileSync(path.join(SRC_NEXT, "session", "preflight.ts"), "utf8");
     expect(preflightSource).not.toContain(TEMPLATE);
-    // the gate reads the one author, twice (its `details` row and the injected fact)
-    expect(preflightSource.match(/TaskGraph\.detailLine\(/g)).toHaveLength(2);
+    expect(preflightSource).toContain("TaskGraph.detailLine(");
+    expect(preflightSource).not.toContain("graphIssues:");
   });
 });
 

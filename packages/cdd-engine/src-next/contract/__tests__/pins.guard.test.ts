@@ -51,11 +51,6 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.me
  *  `PinAudit.census` cannot disagree about what the corpus is. */
 const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
 
-/** The corpus's file count is READ, never recorded: an integer written down here would
- *  agree with any walk the same declaration returned, so it could never turn this file
- *  red. Coverage — the property a recorded size was standing in for — is proven on a
- *  known small tree in `scan-coverage.test.ts`. */
-
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
 const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";
 

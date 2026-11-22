@@ -234,7 +234,7 @@ none
 ### Task 5: 章程 `v4.08` · `v4.09` · `v4.10` 回填（已交付）与语料计数核对
 
 #### Objective
-本任务记录**已交付的拆分**，不再重发写入：`618417b8` 落了 spec §6 第 8 项那三笔字节（requiredOn 的臂形态域、`path: true` 位、反转计数 3 → 4 并点名 `BASE_BRANCH`）与章程 `v4.08` 的 change-history 行；phase-spec 轮随后落地第 9 项（章程 `v4.09`，spec §6 第 9 项的验收 ① 改述）；`79b34aae` 落地第 10、11 项（章程 `v4.10`）——第 10 项把 `v4.08` 行 ③ 的状态名更正为 `spec-absent`（`v4.08` 行本身按历史不动，更正写进新的 `v4.10` 行），第 11 项把验收 ① 的穷尽性方向改成「round-context zone 里每个已登记 token 必须被某份 row 的 layout 携带」。语料那一格同样已落地——本计划自身是第 81 个文件，语料规模常量已是 81。因此本任务的判据落在**当前字节**上：`board` 报 `overall … v4.10`、`CORPUS_SIZE === 81`、「三处反转」零次；树上没有待改的字节，重进本任务等于一次对齐核对。
+本任务记录**已交付的拆分**，不再重发写入：`618417b8` 落了 spec §6 第 8 项那三笔字节（requiredOn 的臂形态域、`path: true` 位、反转计数 3 → 4 并点名 `BASE_BRANCH`）与章程 `v4.08` 的 change-history 行；phase-spec 轮随后落地第 9 项（章程 `v4.09`，spec §6 第 9 项的验收 ① 改述）；`79b34aae` 落地第 10、11 项（章程 `v4.10`）——第 10 项把 `v4.08` 行 ③ 的状态名更正为 `spec-absent`（`v4.08` 行本身按历史不动，更正写进新的 `v4.10` 行），第 11 项把验收 ① 的穷尽性方向改成「round-context zone 里每个已登记 token 必须被某份 row 的 layout 携带」。语料那一格同样已落地——本计划自身是第 81 个文件，语料规模常量已是 81。因此本任务的判据落在**当前字节**上：`board` 报 `overall … v4.10`、语料规模常量是 81、「三处反转」零次；树上没有待改的字节，重进本任务等于一次对齐核对。
 
 #### Files
 - Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（D94 行 · Phase inventory 的 P38 行详情格与 Scope ① 段的计数 · front-matter `version:` · change-history 行）——**已落地**：`v4.08` 在 `618417b8`，`v4.09` 由 phase-spec 轮落地，`v4.10`（第 10、11 项）在 `79b34aae`

@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.38
+version: v0.39
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -353,6 +353,7 @@ none
 #### Produces
 - 四条新行读 `block`
 - 两包 minor 的 changeset（`cdd-engine` 与 `kairos`）
+- spec §4 的「changeset 一包 minor」与本任务相反，由本 plan 取代，就地登记：§8 与本章的验收都要求两个 skill 的 narrative 子弹改写（Task 4 的 `temporal-indicator` 撤离），那两处随插件发布，故 `kairos` 的消费面确有一处字节改动、两包同读 minor；改 spec 本体需要另一个带 `may.amend` 的轮，不在本 plan 的改动面
 - 全量门绿
 
 #### Steps
@@ -534,6 +535,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.39 | 2026-11-22 | 评审第 25 轮回填（一条 warn 全数采纳）：Task 8 的 Produces 补一条 spec 取代登记——spec §4 写「changeset 一包 minor：`cdd-engine`」，而 §8 与 Task 8 的验收都要求两个 skill 的 narrative 子弹改写，那两处随插件发布，故 `kairos` 也成一次真实的版本移动、两包同读 minor；取代关系按 Task 9 · Task 11 的形就地登记，spec 本体归下一个带 `may.amend` 的轮，两包 bump 不撤回 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.38 | 2026-11-22 | 评审第 24 轮回填（一条 blocker · 两条 warn 全数采纳）：Task 7 补上章程 `执行序` 段里 P42 那一格——它念着 `double-owned` 与 `consume-cycle` 两条注册表里没有的规则，而十组没有一组改得到它，故并进组二同批换成交付的三条，Objective · 组二 · Produces · Acceptance 四处同批；v4.51 与 v4.52 两行按当时字节保留，理由落在组九 · 组五的 `两种写法` 零命中臂收窄到 P42 行的验收 ⑬ 那一格，并点名 v4.25 那一行是唯一的域外命中（原臂要求全章零命中，而那一行没有组改得到，臂因此永不成立）· Constraints 的窗口段改读已闭合的记账：Task 4 与 Task 8 两端都已交付，四条新规则行在注册表里读 `block`，pin 与全量门不再预期红 | Oscaner M. · Claude（kairos:docs-fix） |
 | v0.37 | 2026-11-22 | 评审第 23 轮回填（一条 blocker · 三条 warn 全数采纳）：Task 11 的自指坐标收口——`planSource` 归回 class ②（`const planSource` 落在两份声明文件上：`face/cli.ts` 两处 · `session/__tests__/run.test.ts` 一处，成员 `readFor` 在 `infra/plan-source.ts` 里活着，故取改指而不取删 claim 那一支），Files 行 · 迁移步 ② · 集合关系句三处同批；本 plan 进 Task 11 的 Files 行——它的 `planSource.readFor` 一族在判据上线后当场红，而 `package.json#devDependencies` 那一枚是 class ③、判零条，两形不再混作一类 · Task 5 的闭合块改回交付态：`skipWhenClosed` 的列注释与两份测试文件对真注册表的读数**未交付**（交付树仍读「只有形状行豁免」与「六条」），spec §3.2 的重写项按残留登记、归下一个带 `may.amend` 的轮，Files 行 · Produces · 步 · Acceptance 四处同批 · 章程 D16 那一行不需要迁移（`WaveGate` 在 `session/wave.ts` 只声明一份、两个成员都落在那份文件里），Files 行与迁移步 ② 同批撤掉这条错类 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.36 | 2026-11-22 | 评审第 22 轮回填（一条 blocker · 三条 warn 全数采纳）：Task 5 的形状面／列注释那句的「写回即红」假成对臂撤掉——`contract/__tests__/rules.test.ts` 对该文件源码唯一的计算比较是类注释里那三个数，形状面那句与 `skipWhenClosed` 的列注释都不在它的读数面上（spec §3.2 同批登记），判据改成逐句与表对齐 · 同文件 `RuleDeclarationBase.skipWhenClosed` 的列注释改为按交付后的豁免名册**重写**（五条形状行连同顺序行 `change-history-newest-last`），Files 行 · Produces · 步 · Acceptance 四处同批，旧句「只有形状行豁免」被本任务自己落的那一行证伪 · Task 5 的两处夹具字面步收下两份测试文件对真注册表的读数（`packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts` 的 `SHAPE_ROW_IDS` 括注与 `rules-severity.test.ts` 的三处），夹具自己的六个合成 id 与叙述它们的两句一字不动 · Task 9 的语料面按交付态补全：五份程序文档的裸 symbol pin 随两个手写读数的删除改成散文，`p38` Objective 那句比较形的残留（不是 pin 语法，门读不到）同批修掉，Files 行 · Produces · 步 · Acceptance 同批 | Oscaner M. · Claude（kairos:cdd-fix） |

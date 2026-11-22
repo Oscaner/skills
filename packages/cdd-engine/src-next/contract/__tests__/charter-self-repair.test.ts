@@ -1,21 +1,24 @@
 // packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts
-// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the six
+// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the five
 // shape rules into `block` rows, and the charter is a JUDGED corpus document: its five
 // decision sections would then refuse the program's own charter unless they stop
-// stating the tree as it stands. The delivery is three families at zero, not one:
+// stating the tree as it stands. The delivery is two families at zero, not one:
 //
-//   · the two grammars (`temporal-indicator` · `measure-literal`) report nothing on
-//     the five sections;
+//   · the measurement grammar (`measure-literal`) reports nothing on the five sections;
 //   · `single-home` reports nothing on the charter — its right domain holds the phase
 //     documents, which repeat the charter's gate / release / backfill sentences, so the
-//     charter states each of those once as a POINTER at its holder;
-//   · `## Phase inventory` carries the same two domain narrowings as the phase spec
-//     (`Scope ③` measures prose, `Acceptance ⑥` skips work items), so the registration
-//     face states the criterion the implementation writes.
+//     charter states each of those once as a POINTER at its holder.
 //
-// Four pairs, each with its counter-arm: reverting the original sentences is reported,
-// a grammar-clean fixture that keeps the duplicated sentences is still refused, the
-// pointers themselves pass, and a labelled restatement is caught by `single-home`.
+// `## Phase inventory` is the REGISTRATION face, never a third family: its P41 row carries
+// the same two domain narrowings as the phase spec (`Scope ③` measures prose,
+// `Acceptance ⑥` skips work items), so the registration states the criterion the
+// implementation writes. It is read where it is registered, not counted as a family.
+//
+// Every arm names the sentence it reads, and each carries its counter-arm: the original
+// wording reported (the measurement grammar) · a grammar-clean copy that keeps the
+// duplicated sentences still refused (single-home) · the pointers themselves passing ·
+// a labelled restatement beside the pointer caught (the same home twice) · a copy that
+// keeps ONLY the backfill family named by its holders.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -47,13 +50,16 @@ const charterBody = (sections: readonly (readonly [string, readonly string[]])[]
   [OVERALL_HEAD, ...sections.flatMap(([heading, lines]) => [heading, "", ...lines, ""])].join("\n");
 
 /** The original sentences — the pre-repair charter's own wording, one carrier line per
- *  reported hit, so the counter-arm counts what the five sections used to say. */
+ *  reported hit, so the counter-arm counts what the five sections used to say. The
+ *  measurement carrier states its count in the closed measurement set: the Chinese
+ *  quantifier the charter actually wrote left the grammar at P42 §8, and a verbatim
+ *  carrier would stop reporting the family this arm exists to read. */
 const ORIGINAL_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
   ["### Goal", ["② 写文档方案重设计（骨架生成 · 今日形面 `schema get --output skeleton`）"]],
   [
     "### Non-goals",
     [
-      "- **引擎行为变化在册**：动词清单读 `face/declare.ts#CLI_COMMANDS`（今日八命令：implement · review · fix · base · schema · issue · board · init），运行时依赖读 `package.json#dependencies`（今日 13 条：`commander` · `yaml`）",
+      "- **引擎行为变化在册**：动词清单读 `face/declare.ts#CLI_COMMANDS`（今日八命令：implement · review · fix · base · schema · issue · board · init），运行时依赖读 `package.json#dependencies`（13 rows in that file：`commander` · `yaml`）",
     ],
   ],
   [
@@ -128,6 +134,15 @@ const findingsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.
 const kindsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md"): string[] =>
   findingsOf(body, rel).map((finding) => finding.kind);
 
+/** One body judged as the charter — the same doc key, path and root the charter reads. */
+const charterFindingsOf = (content: string) =>
+  new Contract().validate({
+    docKey: "overall",
+    path: path.join(REPO_ROOT, CHARTER_REL),
+    content,
+    root: REPO_ROOT,
+  });
+
 /** One kind's findings of the real charter — the AFTER-migration read. */
 const charterFindings = (docKey: DocKey = "overall") => {
   const rel = CHARTER_REL;
@@ -140,9 +155,8 @@ const charterFindings = (docKey: DocKey = "overall") => {
 };
 
 describe("P41 T7 — the charter states conditions, not the tree as it stands", () => {
-  it("reports the original wording: seven temporal indicators and one bare measurement", () => {
+  it("reports the original wording: one bare measurement", () => {
     const kinds = kindsOf(charterBody(ORIGINAL_SECTIONS));
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(7);
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(1);
   });
 
@@ -153,9 +167,8 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
         : ([heading, lines] as const),
     );
     const kinds = kindsOf(charterBody([...duplicated, ["## Constraints", [BACKFILL_CRITERION]]]));
-    // The two grammars are silent on this copy — the refusal is the missing home, not a
-    // token shape.
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(0);
+    // The measurement grammar is silent on this copy — the refusal is the missing home,
+    // not a token shape.
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
     expect(kinds.filter((kind) => kind === "single-home").length).toBeGreaterThanOrEqual(1);
   });
@@ -163,7 +176,6 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
   it("passes the repaired pointers themselves", () => {
     const kinds = kindsOf(charterBody(REPAIRED_SECTIONS));
     expect(kinds.filter((kind) => kind === "single-home")).toHaveLength(0);
-    expect(kinds.filter((kind) => kind === "temporal-indicator")).toHaveLength(0);
     expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
   });
 
@@ -200,40 +212,33 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
         `the backfill family names its ${neighbour} holder`,
       ).toBe(true);
     }
-    // The two grammars stay silent — the refusal is the missing home, never a token.
-    expect(findings.filter((finding) => finding.kind === "temporal-indicator")).toHaveLength(0);
+    // The measurement grammar stays silent — the refusal is the missing home, never a token.
     expect(findings.filter((finding) => finding.kind === "measure-literal")).toHaveLength(0);
   });
 });
 
-describe("P41 T7 — the charter itself judges zero, and its registration face carries the narrowings", () => {
-  it("reports nothing on the real charter — all three families at zero", () => {
+describe("P41 T7 — the charter judges zero on both families, and its gaps are measured", () => {
+  it("reports nothing on the real charter — both families at zero", () => {
     expect(charterFindings()).toEqual([]);
   });
 
-  it("registration face: P41 Scope ③ measures prose, Acceptance ⑥ skips work items, ③ keeps severity", () => {
+  // P42 T9 — the candidate reading of the `measure-literal` family: "zero findings" is
+  // true of a clean charter and of a face map that never ran, so the gap is measured.
+  it("reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence", () => {
     const text = readFileSync(path.join(REPO_ROOT, CHARTER_REL), "utf8");
-    // The PHASE inventory row, not the issue inventory's `| P41 |` (both keyed by P41).
-    const phaseSection = text.slice(text.indexOf("\n## Phase inventory"));
-    const row = phaseSection.split("\n").find((line) => line.startsWith("| P41 |"));
-    expect(row).toBeDefined();
-    // Scope ③ — the prose floor and the pointer-sentence consequence, written in the
-    // same words the phase spec's §3.1 uses.
-    expect(row).toContain("下界量的是散文");
-    expect(row).toContain("行内代码段整段不计");
-    expect(row).toContain("点名一条路径的指针句因此不进域");
-    // Acceptance ⑥ — the work-item narrowing, beside the same-slug exemption.
-    expect(row).toContain("工作项行不是判据");
-    expect(row).toContain("`- Modify:` 一类行在两侧都不进域");
-    // Acceptance ③ — the severity criterion, untouched by this round.
-    expect(row).toContain(
-      "③ 严重度：声明 warn 的规则不拒且该行读作 `warned — <n> warning(s)`，翻 block 后被拒",
-    );
-    // The change-history row this write landed carries the bumped version — the
-    // header-to-newest-row agreement the doc-contract already enforces.
-    const version = /^version: (?<version>v[0-9.]+)$/m.exec(text)?.groups?.version;
-    expect(version).toBeDefined();
-    const rows = text.split("\n").filter((line) => line.startsWith("| v"));
-    expect(rows.at(-1)?.startsWith(`| ${version} | 2026-11-20 |`)).toBe(true);
+    const gapsOf = (body: string): readonly string[] =>
+      charterFindingsOf(body)
+        .filter(
+          (finding) =>
+            finding.kind === "measure-literal" && finding.message.includes("no declared face"),
+        )
+        .map((finding) => finding.field ?? "");
+    // The registered heading renamed to a name the face map cannot place: every line
+    // beneath it becomes `unmapped`, and the family's first row reports the gap.
+    const renamed = text.replace("## Maintenance", "## Upkeep");
+    expect(renamed).not.toBe(text);
+    expect(gapsOf(renamed).length).toBeGreaterThan(0);
+    // the pair: the registered heading itself reports no gap
+    expect(gapsOf(text)).toEqual([]);
   });
 });

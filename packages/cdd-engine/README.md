@@ -64,7 +64,7 @@ Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout
 
 ### Review-cycle soft cap
 
-The soft cap is a budget, not a convergence rule: after `REVIEW_CYCLE_CAP` consecutive blocker cycles the engine stops suggesting the next hop and hands that decision to the user (`soft-cap`). Convergence itself is decided by the findings' grades alone — any blocker sends the line back to fix and then to a re-review, warn/nit-only findings are fixed and close without a re-review, and a review with zero findings approves.
+The soft cap is a budget, not a convergence rule: after `REVIEW_CYCLE_CAP` consecutive blocker cycles the engine stops suggesting the next hop and hands that decision to the user (`soft-cap`). Convergence itself is decided by the findings' grades alone — any blocker sends the line back to fix and then to a re-review, warn-only findings are fixed and close without a re-review, and a review with zero findings approves.
 
 ## Migration
 

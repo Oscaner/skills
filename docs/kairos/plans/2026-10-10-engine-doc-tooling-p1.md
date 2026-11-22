@@ -36,7 +36,7 @@ base: develop
   - 注：`face/words.ts` 无 Modify 条目——docWords 键经 `DocKey` 类型**被动 kebab**（`this.#projector.tokens()[docKey]` 调用 · 源面零 camel 字面）· 源文件期望零 diff（断言更替在 Test 面）
   - Test: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts` · `doc.test.ts` · `lint.test.ts`（camel docKey 字面 → kebab）
   - Test: `packages/cdd-engine/src-next/contract/__tests__/project.test.ts`（8 处 · `:25` 本地 `DOC_KEYS` 抄写同更 → kebab · `declaredRegistries.`/`skeletons.`/`projected.tokens.`/`projected.skeleton.` 属性访问键 → kebab · 270-271 注释别名语义同步）——F1 补 ledger
-  - Test: `packages/cdd-engine/src-next/contract/__tests__/declare.test.ts`（3 处 `declaredRegistries.phaseSpec` 属性访问 → kebab）——F1 补 ledger
+  - Test: `packages/cdd-engine/src-next/contract/__tests__/declare.test.ts`（3 处 `declaredRegistries` 的 phaseSpec 属性访问 → kebab）——F1 补 ledger
   - Test: `packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts`（13 处 · renderOf/rendersNoLiteralN 调用字面 ×4 + `["overall","plan","phaseSpec"] as const`/`["overall","phaseSpec"] as const` 数组 ×8 + fixture 键 ×1 → kebab）——**F5 边界裁定：docKey 字面 pin 更替 = 词表统一触达面（word 面 · 非重组 · 与 D8 path rename 分明属主）** · render/ 源面维持零触碰
   - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`schema get phase-spec` 新主拼 · `schema get phaseSpec` 别名归一同字节 · get/gen 两错误消息用例新字节断言：get 四键 + 未识别 type · gen 三键 + 未识别 type）· `face.test.ts`（`docWords("phaseSpec")` 调用点字面更替 → kebab（:37/41/43 断言面））
   - Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（docKey 字面更替）

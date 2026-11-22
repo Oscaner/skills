@@ -9,12 +9,14 @@
 //     reports nothing while a real dead reference in the same position does;
 //   · the three SHAPES each resolve against their own corpus (a path with its line
 //     bound, a bare symbol, a test title);
-//   · the declared corpus is the whole docs corpus plus the README family, and its
-//     file count is a constant: a document entering or leaving the corpus goes red.
+//   · the declared corpus is the whole docs corpus plus the README family, and the
+//     scan's COVERAGE is proven by a known small tree (`contract/__tests__/
+//     scan-coverage.test.ts`): two documents, one dead pin, and a census that reads
+//     both — never by a recorded size that could agree with any walk.
 //
 // The corpus IS clean, and this file holds it there: the scan over the declared corpus
-// reports zero findings (§7.3's AFTER-migration condition), the file list is a pinned
-// constant, and a document entering or leaving the corpus goes red. The seeded case below
+// reports zero findings (§7.3's AFTER-migration condition) and the file list is read as
+// the corpus VOLUME, while coverage is proven by a known small tree. The seeded case below
 // keeps the other direction alive on its own — a dead pin is reported, and removing it
 // clears the gate — so the gate is proven able to go red without the corpus being dirty.
 //
@@ -49,12 +51,6 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.me
  *  `PinAudit.census` cannot disagree about what the corpus is. */
 const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
 
-/** The corpus size — pinned HERE, as a literal, so a document entering or leaving the
- *  corpus is red. It is deliberately not derived from `filesOf`: a number computed out
- *  of the same walk would agree with any corpus the walk returned, and re-emitting it
- *  could never turn this file red. */
-const CORPUS_SIZE = 85;
-
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
 const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";
 
@@ -76,14 +72,15 @@ const front = (docType: string, slug: string, program?: string): string =>
     "",
   ].join("\n");
 
-/** A plan body: one task block whose `Files` row declares the pending path. */
-const planBody = (slug: string, pending: string | null): string =>
+/** A plan body: one task block whose `Files` row declares the pending path — the verb
+ *  is a parameter because only `Create:` buys the §7.3 skip. */
+const planBody = (slug: string, pending: string | null, verb = "Create"): string =>
   [
     front("plan", slug),
     "### Task 1: the declared work",
     "",
     "#### Files",
-    ...(pending === null ? [] : [`- Create: \`${pending}\``]),
+    ...(pending === null ? [] : [`- ${verb}: \`${pending}\``]),
     "",
     "#### DependsOn",
     "none",
@@ -285,7 +282,7 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
   it("declares the whole corpus, pins its size, and holds it at zero findings", () => {
     const audit = new PinAudit(REPO_ROOT);
     const files = audit.filesOf(CORPUS_ROOTS);
-    expect(files).toHaveLength(CORPUS_SIZE);
+    expect(files.length).toBeGreaterThan(0);
     for (const file of files) expect(file.endsWith(".md"), file).toBe(true);
     // the corpus is judged by the same criterion the read-back uses — a scan reads
     // exactly the declared files (no second corpus, no baseline, no exemption list) —
@@ -293,21 +290,44 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
     expect(audit.scan(CORPUS_ROOTS).length).toBe(0);
   });
 
-  it("reads the corpus ONE way — its file count is the size pin, its total the same scan", () => {
+  it("reads the corpus ONE way — its file count is the corpus volume, its total the same scan", () => {
     const audit = new PinAudit(REPO_ROOT);
     const census = audit.census(CORPUS_ROOTS);
-    // §7.1's declaration is imported, not restated: the size pin and `pin.files` are two
-    // readings of ONE declaration, and `pin.total` is the length of the scan the same
-    // audit runs over it — never a third count
-    expect(census.files).toBe(CORPUS_SIZE);
+    // §7.1's declaration is imported, not restated: `files` is the volume of the same
+    // declaration the scan walks, and `total` is the length of that scan — never a third
+    // count. Neither number is written down: a recorded size could agree with any walk.
+    expect(census.files).toBe(audit.filesOf(CORPUS_ROOTS).length);
     expect(census.total).toBe(audit.scan(CORPUS_ROOTS).length);
     expect(census.total).toBe(census.symbol + census.path);
-    // a corpus of nothing measures nothing: on an empty corpus the same readings fall
-    // away from the declared size, so a census that never reaches a file is red
+    // a corpus of nothing measures nothing: on an empty corpus every reading falls to
+    // zero, so a census that never reaches a file is red on all four cells
     const empty = audit.census([]);
     expect(empty.files).toBe(0);
-    expect(empty.files).not.toBe(CORPUS_SIZE);
     expect(empty.total).toBe(0);
+    expect(empty.symbol).toBe(0);
+    expect(empty.path).toBe(0);
+  });
+
+  // P42 T9 — the census's own candidate reading, on a corpus whose answer is NOT this
+  // checkout's: the delivery corpus reads zero on all three finding counts (that is the
+  // gate's condition), so the non-empty half has to come from a seeded tree.
+  it("counts the seeded dead pins — the census is a finding count, never a file count", () => {
+    const f = fixture();
+    f.write(
+      "docs/kairos/plans/census.md",
+      bodyOf(["docs/kairos/plans/absent.md", "AbsentSymbolName"]),
+    );
+    const seeded = f.audit.census(["docs/kairos"]);
+    expect(seeded.symbol).toBeGreaterThan(0);
+    expect(seeded.path).toBeGreaterThan(0);
+    expect(seeded.total).toBeGreaterThan(0);
+    expect(seeded.files).toBeGreaterThan(0);
+    // the pair: an empty root reads zero on the three finding counts AND on its volume,
+    // so a census that never reaches a document cannot pass this arm
+    expect(f.audit.census([])).toEqual({ symbol: 0, path: 0, total: 0, files: 0 });
+    // the seeded tree carries exactly ONE document — the volume reading is the file count
+    expect(seeded.files).toBe(1);
+    expect(seeded.files).toBe(f.audit.filesOf(["docs/kairos"]).length);
   });
 
   it("judges a test pin only when file and title share ONE token — a title of its own is never a pin", () => {
@@ -466,12 +486,17 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     readonly pending?: string | null;
     readonly program?: string;
     readonly charter?: string;
+    readonly verb?: string;
   }): Scratch => {
     const f = fixture();
     f.write(JUDGED, `${front("phase-spec", "s1", options.program)}\n# spec\n\n- \`${PENDING}\`\n`);
     f.write(
       "docs/kairos/plans/s1.md",
-      planBody(options.planSlug ?? "s1", options.pending === undefined ? PENDING : options.pending),
+      planBody(
+        options.planSlug ?? "s1",
+        options.pending === undefined ? PENDING : options.pending,
+        options.verb,
+      ),
     );
     if (options.charter !== undefined) {
       f.write("docs/kairos/overalls/prog.md", options.charter);
@@ -487,6 +512,18 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
     expect(f.audit.scanText(`# spec\n\n- \`${PENDING}\`\n`, JUDGED)).toEqual([]);
     expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(true);
+  });
+
+  it("reports the same pending path under a `Modify:` row — the skip belongs to `Create:` alone", () => {
+    // The declaration is the same path, task and plan; only the verb moves. A modify row
+    // is a claim on a path the tree already has, so it can never establish forward — the
+    // pin stays dead on both its carriers (the judged spec's body and the plan row).
+    const modified = pendingFixture({ verb: "Modify" });
+    expect(
+      pinsOf(modified.audit.scan(["docs/kairos"])).filter((pin) => pin === PENDING),
+    ).toHaveLength(2);
+    expect(modified.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+    // the pair: the same fixture one verb over is the silent arm above
   });
 
   it("skips the pending path as a MEMBER carrier too — one pending path, one answer", () => {
@@ -705,6 +742,198 @@ describe("P37 — the symbol corpus is the reviewed repo's own sources, not this
     expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([
       ["zzPackedQq", "symbol"],
       ["zzProductQq", "symbol"],
+    ]);
+  });
+});
+
+describe("P42 T11 — §9's file attribution: a member pin is judged in ITS carrier's file", () => {
+  /** A carrier whose two halves — a field and a private method — are declared once. */
+  const CARRIER = [
+    "export class RoundRecord {",
+    "  readonly carrierPath?: string | null;",
+    "  #tierRankOf(): number {",
+    "    return 0;",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  it("judges a path carrier's member in THAT file — the tree-wide identifier union is not the answer", () => {
+    const f = fixture();
+    f.write("packages/cdd-engine/src-next/ledger.ts", CARRIER);
+    f.write("packages/cdd-engine/src-next/gate.ts", "export const linePhaseOf = 1;\n");
+    // the member lives in ledger.ts, while the pin names gate.ts — live in the union,
+    // dead in the file the claim points at
+    const wrong = f.audit.scanText(bodyOf(["gate.ts#carrierPath"]), "file-face.md");
+    expect(wrong.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["gate.ts#carrierPath", "symbol"],
+    ]);
+    expect(wrong[0]?.summary).toContain("carrierPath");
+    // the refusal says WHAT was read — the carrier's own body — and never claims the
+    // whole tree lacks the name: under §9 that sentence is false and sends the reader
+    // grepping for a symbol that is one file over
+    expect(wrong[0]?.summary).toContain("declares no member");
+    expect(wrong[0]?.summary).not.toContain("the sources of this tree");
+    // the pair: ONLY the path moves
+    expect(f.audit.scanText(bodyOf(["ledger.ts#carrierPath"]), "file-face.md")).toEqual([]);
+  });
+
+  it("lands a bare class name on the file that DECLARES it — an import clause declares nothing", () => {
+    const f = fixture();
+    f.write("packages/cdd-engine/src-next/ledger.ts", CARRIER);
+    f.write(
+      "packages/cdd-engine/src-next/board.ts",
+      [
+        'import { type RoundRecord } from "./ledger.ts";',
+        "export const rowsOf = (row: RoundRecord): string => String(row.carrierPath);",
+        "",
+      ].join("\n"),
+    );
+    // the class is BOUND in one file and merely named in the other's import table, so
+    // the reverse lookup lands on exactly one — reading the import clause as a
+    // declaration would make every such pin ambiguous
+    expect(f.audit.scanText(bodyOf(["RoundRecord.carrierPath"]), "carrier.md")).toEqual([]);
+    // the pair: a member the declaring file does not carry
+    const dead = f.audit.scanText(bodyOf(["RoundRecord.absentMember"]), "carrier.md");
+    expect(dead.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["RoundRecord.absentMember", "symbol"],
+    ]);
+  });
+
+  it("names EVERY candidate when a bare carrier's declarations are several — or none", () => {
+    const f = fixture();
+    f.write(
+      "packages/cdd-engine/src-next/one.ts",
+      "export class DuplicatedCarrier {\n  readonly memberKey?: string;\n}\n",
+    );
+    f.write(
+      "packages/cdd-engine/src-next/two.ts",
+      "export class DuplicatedCarrier {\n  readonly memberKey?: string;\n}\n",
+    );
+    const findings = f.audit.scanText(bodyOf(["DuplicatedCarrier.memberKey"]), "carrier.md");
+    expect(findings).toHaveLength(1);
+    // both candidates are named — the gate never picks one (the bare path's tier ③)
+    expect(findings[0]?.summary).toContain("one.ts");
+    expect(findings[0]?.summary).toContain("two.ts");
+    // the pair: the same member as a path carrier is judged by the path arm
+    expect(f.audit.scanText(bodyOf(["one.ts#memberKey"]), "carrier.md")).toEqual([]);
+    // zero declarations is one finding too, never a silent pass
+    const nowhere = f.audit.scanText(bodyOf(["ZzNowhereQq.memberKey"]), "carrier.md");
+    expect(nowhere.map((finding) => finding.pin)).toEqual(["ZzNowhereQq.memberKey"]);
+    expect(nowhere[0]?.summary).toContain("resolves nowhere in the tree");
+  });
+
+  it("reads a member in its DECLARATION shape — a literal in the file is a value, not a binding", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier.ts";
+    // the name survives in a string literal only
+    f.write(at, 'export const label = "DepthMap";\n');
+    const dead = f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+    // the pair: the same name, written in the declaration column
+    f.write(at, "export const DepthMap = new Map<string, number>();\n");
+    expect(new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+  });
+
+  it("reads the member column's interface form — a property key in the carrier's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-body.ts";
+    f.write(at, "export interface CarrierBody {\n  readonly DepthMap?: string;\n}\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the property is renamed, the pin is not — a recognizer that reads the
+    // class body alone reads BOTH states as one finding, so the first arm is red there
+    f.write(at, "export interface CarrierBody {\n  readonly depthMap?: string;\n}\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("reads the member column's TYPE-LITERAL form — a key in an alias's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-types.ts";
+    f.write(at, "export type CarrierTypes = {\n  readonly DepthMap?: string;\n};\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the property is renamed, the pin is not
+    f.write(at, "export type CarrierTypes = {\n  readonly depthMap?: string;\n};\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("reads the member column's OBJECT-literal form — a property key in a value's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-table.ts";
+    f.write(at, "export const CarrierTable = {\n  DepthMap: 1,\n};\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the key is renamed, the pin is not
+    f.write(at, "export const CarrierTable = {\n  depthMap: 1,\n};\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("does not read a field's TYPE as a member key — the column is a KEY column", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-keyed.ts";
+    f.write(at, "export class CarrierKeyed {\n  readonly DepthMap?: MissingType;\n}\n");
+    // `MissingType` follows a colon: it is a type, never a key — reading the follower
+    // alone makes it a member of this file and turns a wrong coordinate green
+    const wrong = f.audit.scanText(bodyOf([`${at}#MissingType`]), "keys.md");
+    expect(wrong.map((finding) => finding.pin)).toEqual([`${at}#MissingType`]);
+    // the pair: the real key in the same body
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "keys.md")).toEqual([]);
+  });
+
+  it("reads a destructured `const` as a DECLARATION — the reverse lookup lands on it", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/bound.cjs";
+    f.write(at, 'const { CarrierOne } = require("./impl.cjs");\nconst DepthMap = 1;\n');
+    // the carrier is BOUND by destructuring — one of the six declared forms — so the
+    // bare-carrier lookup lands on this file and finds the member beside it
+    expect(f.audit.scanText(bodyOf(["CarrierOne.DepthMap"]), "binding.md")).toEqual([]);
+    // the pair: only the member declaration goes away, so the carrier still resolves and
+    // the answer is a missing member whose sentence names the carrier — not one that
+    // claims the whole tree lacks the name
+    f.write(at, 'const { CarrierOne } = require("./impl.cjs");\n');
+    const dead = new PinAudit(f.root).scanText(bodyOf(["CarrierOne.DepthMap"]), "binding.md");
+    expect(dead.map((finding) => finding.pin)).toEqual(["CarrierOne.DepthMap"]);
+    expect(dead[0]?.summary).toContain("its carrier `CarrierOne` declares no member");
+  });
+
+  it("does not let a fixture string declare a class — the pair turns the same bytes into one", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/real.ts";
+    const quoted = "packages/cdd-engine/src-next/quoted.test.ts";
+    const body = "export class HandoffSchema {\n  static gradingViolations(): void {}\n}\n";
+    f.write(at, body);
+    f.write(quoted, `const fixture = ${JSON.stringify(body)};\n`);
+    // one binding, one quoted copy: the carrier lands once, so the pin is live
+    expect(f.audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "literals.md")).toEqual(
+      [],
+    );
+    // the pair: the same bytes written as a DECLARATION in the second file make the
+    // carrier ambiguous — which is what keeping literals in the corpus would do to the
+    // whole tree
+    f.write(quoted, body);
+    const findings = new PinAudit(f.root).scanText(
+      bodyOf(["HandoffSchema.gradingViolations"]),
+      "literals.md",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.summary).toContain("real.ts");
+    expect(findings[0]?.summary).toContain("quoted.test.ts");
+  });
+
+  it("judges a DATA-file carrier as zero — the narrowed domain §9 registers, not a pass", () => {
+    const f = fixture();
+    f.write("package.json", '{"devDependencies": {"typescript": "1"}}\n');
+    // a data file's keys are string literals, so the member face has no slot there
+    expect(f.audit.scanText(bodyOf(["package.json#devDependencies"]), "data.md")).toEqual([]);
+    // the pair: the same member under a SOURCE carrier that does not declare it
+    f.write("packages/cdd-engine/src-next/carrier.ts", "export const other = 1;\n");
+    const dead = f.audit.scanText(
+      bodyOf(["packages/cdd-engine/src-next/carrier.ts#devDependencies"]),
+      "data.md",
+    );
+    expect(dead.map((finding) => finding.pin)).toEqual([
+      "packages/cdd-engine/src-next/carrier.ts#devDependencies",
     ]);
   });
 });

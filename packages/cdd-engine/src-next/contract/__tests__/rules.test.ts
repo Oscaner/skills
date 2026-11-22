@@ -33,6 +33,11 @@ const PUBLIC_RULE_IDS = [
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+/** The registry's own source — the class comment above `RULE_REGISTRY` is prose with no
+ *  path to red by construction, so its counts are pinned by a COMPUTED comparison
+ *  against the table's own lengths rather than a literal grep (P42 §3.2). */
+const RULES_SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "rules.ts");
+
 /** The P30/P31 change-history hardening ids — the row-shape, header-newest and
  *  header-column-set legs the lineage family gained (the ledger count above follows
  *  this list). */
@@ -43,12 +48,30 @@ const HARDENED_RULE_IDS = [
 ] as const;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 32 rows: 30 doc-scope + 2 ledger-scope", () => {
+  it("declares 35 rows: 33 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(32);
-    expect(doc).toHaveLength(30);
+    expect(RULE_REGISTRY).toHaveLength(35);
+    expect(doc).toHaveLength(33);
     expect(ledger).toHaveLength(2);
+  });
+
+  it("keeps the class comment's counts equal to the table's own lengths — computed, never grepped", () => {
+    // The comment's spelling (`doc scope … rows + ledger scope … rows = …`) differs
+    // from this file's title spelling, so no literal grep holds either tree; the
+    // comparison reads the three declared numbers and compares them cell by cell.
+    const comment = readFileSync(RULES_SOURCE, "utf8").match(
+      /doc scope (\d+) rows \+ ledger scope (\d+) rows = (\d+)/,
+    );
+    // the pair: a comment written without per-scope counts leaves this comparison no
+    // subject — the null arm is the subject guard, not a courtesy
+    expect(comment).not.toBeNull();
+    const doc = RULE_REGISTRY.filter((row) => row.scope === "doc").length;
+    const ledger = RULE_REGISTRY.filter((row) => row.scope === "ledger").length;
+    // the pair: change any one of the three numbers in the comment and this goes red
+    expect(Number(comment?.[1]), "doc rows").toBe(doc);
+    expect(Number(comment?.[2]), "ledger rows").toBe(ledger);
+    expect(Number(comment?.[3]), "total rows").toBe(doc + ledger);
   });
 
   it("keeps every id unique and kebab-cased", () => {
@@ -91,6 +114,93 @@ describe("RULE_REGISTRY — the declaration surface", () => {
       RULE_REGISTRY.filter((declaration) => declaration.scope === "doc").map((row) => row.id),
     );
     for (const id of HARDENED_RULE_IDS) expect(docIds.has(id), id).toBe(true);
+  });
+
+  it("carries the P42 task-graph and order ids on the doc scope", () => {
+    const docIds = new Set(
+      RULE_REGISTRY.filter((declaration) => declaration.scope === "doc").map((row) => row.id),
+    );
+    for (const id of ["dangling-task-ref", "depends-on-cycle", "change-history-newest-last"]) {
+      expect(docIds.has(id), id).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `seat` — where each row's judgment runs (P42 §8)
+// ---------------------------------------------------------------------------
+
+/** The per-id seat table — the delivered registry read once, pinned as literals so a
+ *  row's seat cannot move without a red here. */
+const SEATS: Readonly<Record<string, readonly string[]>> = {
+  presence: ["dispatch", "close", "corpus"],
+  "change-history-version-unique": ["dispatch", "close", "corpus"],
+  "change-history-row-shape": ["dispatch", "close", "corpus"],
+  "change-history-header-columns": ["dispatch", "close", "corpus"],
+  "change-history-latest-matches-front-matter": ["dispatch", "close", "corpus"],
+  "change-history-newest-last": ["dispatch", "close", "corpus"],
+  "task-id-unique": ["dispatch", "close", "corpus"],
+  "phase-id-unique": ["dispatch", "close", "corpus"],
+  domain: ["dispatch", "close", "corpus"],
+  crosslink: ["dispatch", "close", "corpus"],
+  "section-order": ["dispatch", "close", "corpus"],
+  "front-matter-version-in-lineage": ["dispatch", "close", "corpus"],
+  continuity: ["dispatch", "close", "corpus"],
+  residue: ["dispatch", "close", "corpus"],
+  hollow: ["dispatch", "close", "corpus"],
+  "link-shape": ["dispatch", "close", "corpus"],
+  "file-existence": ["dispatch", "close", "corpus"],
+  "sibling-scan": ["dispatch", "close", "corpus"],
+  "slug-ref": ["dispatch", "close", "corpus"],
+  "cross-doc-chain": ["dispatch", "close", "corpus"],
+  "section-scoped-domain": ["dispatch", "close", "corpus"],
+  "change-history-row-not-in-other-table": ["dispatch", "close", "corpus"],
+  "list-marker-not-doubled": ["dispatch", "close", "corpus"],
+  "wave-width-at-most-three": ["dispatch", "close", "corpus"],
+  "single-create": ["dispatch", "close", "corpus"],
+  "dangling-task-ref": ["dispatch", "close", "corpus"],
+  "depends-on-cycle": ["dispatch", "close", "corpus"],
+  "phase-design-spec-is-phase-spec": ["dispatch", "close", "corpus"],
+  "measure-literal": ["dispatch", "close", "corpus"],
+  "line-coordinate": ["dispatch", "close", "corpus"],
+  "live-arithmetic": ["dispatch", "close", "corpus"],
+  "single-home": ["dispatch", "close", "corpus"],
+  "change-history-date-shape": ["dispatch", "close", "corpus"],
+  "closed-wave-fits-depends-on-layers": ["ledger"],
+  "planned-tasks-vs-recorded-tasks": ["ledger"],
+};
+
+describe("seat — the closed vocabulary of a row's judgment face (P42 §8)", () => {
+  const SEAT_VOCABULARY = ["dispatch", "close", "corpus", "ledger"] as const;
+
+  it("declares exactly 35 per-id seats — the same row set the registry carries", () => {
+    expect(Object.keys(SEATS)).toHaveLength(35);
+    expect(Object.keys(SEATS).sort()).toEqual(RULE_REGISTRY.map((row) => row.id).sort());
+  });
+
+  it("keeps every seat inside the closed set, and non-empty", () => {
+    for (const row of RULE_REGISTRY) {
+      expect(row.seat.length, row.id).toBeGreaterThan(0);
+      for (const seat of row.seat) {
+        expect(SEAT_VOCABULARY, `${row.id} · ${seat}`).toContain(seat);
+      }
+    }
+    // the pair: an out-of-vocabulary value is red — the union admits no other word
+    const outside = "gate";
+    expect(SEAT_VOCABULARY).not.toContain(outside);
+  });
+
+  it("gives every doc row the three doc seats and every ledger row `ledger` alone", () => {
+    for (const row of RULE_REGISTRY) {
+      const expected = row.scope === "doc" ? ["dispatch", "close", "corpus"] : ["ledger"];
+      expect(row.seat, row.id).toEqual(expected);
+    }
+  });
+
+  it("matches the per-id literal table cell by cell — a drift on either side is red", () => {
+    for (const row of RULE_REGISTRY) {
+      expect(row.seat, row.id).toEqual(SEATS[row.id]);
+    }
   });
 });
 

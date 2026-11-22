@@ -6,7 +6,7 @@
 //   review   zero findings  → close(state) — the ready batch decides next-wave | done
 //   review   findings       → fix (one-way — a review never previews what a fix will do)
 //   fix      blocker>0      → a re-review hop (the live tree, no commit identity)
-//   fix      blocker==0     → close(state) — the warn/nit-only / clean closure (#278,
+//   fix      blocker==0     → close(state) — the warn-only / clean closure (#278,
 //                             no APPROVED-mandated re-review)
 //   fix      soft cap       → the "BLOCKED: review-cycle-cap" suggestion (user adjudicates)
 //   BLOCKED/TIMEOUT         → null (no next line — the CDD_BLOCKED channel owns the face)
@@ -389,7 +389,7 @@ export class NextStepRouter {
           return { kind: "review" };
         }
         // No blockers → the unified closure: the ready batch decides next-wave | done
-        // (a warn/nit-only fix closes — the #278 REVIEW_FIX state, no re-review preview).
+        // (a warn-only fix closes — the #278 REVIEW_FIX state, no re-review preview).
         return this.#close(state);
       }
       case "branch-review":

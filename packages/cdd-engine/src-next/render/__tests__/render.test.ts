@@ -126,7 +126,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
     // the implement reminder reads the complete plan mirror (INPUT_WAVE_BRIEF) —
-    // the plan's ## Constraints rides the brief; the OUTPUT_* write paths are
+    // the plan's ## Constraints rides the brief, and so does the previous review
+    // round's `## Notes` section when it left one; the OUTPUT_* write paths are
     // prescribed (find #5), the brief is a pure read input (no OUTPUT_BRIEF)
     expect(out).not.toContain("INPUT_RULES");
     expect(out).toContain("the complete plan mirror");
@@ -1197,5 +1198,35 @@ describe("P36 T9 — INPUT_RULINGS names a path, and both fix shells state the r
       INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
     });
     expect(out).not.toContain("- `INPUT_RULINGS`: ");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P42 §2.1 — the brief's `## Notes` section is described where the brief is read
+// ---------------------------------------------------------------------------
+
+describe("P42 §2.1 — every prompt that names the wave brief names its notes section", () => {
+  it("describes the notes section on the three faces that read INPUT_WAVE_BRIEF", () => {
+    // A wave brief now carries a `## Notes` section when the previous review round
+    // left one (spec §2.1). A prompt that still calls the brief "the complete plan
+    // mirror" and nothing more hands its child a section no instruction accounts for
+    // — and the review prompt names that same brief as its JUDGED face.
+    const implement = new TemplateAssembler().render(ALL_VALUES);
+    expect(implement).toContain(
+      "plus the previous review round's `## Notes` section when it left any",
+    );
+    const fix = new TemplateAssembler().render(FIX_VALUES);
+    expect(fix).toContain(
+      "the complete plan mirror plus the previous review round's notes, when it left any",
+    );
+    const review = new TemplateAssembler().render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      TARGET_TYPE: "wave",
+      OUTPUT_HANDOFF: "/ws/tasks-4,12-review-1.json",
+    });
+    expect(review).toContain(
+      "the complete plan mirror, plus the previous review round's `## Notes` section when it left any — a note changes no conclusion",
+    );
   });
 });

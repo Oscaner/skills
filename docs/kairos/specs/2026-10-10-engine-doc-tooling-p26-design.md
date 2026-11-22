@@ -132,7 +132,7 @@ walk 于是这样落地：`pipeline.ts` 全闭合 → `#terminal` → 最后进�
 
 plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** 相连，所以 single-spec 交棒后的 plan 走 `docs/kairos/plans/` 下同 slug 的那一份，不需要新链键。
 
-同一个 slug 也让交棒后的 plan / branch 评审照旧拿得到 spec 锚点：这两行的 `INPUT_SPEC` 取 `SlugIndex#identityDoc(slug)` 解析出的**路径**（`face/cli.ts:1073-1074` 产出 `specLink`，`face/lifecycle.ts:760-762` 读它），与 `spec:` 标量无关、与 `program:` 无关——single-spec 交棒后该槽仍然非空。被空槽丢弃的是 `INPUT_OVERALL`（父章程）：它读**同一份身份文档的 `program:`**（`face/cli.ts:1077-1078` 产出 `overallLink`，`face/lifecycle.ts:773-777` 读它），single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。故「不新增链键」的结论不变。
+同一个 slug 也让交棒后的 plan / branch 评审照旧拿得到 spec 锚点：这两行的 `INPUT_SPEC` 取 `SlugIndex#docsOf(slug)` 解析出的**路径**（`face/cli.ts:1073-1074` 产出 `specLink`，`face/lifecycle.ts:760-762` 读它），与 `spec:` 标量无关、与 `program:` 无关——single-spec 交棒后该槽仍然非空。被空槽丢弃的是 `INPUT_OVERALL`（父章程）：它读**同一份身份文档的 `program:`**（`face/cli.ts:1077-1078` 产出 `overallLink`，`face/lifecycle.ts:773-777` 读它），single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。故「不新增链键」的结论不变。
 
 ### 4. single-spec ⇄ phase-spec 归属判据
 

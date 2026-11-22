@@ -40,7 +40,10 @@ export type GraphIssueClass =
 export interface GraphIssue {
   /** The failure class. */
   kind: GraphIssueClass;
-  /** The offending task id (for a cycle — the lowest task inside the cycle). */
+  /** The offending task id. For a cycle it is the LOWEST task id left in Kahn's
+   *  remainder — and that remainder holds every task transitively depending on the
+   *  cycle as well as the cycle's own members, so the answer is not promised to be a
+   *  member of the cycle. */
   task: number;
   /** The one-line issue message. */
   message: string;
@@ -204,11 +207,12 @@ export class TaskGraph implements Frontier, ExecutionState {
     return issues;
   }
 
-  /** The cycle class — the lowest task closing a directed cycle (self-loops
-   *  excluded: they own the self-loop class); null when the edge graph is a DAG.
-   *  Reads the NORMALIZED edge surface (`#depsOf`) — the same face every consumer
-   *  reads; the reduction preserves closure, so a cycle can never be normalized
-   *  away. */
+  /** The cycle class — the LOWEST task id in Kahn's remainder (self-loops excluded:
+   *  they own the self-loop class); null when the edge graph is a DAG. The remainder
+   *  holds the cycle's members AND every task that transitively depends on it, so this
+   *  answer names a task the cycle closes over, not necessarily a member of it. Reads
+   *  the NORMALIZED edge surface (`#depsOf`) — the same face every consumer reads; the
+   *  reduction preserves closure, so a cycle can never be normalized away. */
   #cycleMember(): number | null {
     const indegree = new Map<number, number>();
     const dependents = new Map<number, Set<number>>();
@@ -368,6 +372,14 @@ export class TaskGraph implements Frontier, ExecutionState {
   // shared render helpers — pure list/text shaping (class members, never module
   // bare functions)
   // -------------------------------------------------------------------------
+
+  /** The ONE rendered detail line of a graph issue (P42 §3.2): `{kind}@T{task}:
+   *  {message}`. The `graph` gate's `details` row and the `depends-on-cycle` contract
+   *  row both print these bytes, so the template has one author — edit it here and both
+   *  faces move together, never two spellings of one line. */
+  static detailLine(issue: GraphIssue): string {
+    return `${issue.kind}@T${issue.task}: ${issue.message}`;
+  }
 
   /** The unique values of a candidate list, in first-occurrence order. */
   static #unique(values: readonly number[]): readonly number[] {

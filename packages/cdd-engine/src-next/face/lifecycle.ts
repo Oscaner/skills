@@ -20,6 +20,8 @@ import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import type { Finding } from "../contract/invariants.ts";
+import type { Contract } from "../contract/judge.ts";
 import { PinAudit } from "../contract/pins.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
@@ -64,6 +66,7 @@ import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
+import { BoardView } from "./board-view.ts";
 import { RequestingCarrier, type RequestingCarrierFacts } from "./dispatch-values.ts";
 import { DISPATCH, HOSTS, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
@@ -283,6 +286,11 @@ export class CliLifecycle {
   /** The composition root's audit accessor, when supplied — the ONE construction point of
    *  the dispatch's pin audit, shared with the pre-flight closure port. */
   readonly #pinAuditFactory: (() => PinAudit) | null;
+  /** The doc-contract coordinator this face's close-out leg runs (P42 §7) — the SAME
+   *  instance the pre-dispatch gate judged with, handed in at the composition root.
+   *  Required: a lifecycle that built its own would read a second registry, and the two
+   *  readings of one document would then be two sources of truth. */
+  readonly #contract: Contract;
   /** The dispatch's round-context values (P40 T5) — the ONE record the composition root
    *  assembled (`DispatchValues.compose`) and the seam judged. The renderer reads it and
    *  derives nothing: a frame-bound re-assembly here would be the second derivation the
@@ -312,6 +320,9 @@ export class CliLifecycle {
      *  port, so one dispatch scans the doc roots once. Absent → this class builds its
      *  own memoized audit (the eleven construction sites that never supply one). */
     pinAudit?: () => PinAudit;
+    /** The doc-contract coordinator the close-out leg judges with (P42 §7) — the
+     *  composition root's ONE instance, the same object its pre-flight seam holds. */
+    contract: Contract;
   }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
@@ -333,6 +344,7 @@ export class CliLifecycle {
     };
     this.#reviews = opts.reviews ?? null;
     this.#pinAuditFactory = opts.pinAudit ?? null;
+    this.#contract = opts.contract;
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. The step boundary is
@@ -558,6 +570,10 @@ export class CliLifecycle {
       ...(await this.#criterionViolations(frame, outcome, evidence)),
       ...evidence,
       ...this.#structureViolations(frame),
+      // The doc-contract close-out runs in the SAME pass as the structure face (P42 §7):
+      // both compare the round's own write against a dispatch-time baseline, and both
+      // refuse the round's ADVANCE, never its commit.
+      ...this.#docContractViolations(frame),
       ...logEntries,
     ];
     return {
@@ -701,6 +717,100 @@ export class CliLifecycle {
           : `the plan document became unreadable inside this round (${current.reason}) — the structure face belongs to the orchestrator and lands as its own commit`,
       ),
     ];
+  }
+
+  /** The document's CONTRACT delta as one graded entry (P42 §7) — a fix round's own
+   *  write-back judged at the round's close against the baseline the approved dispatch
+   *  gate measured. The comparison is a MULTISET difference on the finding's whole
+   *  identity (`kind@field@message`), so a defect the round repaired and a different
+   *  defect it wrote under the same heading read correctly: the repaired one leaves the
+   *  set, the written one enters it.
+   *
+   *  Three scope facts, all of them the gate's own: an ABSENT baseline judges nothing (no
+   *  gate measured this document); the leg runs on a fix round of a DOC shape only (a
+   *  wave / branch round has no doc face, and the round the gate admits is the round
+   *  whose document it read). The engine refuses only the ADVANCE — the child's own
+   *  `cl:atomic-commit` shell has already landed its commit, so the promise is "no next
+   *  hop", never "no commit". */
+  #docContractViolations(frame: OpenFrame): readonly RoundViolation[] {
+    const baseline = frame.contract ?? null;
+    if (baseline === null) return [];
+    if (this.#opOf(frame) !== "fix") return [];
+    if (!TargetFaceTable.isDocShape(frame.type)) return [];
+    const added = CliLifecycle.#addedFindings(baseline, this.#docFindingsOf(frame));
+    if (added.length === 0) return [];
+    return [
+      this.#hard(
+        `the document this round wrote violates its own contract: ${added
+          .map((finding) => `${finding.kind}@${finding.field}: ${finding.message}`)
+          .join("; ")}`,
+      ),
+    ];
+  }
+
+  /** The judged document's contract findings read at the round's CLOSE — the SAME
+   *  `Contract.validate` construction the pre-dispatch gate runs (doc key · absolute
+   *  path · bytes · root, the closure fact from the one pin audit nothing else builds,
+   *  and the plan layers from the graph's own `batches()`), on the ONE `Contract`
+   *  instance the composition root handed in. Unreadable / undeclared documents read
+   *  zero findings: the gate already owns those faces, and this leg is a DELTA, not a
+   *  second qualification. */
+  #docFindingsOf(frame: OpenFrame): readonly Finding[] {
+    const target = frame.target;
+    if (target.kind !== "spec" && target.kind !== "plan") return [];
+    const basis = this.#repoRootValue();
+    const repoRoot = basis.absolute;
+    const absolute = path.resolve(repoRoot, target.doc);
+    let content: string;
+    try {
+      content = readFileSync(absolute, "utf8");
+    } catch {
+      return [];
+    }
+    const rel = basis.relativize(target.doc);
+    const docKey = BoardView.readDocType(basis, rel);
+    if (docKey === null) return [];
+    const plan = this.#scene.plan;
+    const taskLayers = plan.kind === "ready" ? plan.graph()?.batches() : undefined;
+    // The index and the filesystem seam are the contract plane's own defaults: a fourth
+    // `SlugIndex.build` site is pinned out of production, and the fallback inside the
+    // contract plane is exactly the one mechanism the gate's explicit index also uses.
+    return this.#contract.validate(
+      { docKey, path: absolute, content, root: repoRoot, taskLayers },
+      this.#pinAudit().provenClosed(rel),
+    );
+  }
+
+  /** The findings `current` carries beyond `baseline`, compared as a MULTISET on the
+   *  finding's whole identity — `kind@field@message`. The multiset (not a set) matters:
+   *  a round that repairs one instance and writes a second one under the same heading
+   *  leaves a `kind@field` SET unchanged while a defect is genuinely new. */
+  static #addedFindings(
+    baseline: readonly Finding[],
+    current: readonly Finding[],
+  ): readonly Finding[] {
+    const remaining = new Map<string, number>();
+    for (const finding of baseline) {
+      const key = CliLifecycle.#identityOf(finding);
+      remaining.set(key, (remaining.get(key) ?? 0) + 1);
+    }
+    const added: Finding[] = [];
+    for (const finding of current) {
+      const key = CliLifecycle.#identityOf(finding);
+      const count = remaining.get(key) ?? 0;
+      if (count === 0) {
+        added.push(finding);
+        continue;
+      }
+      remaining.set(key, count - 1);
+    }
+    return added;
+  }
+
+  /** One finding's comparison identity — the three cells a delta must not confuse. The
+   *  printed shape (`kind@field: message`) is presentation, never this key. */
+  static #identityOf(finding: Finding): string {
+    return `${finding.kind}@${finding.field}@${finding.message}`;
   }
 
   /** One self-authored HARD entry — the ledger's existing `contract-violation` cause,
@@ -1240,7 +1350,8 @@ export class CliLifecycle {
     }
     // The TIERED read-back (spec §2.1): a required slot's violation refuses the round,
     // a decorative slot's violation is DROPPED from the draft in place (surfaced once on
-    // the carrier's notes by materialize) — a wrong optional column never costs a round.
+    // the round's soft channel by materialize) — a wrong optional column never costs a
+    // round.
     const readBack = schema.readBack(plane, draft);
     if (readBack.problems.length > 0) {
       return this.#reject(
@@ -1668,28 +1779,29 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     // The §8.7 classification ruling — the SAME judgment the read-back validator makes
     // (non-declared keys are dropped, never a BLOCK): materialize drops them and books
-    // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
+    // them on the round's SOFT violation channel (auditable, non-interrupting — replacing
     // the retired "BLOCK + crash-resume + reopen" chain). The engine stays the carrier's
-    // single author; a child's stray key is surfaced, not obeyed.
+    // single author; a child's stray key is surfaced, not obeyed, and `carrier.notes`
+    // keeps the child's own observations alone (P42 §2.2).
     const dropped = this.#handoffSchema.droppedKeys(plane, draft);
-    // TWO loss families, two landings. A DECLARATIVE loss (a declared slot outside its
-    // declared shape) is ONE carrier note AND ONE `RoundViolation.soft` on the record —
-    // spec §2.14's soft landing, the child owed the field and lost it. A non-declared
-    // key is §8.7's own face: ONE note and nothing else (the drop is silent on the warn
-    // channel — it cost the child no declared obligation).
-    const observations: string[] = [];
+    // THREE loss families, ONE landing. A DECLARATIVE loss (a declared slot outside its
+    // declared shape), a non-declared key (§8.7's own face) and an artifact deviation all
+    // ride `RoundViolation.soft` — the engine's own sentences are never the child's
+    // observations, so none of them enters `carrier.notes` (P42 §2.2). Each soft row is
+    // one `CDD_WARN:` line on stderr and one step on the derived `contractViolationCount`:
+    // the drop is audible, and it still costs the round no conclusion, no exit code and
+    // no `CDD_BLOCKED` line.
+    const soft: string[] = [];
     if (droppedDecorative.length > 0) {
-      observations.push(
+      soft.push(
         `dropped decorative draft field(s) outside their declared shape: ${droppedDecorative.join(", ")} — never written`,
       );
     }
-    const reserved: string[] = [];
     if (dropped.length > 0) {
-      reserved.push(
+      soft.push(
         `dropped non-declared draft field(s): ${dropped.join(", ")} — engine-reserved, never written`,
       );
     }
-    const notes: string[] = [...observations, ...reserved];
     // The per-plane carrier — buildHandoff's typed overloads: the judge plane REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
     // carrier's findings + status), the work plane builds a findings-FREE typed carrier
@@ -1703,11 +1815,11 @@ export class CliLifecycle {
     const carrier: Record<string, unknown> =
       plane === "judge"
         ? ledger.buildHandoff("judge", {
-            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, soft),
             findings: this.#findingsList(draft.findings, droppedDecorative),
           })
         : ledger.buildHandoff("work", {
-            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, soft),
           });
     // The work plane ALONE persists the round conclusion — it is the child's own
     // declared status (the schema enum pinned it to APPROVED | BLOCKED). The judge
@@ -1729,20 +1841,21 @@ export class CliLifecycle {
         carrier.dispositions = draft.dispositions;
       }
     }
-    if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
-    return { carrier, violations: observations.map((text) => RoundViolation.soft(text)) };
+    if (draftNotes.length > 0) carrier.notes = [...draftNotes];
+    return { carrier, violations: soft.map((text) => RoundViolation.soft(text)) };
   }
 
   /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
    *  child-reported path for the canonical slots): a declared PRESCRIBED slot
    *  (report/test_evidence) books the frame's canonical OUTPUT_* path — a
-   *  free-named deviation is replaced and surfaced on the notes (the review scope
-   *  axis reads them); the non-prescribed slots (a docs-fix's `doc`, child extras)
-   *  pass verbatim. undefined when the draft declared no artifacts. */
+   *  free-named deviation is replaced and surfaced on the round's SOFT channel (the
+   *  audit fact rides the record, never the child's `notes`; P42 §2.2); the
+   *  non-prescribed slots (a docs-fix's `doc`, child extras) pass verbatim.
+   *  undefined when the draft declared no artifacts. */
   #canonicalArtifacts(
     frame: OpenFrame,
     artifacts: unknown,
-    notes: string[],
+    soft: string[],
   ): Record<string, string> | undefined {
     const declared = this.#stringMap(artifacts);
     if (declared === undefined) return undefined;
@@ -1760,11 +1873,11 @@ export class CliLifecycle {
       // persisted carrier's artifacts map carries zero absolute strings (§2.7). The
       // comparison runs on ONE basis (D46 — the child receives relative OUTPUT_*
       // tokens, so a compliant declaration matches); a free-named OR absolute
-      // deviation is replaced and surfaced on the notes (the review scope axis reads
-      // them).
+      // deviation is replaced and surfaced on the round's SOFT channel (the audit
+      // fact rides the record, never the child's `notes`; P42 §2.2).
       const relative = this.#rel(canonical);
       if (this.#rel(value) !== relative) {
-        notes.push(
+        soft.push(
           `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
         );
       }

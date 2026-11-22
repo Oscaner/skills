@@ -1,9 +1,9 @@
 // scripts/__tests__/next-loop-twin.test.ts — the repo-level twin pin for the
 // graded convergence loop (P22 · design spec §5, acceptance "分级判收敛").
 //
-// The method's spine — "a blocker sends the line back to fix and re-review, warn/nit
-// only converges as REVIEW_FIX, and a run of REVIEW_CYCLE_CAP consecutive blocker
-// cycles defers to the user" — is drawn TWICE: `next-loop.{en,zh-CN}.json` carries all
+// The method's spine — "a blocker sends the line back to fix and re-review, warn-only
+// converges as REVIEW_FIX, and a run of REVIEW_CYCLE_CAP consecutive blocker cycles
+// defers to the user" — is drawn TWICE: `next-loop.{en,zh-CN}.json` carries all
 // three statements plus the cycle count, while `architecture.{en,zh-CN}.json` carries
 // only the first two. This pin asserts that division of labour (the third statement
 // and its number live ONLY in the two next-loop sources), that the number the diagram
@@ -28,11 +28,14 @@ const NEXT_SOURCE = path.join(ROOT, "packages", "cdd-engine", "src-next", "sessi
  *  (the diagrams are bilingual, so a statement matches either locale's wording). */
 const STATEMENTS = {
   blockerReReview: [/blocker[^"]*re-review/i, /blocker[^"]*重新评审/],
-  warnNitReviewFix: [/warn\s*\/\s*nit/i],
+  // The two-tier wording: ONE string names `warn` and closes as `REVIEW_FIX`. The
+  // negative lookahead keeps the RETIRED `warn/nit` spelling out of the match, so the
+  // arm has two halves — the retired string reads zero, the warn-only sentence reads one.
+  warnNitReviewFix: [/warn(?!\s*\/\s*nit)[\s\S]*REVIEW_FIX/i],
   cycleSoftCap: [/(\d+)\s+consecutive blocker cycles/i, /连续\s*(\d+)\s*个\s*blocker\s*周期/],
 } as const;
 
-/** The `REVIEW_FIX` closing word a warn/nit-only closure must name. */
+/** The `REVIEW_FIX` closing word a warn-only closure must name. */
 const REVIEW_FIX_WORD = "REVIEW_FIX";
 
 /** The soft-cap vocabulary — the third statement's own words (used to prove the
@@ -111,7 +114,7 @@ describe("the graded convergence loop — the diagrams and the runtime agree (th
       ).toBeGreaterThan(0);
       expect(
         source.carrying(STATEMENTS.warnNitReviewFix).some((text) => text.includes(REVIEW_FIX_WORD)),
-        `${source.name} misses the warn/nit → ${REVIEW_FIX_WORD} statement`,
+        `${source.name} misses the warn-only → ${REVIEW_FIX_WORD} statement`,
       ).toBe(true);
       expect(
         source.cycleCounts().length,
@@ -128,7 +131,7 @@ describe("the graded convergence loop — the diagrams and the runtime agree (th
       ).toBeGreaterThan(0);
       expect(
         source.carrying(STATEMENTS.warnNitReviewFix).some((text) => text.includes(REVIEW_FIX_WORD)),
-        `${source.name} misses the warn/nit → ${REVIEW_FIX_WORD} statement`,
+        `${source.name} misses the warn-only → ${REVIEW_FIX_WORD} statement`,
       ).toBe(true);
       // the cycle count and the soft-cap vocabulary live ONLY in the next-loop pair
       expect(source.cycleCounts(), `${source.name} states the cycle count`).toEqual([]);

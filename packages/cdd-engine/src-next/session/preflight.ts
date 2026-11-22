@@ -143,6 +143,12 @@ export interface PreFlightVerdict {
    *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
    *  SAME rule declaration surface the strategy composition walks. */
   checked: readonly string[];
+  /** The doc-scope findings the approved gate measured — the evidence a fix round's
+   *  close-out leg compares against (P42 §7). An INTERNAL cell: `checked` keeps its
+   *  bytes, and the `--dry-run` preview never reads it. Present only on the approved
+   *  verdict (a refusal's own details already name what it refused), and empty when the
+   *  face judged no document — wave / branch rounds carry no doc face. */
+  findings?: readonly Finding[];
 }
 
 /** The doc-contract target of a spec/plan dispatch. */
@@ -331,7 +337,8 @@ export class PreFlight {
               gate: "graph",
               reason: "graph",
               message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
-              details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
+              // ONE author of the line (P42 §3.2): the contract row prints the same bytes.
+              details: issues.map((issue) => TaskGraph.detailLine(issue)),
             },
             gates,
             checked,
@@ -455,6 +462,12 @@ export class PreFlight {
             slugIndex: index,
             fs: this.#fs,
             taskLayers,
+            // No `graphIssues` injection here (P42 §3.2): a cycled plan is refused by
+            // the `graph` gate above before this leg runs, so the cell could only ever
+            // receive an empty array on a dispatch. The `depends-on-cycle` row's live
+            // seat is the direct `Contract.validate` face (an injected issue); the
+            // dispatch refusal belongs to the gate, and both print the same
+            // `TaskGraph.detailLine` bytes without one handing the fact to the other.
           },
           closed,
         );
@@ -557,6 +570,11 @@ export class PreFlight {
       ok: true,
       order: gates,
       checked: [...checked, ...this.#ruleRows(docOutcome, ledgerOutcome)],
+      // The approved gate's own readings, handed out as the fix round's close-out
+      // baseline (P42 §7) — the SAME findings the `checked:` rows counted, never a
+      // re-judgment: a warn-tier row rides along, a block-tier one could not have
+      // reached this branch.
+      findings: docOutcome.kind === "judged" ? docOutcome.findings : [],
     };
   }
 

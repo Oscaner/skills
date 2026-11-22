@@ -1,11 +1,11 @@
 // packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts
-// P41 T2/T3 — the shape gate's four variable classes and the record face's date shape.
+// P41 T2/T3 — the shape gate's three variable classes and the record face's date shape.
 // Every arm is a PAIR: one form is reported and the neighbouring legal form is silent,
 // so a rule cannot pass by judging everything (or by judging nothing).
 //
 // The scan face is the row source's body text (`JudgeContext.text`): the front-matter
 // head is data, and a head line belongs to no registered section — scanning the file
-// through the filesystem seam would turn a clean body into a face gap. The four grammars
+// through the filesystem seam would turn a clean body into a face gap. The three grammars
 // judge the DECISION face only; a line under an undeclared heading yields the gap
 // verdict, and a `#### 7.5.1` item inherits its `### 7.` group's role through the
 // heading stack (the pair: a two-argument face read falls to the gap).
@@ -26,13 +26,12 @@ import { RULE_REGISTRY } from "../rules.ts";
  *  strategies on the same policy do (they must not touch the real tree). */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
 
-/** The six shape rows this file judges — the four variable classes, `single-home` and
- *  the date row — all `warn` at landing. */
+/** The five shape rows this file judges — the three variable classes, `single-home` and
+ *  the date row — all `block` since P41's own close-out. */
 const SHAPE_RULE_IDS = [
   "measure-literal",
   "line-coordinate",
   "live-arithmetic",
-  "temporal-indicator",
   "single-home",
   "change-history-date-shape",
 ] as const;
@@ -189,10 +188,7 @@ const findingsOf = (
 /** The measure-literal findings of one decision-face line. */
 const measure = (line: string) => findingsOf(designDoc([line]), "measure-literal");
 
-/** The temporal-indicator findings of one decision-face line. */
-const temporal = (line: string) => findingsOf(designDoc([line]), "temporal-indicator");
-
-describe("P41 T2 — the six shape rows carry `block` and skip a closed document", () => {
+describe("P41 T2 — the five shape rows carry `block` and skip a closed document", () => {
   it("declares every shape row with `severity: block` and `skipWhenClosed: true`", () => {
     const byId = new Map(RULE_REGISTRY.map((row) => [row.id, row]));
     for (const id of SHAPE_RULE_IDS) {
@@ -283,6 +279,15 @@ describe("P41 T2 — measure-literal: an independent integer beside a closed-set
     // refuse prose the criterion never named, and no test would say so.
     expect(measure("本相位补了 42 widgets 的一档。")).toEqual([]);
   });
+
+  it("leaves a Chinese quantifier alone — it counts prose spans, not the tree", () => {
+    // The unit set is the tree's own measurement words. A Chinese quantifier is outside
+    // it (P42 §8 withdrew the widened set), and the pair below is the closed set's
+    // English half still reporting.
+    expect(measure("共 3 处 的改动。")).toEqual([]);
+    expect(measure("共 3 行 的改动。")).toEqual([]);
+    expect(measure("本相位补了 3 tests 的一档。")).toHaveLength(1);
+  });
 });
 
 describe("P41 T2 — line-coordinate: the three declared shapes", () => {
@@ -331,10 +336,27 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
     expect(findingsOf(recordDoc(["第 41 行 与 line 41"]), "line-coordinate")).toEqual([]);
   });
 
-  it("reports `第 N 行` once — the measurement grammar does not claim the coordinate's integer", () => {
-    // `第 N 行` is the coordinate's OWN shape, and `行` is also a measurement unit: an
-    // unnarrowed measurement read reports the same sentence a second time and blames "a
-    // bare measurement" for a coordinate. One fact, one rule.
+  it("leaves a decimal ratio alone — a colon alone is not a line coordinate", () => {
+    // A ratio is prose: the third shape needs a file name, and a file name carries a
+    // letter. `4.5:1` · `2.25:1` · `1.5:1` are the three spellings a decision face
+    // actually writes, and each used to be reported before the letter requirement.
+    for (const ratio of ["4.5:1", "2.25:1", "1.5:1"]) {
+      expect(findingsOf(designDoc([`把比例 ${ratio} 当作上限。`]), "line-coordinate")).toEqual([]);
+    }
+    // the pair: the same colon shape WITH a letter before it is still a coordinate —
+    // the difference between the two sides is exactly the file-name condition
+    expect(findingsOf(designDoc(["对照 cli.ts:41 的现有读法。"]), "line-coordinate")).toHaveLength(
+      1,
+    );
+    expect(
+      findingsOf(designDoc(["对照 contract/declare.ts:12 的现有读法。"]), "line-coordinate"),
+    ).toHaveLength(1);
+  });
+
+  it("reports `第 N 行` once — the coordinate's integer is no measurement unit", () => {
+    // `第 N 行` is the coordinate's OWN shape; `行` is outside the measurement unit set,
+    // so the coordinate is refused once and never blamed on "a bare measurement". One
+    // fact, one rule.
     const content = designDoc(["参照第 41 行。"]);
     expect(findingsOf(content, "measure-literal")).toEqual([]);
     expect(findingsOf(content, "line-coordinate")).toHaveLength(1);
@@ -379,29 +401,30 @@ describe("P41 T2 — live-arithmetic: three glyphs, one verdict", () => {
   });
 });
 
-describe("P41 T2 — temporal-indicator: the mount is a grammar", () => {
-  it("leaves an isolated adverb alone", () => {
-    expect(temporal("豁免面清单仍为空。")).toEqual([]);
-  });
-
-  it("reports the clause that mounts the adverb on a symbol", () => {
-    expect(temporal("今日形面 `schema get` 输出骨架。")).toHaveLength(1);
-  });
-
-  it("splits clauses at a doubled em dash only", () => {
-    expect(temporal("豁免面仍为空——形面 `schema get` 已冻结。")).toEqual([]);
-    expect(temporal("豁免面仍为空—形面 `schema get`。")).toHaveLength(1);
-  });
-
-  it("leaves the clause restated as a condition that must hold (the restatement arm)", () => {
-    // The symbol candidate survives the rewrite; the temporal word does not. This row
-    // refuses the MOUNT, not the symbol, so the condition sentence is silent — and the
-    // arm is what keeps a widened indicator set from refusing it.
-    expect(temporal("形面 `schema get` 的输出须涵盖该元素。")).toEqual([]);
+describe("P41 T2 — a present-tense description is prose, not a shape violation", () => {
+  it("leaves an indicator beside a symbol alone (P42 §8 withdrew the row)", () => {
+    // The present-tense row left the contract at P42 §8: a decision-face sentence that
+    // states the tree as it stands is no longer refused by any shape row. The pair below
+    // is the row that does still judge the same sentence's own shape.
+    for (const line of ["今日形面 `schema get` 输出骸架。", "豁免面仍为空。"]) {
+      expect(
+        new Contract()
+          .validate({
+            docKey: "phase-spec",
+            path: "docs/kairos/specs/x-shape.md",
+            content: designDoc([line]),
+            root: "/repo",
+            fs: FS,
+          })
+          .filter((finding) => SHAPE_RULE_IDS.some((id) => id === finding.kind)),
+      ).toEqual([]);
+    }
+    // the pair: an English closed-set unit beside a number in the same face still reports
+    expect(measure("豁免面仍为 3 rows 的读数。")).toHaveLength(1);
   });
 });
 
-describe("P41 T2 — the four grammars judge the decision face alone", () => {
+describe("P41 T2 — the three grammars judge the decision face alone", () => {
   it("reports an overall `## Constraints` coordinate", () => {
     const content = overallDoc(["第 41 行"], ["登记面正文。"]);
     expect(

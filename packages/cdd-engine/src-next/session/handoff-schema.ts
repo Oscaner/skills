@@ -49,6 +49,11 @@ interface SchemaNode {
  *  lens + summary required; the extra review columns — section / line / fix — are
  *  declared optional, and unknown extra fields ride along).
  *
+ *  `severity` is the WRITE vocabulary: two tiers (`blocker` / `warn`, spec §1.1). A
+ *  stored carrier may still hold the retired third value, which `findingsOf` projects
+ *  through the read face's three-value union — the read face is wider than this enum
+ *  on purpose, so narrowing the write face never blames a legacy carrier.
+ *
  *  `id` is declared OPTIONAL on purpose (P30 §2.5): the engine writes the stable key
  *  (`F1`, `F2` … in carrier order) at materialize and overwrites whatever the child
  *  put there, so the prompt shows the field exists while the child owes nothing. A
@@ -59,14 +64,14 @@ const FINDING: SchemaNode = {
   required: ["severity", "lens", "summary"],
   properties: {
     id: { type: "string" },
-    severity: { type: "string", enum: ["blocker", "warn", "nit"] },
+    severity: { type: "string", enum: ["blocker", "warn"] },
     lens: { type: "string" },
     section: { type: "string" },
     line: { type: "integer" },
     summary: { type: "string" },
     fix: { type: "string" },
     // P37 §2.1 — the blocker evidence slot. Declared OPTIONAL on the schema face by
-    // design: warn / nit findings owe no scenario, so a required `impact` would BLOCK
+    // design: warn findings owe no scenario, so a required `impact` would BLOCK
     // legal drafts. A blocker's obligation is judged by `gradingViolations` (the
     // grading gate), never by the shape walk — the shape only pins what a scenario IS.
     impact: {
@@ -86,7 +91,7 @@ const FINDING: SchemaNode = {
     },
     // P41 §2.1 — the blocker's reproduction slot: where a reader re-runs the claim
     // (a command, or a `doc.md#section` pointer). Declared OPTIONAL on the shape face
-    // for the same reason `impact` is: warn / nit owe nothing, so a required slot
+    // for the same reason `impact` is: warn owes nothing, so a required slot
     // would BLOCK legal drafts. A blocker's obligation is judged by
     // `gradingViolations` (`evidence-missing`), never by this shape walk.
     evidence: {
@@ -186,7 +191,7 @@ export type CarrierValue = {
     /** Engine-written at materialize (carrier order → `F1`, `F2` …); a child value
      *  is overwritten, so the draft may carry it or omit it. */
     id?: string;
-    severity: "blocker" | "warn" | "nit";
+    severity: FindingSeverity;
     lens: string;
     section?: string;
     line?: number;
@@ -365,7 +370,7 @@ export class HandoffSchema {
    *  `evidence.repro` (where a reader re-runs the claim). Every blocker that lacks
    *  either is returned, tagged with the criterion it broke, so the failure face can
    *  list them all (never one of two) under the words their own criterion prints.
-   *  Warn / nit findings owe nothing here, and the predicate never judges severity —
+   *  Warn findings owe nothing here, and the predicate never judges severity —
    *  the tier is the child's call, this gate only asks whether a blocker paid its
    *  evidence. `rollup` deliberately does not call it: a review conclusion is not a
    *  place to refuse a round, and `rollup`'s return type stays `RoundStatus`. */
@@ -424,7 +429,7 @@ export class HandoffSchema {
       const impact = HandoffSchema.#impactOf(row?.impact);
       const regrade = HandoffSchema.#textOf(row?.regrade);
       rows.push({
-        severity: severity as FindingSeverity,
+        severity,
         summary: HandoffSchema.#textOf(row?.summary),
         ...(id === undefined ? {} : { id }),
         ...(impact === undefined ? {} : { impact }),
@@ -507,8 +512,10 @@ export class HandoffSchema {
     return reference;
   }
 
-  /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). */
-  static #tierRankOf(severity: FindingSeverity): number {
+  /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). The
+   *  input is the READ face's three-value union (the row cell's own type): the ladder
+   *  walks `row.severity`, whose stored cell still holds the third tier. */
+  static #tierRankOf(severity: RoundFinding["severity"]): number {
     return severity === "blocker" ? 2 : severity === "warn" ? 1 : 0;
   }
 

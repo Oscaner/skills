@@ -5306,8 +5306,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="fine" x="427" y="173" class="t-frontend" font-size="8" text-anchor="middle">judge</text>
         </g>
 
-        <g id="node-judge" data-node-id="judge" data-node-label="Severity rollup" tabindex="0" role="button" aria-label="Focus Severity rollup, blocker · warn/nit · none, Lifecycle state" aria-pressed="false" data-node-kind="decision" data-node-sublabel="blocker · warn/nit · none" data-node-tag="the engine, never the child" data-node-context="Lifecycle state">
-          <title>Severity rollup · blocker · warn/nit · none · Lifecycle state · the engine, never the child</title>
+        <g id="node-judge" data-node-id="judge" data-node-label="Severity rollup" tabindex="0" role="button" aria-label="Focus Severity rollup, blocker · warn · none, Lifecycle state" aria-pressed="false" data-node-kind="decision" data-node-sublabel="blocker · warn · none" data-node-tag="the engine, never the child" data-node-context="Lifecycle state">
+          <title>Severity rollup · blocker · warn · none · Lifecycle state · the engine, never the child</title>
           <rect x="608" y="118" width="190" height="64" rx="8" class="c-mask"/>
           <rect x="608" y="118" width="190" height="64" rx="8" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="decision" class="semantic-sigil s-database" transform="translate(614 124) scale(0.6875)">
@@ -5315,7 +5315,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
           <text data-detail="fine" x="631" y="132" class="t-database" font-size="8" font-weight="700">03</text>
           <text data-node-label="" data-detail-anchor="" x="702" y="141" class="t-primary" font-size="12" font-weight="600" text-anchor="middle">Severity rollup</text>
-          <text data-detail="context" x="703" y="158" class="t-muted" font-size="9" text-anchor="middle">blocker · warn/nit · none</text>
+          <text data-detail="context" x="703" y="158" class="t-muted" font-size="9" text-anchor="middle">blocker · warn · none</text>
           <text data-detail="fine" x="703" y="173" class="t-database" font-size="8" text-anchor="middle">the engine, never the child</text>
         </g>
 
@@ -5637,9 +5637,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>How a finding is judged</h3>
         </div>
         <ul>
-          <li>A finding carries severity (blocker · warn · nit), a lens and a summary; section, line and fix are optional</li>
+          <li>A finding carries severity (blocker · warn), a lens and a summary; section, line and fix are optional</li>
           <li>A blocker is one of four: a declared gate, contract or prompt is violated; a legal input escapes the declared failure face; the gate fails or the suite can never go red; a security or privacy defect</li>
-          <li>Debt inside the contract is a warn — a duplicated policy, a stale docstring, a missing coverage case; style and naming are a nit</li>
+          <li>Debt inside the contract is a warn — a duplicated policy, a stale docstring, a missing coverage case; style and naming are a `notes` line, not a finding</li>
           <li>The reviewed artifact is a vision, not an enumeration — its silence is not permission, and the grade judges what a reasonable reader expects</li>
           <li>Before the verdict: list every behavior set aside as out of scope, one line each, and acknowledge what was done well</li>
         </ul>
@@ -5653,7 +5653,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>The review&#39;s findings decide the route: any finding → fix; zero findings → close now</li>
           <li>The fix answers every finding with a disposition — it never authors a verdict of its own</li>
-          <li>After the fix: a blocker left → re-review; warn/nit only → REVIEW_FIX closure, no re-review</li>
+          <li>After the fix: a blocker left → re-review; warn only → REVIEW_FIX closure, no re-review</li>
           <li>80 consecutive blocker cycles reaches the soft cap: the run defers to the user instead of looping unseen</li>
         </ul>
       </div>

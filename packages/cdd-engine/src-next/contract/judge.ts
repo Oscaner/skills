@@ -12,7 +12,14 @@ import { Words } from "../face/words.ts";
 import type { SlugIndex } from "../infra/slug-index.ts";
 import { declaredRegistries } from "./declare.ts";
 import { DocSyntaxError, docTypeParsers } from "./doc.ts";
-import type { DocFs, Finding, FindingDraft, Invariant, JudgeContext } from "./invariants.ts";
+import type {
+  DocFs,
+  Finding,
+  FindingDraft,
+  InjectedGraphIssue,
+  Invariant,
+  JudgeContext,
+} from "./invariants.ts";
 import { NodeFs } from "./invariants.ts";
 import { MarkdownTree } from "./markdown-tree.ts";
 import type { DocKey } from "./project.ts";
@@ -46,6 +53,11 @@ export interface ContractInput {
    *  the ONE derivation authority (the wave-width rule reads them, never a re-derived
    *  batch set). Absent → the layer-reading rules yield zero findings. */
   taskLayers?: readonly (readonly number[])[];
+  /** The plan's edge-validation issues, injected by the caller — `TaskGraph#validate()`
+   *  is the ONE graph authority, and the issues arrive WITH their rendered detail line
+   *  so the `depends-on-cycle` row and the `graph` gate's `details` print one template.
+   *  Absent → the rule yields zero findings. */
+  graphIssues?: readonly InjectedGraphIssue[];
 }
 
 /** The ledger fact bundle — the cross-ledger rules' second judgment input (P21 §3.1).
@@ -275,6 +287,7 @@ export class Contract {
       slugIndex: input.slugIndex,
       fs: input.fs ?? new NodeFs(),
       taskLayers: input.taskLayers,
+      graphIssues: input.graphIssues,
     };
   }
 }

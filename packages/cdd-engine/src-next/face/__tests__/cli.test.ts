@@ -6856,6 +6856,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -6944,6 +6945,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "Implemented the task.\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -6978,6 +6980,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7028,6 +7031,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, taskReviewFrame),
@@ -7067,6 +7071,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7081,6 +7086,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the assembly's shape, not a fixture detail.
       const roundTwo: OpenFrame = { ...specReviewFrame, round: 2, params: { round: 2 } };
       const second = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, roundTwo),
@@ -7137,6 +7143,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7146,10 +7153,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("APPROVED");
-      // the engine books the canonical names — a child-reported free path never lands;
-      // both deviations ride the carrier's notes (the review scope axis reads them).
+      // the engine books the canonical names — a child-reported free path never lands.
       // The booked canonical paths are the repoRoot-RELATIVE shape (P9 T4 §2.7 —
-      // persisted path fields carry zero absolute strings).
+      // persisted path fields carry zero absolute strings). The two deviations ride the
+      // round's SOFT channel (P42 §2.2): the engine's audit sentence is never the child's
+      // observation, so `carrier.notes` carries the child's rows alone.
       expect(outcome.carrier).toEqual({
         artifacts: {
           report: path.relative(
@@ -7162,14 +7170,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           ),
         },
         status: "APPROVED",
-        notes: [
-          expect.stringContaining("artifact report"),
-          expect.stringContaining("artifact test_evidence"),
-        ],
       });
+      const soft = (outcome.violations ?? [])
+        .filter((violation) => violation.grade === "soft")
+        .map((violation) => violation.message);
+      expect(soft).toEqual([
+        expect.stringContaining("artifact report"),
+        expect.stringContaining("artifact test_evidence"),
+      ]);
       // T2 — the materialized work carrier is the work face: zero findings key
       expect("findings" in outcome.carrier!).toBe(false);
-      // P14 — a successful round never ticks contractViolationCount.
+      // P14 — a direct dispatch books no record (the CLI's bookkeep lands it), so the
+      // derived count still reads zero here; the two soft rows above are this test's
+      // fact, and the CLI path's tick is pinned by `session/__tests__/notes-channel`.
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
@@ -7211,6 +7224,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7270,6 +7284,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7280,18 +7295,21 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = await dispatch.step()(implementFrame);
       // the round is NOT blocked (a non-declared extra field is not a semantic error)
       expect(outcome.status).toBe("APPROVED");
-      expect(io.stderrText).toBe("");
       const carrier = outcome.carrier as Record<string, unknown>;
       // the non-declared keys never land on the carrier
       expect("commits" in carrier).toBe(false);
       expect("phase" in carrier).toBe(false);
-      // exactly ONE WARN names the dropped keys (sorted-stable order is not required,
-      // only that both keys are surfaced in a single note)
-      const notes = carrier.notes as string[];
-      expect(notes).toHaveLength(1);
-      expect(notes[0]).toContain("dropped non-declared draft field(s)");
-      expect(notes[0]).toContain("commits");
-      expect(notes[0]).toContain("phase");
+      // exactly ONE `CDD_WARN:` names the dropped keys — the engine's own sentence
+      // rides the SOFT channel (P42 §2.2), so it prints here and never becomes a note
+      // the next round's brief would read back. Sorted order is not required, only
+      // that both keys are surfaced in one line.
+      const warnLines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      expect(warnLines).toHaveLength(1);
+      expect(warnLines[0]).toMatch(/^CDD_WARN: /);
+      expect(warnLines[0]).toContain("dropped non-declared draft field(s)");
+      expect(warnLines[0]).toContain("commits");
+      expect(warnLines[0]).toContain("phase");
+      expect(carrier).not.toHaveProperty("notes");
     } finally {
       cleanup();
     }
@@ -7312,13 +7330,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "nit", lens: "spec", summary: "drift" }],
+          findings: [{ severity: "warn", lens: "spec", summary: "drift" }],
           status: "APPROVED",
           phase: "review",
         }),
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7328,21 +7347,23 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(specReviewFrame);
       // the round is NOT blocked (a non-declared field is not a semantic error) — the
-      // conclusion derives from the draft's findings (nit → REVIEW_FIX), never the
+      // conclusion derives from the draft's findings (warn → REVIEW_FIX), never the
       // dropped child status
       expect(outcome.status).toBe("REVIEW_FIX");
-      expect(io.stderrText).toBe("");
       const carrier = outcome.carrier as Record<string, unknown>;
       // the findings carrier holds NO status field (the conclusion is derived, never
       // persisted on the findings plane · D27); the dropped keys never land either
       expect("phase" in carrier).toBe(false);
       expect("status" in carrier).toBe(false);
-      // exactly ONE WARN names both dropped keys
-      const notes = carrier.notes as string[];
-      expect(notes).toHaveLength(1);
-      expect(notes[0]).toContain("dropped non-declared draft field(s)");
-      expect(notes[0]).toContain("status");
-      expect(notes[0]).toContain("phase");
+      // exactly ONE `CDD_WARN:` names both dropped keys — the engine's sentence rides
+      // the SOFT channel (P42 §2.2), never the carrier's notes
+      const warnLines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      expect(warnLines).toHaveLength(1);
+      expect(warnLines[0]).toMatch(/^CDD_WARN: /);
+      expect(warnLines[0]).toContain("dropped non-declared draft field(s)");
+      expect(warnLines[0]).toContain("status");
+      expect(warnLines[0]).toContain("phase");
+      expect(carrier).not.toHaveProperty("notes");
     } finally {
       cleanup();
     }
@@ -7376,6 +7397,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, specReviewFrame),
@@ -7454,6 +7476,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(path.join(scene.workspace.path, "phase-spec-review-1.json"), draft, "utf8");
       try {
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, specReviewFrame),
@@ -7505,6 +7528,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, taskReviewFrame),
@@ -7574,6 +7598,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, fixFrame),
@@ -7633,6 +7658,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, fixFrame),
@@ -7692,6 +7718,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "docs/kairos/specs/s1-design.md",
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, docsFixFrame),
@@ -7705,14 +7732,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("APPROVED");
       expect(outcome.carrier?.status).toBe("APPROVED");
       expect("findings" in (outcome.carrier ?? {})).toBe(false);
+      // P42 §2.2 — the child wrote no `notes`, so the carrier takes no such key: the
+      // engine's dropped-key sentence rides the round's SOFT channel instead
       expect(Object.keys(outcome.carrier ?? {}).sort()).toEqual([
         "artifacts",
         "dispositions",
-        "notes",
         "status",
       ]);
-      expect(((outcome.carrier?.notes ?? []) as string[]).join("\n")).toContain(
-        "dropped non-declared draft field(s): findings",
+      const soft = (outcome.violations ?? [])
+        .filter((violation) => violation.grade === "soft")
+        .map((violation) => violation.message);
+      expect(soft).toContain(
+        "dropped non-declared draft field(s): findings — engine-reserved, never written",
       );
       // the docs-fix prefix tells the child to report the round in `status`
       const call = sync.calls[0];
@@ -7781,6 +7812,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         // One record per instance: the loop below drives three frames through ONE
@@ -7816,6 +7848,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const failed = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7858,6 +7891,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7910,6 +7944,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 7;
       sync.stdout = "boom — the child died before writing\n";
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -7967,6 +8002,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = null;
       sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8020,6 +8056,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 143;
       sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8056,6 +8093,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8099,6 +8137,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8140,6 +8179,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8213,6 +8253,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8225,17 +8266,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("APPROVED");
       expect(io.stderrText).not.toContain("violates the work schema");
       expect(outcome.carrier).not.toHaveProperty("dispositions");
-      // the drop is auditable — ONE note, never a silent loss
-      expect((outcome.carrier!.notes as string[] | undefined) ?? []).toContain(
-        "dropped decorative draft field(s) outside their declared shape: dispositions — never written",
-      );
-      // …and the same observation is booked as ONE SOFT violation on the round
-      // (spec §2.14's soft landing — the record's `violations[]` is where it rides, and
-      // `session/run.ts` copies the outcome's set verbatim): a soft entry names the
-      // drop, and it never widens the crashed row, which reads hard entries alone
+      // the drop is auditable — ONE soft entry, never a silent loss, and never a
+      // pretend child note (P42 §2.2: the engine's sentence rides the SOFT channel and
+      // `carrier.notes` keeps the child's own rows alone)
+      expect(outcome.carrier).not.toHaveProperty("notes");
       expect(outcome.violations).toHaveLength(1);
       expect(outcome.violations?.[0]?.grade).toBe("soft");
-      expect(outcome.violations?.[0]?.message).toContain("dispositions");
+      expect(outcome.violations?.[0]?.message).toContain(
+        "dropped decorative draft field(s) outside their declared shape: dispositions — never written",
+      );
       expect(outcome.verdict?.treeClean).toBe(true);
     } finally {
       cleanup();
@@ -8269,6 +8308,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8279,17 +8319,20 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
       expect(outcome.verdict).toEqual({ treeClean: true, targetAction: false });
-      expect(outcome.violations).toHaveLength(1);
-      expect(outcome.violations?.[0]?.grade).toBe("hard");
-      expect(outcome.violations?.[0]?.message).toContain("the test evidence at");
-      expect(outcome.violations?.[0]?.message).toContain("was not written");
+      // P42 §2.2 — the two artifact-path corrections ride the SOFT channel, so the
+      // hard evidence entry is not `[0]` any more: read it by GRADE.
+      const hard = (outcome.violations ?? []).filter((violation) => violation.grade === "hard");
+      expect(hard).toHaveLength(1);
+      expect(hard[0]?.message).toContain("the test evidence at");
+      expect(hard[0]?.message).toContain("was not written");
       expect(io.stderrText).toContain("CDD_BLOCKED:");
       // the carrier is materialized (the child's work preserved) with its OWN declared
       // status — the verdict is the record's fact, never a rewrite of the declaration.
       // The free-named declared paths are corrected to the canonical OUTPUT_* names
       // (find #5 — the engine derives, never books a child-reported path): the report
       // and evidence book their canonical tasks-1- names (repoRoot-RELATIVE — §2.7)
-      // with the deviations surfaced; the non-prescribed `brief` slot passes verbatim.
+      // while the two deviations ride the soft channel; the non-prescribed `brief` slot
+      // passes verbatim, and the child wrote no notes, so the key is absent.
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
@@ -8303,14 +8346,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           ),
         },
         status: "APPROVED",
-        notes: [
-          expect.stringContaining("artifact report"),
-          expect.stringContaining("artifact test_evidence"),
-        ],
       });
+      const soft = (outcome.violations ?? [])
+        .filter((violation) => violation.grade === "soft")
+        .map((violation) => violation.message);
+      expect(soft).toEqual([
+        expect.stringContaining("artifact report"),
+        expect.stringContaining("artifact test_evidence"),
+      ]);
       // T2 — the materialized work carrier is the work face: zero findings key
       expect("findings" in outcome.carrier!).toBe(false);
-      // the hard entry is the round's failure, never a derived count (§3.3)
+      // the hard entry is the round's failure, never a derived count (§3.3); a direct
+      // dispatch books no record, so the derived counter has nothing to sum yet
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
@@ -8346,6 +8393,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, implementFrame),
@@ -8356,10 +8404,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
       // P22 FLIP: the carrier keeps its declared status; the evidence defect is the
-      // round's hard entry (the true cause named there, §3.3).
+      // round's hard entry (the true cause named there, §3.3). P42 §2.2 — the two
+      // artifact-path corrections are SOFT rows ahead of it, so read by GRADE.
       expect(outcome.carrier?.status).toBe("APPROVED");
-      const defect = outcome.violations?.[0];
-      expect(defect?.grade).toBe("hard");
+      expect(outcome.carrier).not.toHaveProperty("notes");
+      const defect = (outcome.violations ?? []).find((violation) => violation.grade === "hard");
       expect(defect?.message).toContain("is malformed JSON");
       // the true cause, never the misleading "missing" the collapsed read produced
       expect(defect?.message).not.toContain("was not written");
@@ -8422,6 +8471,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "branch",
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, frame),
@@ -9236,6 +9286,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         );
         const sync = new StubRunner();
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, fixFrame),
@@ -9273,6 +9324,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           key: "docs/kairos/specs/s1-design.md",
         };
         const docsDispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, docsFrame),
@@ -9314,6 +9366,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         try {
           const review = new HarnessDispatch({
+            contract: new Contract(),
             artifacts: new ArtifactRegistry(),
             scene,
             values: valuesFor(scene, taskReviewFrame),
@@ -9340,6 +9393,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             path.join(scene.workspace.path, "tasks-1-review-1.json"),
           );
           const fix = new HarnessDispatch({
+            contract: new Contract(),
             artifacts: new ArtifactRegistry(),
             scene,
             values: valuesFor(scene, fixFrame),
@@ -9720,6 +9774,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const runner = new RecordProbeRunner(scene.workspace.path);
       runner.commit = true;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9761,6 +9816,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // the dispatch instant would read a LIVE holder dead and authorize a takeover.
       const startedAt = Date.now() - 6 * 60 * 60 * 1000;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9787,6 +9843,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9829,6 +9886,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -9874,6 +9932,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
         key: path.relative(repoRoot, planPath),
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, planReview),
@@ -10304,6 +10363,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_REVIEW),
@@ -10341,6 +10401,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new CommittingCrashRunner();
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -10375,6 +10436,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const runner = new StubRunner();
       runner.code = 1;
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -10419,6 +10481,7 @@ describe("P21 — the crash record's identity and git facts", () => {
         runner.code = entry.code;
         runner.termination = entry.termination;
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, P21_IMPLEMENT),
@@ -12117,6 +12180,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         const runner = new RecordProbeRunner(scene.workspace.path);
         runner.commit = true;
         const dispatch = new HarnessDispatch({
+          contract: new Contract(),
           artifacts: new ArtifactRegistry(),
           scene,
           values: valuesFor(scene, P21_IMPLEMENT),
@@ -12157,6 +12221,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         standingWhileHeld = String(refusalJsonOf(repoRoot).station);
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -12190,6 +12255,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
         siblingCode = await sibling.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       };
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),
@@ -12219,6 +12285,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
       // A truncated record written by the refusal path while the holder ran.
       runner.bytes = '{"at": "2026-11-18T00:00:00.000Z", "slug": "p3", "op": "rev';
       const dispatch = new HarnessDispatch({
+        contract: new Contract(),
         artifacts: new ArtifactRegistry(),
         scene,
         values: valuesFor(scene, P21_IMPLEMENT),

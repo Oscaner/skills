@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.32
+version: v0.33
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -51,7 +51,7 @@ base: develop
 - `rollup` 四臂守恒 — checkable: 空 findings ⇒ `APPROVED`；仅 `warn` ⇒ `REVIEW_FIX`；仅 `nit` ⇒ `REVIEW_FIX`；含 `blocker` ⇒ `CHANGES_REQUESTED`；`warn` 与 `nit` 两臂的结论逐字节等于批前同一夹具的输出
 - 存量载体的跳转成对臂 — checkable: 一份 findings 全为 `nit` 的存量载体过 `Ledger#round` ⇒ 结论 `REVIEW_FIX` 且 `next:` 走 fix 臂（不关线）；同一份把该档改 `warn` ⇒ 与批前逐字节同一跳；零条 findings ⇒ `APPROVED` 且走关线臂
 - 降级标记成对臂 — checkable: 上一轮 `warn`、本轮同一条降为 `nit` 的存量载体 ⇒ `#tierRankOf` 判降级、`regradeNote` 给标记，与批前同一份 fixture 逐字节相同（成对：本轮那一档写成 `warn` ⇒ 无标记）
-- 注入面 — checkable: 判据平面零 `../session/` import（`rules.test.ts` 的 structure pin 照旧绿）；`graphIssues` 缺省 ⇒ `depends-on-cycle` 零 finding（成对：带环夹具填上它 ⇒ 恰一条）；`session/preflight.ts` 的 `graph` 门把同一份 issue 连同 `TaskGraph.detailLine` 的字节交给 `doc-contract` 的输入（成对：删掉那一格 ⇒ `Contract` 面读不到环，而 `graph` 门照旧拒）
+- 注入面 — checkable: 判据平面零 `../session/` import（`rules.test.ts` 的 structure pin 照旧绿）；`graphIssues` 缺省 ⇒ `depends-on-cycle` 零 finding（成对：带环夹具填上它 ⇒ 恰一条）——这一对臂跑在 `Contract` 的直读面上（本相位的环夹具 `contract/__tests__/task-graph.test.ts`，归 Task 5），那里的一次注入就是这一行的活落点。`session/preflight.ts` 的 `doc-contract` 腿那一格是防御缝、不是第二条活载体：`graph` 门在它之前就带着 `details` 拒绝并返回，故那一格在可运行态里永远收到空集，删掉它不让任何用例变红——故不得据此声称门把环交给了判据，两面各读同一个 `TaskGraph.detailLine` 的字节而互不传递（成对：门那一臂读拒绝报文里的 `details`，判据那一臂读直读面上的 finding，改那个拼装点两面同时变）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p42):` 起头
 
 #### Acceptance
@@ -215,7 +215,7 @@ none
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（新增**三个**策略类，各占一条规则行，各接 `contract/invariants.ts#Invariant`——两条任务图判词加顺序行 `change-history-newest-last`）
-- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`ContractInput` 与 `JudgeContext` 各加一个可选 `graphIssues` 格——判据平面不 import `session/`（`contract/__tests__/rules.test.ts` 的 structure pin 守着这条边），图的判词因此以注入面到达，与既有的 `taskLayers` 同形；`session/preflight.ts` 与判据调用方各填它，缺省即零候选）
+- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`ContractInput` 加一个可选 `graphIssues` 格，`Contract.validate` 把它透传进 `JudgeContext` 那一格——两个声明各在各的家：`ContractInput` 住本文件，`JudgeContext` 与注入形状 `InjectedGraphIssue` 住 `contract/invariants.ts`（那一行已在本任务的文件集里，故不新增文件），本文件只 import 它们。判据平面不 import `session/`（`contract/__tests__/rules.test.ts` 的 structure pin 守着这条边），图的判词因此以注入面到达，与既有的 `taskLayers` 同形；填它的只有派发门 `session/preflight.ts` 的 `doc-contract` 腿那一处，收口腿 `face/lifecycle.ts` 的 `#contract.validate` 那一处不填——带环的 plan 在 `graph` 门就被拒，收口腿因此观察不到一条 `graphIssues`，缺省即零候选）
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`（三行规则，起步 `warn`——两条任务图判词加 §6 的顺序行；`RuleDeclarationBase` 加 `seat` 列（§8）；`RULE_REGISTRY` 的类注释按交付态写准三个数（`doc` 面三十三条 + `ledger` 面两条 = 三十五条，逐 scope 计数保留——spec §3.2 的唯一写法），形状面那句与 `RuleDeclarationBase.skipWhenClosed` 的列注释在波 1 回填里已读五条形状行与三个变量类（本任务只按交付态复核，不改它们）；头部「Version ORDER stays presentation, not data integrity」改成顺序腿有判据之后的读法）
 - Modify: `packages/cdd-engine/src-next/session/graph.ts`（环的读面：`GraphIssue.task` 的括注与 `#cycleMember` 的类注释同批对齐 Kahn 残值最小值，`message` / `fix` 字节不动；环详情行的唯一拼装点落在本文件的一个 `TaskGraph` 静态方法上——`${issue.kind}@T${issue.task}: ${issue.message}` 现只住在 `session/preflight.ts` 的 `graph` 门里，判据要同一句就得有第二个作者，故把它挪进本文件、由两处共读）
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`graph` 门的 `details` 改读那个拼装点；该门的报文、`gates` 与顺序逐字节不动）
@@ -525,6 +525,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.33 | 2026-11-22 | 评审第 20 轮回填（三条 warn 全数采纳）：Task 5 的 `contract/judge.ts` 行按树点名两个声明各自的家——`ContractInput` 住该文件，`JudgeContext` 与注入形状 `InjectedGraphIssue` 住 `contract/invariants.ts`（那一行本就在文件集里，故不缺文件），判据平面零 `session/` import 的理由原样保留 · 同一行的填充面收成单点：填 `graphIssues` 的只有派发门 `session/preflight.ts` 的 `doc-contract` 腿，收口腿 `face/lifecycle.ts` 的 `#contract.validate` 不填，理由随句写明（带环的 plan 在 `graph` 门就被拒，收口腿因此观察不到那条 issue） · 注入面那一步改读交付态——成对臂住在 `Contract` 的直读面上（环夹具归 Task 5），`preflight` 那一格是防御缝（`graph` 门先带着 `details` 拒绝返回，那一格在可运行态里永远收到空集，删掉它不让任何用例变红），删去「门把同一份 issue 交给判据」的活载体说法 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.32 | 2026-11-22 | 波 `{2,3,5}` 实施回填（三处以实测读数重述）：Task 3 的 ① 与 ⑥ 把派生 `contractViolationCount` 的读数从 0 改 2 撤回——两条夹具都只走 `dispatch.step()`，记录由 CLI 的 bookkeep 落地，派生面因此读 0，两笔后果的读数臂改挂 `notes-channel.test.ts` 的 Lifecycle 臂 · Task 5 的 Files 补进 `contract/judge.ts`：判据平面不 import `session/`，图的判词以 `ContractInput.graphIssues`（可选，与 `taskLayers` 同形）注入，`session/preflight.ts` 与判据调用方各填它，缺省即零候选，同批给这一步一条成对臂 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.31 | 2026-11-22 | 波 `{7,11}` 评审第 19 轮回填（一条 warn 全数采纳）：Task 11 的 Objective 里 class ③ 实例句按树重述——原句说「本 plan 与 p28 plan 的依赖步各载一枚」，而本 plan 没有依赖步，那三处 `package.json#devDependencies` 全落在 Task 11 自己的散文里（这一句 · 迁移步 · v0.28 行），读者照原句去找依赖步会找不到、并把那几处读成漏迁移；改后只点名两个真实的家（p28 plan 的依赖步 · 本 plan 的 Task 11 散文），不记计数，集合关系与 §9 (b) 取代登记一字不动 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.30 | 2026-11-22 | 波 `{7,11}` 评审第 18 轮回填（一条 blocker · 两条 warn 全数采纳）：Task 11 的迁移集补进 p7 plan 与 p7-design——`ProgressRow` 上那枚随改名退休的 doc-only 字段名在两份文档里各载几枚成员 pin，落法并入 class ①（活坐标改到仍声明的成员，只记改名的那一句换成不点退休名的说法，因为退休名以任何形态留在正文里都是一枚死裸 symbol pin），迁移步里「带成员 pin 的历史阶段文档共十六份 …」那句的计数改成集合关系（Files 行之外不余一份；class ③ 那一对是 p28 plan 与本 plan），按 spec §9 (c) 的差集读法不记计数 · 数据文件那一形的理由按树重述并登记为 spec 取代：被抹掉的是键、不是绑定，判零条收窄了 §9 (b) 的「每一枚」，取代关系按 Task 9 的形写进 Produces · 声明识别器保留字面量的理由改指真读到它的那一面（`PinIndex.symbols()` 与 `pins.guard.test.ts` 的头部注释），不再引不读文件的 `face/words.ts` | Oscaner M. · Claude（kairos:cdd-fix） |

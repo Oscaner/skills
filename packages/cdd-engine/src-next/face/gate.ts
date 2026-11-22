@@ -21,6 +21,7 @@ import { BriefRenderer } from "../render/brief.ts";
 import { DispatchAuthority, type LinePhaseFacts } from "../session/dispatch-authority.ts";
 import type { NextHop } from "../session/next.ts";
 import { RoundNaming } from "../session/round-naming.ts";
+import { LineCarriers } from "./board-view.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
 import { ARGV_CHANNEL } from "./declare.ts";
 import { HostDetect } from "./host.ts";
@@ -143,16 +144,37 @@ export class CliGate {
    *  section, re-extracted at every dispatch). The document text and the parsed
    *  document arrive NARROWED: the caller (`Cli#runWork`'s `ready` branch) supplies
    *  both from the ONE plan read, so this face has no null branch — no `!`, no
-   *  `?? ""` faking a read failure as an empty document. */
+   *  `?? ""` faking a read failure as an empty document. The previous review round's
+   *  notes ride the SAME render (P42 §2.1) — read here, never by a second reader. */
   renderBrief(scene: WorkScene, parsed: RunInput, text: string, doc: PlanParsed): string {
     const tasks = this.tasksOf(parsed);
-    const content = this.#brief.render(text, doc, tasks);
+    const content = this.#brief.render(text, doc, tasks, this.#priorNotes(scene, parsed));
     // The real run's workspace is built by the single write point (`Cli#runWork`'s
     // ensure, P11 · §4.2) BEFORE this render; the write still rides the workspace's
     // own text-write face (the `writeJson` mkdir-before-write pattern), never a
     // second explicit `ensure()` — no bare `writeFileSync` into a possibly absent dir.
     const name = new RoundNaming(scene.workspace).briefName(parsed.args.tasks ?? "");
     return scene.workspace.writeText(name, content);
+  }
+
+  /** The notes this wave's next brief carries (P42 §2.1): the LAST completed REVIEW
+   *  carrier on THIS line — same `(line, key)`, greatest `(cycle, attempt)` — projected
+   *  through the board's own `LineCarriers#notesOf` (the same ownership judgment and
+   *  digest-checked read the board makes, never a second file read). A fix round's
+   *  later note does not displace it: the review round is the round whose observations a
+   *  brief consumes. Zero notes on this line's first round, so nothing crosses a line. */
+  #priorNotes(scene: WorkScene, parsed: RunInput): readonly string[] {
+    const key = parsed.args.tasks ?? "";
+    if (key === "") return [];
+    const records = scene.ledger.recordsOf(key);
+    const carriers = LineCarriers.ofLedger(scene.ledger, "wave", key, records);
+    const last = records
+      .filter((record) => record.op === "review" && record.verdict.targetAction)
+      .sort((left, right) =>
+        left.cycle === right.cycle ? right.attempt - left.attempt : right.cycle - left.cycle,
+      )
+      .at(0);
+    return last === undefined ? [] : carriers.notesOf(last);
   }
 
   /** The line key of a fixed-target face — the line's STABLE key (find #9 · spec

@@ -124,6 +124,25 @@ export class NodeFs implements DocFs {
   }
 }
 
+/** One edge-validation issue as the caller injects it (P42 §3.2) — the graph's PUBLIC
+ *  `validate()` output plus the ONE rendered detail line (`TaskGraph.detailLine`,
+ *  session/graph.ts). The rule plane never imports the session plane (its structure
+ *  pin holds), so the graph fact arrives here exactly as the plan's topological layers
+ *  already do; the rendered line travels WITH it, so this plane and the `graph` gate's
+ *  `details` row print one template owned by one author. */
+export interface InjectedGraphIssue {
+  /** The failure class (`cycle` is this rule's own; the others are the gate's). */
+  readonly kind: string;
+  /** The offending task id (for a cycle — the lowest task in Kahn's remainder). */
+  readonly task: number;
+  /** The graph's one-line issue message. */
+  readonly message: string;
+  /** The graph's actionable fix. */
+  readonly fix: string;
+  /** The rendered `{kind}@T{task}: {message}` line — `TaskGraph.detailLine`'s bytes. */
+  readonly detail: string;
+}
+
 /** The judgment context — everything a strategy reads, assembled by the coordinator. */
 export interface JudgeContext {
   /** The doc-type record key of the document under judgment. */
@@ -183,6 +202,12 @@ export interface JudgeContext {
    *  the layer-reading rules then yield zero findings and their checked row renders
    *  the visible degradation. */
   taskLayers?: readonly (readonly number[])[];
+  /** The plan's edge-validation issues (P42 §3.2), injected by the caller —
+   *  `TaskGraph#validate()` is the ONE graph authority, so `depends-on-cycle` reads its
+   *  verdict instead of re-deriving one (the contract plane never imports the session
+   *  plane). Absent on a call site that carries no graph: the rule then yields zero
+   *  findings. */
+  graphIssues?: readonly InjectedGraphIssue[];
 }
 
 // ---------------------------------------------------------------------------
@@ -2481,4 +2506,125 @@ interface SentenceIndexedSentence {
   readonly text: string;
   readonly line: number;
   readonly grams: ReadonlySet<string>;
+}
+
+// ---------------------------------------------------------------------------
+// P42 §3.2 · §6 — the task-graph judgments and the Change-history order row
+// ---------------------------------------------------------------------------
+
+/** The parenthesised task marker — `（Task 2 · 3 · 4）` and its ASCII form. The group
+ *  starts with the literal `Task`, and every id after it may be bare (the corpus's
+ *  continuation shape). */
+const TASK_MARKER = /[（(]\s*Task\s+([^）)]*)[）)]/g;
+
+/** The separator between two ids inside one marker (`·` and the two commas). */
+const REFERENCE_SEPARATOR = /[·・,，]/;
+
+/** The one prefix a continuation id may still carry (`Task 43` beside `2 · 43`). */
+const TASK_PREFIX = /^Task\s+/i;
+
+/**
+ * dangling-task-ref — a `Consumes` / `Produces` row naming a task the plan does not
+ * declare (P42 §3.2). The candidate is the parenthesised `Task N` marker: a group may
+ * name several tasks (only the first carries the prefix), and every id inside it is
+ * judged on its own. A row with no marker is no candidate — prose that merely looks
+ * like a reference is never judged.
+ */
+export class DanglingTaskRefInvariant extends Invariant {
+  readonly name = "dangling-task-ref";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    if (ctx.docKey !== "plan") return [];
+    const declared = new Set(ctx.tree.tasks().map((block) => block.id));
+    const findings: FindingDraft[] = [];
+    for (const block of ctx.tree.tasks()) {
+      for (const field of block.fields) {
+        if (field.key !== "Consumes" && field.key !== "Produces") continue;
+        for (const id of this.#referencedIds(field.lines)) {
+          if (declared.has(id)) continue;
+          findings.push(
+            this.finding(
+              ctx,
+              `Task ${block.id}`,
+              `the ${field.key} row names task ${id}, which the plan does not declare`,
+              `point the ${field.key} row at a declared task, or declare the task it names`,
+            ),
+          );
+        }
+      }
+    }
+    return findings;
+  }
+
+  /** Every task id the field's markers name, in reading order. */
+  #referencedIds(lines: readonly string[]): readonly number[] {
+    const ids: number[] = [];
+    for (const line of lines) {
+      for (const marker of line.matchAll(TASK_MARKER)) {
+        for (const part of (marker[1] ?? "").split(REFERENCE_SEPARATOR)) {
+          const id = Number(part.trim().replace(TASK_PREFIX, "").trim());
+          if (Number.isInteger(id) && id > 0) ids.push(id);
+        }
+      }
+    }
+    return ids;
+  }
+}
+
+/**
+ * depends-on-cycle — a `DependsOn` edge set that closes a cycle (P42 §3.2). The graph
+ * is a general DIRECTED graph, not a function graph: `DependsOn 3, 7` is two edges, so a
+ * cycle can close through the second. The judgment is never re-derived here — the
+ * caller injects the graph's own `TaskGraph.validate()` issues together with the ONE
+ * rendered detail line, so this row and the `graph` gate's `details` print the same
+ * bytes and the template has one author.
+ */
+export class DependsOnCycleInvariant extends Invariant {
+  readonly name = "depends-on-cycle";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    if (ctx.docKey !== "plan") return [];
+    return (ctx.graphIssues ?? [])
+      .filter((issue) => issue.kind === "cycle")
+      .map((issue) => this.finding(ctx, `Task ${issue.task}`, issue.detail, issue.fix));
+  }
+}
+
+/**
+ * change-history-newest-last — the Change-history version sequence is MONOTONIC
+ * (P42 §6). The id is HISTORICAL: it names the retired "the newest row is last"
+ * assertion this row succeeds; what it judges is monotonicity, and DIRECTION never
+ * enters the judgment — the corpus writes both orders, and each table's own direction
+ * is legal. The read is the row-ordered version sequence (`historyVersions`), compared
+ * pair by pair with `versionRank`; a document with no Change-history table is zero
+ * candidate.
+ */
+export class ChangeHistoryNewestLastInvariant extends Invariant {
+  readonly name = "change-history-newest-last";
+
+  evaluate(ctx: JudgeContext): FindingDraft[] {
+    const versions = this.historyVersions(ctx);
+    const findings: FindingDraft[] = [];
+    let direction = 0;
+    for (let index = 1; index < versions.length; index += 1) {
+      const left = versions[index - 1] ?? "";
+      const right = versions[index] ?? "";
+      const step = Math.sign(this.versionRank(right) - this.versionRank(left));
+      if (step === 0) continue;
+      if (direction === 0) {
+        direction = step;
+        continue;
+      }
+      if (step === direction) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          "Change history",
+          `the Change-history version ${right} reverses the table's direction after ${left} — the version sequence is monotonic`,
+          "move the row so the table reads in one direction (ascending or descending), or correct its version",
+        ),
+      );
+    }
+    return findings;
+  }
 }

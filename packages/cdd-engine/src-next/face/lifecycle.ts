@@ -1350,7 +1350,8 @@ export class CliLifecycle {
     }
     // The TIERED read-back (spec §2.1): a required slot's violation refuses the round,
     // a decorative slot's violation is DROPPED from the draft in place (surfaced once on
-    // the carrier's notes by materialize) — a wrong optional column never costs a round.
+    // the round's soft channel by materialize) — a wrong optional column never costs a
+    // round.
     const readBack = schema.readBack(plane, draft);
     if (readBack.problems.length > 0) {
       return this.#reject(
@@ -1778,28 +1779,29 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     // The §8.7 classification ruling — the SAME judgment the read-back validator makes
     // (non-declared keys are dropped, never a BLOCK): materialize drops them and books
-    // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
+    // them on the round's SOFT violation channel (auditable, non-interrupting — replacing
     // the retired "BLOCK + crash-resume + reopen" chain). The engine stays the carrier's
-    // single author; a child's stray key is surfaced, not obeyed.
+    // single author; a child's stray key is surfaced, not obeyed, and `carrier.notes`
+    // keeps the child's own observations alone (P42 §2.2).
     const dropped = this.#handoffSchema.droppedKeys(plane, draft);
-    // TWO loss families, two landings. A DECLARATIVE loss (a declared slot outside its
-    // declared shape) is ONE carrier note AND ONE `RoundViolation.soft` on the record —
-    // spec §2.14's soft landing, the child owed the field and lost it. A non-declared
-    // key is §8.7's own face: ONE note and nothing else (the drop is silent on the warn
-    // channel — it cost the child no declared obligation).
-    const observations: string[] = [];
+    // THREE loss families, ONE landing. A DECLARATIVE loss (a declared slot outside its
+    // declared shape), a non-declared key (§8.7's own face) and an artifact deviation all
+    // ride `RoundViolation.soft` — the engine's own sentences are never the child's
+    // observations, so none of them enters `carrier.notes` (P42 §2.2). Each soft row is
+    // one `CDD_WARN:` line on stderr and one step on the derived `contractViolationCount`:
+    // the drop is audible, and it still costs the round no conclusion, no exit code and
+    // no `CDD_BLOCKED` line.
+    const soft: string[] = [];
     if (droppedDecorative.length > 0) {
-      observations.push(
+      soft.push(
         `dropped decorative draft field(s) outside their declared shape: ${droppedDecorative.join(", ")} — never written`,
       );
     }
-    const reserved: string[] = [];
     if (dropped.length > 0) {
-      reserved.push(
+      soft.push(
         `dropped non-declared draft field(s): ${dropped.join(", ")} — engine-reserved, never written`,
       );
     }
-    const notes: string[] = [...observations, ...reserved];
     // The per-plane carrier — buildHandoff's typed overloads: the judge plane REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
     // carrier's findings + status), the work plane builds a findings-FREE typed carrier
@@ -1813,11 +1815,11 @@ export class CliLifecycle {
     const carrier: Record<string, unknown> =
       plane === "judge"
         ? ledger.buildHandoff("judge", {
-            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, soft),
             findings: this.#findingsList(draft.findings, droppedDecorative),
           })
         : ledger.buildHandoff("work", {
-            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, soft),
           });
     // The work plane ALONE persists the round conclusion — it is the child's own
     // declared status (the schema enum pinned it to APPROVED | BLOCKED). The judge
@@ -1839,20 +1841,21 @@ export class CliLifecycle {
         carrier.dispositions = draft.dispositions;
       }
     }
-    if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
-    return { carrier, violations: observations.map((text) => RoundViolation.soft(text)) };
+    if (draftNotes.length > 0) carrier.notes = [...draftNotes];
+    return { carrier, violations: soft.map((text) => RoundViolation.soft(text)) };
   }
 
   /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
    *  child-reported path for the canonical slots): a declared PRESCRIBED slot
    *  (report/test_evidence) books the frame's canonical OUTPUT_* path — a
-   *  free-named deviation is replaced and surfaced on the notes (the review scope
-   *  axis reads them); the non-prescribed slots (a docs-fix's `doc`, child extras)
-   *  pass verbatim. undefined when the draft declared no artifacts. */
+   *  free-named deviation is replaced and surfaced on the round's SOFT channel (the
+   *  audit fact rides the record, never the child's `notes`; P42 §2.2); the
+   *  non-prescribed slots (a docs-fix's `doc`, child extras) pass verbatim.
+   *  undefined when the draft declared no artifacts. */
   #canonicalArtifacts(
     frame: OpenFrame,
     artifacts: unknown,
-    notes: string[],
+    soft: string[],
   ): Record<string, string> | undefined {
     const declared = this.#stringMap(artifacts);
     if (declared === undefined) return undefined;
@@ -1870,11 +1873,11 @@ export class CliLifecycle {
       // persisted carrier's artifacts map carries zero absolute strings (§2.7). The
       // comparison runs on ONE basis (D46 — the child receives relative OUTPUT_*
       // tokens, so a compliant declaration matches); a free-named OR absolute
-      // deviation is replaced and surfaced on the notes (the review scope axis reads
-      // them).
+      // deviation is replaced and surfaced on the round's SOFT channel (the audit
+      // fact rides the record, never the child's `notes`; P42 §2.2).
       const relative = this.#rel(canonical);
       if (this.#rel(value) !== relative) {
-        notes.push(
+        soft.push(
           `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
         );
       }

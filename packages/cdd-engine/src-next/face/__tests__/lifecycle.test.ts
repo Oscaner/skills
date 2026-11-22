@@ -656,14 +656,17 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
       const carrier = outcome.carrier as { artifacts?: unknown; notes?: unknown };
       // the copy points read the drop: neither bad value reaches the carrier, and the
-      // built carrier still conforms to the judge plane's own declaration
+      // built carrier still conforms to the judge plane's own declaration. P42 §2.2 —
+      // the engine's own sentence rides the round's SOFT channel, so `notes` is absent
+      // rather than a pretend child observation.
       expect(carrier.artifacts).toEqual({});
-      expect(carrier.notes).toEqual([
-        "dropped decorative draft field(s) outside their declared shape: artifacts, notes — never written",
-      ]);
+      expect(carrier.notes).toBeUndefined();
       // the round survives — one soft entry, no hard one, the findings roll the status up
       expect(outcome.status).toBe("REVIEW_FIX");
       expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(outcome.violations?.[0]?.message).toBe(
+        "dropped decorative draft field(s) outside their declared shape: artifacts, notes — never written",
+      );
       expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       f.cleanup();

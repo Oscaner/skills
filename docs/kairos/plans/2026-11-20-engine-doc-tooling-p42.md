@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.34
+version: v0.35
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -111,7 +111,7 @@ none
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`#readFresh` 的早退放宽成「无 `findings` 且无 `notes` ⇒ 空」；`notesOf(record)` 的读回投影与读侧逐字节前缀谓词（三族全收：两条装饰族字面 `dropped decorative draft field(s)` 与 `dropped non-declared draft field(s)`，加 artifact 族的句形 `artifact <slot>: declared path `，`<slot>` 取 `report` 与 `test_evidence`——谓词只写 artifact 那一族就漏掉另两族）；行 token 追加 note 计数与逐条）
 - Modify: `packages/cdd-engine/src-next/face/gate.ts`（wave 线的 brief 渲染从 `DispatchScene` 的 `ledger` 经 `notesOf(record)` 取 notes：只读本线 `(line, key)` 上最后一条已完成的 **review 载体**（`(cycle, attempt)` 最大），不新起裸读）
-- Modify: `packages/cdd-engine/src-next/render/brief.ts`（notes 段逐条原样列出，不附加动作要求；落在 `## Constraints` 镜像之后，`#taskBody` 的字节一字不动）
+- Modify: `packages/cdd-engine/src-next/render/brief.ts`（notes 段逐条原样列出，不附加动作要求；段标题是 `## Notes`（`BriefRenderer#notesSection` 拼出的那一行），段落在 `## Constraints` 镜像之后，`#taskBody` 的字节一字不动）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（引擎自写的三串移出 `carrier.notes`，落到 soft violation；`#materialize` 的文档注释与 family 注释同批改到新落法——`AT MOST ONE WARN on the carrier's notes` 与行内片段 `silent on the warn` 两处不再存活）
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`（`displayReason` 从模块私有升为导出——降级标记与板面 note 共读这一个 fold，不复制第二份）
 - Create: `packages/cdd-engine/src-next/session/__tests__/notes-channel.test.ts`
@@ -264,7 +264,7 @@ none
 把档位词表从所有**已发**的字面里收走。渲染面是两处 prompt 字面（`REVIEW_ITEM_HEAD` 的判词句 · `FIX_SHELL` 的修轮义务清单）加整张 rubric（`SEVERITY_RUBRIC` = `CRITERIA.renderRubric()` 的渲染，判据表那半随 Task 2 自动跟随；它的 `RUBRIC_PREAMBLE` / `CALIBRATION_TAIL` 不带档位词，本任务不动）· 发布面（四个图表源与 README 家族）· 源码注释面。发布面有孪生 pin 在读它，改完才绿；源码注释面按 spec §4 的两条断言分开扫两个树态。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`REVIEW_ITEM_HEAD` 的判词句 · `FIX_SHELL` 里 `Fix ALL findings (blocker/warn/nit)` 那一句 · `SEVERITY_RUBRIC` 的注释（`tiers in blocker → warn → nit order`，§4 登记表的第 ① 处）；`FIX_TYPED_INSTRUCTIONS` 被 `FIX_SHELL` 展开引用、自身不带档位词，`RUBRIC_PREAMBLE` / `CALIBRATION_TAIL` 同理不动）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`REVIEW_ITEM_HEAD` 的判词句 · `FIX_SHELL` 里 `Fix ALL findings (blocker/warn/nit)` 那一句 · `SEVERITY_RUBRIC` 的注释（`tiers in blocker → warn → nit order`，§4 登记表的第 ① 处）；`FIX_TYPED_INSTRUCTIONS` 被 `FIX_SHELL` 展开引用、自身不带档位词，`RUBRIC_PREAMBLE` / `CALIBRATION_TAIL` 同理不动；同批**保留 notes 分句**——`IMPLEMENT_SHELL` · `FIX_SHELL` · `REVIEW_ITEM_HEAD` 三处 prompt 里点名上一轮 `## Notes` 的那半句逐字不动，改档位词只动它左边的半句）
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`（模块头注释由本任务改写；`CRITERIA_ROWS` 的表注释与 `CriteriaRegistry` 的两处档序注释归 Task 2，本任务只按 §4 的登记面复核它们已零命中）
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`impact` · `evidence` · `gradingViolations` 三处注释）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`FindingSeverity` 注释；读侧那条三值联合的声明处与 `RoundFinding.severity` 那一格的两条文档注释归 Task 1，本任务只按 §4 复核它们已在其位）
@@ -278,6 +278,7 @@ none
 - Modify: `docs/diagrams/src/next-loop.zh-CN.json`
 - Modify: `docs/diagrams/src/architecture.en.json`
 - Modify: `docs/diagrams/src/architecture.zh-CN.json`
+- Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（`P42 §2.1 — every prompt that names the wave brief names its notes section` 是那三处 notes 分句的读数面——本任务只改它们左边的档位句，三条 `toContain` 逐字不动，故这三串有一个归属而不只是变更历史里的一句；成对：把任一处 notes 分句删掉 ⇒ 该用例红）
 - Test: `scripts/__tests__/next-loop-twin.test.ts`（`STATEMENTS.warnNitReviewFix` 的 pattern 与四源那十二处同批改，**键名原样保留**——它是这份测试里的一个字面声明，换名会让本 plan 与 spec 里引这枚键的坐标同时落成死 pin，而两份文档都不在本任务的 Files 行里；新 pattern 单串点名 `warn` 与 `REVIEW_FIX` 并以负向前瞻排除退役拼写 `/nit`——`/warn(?!\s*\/\s*nit)[\s\S]*REVIEW_FIX/i`；`DiagramSource.carrying` 逐串测，故退役拼写那一串在改前与写回后都读零、写成「只 warn」的整句读一，孪生 pin 的成对臂才落得下来；弱成 `/warn/i` 不算达成，松成 `/warn[\s\S]*REVIEW_FIX/i` 同样不算——那形对退役拼写照命中，它的成对臂无处落）
 
 #### Consumes
@@ -372,7 +373,7 @@ none
 把「物料判自己」这一类收掉。章程的 D98 立了三条：规则行为由夹具判，打包物只经 `emit:check`，语料读数不进测试。本任务处置本仓现存的三族：章程字面断言 · 三处「对真实语料断言零 finding」 · 两处手写读数。另接一条新规则（`change-history-newest-last`，行与注册表归 Task 5）的成对臂与候选臂——被删掉的那条位置断言搬进引擎之后，它的读数就落在本任务的合成表上。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条候选读数臂；模块头的族清单同批改——`The delivery is three families at zero, not one` 那句读两族（`measure-literal` 一族与 `single-home` 一族），首条子弹只点名 `measure-literal` 一处（两个文法属同一族，不是两族），`## Phase inventory` 那条改成登记面的读法、不再数作一族；头部 `Four pairs, each with its counter-arm` 改三对，外层 `describe` 标题 `P41 T7 — the charter itself judges zero, and its registration face carries the narrowings` 同批改成删除之后的读法——那个标题是套件自己的索引、不是章程正文的断言）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（删章程正文的字符串比对，只留引擎臂；补一条候选读数臂；模块头的族清单同批改——`The delivery is three families at zero, not one` 那句读两族（`measure-literal` 一族与 `single-home` 一族），首条子弹只点名 `measure-literal` 一处（两个文法属同一族，不是两族），`## Phase inventory` 那条改成登记面的读法、不再数作一族；头部 `Four pairs, each with its counter-arm` 不写对数，改成按臂点名它引的那几句——原文复述 · 保留重复句的干净副本 · 指针本身 · 标注式复述 · 只留回填族的副本；那份计数引的是第一个 `describe` 的字面臂，`registration face: …` 那条住第二个 `describe`，故删除该条只把外层 `describe` 标题 `P41 T7 — the charter itself judges zero, and its registration face carries the narrowings` 改到删除之后的读法（那个标题是套件自己的索引、不是章程正文的断言），这一句点名的臂集一位不动；而 `catches the copy that keeps ONLY the backfill family` 是这句计数写成之后才加进第一个 `describe` 的臂，故「三对」在树上是陈旧读数、也与它自己点名的四个分句不符）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（补惰性臂：`change-history-row-shape` 的候选读数）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（语料规模常量删除、覆盖证明搬到新建的 `contract/__tests__/scan-coverage.test.ts`；补惰性臂：`PinAudit.census` 的候选读数——临时语料上非零、空根上全零；头部两处「file count is a constant …」与「the file list is a pinned constant」、加 `CORPUS_SIZE` 的文档注释，改成「覆盖由已知小树夹具证明」的读法）
 - Modify: `packages/kairos/tests/claim-shapes.test.ts`（措辞常量改成结构断言；`Two legs, both byte-level` 块与 `CLAIM_SHAPES` 的文档注释改成「措辞自由 · shape→规则 id 映射固定 · 两节点逐字节相同」的读法；映射常量里 `narrative` 那一格改指 `line-coordinate` 一处，`temporal-indicator` 零命中）
@@ -388,7 +389,8 @@ none
 - 三处候选读数臂：`change-history-row-shape` 的临时根 · `PinAudit.census` 的临时语料（一条死 symbol pin 加一条死 path pin）与空根 · `measure-literal` 的面缺口，每处要求那条「零 finding」是测得的零
 - 顺序行的成对臂与候选臂（`judge.test.ts` 的变更历史夹具族）：低位相邻两行对调（序列夹一处反号）⇒ 版本腿零 finding、顺序腿恰一条；复原 ⇒ 两条都零 finding；整表全升与全降各一态 ⇒ 两条都零 finding（方向不进判据）；表头版本降到表内最大版本之下 ⇒ 恰一条版本腿
 - spec 的三处读数由本 plan 取代，就地登记：`PinAudit.census` 的 `symbol` · `path` · `total` 是 **finding 计数**（同一次 `scan` 的分解），交付语料上三项恒为零，故非空半边落在一棵临时语料上、交付语料那一半只留 `files` 体量读数——这一句取代 spec §6 的「交付语料上三项各大于 0」与验收里的两条同读（共三处）；改 spec 本体需要另一个带 `may.amend` 的轮，不在本 plan 的改动面
-- 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点措辞相同 · 三对 · 两族——`three families at zero` 在 `charter-self-repair.test.ts` 上零命中）
+- 三份头部注释同步改到新落法（覆盖由已知小树证明 · 措辞自由而映射固定、两节点措辞相同 · `charter-self-repair.test.ts` 的头部按臂点名而不写对数 · 两族——`three families at zero` 在 `charter-self-repair.test.ts` 上零命中）
+- spec §6 的「`Four pairs, each with its counter-arm` 改成三对」由本 plan 取代，就地登记：那处算术把第二个 `describe` 的删除读成第一个 `describe` 的对数变化，而那句计数在 `catches the copy that keeps ONLY the backfill family` 落地后已陈旧；头部改按臂点名，外层 `describe` 标题单独改到删除之后的读法；改 spec 本体需要另一个带 `may.amend` 的轮，不在本 plan 的改动面
 - 语料规模常量从测试里消失，覆盖由一棵已知小树证明，证明本身住 `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
 - `claim-shapes` 只判结构，不判措辞；shape 前缀 → 规则 id 的映射常量（`pin` → `line-coordinate`；`count` → `measure-literal` · `live-arithmetic`；`narrative` → `line-coordinate` 一处——`temporal-indicator` 随 Task 4 整条退出，映射里同批不再点它）
 
@@ -472,7 +474,7 @@ none
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p8-design.md`
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p10.md`（`routeWords` 那一族载体在树里零份声明）
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md`（`routeWords` 那一族载体在树里零份声明）
-- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p35.md`（`pipelineFacts` 零份声明 · `planSource` 被两处函数局部 `const` 声明）
+- Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p35.md`（`pipelineFacts` 零份声明 · `planSource.readFor` 归 class ① 的重指：两处 `const planSource` 同住 `face/cli.ts`，而判据的「恰一份」数的是声明文件，成员 `readFor` 落在 `infra/plan-source.ts`）
 - Modify: `docs/kairos/specs/2026-11-17-engine-doc-tooling-p40-design.md`（`inFlight` 被两处函数局部 `const` 声明）
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p1.md`（`declaredRegistries` 的成员 pin 落不成恰一份）
 - Modify: `docs/kairos/plans/2026-10-10-engine-doc-tooling-p7.md`（`ProgressRow` 上那枚随 p7 改名退休的 doc-only 字段名：成员 pin 的载体仍解析到恰一份文件，成员名却已不在，故按活字段改到仍声明的成员）
@@ -511,7 +513,7 @@ none
 - 符号表按文件分区 — checkable: 一枚路径可解析、符号住在别的文件里的 pin ⇒ 报一条；同一枚把路径改到符号真正所在的文件 ⇒ 零拒绝（成对：只改路径）
 - 成员形态纳入判据 — checkable: `<tmp>/src/carrier.ts` 里按声明形态写 `export const DepthMap = …`、pin 写作 `<tmp>/src/carrier.ts#DepthMap` ⇒ 零拒绝；同一枚把那段声明删掉、名字只在字符串字面量里剩（`export const label = "DepthMap";`）⇒ 恰一条 finding（成对：只改声明形态）。注释里出现过的名字不算坐标（`codeOf` 已抹掉注释正文，那一态在相位之前就是绿的，不单独作臂）。接口载体那一臂同批：`<tmp>/src/carrier-body.ts` 写 `export interface CarrierBody { readonly DepthMap?: string }` ⇒ 零拒绝；同一枚把属性改写成 `readonly depthMap?: string`（pin 一字不动）⇒ 恰一条 finding（识别器只认类体时两态都读一条，第一态当场红）。覆盖面写进同一条：类体 · 接口体 · 类型字面量 · 对象字面量属性键（语料里成片的是 interface / type 载体）。夹具的成员名带内层大写或下划线（`isSymbol` 只认 `#` 前缀 · 下划线 · 内层大写）。三段的 `path#Class.member` 不进任何臂：成员半带点过不了 `isSymbol`，本任务不放松这道筛，写它等于让臂在零实现下也绿。字面量那一对同批：两个夹具串只在 `pins.guard.test.ts` 与 `session/__tests__/doc-revision-body.test.ts` 里出现，识别器抹掉字面量之后 `HandoffSchema` 与 `ReviewRefs` 各只落一份声明、零拒绝（成对：识别器保留字面量 ⇒ 两个类名各在两份文件里「声明」，裸类名载体的成员 pin 一律报一条歧义 finding）；数据文件那一形同批一条：载体解析到 `package.json` 这类数据文件 ⇒ 成员面判零条（成对：同一成员写成源文件载体、而那份文件不声明它 ⇒ 恰一条 finding）
 - 裸类名载体的反查 — checkable: 一枚载体是裸类名、该类名在树里只被唯一一份文件声明、而它的成员不在那份文件里 ⇒ 恰一条 finding；同一枚把成员改成那份文件里声明过的名字 ⇒ 零拒绝（成对：只改成员）。歧义臂：类名被两份文件声明、或一份也没有 ⇒ 恰一条 finding 点名该载体与它的候选（与路径第三层同一读法）；同一枚把载体改写成路径载体 ⇒ 按路径载体那一臂判。两态在相位之前都读零（全树并集），故这一臂只在反查落地后才红。导入子句臂：`RoundRecord` 在 `session/ledger.ts` 里绑定、另几份文件把它写进导入表 ⇒ 反查落成那一份、`RoundRecord.carrierPath` 零 finding（成对：把导入子句读成声明 ⇒ 反查落成多份、该枚报一条歧义 finding，与上一条歧义臂同时红）
-- 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；迁移面按 spec §9 的两类分开走，不留一类没有落法：① 载体点了文件而成员住在别处的一类，两种载体拼法各给落法——路径载体把路径改到成员真正所在的那一份；裸类名载体先从声明反查到那一份文件，成员不在其中时把坐标写成成员真正所在那份文件的 `path#member`，或改指真正持有它的类；成员随改名退休的一形并入这一类——载体仍解析到恰一份文件（`ProgressRow` 只在 `session/ledger.ts` 声明一份），成员名却已不在其中，活字段是 `reviewedRevision`，而 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p7.md` 与 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p7-design.md` 里那几枚成员 pin 都是同一次改名留下的：句子是活坐标的改到仍声明的 `ProgressRow.reviewedRevision`，只记改名的那一句换成不点退休名的说法（例如「该字段由 `reviewedRevision` 取代」）——退休名以任何形态留在正文里都是一枚落不到声明的裸 symbol pin，故「删掉 claim」在这里的具体读法是换说法；② 载体落不成恰一份的一类（`routeWords` · `pipelineFacts` 与章程 D16 那一行的裸类名载体在树里零份声明，`planSource` · `inFlight` 各被两处函数局部 `const` 声明），把坐标改指取代它的那份实现、或删掉那条已无对应实现的 claim——绝不改到同名的测试 helper 上；③ 载体解析到数据文件的一类不迁移——成员面在那里没有槽、判零条，故它是判域外而不是遗留（p28 plan 的 `package.json#devDependencies` 就是它，故那份文档不进 Files 行）。带成员 pin 的文档因此一份也不落在 Files 行之外——class ①② 的每一份都在行内改，class ③ 的那两份（p28 plan 与本 plan）在判域之外、不需迁移；迁移集不记计数（spec §9 (c) 的差集读法），本句只记这一条集合关系；历史阶段文档同批进 Files 行、不新设冻结面（本任务已经在 p8 · p10 · p35 · p40-design 上按同一落法改过），改完零命中臂在整份语料上绿（成对：把任一处改回错的路径，或把一条已无实现的 claim 写回 ⇒ 红；把一份历史文档从 Files 行摘掉 ⇒ 它上面的 class ① 成员 pin 当场红，因为那条臂读的是整份语料）
+- 语料迁移 — checkable: `pins.guard.test.ts` 的零命中臂在这条判据下绿；迁移面按 spec §9 的两类分开走，不留一类没有落法：① 载体点了文件而成员住在别处的一类，两种载体拼法各给落法——路径载体把路径改到成员真正所在的那一份；裸类名载体先从声明反查到那一份文件，成员不在其中时把坐标写成成员真正所在那份文件的 `path#member`，或改指真正持有它的类；成员随改名退休的一形并入这一类——载体仍解析到恰一份文件（`ProgressRow` 只在 `session/ledger.ts` 声明一份），成员名却已不在其中，活字段是 `reviewedRevision`，而 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p7.md` 与 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p7-design.md` 里那几枚成员 pin 都是同一次改名留下的：句子是活坐标的改到仍声明的 `ProgressRow.reviewedRevision`，只记改名的那一句换成不点退休名的说法（例如「该字段由 `reviewedRevision` 取代」）——退休名以任何形态留在正文里都是一枚落不到声明的裸 symbol pin，故「删掉 claim」在这里的具体读法是换说法；② 载体落不成恰一份的一类（`routeWords` · `pipelineFacts` 与章程 D16 那一行的裸类名载体在树里零份声明，`inFlight` 被 `face/board-view.ts` 与 `session/preflight.ts` 各一处函数局部 `const` 声明），把坐标改指取代它的那份实现、或删掉那条已无对应实现的 claim——绝不改到同名的测试 helper 上；`planSource` 不在此类：它的那两处 `const` 同住 `face/cli.ts`，判据数的是声明文件而不是声明次数，故载体落在一份文件上、成员不在其中 ⇒ 归 ① 的重指，`planSource.readFor(entry)` 改写成 `PlanSource.readFor`（`PlanSource` 在 `infra/plan-source.ts` 只声明一份）或 `infra/plan-source.ts#readFor`——照 ② 处置会把一枚成员住在别处的活坐标删掉，而重指的落法就在同一张表上；③ 载体解析到数据文件的一类不迁移——成员面在那里没有槽、判零条，故它是判域外而不是遗留（p28 plan 的 `package.json#devDependencies` 就是它，故那份文档不进 Files 行）。带成员 pin 的文档因此一份也不落在 Files 行之外——class ①② 的每一份都在行内改，class ③ 的那两份（p28 plan 与本 plan）在判域之外、不需迁移；迁移集不记计数（spec §9 (c) 的差集读法），本句只记这一条集合关系；历史阶段文档同批进 Files 行、不新设冻结面（本任务已经在 p8 · p10 · p35 · p40-design 上按同一落法改过），改完零命中臂在整份语料上绿（成对：把任一处改回错的路径，或把一条已无实现的 claim 写回 ⇒ 红；把一份历史文档从 Files 行摘掉 ⇒ 它上面的 class ① 成员 pin 当场红，因为那条臂读的是整份语料）
 - 提交 — checkable: `git log -1 --format=%s` 以 `fix(p42):` 起头
 
 #### Acceptance
@@ -525,6 +527,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.35 | 2026-11-22 | 评审第 21 轮回填（三条 warn 全数采纳）：Task 9 的 `charter-self-repair.test.ts` 头部计数改成按臂点名——「改三对」把第二个 `describe` 的删除读成第一个 `describe` 的对数变化，而那句计数在 `catches the copy that keeps ONLY the backfill family` 落地后已经陈旧，外层 `describe` 标题的改动理由与臂集分开写，spec §6 的同句以 Produces 的取代登记处理 · Task 11 的 `planSource` 从 class ② 移到 class ① 并给出重指（两处 `const planSource` 同住 `face/cli.ts`，判据数的是声明文件，成员 `readFor` 在 `infra/plan-source.ts`），`inFlight` 留在 ②（`face/board-view.ts` 与 `session/preflight.ts` 各一处）· Task 3 的 `render/brief.ts` 行点名 `## Notes` 标题与落位，Task 6 的 `render/templates.ts` 行带上「保留 notes 分句」的约束、`render/__tests__/render.test.ts` 进 Files 行作为那三处 notes 分句的读数面 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.34 | 2026-11-22 | 波 `{2,3,5}` 评审第 1 轮回填（四条 warn 全数采纳）：Task 5 的注入面按实测落定——`session/preflight.ts` 的 `doc-contract` 腿那一格是死接线（`graph` 门先带着 `details` 拒绝返回，那一格永远收到空集），已删掉，`ContractInput.graphIssues` 留在判据直读面作程序化注入，Files 行的填充面同步改读这一处；臂的第二次调用读数改成零注入读数，臂本身仍在 `Contract` 直读面上 · 详情行唯一拼装点的扫面改成全树（`src-next/**/*.ts`，`__tests__` 除外），`session/preflight.ts` 零命中作为点名特例 · `RULE_REGISTRY` 类注释的三个数由算出比较守住（读注释、与 `doc` / `ledger` / 合计逐格相等；写成无逐 scope 计数的形状即无主语）· brief 的 `## Notes` 段在三处 prompt（`render/templates.ts`，Task 6 的文件面）与 `render/brief.ts` 模块头点名，pin 住 `render/__tests__/render.test.ts`（wave 评审读的正是同一份 brief，此前那一段无人描述） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.33 | 2026-11-22 | 评审第 20 轮回填（三条 warn 全数采纳）：Task 5 的 `contract/judge.ts` 行按树点名两个声明各自的家——`ContractInput` 住该文件，`JudgeContext` 与注入形状 `InjectedGraphIssue` 住 `contract/invariants.ts`（那一行本就在文件集里，故不缺文件），判据平面零 `session/` import 的理由原样保留 · 同一行的填充面收成单点：填 `graphIssues` 的只有派发门 `session/preflight.ts` 的 `doc-contract` 腿，收口腿 `face/lifecycle.ts` 的 `#contract.validate` 不填，理由随句写明（带环的 plan 在 `graph` 门就被拒，收口腿因此观察不到那条 issue） · 注入面那一步改读交付态——成对臂住在 `Contract` 的直读面上（环夹具归 Task 5），`preflight` 那一格是防御缝（`graph` 门先带着 `details` 拒绝返回，那一格在可运行态里永远收到空集，删掉它不让任何用例变红），删去「门把同一份 issue 交给判据」的活载体说法 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.32 | 2026-11-22 | 波 `{2,3,5}` 实施回填（三处以实测读数重述）：Task 3 的 ① 与 ⑥ 把派生 `contractViolationCount` 的读数从 0 改 2 撤回——两条夹具都只走 `dispatch.step()`，记录由 CLI 的 bookkeep 落地，派生面因此读 0，两笔后果的读数臂改挂 `notes-channel.test.ts` 的 Lifecycle 臂 · Task 5 的 Files 补进 `contract/judge.ts`：判据平面不 import `session/`，图的判词以 `ContractInput.graphIssues`（可选，与 `taskLayers` 同形）注入，`session/preflight.ts` 与判据调用方各填它，缺省即零候选，同批给这一步一条成对臂 | Oscaner M. · Claude（kairos:cdd-fix） |

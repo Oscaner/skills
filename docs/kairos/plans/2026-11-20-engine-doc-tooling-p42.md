@@ -1,7 +1,7 @@
 ---
 title: 'P42 · 评审面的两档收口：档位、承载面与任务块判据'
 doc-type: plan
-version: v0.45
+version: v0.46
 date: 2026-11-20
 slug: 2026-11-20-engine-doc-tooling-p42-design
 base: develop
@@ -538,6 +538,7 @@ none
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.46 | 2026-11-21 | **delivery record**：十一任务四波全部交付（`{1,4,10}` → `{2,3,5}` → `{6,8,9}` → `{7,11}`），每波走实现 → 波次评审 → 修复链，plan 线二十九轮追平代码。分支终审一轮一条（changeset 的成员口径）已修。波次结构按注册形态落地，`seat` 列与 pin 文件归位同批。 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.45 | 2026-11-22 | 评审第 29 轮回填（三条 warn 全数采纳）：Task 11 的 Acceptance 把识别器未覆盖的两形改读**残留**——交付态上各判一条 finding，故欠一次修复，「判域外、不是遗留」只留给数据文件那一形（判零条、不欠任何工作），与同一任务 Steps 的登记标签一致 · 成员的默认值那一形补上第三种落态与它的读数：载体在任何文件里都不声明、只有默认值那一处提到它时，写默认值的那份文件成了唯一声明者，报文读缺成员而不是载体半的零候选臂；载体名在整棵树里都不出现时那一支才读 `resolves nowhere in the tree`。那对臂按三态加一条字面量对照重写（载体在别处声明 ⇒ 一条歧义 · 载体在本文件声明一次 ⇒ 零条 · 载体只被默认值提到 ⇒ 缺成员），并撤掉「真于本文件里声明一次时恰报一条歧义」这条不成立的读数 · `.changeset/p42-two-ranks.md` 的成员严判句收成它真正承诺的范围（成员在载体解析到的那份文件里判），两形按残留登记形写成同一段里的已知边界，Task 11 同批补一步读它 | Oscaner M. · Claude（kairos:docs-fix） |
 | v0.44 | 2026-11-22 | 评审第 28 轮回填（两条 blocker · 一条 warn 全数采纳）：Task 11 的步骤与 Acceptance 把识别器未覆盖的两形登记为判据域外——省略分号的成员体（`semi: false` 排版下，除首个成员与带修饰词的下一枚成员之外每一枚成员 pin 都被判成缺成员）与解构模式里的默认值（`const { a = <载体名> } = opts` 的 `=` 之后那个值被读进绑定栏，只在默认值里被引用的载体落成多份声明、被判歧义），修复与成对臂归下一个带 `may.amend` 的轮，已交付的成员臂与断言一字不动 · Task 10 的 Consumes 把一条树里不存在的同级约束（spec v0.38 的 F6 已删的那处落点）换成真实的同级面：`render/templates.ts#DOCS_FIX_SHAPE_RULES` 那一行与同处固定前缀的 `RULINGS_READING` · dispositions 行 · 草稿字段句 | Oscaner M. · Claude（kairos:docs-fix） |
 | v0.43 | 2026-11-22 | 波 `{7,11}` 修复轮（七条 warn 全数采纳）：成员列的判读补上**键位**——`PinDeclarations` 只认键位的标识符，字段的类型不再读成键（`readonly DepthMap?: MissingType` 的 `MissingType` 跟在冒号后、不是成员），四形各一对臂 · 声明栏补上**解构形态**——`const { Cli } = require(…)` 的绑定进声明栏，六形因此真的完整，裸类名反查落到那份文件 · 缺成员的报文改成点名载体与成员两段，不再声称全树没有这个名字（§9 的判据是单文件的，旧句在「成员就在隔壁」这一形上是假话）；报文的形与档位不动 · §7.3 的 pending 跳过只留一处（`#carrierEntryOf` 的 `absent` 臂），`#judge` 的重复分支删除 · 成员两形（类型字面量 · 对象字面量属性键）补臂 · changeset 登记 §9 的严判面并进 Task 11 的 Files 行 · Task 7 的提交前缀改读 `fix(p42):`，与同层 Task 11 的那一条轮域提交一致 | Oscaner M. · Claude（kairos:cdd-fix） |

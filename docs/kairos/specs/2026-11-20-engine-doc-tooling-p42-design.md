@@ -1,7 +1,7 @@
 ---
 title: '评审面的两档收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.40
+version: v0.41
 date: 2026-11-20
 slug: '2026-11-20-engine-doc-tooling-p42-design'
 program: 2026-10-10-engine-doc-tooling
@@ -225,6 +225,7 @@ no/such/dir/missing.ts#PinAudit  ⇒  its carrier `no/such/dir/missing.ts` resol
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v0.41 | 2026-11-21 | **closeout：交付记录**。九节全部落地并各自过成对用例：两档词表（`nit` 退休）· 判据表两行改判 · `notes` 两个承载面 · `Files` 行的单解析者与 `single-create` · 任务图两判据 · 消费面与发布孪生 · 章程回填与 D100 · 修轮收口座位与差分记账 · 符号 pin 按文件分区 · 形状面三处收口（比值 · 成员形态 · 读数门窄域）。`temporal-indicator` 整条撤退由两段会话的实测支撑。 | Oscaner M. · Claude（kairos:cdd-close） |
 | v0.40 | 2026-11-21 | 评审第 28 轮回填（两条 warn 全数采纳）：§3.2 的注释名册从三处扩到五处——补上两个测试文件（`session/__tests__/preflight-rows.test.ts` 的 `SHAPE_ROW_IDS` 括注读五条形状行，而夹具合成名册两处一字不动 · `contract/__tests__/rules-severity.test.ts` 的三处同批读五条），交付树「注册表读五个、两个测试文件仍写六个且都绿」写成实证（F1）· `RuleDeclarationBase.skipWhenClosed` 的列注释不再只把数改小，按交付后的豁免名册重写，点名五条形状规则连同 §6 的顺序行 `change-history-newest-last`（F2） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.39 | 2026-11-21 | 评审第 27 轮回填（三条 warn 全数采纳）：§2.1 的板面拼接顺序按 `#summaryToken` 的交付模板重写——正文 · 判断标记 · `+N` · 降级注记之后才是 `notes +M`（降级标记住在 `regradeNote` 段首，不是 `mark` 那一格），撤掉「notes 段接在 `+N` 之后」与「不是与 notes 段的相对位置」两句反向限定，并把追加位从「`+N` 之后」改成「串的末尾」（F1）· §3.2 补上撤回伤及的三处数目并写一句纪律：注释声明的数目必等于其上方交付的表或行——`RULE_REGISTRY` 类注释的六条形状行/四个变量类读五条/三个，`RuleDeclarationBase.skipWhenClosed` 列注释同句读五，`DOCS_FIX_SHAPE_RULES` 的文档注释按 §7 读三个名字（F2）· §3.2 的行数写法从「二选一」收成一种（写准新的分值）并写明为何不取 §1.2 的去掉计数形：注册表注释没有「每档至少一行」那样一句可留，去掉计数则验收的比较没有主语（F3） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.38 | 2026-11-21 | 评审第 26 轮回填（一条 blocker · 五条 warn 全数采纳）：§4 的 (b) 发布门从两处豁免改成三处——`RoundFinding.severity` 的文档注释与 `RoundFindingSeverity` 的文档注释是同一件事的两半，漏了前者，(b) 在交付树上永远红；两条断言由此共用一个单位（注释处，不是行），§5 的验收 ⑦ 与验收格同批（F1）· §3.2 的行数算术按基线重述：三条规则行落地 · `single-create` 已在基线里 · `temporal-indicator` 撤出，doc 面净增两条，末值是 `doc scope 33 rows + ledger scope 2 rows = 35`（F2）· §3.1 的判词从「任务号小于」改成「不晚于」，同一任务的二次认领是正常增量，与落地判法同读，并补一条成对臂（F3）· §2.1 撤掉反向的拼接顺序句，改为标记紧接正文 · `+N` 紧随标记 · notes 段接在其后（F4）· §9 的迁移例子按语料的拼法写载体 `gate.ts`，不再写语料里不存在的 `face/gate.ts`（F5）· §7 的写入约束改落 `render/templates.ts#DOCS_FIX_SHAPE_RULES`，替掉不存在的「禁止 `any`」先例（F6） | Oscaner M. · Claude（kairos:cdd-fix） |

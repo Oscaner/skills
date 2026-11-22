@@ -598,8 +598,8 @@
       "dot": "amber",
       "title": "收敛",
       "items": [
-        "评审发现带 blocker / warn / nit；任何 blocker 都进入 fix 并重新评审，单向一跳",
-        "仅剩 warn/nit 的修复以 REVIEW_FIX 收口，不再重新评审；零发现直接关闭",
+        "评审发现带 blocker / warn；任何 blocker 都进入 fix 并重新评审，单向一跳",
+        "仅剩 warn 的修复以 REVIEW_FIX 收口，不再重新评审；零发现直接关闭",
         "next: 行是唯一的延续——BLOCKED 或 TIMEOUT 的轮次不带 next:",
         "计划修订会重开已关闭的分支线，于是重新评审判定的是分支评审真正绑定过的那份计划"
       ]

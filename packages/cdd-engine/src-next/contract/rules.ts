@@ -182,7 +182,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "change-history-newest-last",
     docKeys: "all",
-    severity: "warn",
+    severity: "block",
     seat: ["dispatch", "close", "corpus"],
     skipWhenClosed: true,
     create: () => new ChangeHistoryNewestLastInvariant(),
@@ -349,13 +349,12 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     skipWhenClosed: false,
     create: () => new WaveWidthInvariant(),
   },
-  // P42's declaration-set row — lands at `warn` and is flipped by the phase's own last
-  // action, so no half-flipped state is ever registered.
+  // P42's declaration-set row — the phase's four new rows close at the gate (`block`).
   {
     scope: "doc",
     id: "single-create",
     docKeys: ["plan"],
-    severity: "warn",
+    severity: "block",
     seat: ["dispatch", "close", "corpus"],
     skipWhenClosed: false,
     create: () => new SingleCreateInvariant(),
@@ -367,7 +366,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "dangling-task-ref",
     docKeys: ["plan"],
-    severity: "warn",
+    severity: "block",
     seat: ["dispatch", "close", "corpus"],
     skipWhenClosed: false,
     create: () => new DanglingTaskRefInvariant(),
@@ -376,7 +375,7 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     scope: "doc",
     id: "depends-on-cycle",
     docKeys: ["plan"],
-    severity: "warn",
+    severity: "block",
     seat: ["dispatch", "close", "corpus"],
     skipWhenClosed: false,
     create: () => new DependsOnCycleInvariant(),

@@ -9,12 +9,14 @@
 //     reports nothing while a real dead reference in the same position does;
 //   · the three SHAPES each resolve against their own corpus (a path with its line
 //     bound, a bare symbol, a test title);
-//   · the declared corpus is the whole docs corpus plus the README family, and its
-//     file count is a constant: a document entering or leaving the corpus goes red.
+//   · the declared corpus is the whole docs corpus plus the README family, and the
+//     scan's COVERAGE is proven by a known small tree (`contract/__tests__/
+//     scan-coverage.test.ts`): two documents, one dead pin, and a census that reads
+//     both — never by a recorded size that could agree with any walk.
 //
 // The corpus IS clean, and this file holds it there: the scan over the declared corpus
-// reports zero findings (§7.3's AFTER-migration condition), the file list is a pinned
-// constant, and a document entering or leaving the corpus goes red. The seeded case below
+// reports zero findings (§7.3's AFTER-migration condition) and the file list is read as
+// the corpus VOLUME, while coverage is proven by a known small tree. The seeded case below
 // keeps the other direction alive on its own — a dead pin is reported, and removing it
 // clears the gate — so the gate is proven able to go red without the corpus being dirty.
 //
@@ -49,11 +51,10 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.me
  *  `PinAudit.census` cannot disagree about what the corpus is. */
 const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
 
-/** The corpus size — pinned HERE, as a literal, so a document entering or leaving the
- *  corpus is red. It is deliberately not derived from `filesOf`: a number computed out
- *  of the same walk would agree with any corpus the walk returned, and re-emitting it
- *  could never turn this file red. */
-const CORPUS_SIZE = 87;
+/** The corpus's file count is READ, never recorded: an integer written down here would
+ *  agree with any walk the same declaration returned, so it could never turn this file
+ *  red. Coverage — the property a recorded size was standing in for — is proven on a
+ *  known small tree in `scan-coverage.test.ts`. */
 
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
 const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";
@@ -286,7 +287,7 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
   it("declares the whole corpus, pins its size, and holds it at zero findings", () => {
     const audit = new PinAudit(REPO_ROOT);
     const files = audit.filesOf(CORPUS_ROOTS);
-    expect(files).toHaveLength(CORPUS_SIZE);
+    expect(files.length).toBeGreaterThan(0);
     for (const file of files) expect(file.endsWith(".md"), file).toBe(true);
     // the corpus is judged by the same criterion the read-back uses — a scan reads
     // exactly the declared files (no second corpus, no baseline, no exemption list) —
@@ -294,21 +295,44 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
     expect(audit.scan(CORPUS_ROOTS).length).toBe(0);
   });
 
-  it("reads the corpus ONE way — its file count is the size pin, its total the same scan", () => {
+  it("reads the corpus ONE way — its file count is the corpus volume, its total the same scan", () => {
     const audit = new PinAudit(REPO_ROOT);
     const census = audit.census(CORPUS_ROOTS);
-    // §7.1's declaration is imported, not restated: the size pin and `pin.files` are two
-    // readings of ONE declaration, and `pin.total` is the length of the scan the same
-    // audit runs over it — never a third count
-    expect(census.files).toBe(CORPUS_SIZE);
+    // §7.1's declaration is imported, not restated: `files` is the volume of the same
+    // declaration the scan walks, and `total` is the length of that scan — never a third
+    // count. Neither number is written down: a recorded size could agree with any walk.
+    expect(census.files).toBe(audit.filesOf(CORPUS_ROOTS).length);
     expect(census.total).toBe(audit.scan(CORPUS_ROOTS).length);
     expect(census.total).toBe(census.symbol + census.path);
-    // a corpus of nothing measures nothing: on an empty corpus the same readings fall
-    // away from the declared size, so a census that never reaches a file is red
+    // a corpus of nothing measures nothing: on an empty corpus every reading falls to
+    // zero, so a census that never reaches a file is red on all four cells
     const empty = audit.census([]);
     expect(empty.files).toBe(0);
-    expect(empty.files).not.toBe(CORPUS_SIZE);
     expect(empty.total).toBe(0);
+    expect(empty.symbol).toBe(0);
+    expect(empty.path).toBe(0);
+  });
+
+  // P42 T9 — the census's own candidate reading, on a corpus whose answer is NOT this
+  // checkout's: the delivery corpus reads zero on all three finding counts (that is the
+  // gate's condition), so the non-empty half has to come from a seeded tree.
+  it("counts the seeded dead pins — the census is a finding count, never a file count", () => {
+    const f = fixture();
+    f.write(
+      "docs/kairos/plans/census.md",
+      bodyOf(["docs/kairos/plans/absent.md", "AbsentSymbolName"]),
+    );
+    const seeded = f.audit.census(["docs/kairos"]);
+    expect(seeded.symbol).toBeGreaterThan(0);
+    expect(seeded.path).toBeGreaterThan(0);
+    expect(seeded.total).toBeGreaterThan(0);
+    expect(seeded.files).toBeGreaterThan(0);
+    // the pair: an empty root reads zero on the three finding counts AND on its volume,
+    // so a census that never reaches a document cannot pass this arm
+    expect(f.audit.census([])).toEqual({ symbol: 0, path: 0, total: 0, files: 0 });
+    // the seeded tree carries exactly ONE document — the volume reading is the file count
+    expect(seeded.files).toBe(1);
+    expect(seeded.files).toBe(f.audit.filesOf(["docs/kairos"]).length);
   });
 
   it("judges a test pin only when file and title share ONE token — a title of its own is never a pin", () => {

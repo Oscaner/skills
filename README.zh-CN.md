@@ -31,7 +31,7 @@
 
 ### 收敛纪律
 
-每条发现都带有严重级别——**blocker**、**warn** 或 **nit**——以及一个 lens。**Review Convergence** 是唯一的收口规则：blocker 进入 `fix` 并重新评审；仅 warn/nit 时以 `REVIEW_FIX` 收敛；零发现直接关闭。同一条规则关闭 wave、branch、phase-spec、overall、plan 与 single-spec 评审，因此没有任何一个面可以自造停止条件。
+每条发现都带有严重级别——**blocker** 或 **warn**——以及一个 lens。**Review Convergence** 是唯一的收口规则：blocker 进入 `fix` 并重新评审；仅 warn 时以 `REVIEW_FIX` 收敛；零发现直接关闭。同一条规则关闭 wave、branch、phase-spec、overall、plan 与 single-spec 评审，因此没有任何一个面可以自造停止条件。
 
 ## 这是什么
 

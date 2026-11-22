@@ -543,10 +543,11 @@ describe("P42 T10 — the structure comment reads two evaluation points", () => 
   });
 });
 
-/** The composition root's own fixture — a real repo holding a plan whose two tasks
- *  both declare `Create:` of one path (the `single-create` row is `warn`, so the
- *  production dispatch gate APPROVES the round and hands its reading over as the
- *  baseline) plus the completed review round that owes the fix. */
+/** The composition root's own fixture — a real repo holding a plan that trips NO
+ *  shipped rule (every row is `block` at the closed gate, so a tripping document is
+ *  refused before it ever reaches the round) plus the completed review round that owes
+ *  the fix. The gate's reading of this document is therefore EMPTY and the cell must
+ *  still be present: the closed-state baseline §7 proves empty, never an absent cell. */
 const PRODUCTION_PLAN = [
   "---",
   "title: Production Plan",
@@ -564,7 +565,7 @@ const PRODUCTION_PLAN = [
   ...[1, 2].flatMap((id) => [
     `### Task ${id}:`,
     "- **Objective**: objective",
-    "- **Files**: Create `a.ts`",
+    `- **Files**: Create \`a${id}.ts\``,
     "- **Consumes**: x",
     "- **Produces**: y",
     "- **Steps**:",
@@ -604,12 +605,12 @@ class ProductionFixRunner implements ChildRunner {
 }
 
 describe("P42 T10 — the composition root carries the gate's readings to the frame", () => {
-  it("a Cli-built docs-fix round dispatches with the gate's own non-empty baseline", async () => {
+  it("a Cli-built docs-fix round dispatches with the gate's own baseline cell", async () => {
     // The arm the stub gate cannot be: the wiring under test is the CLI's own
     // `preflight: { gate: () => preflight }`. A folded gate (`ok ? null : preflight`)
-    // leaves the frame's cell empty here while every stub-fed arm stays green — the
-    // production round then compares against nothing and reports the document's own
-    // inherited reading as new.
+    // leaves the frame's cell ABSENT (`baseline` undefined) while every stub-fed arm
+    // stays green — the production round then compares against nothing and reports the
+    // document's own inherited reading as new.
     const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "fix-gate-prod-")));
     const cwd = process.cwd();
     const frames: OpenFrame[] = [];
@@ -669,10 +670,10 @@ describe("P42 T10 — the composition root carries the gate's readings to the fr
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
       expect(frames).toHaveLength(1);
       const baseline = frames[0]?.contract;
-      expect(baseline).toBeDefined();
-      // The cell IS the gate's reading of this document — a non-empty set naming the
-      // one rule the plan trips, never a copy and never a re-judgment.
-      expect(baseline?.map((finding) => finding.kind)).toEqual(["single-create"]);
+      // The cell IS the gate's reading of this document: present, and empty in the
+      // closed state (every shipped row is `block`, so a tripping document never
+      // reaches this round). An absent cell — the folded gate — fails here.
+      expect(baseline).toEqual([]);
       expect(code).toBe(0);
     } finally {
       spy.mockRestore();

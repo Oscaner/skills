@@ -71,7 +71,7 @@ const FINDING: SchemaNode = {
     summary: { type: "string" },
     fix: { type: "string" },
     // P37 §2.1 — the blocker evidence slot. Declared OPTIONAL on the schema face by
-    // design: warn / nit findings owe no scenario, so a required `impact` would BLOCK
+    // design: warn findings owe no scenario, so a required `impact` would BLOCK
     // legal drafts. A blocker's obligation is judged by `gradingViolations` (the
     // grading gate), never by the shape walk — the shape only pins what a scenario IS.
     impact: {
@@ -91,7 +91,7 @@ const FINDING: SchemaNode = {
     },
     // P41 §2.1 — the blocker's reproduction slot: where a reader re-runs the claim
     // (a command, or a `doc.md#section` pointer). Declared OPTIONAL on the shape face
-    // for the same reason `impact` is: warn / nit owe nothing, so a required slot
+    // for the same reason `impact` is: warn owes nothing, so a required slot
     // would BLOCK legal drafts. A blocker's obligation is judged by
     // `gradingViolations` (`evidence-missing`), never by this shape walk.
     evidence: {
@@ -370,7 +370,7 @@ export class HandoffSchema {
    *  `evidence.repro` (where a reader re-runs the claim). Every blocker that lacks
    *  either is returned, tagged with the criterion it broke, so the failure face can
    *  list them all (never one of two) under the words their own criterion prints.
-   *  Warn / nit findings owe nothing here, and the predicate never judges severity —
+   *  Warn findings owe nothing here, and the predicate never judges severity —
    *  the tier is the child's call, this gate only asks whether a blocker paid its
    *  evidence. `rollup` deliberately does not call it: a review conclusion is not a
    *  place to refuse a round, and `rollup`'s return type stays `RoundStatus`. */

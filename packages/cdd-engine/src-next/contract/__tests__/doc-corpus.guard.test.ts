@@ -20,12 +20,14 @@
 // corpus also carries an unrelated pre-existing red (`p19-design`'s presence face),
 // which this gate neither swallows nor repairs.
 
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ENGINE_DOC_ROOTS } from "../../infra/doc-roots.ts";
+import { docTypeParsers } from "../doc.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
@@ -172,6 +174,46 @@ class JudgedCorpus {
 
 const CORPUS = JudgedCorpus.load(REPO);
 
+/** The scratch roots one case builds — removed after each case. */
+let scratchRoots: string[] = [];
+
+afterEach(() => {
+  for (const root of scratchRoots) rmSync(root, { recursive: true, force: true });
+  scratchRoots = [];
+});
+
+/** One judged phase-spec body over a caller-supplied `## Change history` section. */
+const phaseSpecBody = (section: readonly string[]): string =>
+  [
+    "---",
+    "title: Scratch Spec",
+    "doc-type: phase-spec",
+    "version: v1.0",
+    "date: 2026-11-20",
+    "slug: x-scratch-design",
+    "program: x-program",
+    "---",
+    "",
+    "## Design",
+    "",
+    "- delta",
+    "",
+    ...section,
+  ].join("\n");
+
+/** A temp corpus root holding ONE judged document — the candidate face's own tree. */
+const scratchCorpus = (body: string): { readonly root: string; readonly rel: string } => {
+  const root = mkdtempSync(path.join(tmpdir(), "doc-corpus-scratch-"));
+  scratchRoots.push(root);
+  for (const dir of Object.values(ENGINE_DOC_ROOTS))
+    mkdirSync(path.join(root, dir), {
+      recursive: true,
+    });
+  const rel = `${ENGINE_DOC_ROOTS.specs}/2026-11-20-x-scratch-design.md`;
+  writeFileSync(path.join(root, rel), body, "utf8");
+  return { root, rel };
+};
+
 describe("P30 T3 — the doc corpus's change-history lineage legs", () => {
   it("judges a non-empty corpus, and every corpus doc declares a doc key", () => {
     // Non-vacuity: an empty walk would make every pin below trivially green.
@@ -206,4 +248,47 @@ describe("P30 T3 — the doc corpus's change-history lineage legs", () => {
       expect(CORPUS.excessOver(kind, DRIFT_CEILING[kind])).toEqual([]);
     });
   }
+
+  // P42 T9 — the candidate reading for `change-history-row-shape`, on its OWN seat (a
+  // temp corpus root) rather than on the real corpus: "zero findings on the delivery
+  // corpus" cannot tell a clean read from a face that never ran.
+  it("reads change-history-row-shape's candidate face off the section heading", () => {
+    const renamed = scratchCorpus(
+      phaseSpecBody([
+        "## Change history (archived)",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        "| v1.0 | 2026-11-20 | ragged | [human] |",
+      ]),
+    );
+    const judged = JudgedCorpus.load(renamed.root);
+    expect(judged.docs.map((doc) => doc.rel)).toEqual([renamed.rel]);
+    // The candidate face IS the parsed table: a heading the parser does not recognize
+    // leaves no table, so the rule has nothing to judge and reports nothing.
+    const table = docTypeParsers["phase-spec"].parse(
+      phaseSpecBody([
+        "## Change history (archived)",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        "| v1.0 | 2026-11-20 | ragged | [human] |",
+      ]).split("\n"),
+    ).tables["Change history"];
+    expect(table.headerRow).toBeNull();
+    expect(table.rows).toEqual([]);
+    expect(judged.findingsOn(renamed.rel, "change-history-row-shape")).toEqual([]);
+    // the pair: the SAME document under the declared heading, one row short of the header
+    const declared = scratchCorpus(
+      phaseSpecBody([
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        "| v1.0 | 2026-11-20 | ragged |",
+      ]),
+    );
+    const declaredJudged = JudgedCorpus.load(declared.root);
+    expect(declaredJudged.findingsOn(declared.rel, "change-history-row-shape")).toHaveLength(1);
+  });
 });

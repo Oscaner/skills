@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/contract/review-criteria.ts
-// P37 T1 — the grading criteria registry (design spec §1, §6.1): the three tier
+// P37 T1 — the grading criteria registry (design spec §1, §6.1): both tier
 // boundaries with their evidence duty and their counterexample live as ROWS, and
 // `SEVERITY_RUBRIC` is assembled from them. The prose is therefore no longer a
 // second copy of the criteria — the registry is the only corpus that reaches the
@@ -26,7 +26,7 @@
 //
 // Display wording is NOT a rubric cell. The downgrade mark (design spec §5.2) is a
 // token the board and the capsule print, not a sentence a grader calibrates against:
-// it rides `REGRADE_MARK` below, so the nit tier's prose stays a run of sentences and
+// it rides `REGRADE_MARK` below, so the warn tier's prose stays a run of sentences and
 // a display fragment can never splice into it.
 //
 // P37 T2 — the SECOND table (design spec §3.1, §6.1): the lens question rows. One row

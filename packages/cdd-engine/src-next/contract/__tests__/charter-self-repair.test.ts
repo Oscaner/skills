@@ -7,14 +7,18 @@
 //   · the measurement grammar (`measure-literal`) reports nothing on the five sections;
 //   · `single-home` reports nothing on the charter — its right domain holds the phase
 //     documents, which repeat the charter's gate / release / backfill sentences, so the
-//     charter states each of those once as a POINTER at its holder;
-//   · `## Phase inventory` carries the same two domain narrowings as the phase spec
-//     (`Scope ③` measures prose, `Acceptance ⑥` skips work items), so the registration
-//     face states the criterion the implementation writes.
+//     charter states each of those once as a POINTER at its holder.
 //
-// Four pairs, each with its counter-arm: reverting the original sentences is reported,
-// a grammar-clean fixture that keeps the duplicated sentences is still refused, the
-// pointers themselves pass, and a labelled restatement is caught by `single-home`.
+// `## Phase inventory` is the REGISTRATION face, never a third family: its P41 row carries
+// the same two domain narrowings as the phase spec (`Scope ③` measures prose,
+// `Acceptance ⑥` skips work items), so the registration states the criterion the
+// implementation writes. It is read where it is registered, not counted as a family.
+//
+// Every arm names the sentence it reads, and each carries its counter-arm: the original
+// wording reported (the measurement grammar) · a grammar-clean copy that keeps the
+// duplicated sentences still refused (single-home) · the pointers themselves passing ·
+// a labelled restatement beside the pointer caught (the same home twice) · a copy that
+// keeps ONLY the backfill family named by its holders.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -130,6 +134,15 @@ const findingsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.
 const kindsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md"): string[] =>
   findingsOf(body, rel).map((finding) => finding.kind);
 
+/** One body judged as the charter — the same doc key, path and root the charter reads. */
+const charterFindingsOf = (content: string) =>
+  new Contract().validate({
+    docKey: "overall",
+    path: path.join(REPO_ROOT, CHARTER_REL),
+    content,
+    root: REPO_ROOT,
+  });
+
 /** One kind's findings of the real charter — the AFTER-migration read. */
 const charterFindings = (docKey: DocKey = "overall") => {
   const rel = CHARTER_REL;
@@ -204,34 +217,28 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
   });
 });
 
-describe("P41 T7 — the charter itself judges zero, and its registration face carries the narrowings", () => {
+describe("P41 T7 — the charter judges zero on both families, and its gaps are measured", () => {
   it("reports nothing on the real charter — both families at zero", () => {
     expect(charterFindings()).toEqual([]);
   });
 
-  it("registration face: P41 Scope ③ measures prose, Acceptance ⑥ skips work items, ③ keeps severity", () => {
+  // P42 T9 — the candidate reading of the `measure-literal` family: "zero findings" is
+  // true of a clean charter and of a face map that never ran, so the gap is measured.
+  it("reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence", () => {
     const text = readFileSync(path.join(REPO_ROOT, CHARTER_REL), "utf8");
-    // The PHASE inventory row, not the issue inventory's `| P41 |` (both keyed by P41).
-    const phaseSection = text.slice(text.indexOf("\n## Phase inventory"));
-    const row = phaseSection.split("\n").find((line) => line.startsWith("| P41 |"));
-    expect(row).toBeDefined();
-    // Scope ③ — the prose floor and the pointer-sentence consequence, written in the
-    // same words the phase spec's §3.1 uses.
-    expect(row).toContain("下界量的是散文");
-    expect(row).toContain("行内代码段整段不计");
-    expect(row).toContain("点名一条路径的指针句因此不进域");
-    // Acceptance ⑥ — the work-item narrowing, beside the same-slug exemption.
-    expect(row).toContain("工作项行不是判据");
-    expect(row).toContain("`- Modify:` 一类行在两侧都不进域");
-    // Acceptance ③ — the severity criterion, untouched by this round.
-    expect(row).toContain(
-      "③ 严重度：声明 warn 的规则不拒且该行读作 `warned — <n> warning(s)`，翻 block 后被拒",
-    );
-    // The change-history row this write landed carries the bumped version — the
-    // header-to-newest-row agreement the doc-contract already enforces.
-    const version = /^version: (?<version>v[0-9.]+)$/m.exec(text)?.groups?.version;
-    expect(version).toBeDefined();
-    const rows = text.split("\n").filter((line) => line.startsWith("| v"));
-    expect(rows.at(-1)?.startsWith(`| ${version} | 2026-11-20 |`)).toBe(true);
+    const gapsOf = (body: string): readonly string[] =>
+      charterFindingsOf(body)
+        .filter(
+          (finding) =>
+            finding.kind === "measure-literal" && finding.message.includes("no declared face"),
+        )
+        .map((finding) => finding.field ?? "");
+    // The registered heading renamed to a name the face map cannot place: every line
+    // beneath it becomes `unmapped`, and the family's first row reports the gap.
+    const renamed = text.replace("## Maintenance", "## Upkeep");
+    expect(renamed).not.toBe(text);
+    expect(gapsOf(renamed).length).toBeGreaterThan(0);
+    // the pair: the registered heading itself reports no gap
+    expect(gapsOf(text)).toEqual([]);
   });
 });

@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Words } from "../../face/words.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
+import { docTypeParsers } from "../doc.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
 import { LedgerTaskSetRule } from "../invariants.ts";
@@ -1566,6 +1567,66 @@ describe("P30 T3 — change-history-latest-matches-front-matter", () => {
     expect(
       withKind(judge("plan", content), "change-history-latest-matches-front-matter", "version"),
     ).toBe(true);
+  });
+});
+
+describe("P42 T9 — change-history-newest-last reads monotonicity, never direction", () => {
+  /** One synthetic lineage row — the canonical four-cell row shape. */
+  const row = (version: string): string => `| ${version} | 2026-10-09 | change | [human] |`;
+
+  /** The synthetic table's versions, oldest first (the ascending direction). */
+  const ASCENDING = ["v1.0", "v1.1", "v1.2", "v1.3"] as const;
+
+  /** The two change-history legs' finding counts on one synthetic table. */
+  const legs = (
+    headerVersion: string,
+    rows: readonly string[],
+  ): { readonly version: number; readonly order: number } => {
+    const findings = judge("plan", planLineage(headerVersion, rows));
+    return {
+      version: findings.filter(
+        (finding) => finding.kind === "change-history-latest-matches-front-matter",
+      ).length,
+      order: findings.filter((finding) => finding.kind === "change-history-newest-last").length,
+    };
+  };
+
+  it("reports the swapped low neighbouring pair — the order leg once, the version leg never", () => {
+    // v1.1 and v1.2 trade places, so the sequence reads + − + while the header still
+    // equals the table's maximum: the version leg is blind to row order, and this one
+    // state is its stand-in.
+    expect(legs("v1.3", [row("v1.0"), row("v1.2"), row("v1.1"), row("v1.3")])).toEqual({
+      version: 0,
+      order: 1,
+    });
+  });
+
+  it("goes clean once the swapped rows are restored — only a row's POSITION changed", () => {
+    expect(legs("v1.3", ASCENDING.map(row))).toEqual({ version: 0, order: 0 });
+  });
+
+  it("passes a table flipped wholesale to newest-first — direction never enters the judgment", () => {
+    // The discriminating arm: a "the newest row is last" reading of this leg reddens here.
+    expect(legs("v1.3", [...ASCENDING].reverse().map(row))).toEqual({ version: 0, order: 0 });
+  });
+
+  it("reports the header lag alone — the row order untouched, the version leg once", () => {
+    expect(legs("v1.2", ASCENDING.map(row))).toEqual({ version: 1, order: 0 });
+  });
+
+  it("reads zero candidates on a document that carries no Change-history table", () => {
+    const withoutTable = planLineage("v1.3", []).split("## Change history")[0] ?? "";
+    // The candidate face IS the table's row sequence, so an absent table means no
+    // candidate at all — the silence this arm distinguishes from a clean read.
+    const table = docTypeParsers.plan.parse(withoutTable.split("\n")).tables["Change history"];
+    expect(table.headerRow).toBeNull();
+    expect(table.rows).toEqual([]);
+    const findings = judge("plan", withoutTable).filter(
+      (finding) => finding.kind === "change-history-newest-last",
+    );
+    expect(findings).toEqual([]);
+    // the pair: the same document WITH a table whose neighbouring pair is reversed
+    expect(legs("v1.3", [row("v1.0"), row("v1.2"), row("v1.1"), row("v1.3")]).order).toBe(1);
   });
 });
 

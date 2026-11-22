@@ -20,7 +20,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import type { Finding } from "../../contract/invariants.ts";
@@ -614,16 +614,11 @@ describe("P42 T10 — the composition root carries the gate's readings to the fr
     const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "fix-gate-prod-")));
     const cwd = process.cwd();
     const frames: OpenFrame[] = [];
-    const originalStep = CliLifecycle.prototype.step;
-    const spy = vi.spyOn(CliLifecycle.prototype, "step").mockImplementation(function (
-      this: CliLifecycle,
-    ) {
-      const step = originalStep.call(this);
-      return async (frame: OpenFrame) => {
-        frames.push(frame);
-        return step(frame);
-      };
-    });
+    // The round is dispatched through an injected dispatcher so the arm needs no harness
+    // binary on the machine it runs on: what it judges is the pre-flight wiring, and the
+    // host is answered by the env marker below rather than by an installed child.
+    const savedSession = process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CLAUDE_CODE_SESSION_ID = "fix-gate-round";
     try {
       for (const args of [
         ["init", "-q"],
@@ -665,7 +660,14 @@ describe("P42 T10 — the composition root carries the gate's readings to the fr
       ledger.recordRound("plan", { op: "review" });
       process.chdir(repo);
       const io = new CaptureIo();
-      const options: CliOptions = { io, sync: new ProductionFixRunner() };
+      const options: CliOptions = {
+        io,
+        sync: new ProductionFixRunner(),
+        dispatch: async (frame) => {
+          frames.push(frame);
+          return { status: "APPROVED" };
+        },
+      };
       const code = await Cli.create(options).runArgv(["fix", "--type", "plan", "--plan", planPath]);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
       expect(frames).toHaveLength(1);
@@ -676,7 +678,8 @@ describe("P42 T10 — the composition root carries the gate's readings to the fr
       expect(baseline).toEqual([]);
       expect(code).toBe(0);
     } finally {
-      spy.mockRestore();
+      if (savedSession === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+      else process.env.CLAUDE_CODE_SESSION_ID = savedSession;
       process.chdir(cwd);
       rmSync(repo, { recursive: true, force: true });
     }

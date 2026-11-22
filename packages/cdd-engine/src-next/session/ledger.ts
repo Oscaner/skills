@@ -61,10 +61,18 @@ type JudgeInit = {
   artifacts?: Record<string, string>;
 };
 
-/** The review-finding severity vocabulary — the handoff findings severity enum,
- *  single-typed. The tier order (`blocker` > `warn` > `nit`) is the §1 ladder the
- *  cross-round downgrade judgment walks. */
-export type FindingSeverity = "blocker" | "warn" | "nit";
+/** The review-finding severity vocabulary the WRITE side accepts — the handoff
+ *  findings severity enum, narrowed to the two tiers a child may author (spec §1.1).
+ *  It has one real reader: the carrier's value-type twin
+ *  (`handoff-schema.ts#CarrierValue.findings[].severity`), never a second spelling. */
+export type FindingSeverity = "blocker" | "warn";
+
+/** The READ face's severity vocabulary — the three values a stored carrier may hold.
+ *  Declared apart from the write face's pair on purpose: narrowing the write face must
+ *  not narrow the read face, or a legacy `nit` row would silently lose its tier (and
+ *  with it the `warn → nit` downgrade mark the cross-round judgment prints). The two
+ *  vocabularies are one boundary normalization, pinned in both directions. */
+export type RoundFindingSeverity = "blocker" | "warn" | "nit";
 
 /** One review finding the round carrier judges — severity + the summary prose, plus
  *  the three cells the cross-round regrade judgment reads (P37 §5.1): the engine-written
@@ -72,8 +80,9 @@ export type FindingSeverity = "blocker" | "warn" | "nit";
  *  blocker's `impact` (whose `scenario` is the reference the downgrade is judged
  *  against) and the round's own `regrade` reason. */
 export interface RoundFinding {
-  /** The severity the next-hop derivation keys on. */
-  severity: FindingSeverity;
+  /** The severity the next-hop derivation keys on — the READ face's three-value
+   *  union, never the write face's two (a stored `nit` row keeps its own cell). */
+  severity: RoundFindingSeverity;
   /** The one-line finding summary (message attribution; the router reads only severity).
    *  It is also the cross-round MATCH KEY — the finding's description is what survives
    *  a reworded scenario, a moved line or a re-numbered id. */

@@ -71,7 +71,7 @@ fix 轮逐条回答请求方 review 载体的 finding：每条 finding 一条处
 ### 复审软上限
 
 
-软上限是预算，不是收敛机制：连续 `REVIEW_CYCLE_CAP` 个 blocker 周期之后，引擎不再建议下一跳，把该决定交给人裁（`soft-cap`）。收敛本身只由 findings 的档位决定——出现任一 blocker 就把线推回 fix 再重审，只有 warn/nit 则修完即收口、不进重审，零 findings 即通过。
+软上限是预算，不是收敛机制：连续 `REVIEW_CYCLE_CAP` 个 blocker 周期之后，引擎不再建议下一跳，把该决定交给人裁（`soft-cap`）。收敛本身只由 findings 的档位决定——出现任一 blocker 就把线推回 fix 再重审，只有 warn 则修完即收口、不进重审，零 findings 即通过。
 
 ## 迁移
 

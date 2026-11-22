@@ -48,6 +48,7 @@ const probeDeclaration = (
   id: "probe-rule",
   docKeys: ["phase-spec"],
   severity,
+  seat: ["dispatch", "close", "corpus"],
   skipWhenClosed,
   create: () => new ProbeInvariant(),
 });

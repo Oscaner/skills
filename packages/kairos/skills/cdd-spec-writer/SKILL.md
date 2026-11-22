@@ -41,7 +41,7 @@ flowchart TD
   State the condition, never a snapshot of today's tree — three claim shapes, one line each:
   - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)
   - **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form
-  - **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: what belongs to the plan is the work item (`- Modify: <path>`), never a prose `path:line`; the condition that must hold belongs to the spec; restate such a description as that condition (`temporal-indicator` · `line-coordinate`)
+  - **narrative** — a present-tense description of the tree as it stands belongs to neither document: what belongs to the plan is the work item (`- Modify: <path>`), never a prose `path:line`; the condition that must hold belongs to the spec, so restate such a description as that condition (`line-coordinate`)
 - **Read**: Session output + the target's structural contract (phase-spec/overall variants also read the parent overall)
 - **Exit**: File written → `self-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)

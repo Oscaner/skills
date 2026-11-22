@@ -40,7 +40,7 @@ import path from "node:path";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
-import { REGRADE_NOTE_SEPARATOR, regradeNote } from "../contract/review-criteria.ts";
+import { displayReason, REGRADE_NOTE_SEPARATOR, regradeNote } from "../contract/review-criteria.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import type { PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
@@ -238,6 +238,28 @@ const ARTIFACT_FACT_LABELS = {
   reason: "reason",
 } as const;
 
+/** The engine's own note families (P42 §2.2) — three, joined as byte PREFIXES: the two
+ *  decorative families' literal openings and the artifact family's sentence shape
+ *  (`artifact <slot>: declared path `, the two slots `#prescribedArtifact` books). A
+ *  carrier already on disk still carries them (a pre-P42 round wrote them into `notes`),
+ *  so the READ face drops them here rather than waiting on the write side's promise.
+ *  Byte prefix, never substring: the same words mid-sentence are a child's own note. */
+const ENGINE_NOTE_PREFIXES: readonly string[] = [
+  "dropped decorative draft field(s)",
+  "dropped non-declared draft field(s)",
+  ...["report", "test_evidence"].map((slot) => `artifact ${slot}: declared path `),
+];
+
+/** One carrier's `notes` slot projected as the CHILD's observations: string rows only,
+ *  blanks dropped, the engine's three families dropped by their byte prefixes. The
+ *  author's bytes are kept (no fold — the brief prints them verbatim; the board folds at
+ *  its own display site), so this projection is one value with two readers. */
+const childNotesOf = (notes: unknown): readonly string[] =>
+  (Array.isArray(notes) ? notes : [])
+    .filter((note): note is string => typeof note === "string")
+    .filter((note) => note.trim().length > 0)
+    .filter((note) => !ENGINE_NOTE_PREFIXES.some((prefix) => note.startsWith(prefix)));
+
 /** One board line's carrier facts — the `+N` count's WHOLE read face (spec §2.7 ·
  *  §2.10). The record's path comes from the ledger's ONE accessor, bound to this
  *  line's type + key; ownership excludes a legacy record whose path a later round of
@@ -295,6 +317,14 @@ export class LineCarriers {
     return this.#contentOf(record).findings;
   }
 
+  /** One record's declared notes (P42 §2.1) — the carrier's `notes` slot as the child
+   *  wrote it, minus the engine's own sentences (P42 §2.2). Shares `countOf`'s ONE
+   *  carrier read and ONE parse, so the board's token and the next brief's section read
+   *  one projection, never two. */
+  notesOf(record: RoundRecord): readonly string[] {
+    return this.#contentOf(record).notes;
+  }
+
   /** One record's downgrade note (P37 §5.1 · §5.2) — its findings judged against the
    *  nearest EARLIER record on this line whose findings projection is non-empty (an
    *  implement / fix record with no findings never resets the reference, so a downgrade
@@ -343,7 +373,9 @@ export class LineCarriers {
   }
 
   /** The read behind `#contentOf` — zeroes for a record with no path or an overwritten
-   *  one, and for bytes that hold no findings array or are not JSON. */
+   *  one, and for bytes that hold neither a findings array nor a declared note. A work
+   *  round's carrier declares no findings at all, so the gate is BOTH slots: reading
+   *  `findings` alone would render every work round's note as zero (P42 §2.1). */
   #readFresh(record: RoundRecord): LineCarrierContent {
     const path = this.#pathOf(record);
     if (path === "" || !RoundRecords.ownerOf(this.#records, record, this.#pathOf)) {
@@ -354,24 +386,31 @@ export class LineCarriers {
     try {
       const value: unknown = JSON.parse(text);
       const findings = (value as { findings?: unknown } | null)?.findings;
-      if (!Array.isArray(findings)) return EMPTY_CARRIER_CONTENT;
-      return { count: findings.length, findings: this.#schema.findingsOf(findings) };
+      const notes = childNotesOf((value as { notes?: unknown } | null)?.notes);
+      if (!Array.isArray(findings) && notes.length === 0) return EMPTY_CARRIER_CONTENT;
+      return {
+        count: Array.isArray(findings) ? findings.length : 0,
+        findings: Array.isArray(findings) ? this.#schema.findingsOf(findings) : [],
+        notes,
+      };
     } catch {
       return EMPTY_CARRIER_CONTENT;
     }
   }
 }
 
-/** One record's carrier content — the TWO cells the board reads from one read (P37
- *  §5.2): the native findings count (`+N`) and the projected rows (the downgrade mark). */
+/** One record's carrier content — the THREE cells the board reads from one read (P37
+ *  §5.2 · P42 §2.1): the native findings count (`+N`), the projected rows (the
+ *  downgrade mark) and the child's notes (`notes +M`). */
 interface LineCarrierContent {
   readonly count: number;
   readonly findings: readonly RoundFinding[];
+  readonly notes: readonly string[];
 }
 
-/** The unreadable / findings-free content — a shared frozen value (no allocation per
+/** The unreadable / content-free carrier — a shared frozen value (no allocation per
  *  empty record). */
-const EMPTY_CARRIER_CONTENT: LineCarrierContent = { count: 0, findings: [] };
+const EMPTY_CARRIER_CONTENT: LineCarrierContent = { count: 0, findings: [], notes: [] };
 
 /**
  * BoardView — the entry-document → board face. The identity index (`SlugIndex`)
@@ -653,7 +692,20 @@ export class BoardView {
     // display, never a finding.
     const notes = run.flatMap((record) => carriers.regradeNoteOf(record) ?? []);
     const note = notes.length === 0 ? "" : ` ${notes.join(REGRADE_NOTE_SEPARATOR)}`;
-    return `${verb} ${body} ${mark}${suffix}${note}`;
+    // P42 §2.1 — the child's own notes ride the SAME token at its VERY END, after the
+    // downgrade note: `notes +M` counts the run's note rows (the same `run` the `+N`
+    // counts, so a merged success token counts its group and a failure token its one
+    // record), then lists them folded by the criteria module's display fold. The join
+    // order `verb · body · mark · +N · regrade note` never moves — a new segment is
+    // appended, never spliced.
+    const noteRows = run.flatMap((record) => carriers.notesOf(record));
+    const notesSegment =
+      noteRows.length === 0
+        ? ""
+        : ` notes +${noteRows.length}${noteRows
+            .map((row) => `${REGRADE_NOTE_SEPARATOR}${displayReason(row)}`)
+            .join("")}`;
+    return `${verb} ${body} ${mark}${suffix}${note}${notesSegment}`;
   }
 
   /** attemptSuffix(record) — the re-dispatch superscript: `attempt === 1` renders

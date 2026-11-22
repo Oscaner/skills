@@ -496,6 +496,7 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const { facts } = sceneFactsOf(fixture, "implement", "wave");
       const values = DispatchValues.compose(identity, facts, ABSENT_ARTIFACT);
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene: sceneOf(fixture),
         artifacts: new ArtifactRegistry(),
         io: new CaptureIo(),
@@ -543,6 +544,7 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const artifact: ArtifactSnapshot = { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT };
       const values = DispatchValues.compose(identity, facts, artifact);
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene: sceneOf(fixture),
         artifacts: new ArtifactRegistry(),
         io: new CaptureIo(),
@@ -733,6 +735,7 @@ const markerRow = (
   id,
   docKeys: "all",
   severity,
+  seat: ["dispatch", "close", "corpus"],
   skipWhenClosed,
   create: () => new MarkerInvariant(id, marker),
 });

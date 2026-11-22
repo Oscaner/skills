@@ -47,7 +47,7 @@ base: develop
 #### Consumes
 
 - `TemplateAssembler` 的 `#rowOf` / `#gate` / `#reviewRow` / `#contextLines`（`render/templates.ts`）
-- `CliLifecycle#roleOf`（`face/lifecycle.ts`）——判别 work-mode 的既有单源
+- `DispatchValues#roleOf`（`face/dispatch-values.ts`）——判别 work-mode 的既有单源
 - `cli.test.ts` 既有的 `promptOf(argv)` 夹具
 
 #### Produces

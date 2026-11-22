@@ -132,7 +132,7 @@ implement 的 legacy 级（#legacyCarrierName，读-only，cycle 1 · attempt 1 
 
 - `Ledger#carrierPathOf(type: string, key: string, record: RoundRecord): string`（`type` / `key` 故意收 `string` 而非 `TargetType` / `LedgerKey`：board 的行构造以 `string` 持有 `line` / `key`，收窄只会把两个调用点变成断言，而 `carrierPathOf` 把它们原样转手 `#resolvedCarrierName`、从不据其分派）
 - `RoundRecords#ownerOf(records: readonly RoundRecord[], record: RoundRecord, pathOf: (candidate: RoundRecord) => string): boolean`（路径以投影传入：`RoundRecords` 没有 workspace，解析不了名字，两参版本不可实现）
-- `CarrierIntegrity.readFor` 退役（调用点改 `read`）
+- CarrierIntegrity 的 readFor 退役（调用点改 `read`）
 - FixDispositions#requesterDigestOf 只看 `record.carrierDigest`（不再以 `carrierPath` 为门；摘要的**按哪条记录取**由 `#latestRecordOf` 的 `params.attempt` 收窄决定）
 - `recordRound` 的写入面不再产生 `carrierPath` / `draftPath`（字段保留为只读 legacy）；`RoundIdentity` 的 `carrierPath` 格随 `#judgedRecordOf` 一同摘除
 
@@ -155,7 +155,7 @@ implement 的 legacy 级（#legacyCarrierName，读-only，cycle 1 · attempt 1 
 - 写失败测（摘要缝独立于路径字段）：一条无 `carrierPath`、有 `carrierDigest` 的 review 记录 + 其载体被翻一字节 → fix 派发仍抛 `CarrierMismatchError` — checkable: FAIL（今日 #requesterDigestOf 返 null，零比对）
 - 实现 `carrierPathOf`（三步取值序 + 阶梯的种子身份）与 `RoundRecords.ownerOf` — checkable: 前三组测 PASS
 - `#latestRecordOf` 在 `params.attempt` 存在时按它选记录（名字与摘要同源）— checkable: 摘要缝同源与显式 attempt 1 两组测 PASS
-- `recordRound` 停写两字段、`persistHandoff` 记摘要不记路径、`CarrierIntegrity.readFor` 退役并改调用点 — checkable: `ledger.test.ts` 与 `carrier-integrity.test.ts` 全绿
+- `recordRound` 停写两字段、`persistHandoff` 记摘要不记路径、CarrierIntegrity 的 readFor 退役并改调用点 — checkable: `ledger.test.ts` 与 `carrier-integrity.test.ts` 全绿
 - #requesterDigestOf 改为只读 `carrierDigest`、删 :423 的门 — checkable: 摘要缝测 PASS
 - 五条读面改为经 accessor（board / `#reviewsPathOf` / `#reviewsPath` / `FixDispositions` / capsule）— checkable: board 与 lifecycle 定向测 PASS
 - 三个解析读者（`#reviewsPathOf`、`#consecutiveS1Run`、`Ledger#round` 的 `:1946` / `:1965` review 读）剥掉帧的 `attempt`，改传请求侧 review 记录的最新 attempt（无记录回退 1，§2.5）— checkable: 解析读者测 PASS

@@ -177,16 +177,11 @@ const VOLATILE_FACT_ANCHORS = [
   "belongs to the plan",
 ] as const;
 
-/** The four shape rule rows the two authoring nodes name in their `- **` bullets. The
+/** The three shape rule rows the two authoring nodes name in their `- **` bullets. The
  *  rubric states the same shapes as ONE prose axis and names none of them, so this is the
  *  reverse read of the node face: a batch that copies a node's block into
  *  `docNarrativeAxes` would give the same sentence a second form, which reddens here. */
-const SHAPE_RULE_IDS = [
-  "line-coordinate",
-  "measure-literal",
-  "live-arithmetic",
-  "temporal-indicator",
-] as const;
+const SHAPE_RULE_IDS = ["line-coordinate", "measure-literal", "live-arithmetic"] as const;
 
 /** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the
  *  spec variant only: the frozen bytes keep the pin form (`path:line` inside a colocated
@@ -208,7 +203,7 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
     }
   });
 
-  it("keeps the rubric a prose axis — no bullet line, none of the four rule ids", () => {
+  it("keeps the rubric a prose axis — no bullet line, none of the three rule ids", () => {
     // The three homes must not drift into two FORMS of one sentence: the nodes teach the
     // shapes as bullets that name their rule rows, the rubric states them as prose and
     // names none. Pre-seeding a copied node block here reddens the first half.

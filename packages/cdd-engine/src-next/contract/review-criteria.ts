@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/contract/review-criteria.ts
-// P37 T1 — the grading criteria registry (design spec §1, §6.1): the three tier
+// P37 T1 — the grading criteria registry (design spec §1, §6.1): both tier
 // boundaries with their evidence duty and their counterexample live as ROWS, and
 // `SEVERITY_RUBRIC` is assembled from them. The prose is therefore no longer a
 // second copy of the criteria — the registry is the only corpus that reaches the
@@ -26,7 +26,7 @@
 //
 // Display wording is NOT a rubric cell. The downgrade mark (design spec §5.2) is a
 // token the board and the capsule print, not a sentence a grader calibrates against:
-// it rides `REGRADE_MARK` below, so the nit tier's prose stays a run of sentences and
+// it rides `REGRADE_MARK` below, so the warn tier's prose stays a run of sentences and
 // a display fragment can never splice into it.
 //
 // P37 T2 — the SECOND table (design spec §3.1, §6.1): the lens question rows. One row
@@ -49,10 +49,10 @@
 // behavior-carrying bare functions.
 
 /** One grading tier, in ascending order of harm. */
-export type CriteriaTier = "blocker" | "warn" | "nit";
+export type CriteriaTier = "blocker" | "warn";
 
 /** The tier order the rubric assembles in — the ladder a grader answers in order. */
-export const TIER_ORDER: readonly CriteriaTier[] = ["blocker", "warn", "nit"];
+export const TIER_ORDER: readonly CriteriaTier[] = ["blocker", "warn"];
 
 /** The extra execution surface a row is wired to (design spec §6.2). */
 export type CriteriaFace = "gate" | "test" | "numbered";
@@ -95,8 +95,10 @@ const BOARD_CELL_SHAPE = / *· */g;
 const DISPLAY_BREAKS = /[\s\u0000-\u001f\u007f]+/g;
 
 /** One stated reason folded to its display form: the author's bytes stay on the carrier,
- *  only the printed wording is collapsed so neither face can split on it. */
-const displayReason = (reason: string): string =>
+ *  only the printed wording is collapsed so neither face can split on it. Exported so the
+ *  board's note token and the downgrade note share ONE fold — a second copy at a render
+ *  site is exactly the duplicate this module's header forbids. */
+export const displayReason = (reason: string): string =>
   reason.replace(BOARD_CELL_SHAPE, "; ").replace(DISPLAY_BREAKS, " ").trim();
 
 /** The downgrade note's ONE composition (design spec §5.2) — both display faces take
@@ -111,11 +113,12 @@ export const regradeNote = (owing: number, reasons: readonly string[]): string |
 };
 
 /**
- * The declared criteria table. Every tier owes at least one row; the `blocker` tier
- * carries two (the functional-impact boundary and the reproduction gate of §2.2), the
- * `warn` tier carries two (the debt boundary and the pin parseability gate of §7.4),
- * and the `nit` tier carries two (the expression boundary and the downgrade mark of
- * §5.2).
+ * The declared criteria table. Every tier owes at least one row. The `blocker` tier
+ * carries the functional impact boundary and the reproduction gate of §2.2; the `warn`
+ * tier carries the debt, the pin parseability gate of §7.4, the expression boundary and
+ * the downgrade mark of §5.2 — every boundary name of the two-tier write vocabulary.
+ * The one remaining tier below `blocker` is `warn`: a downgraded finding travels one
+ * step (`blocker` → `warn`) and no further.
  */
 export const CRITERIA_ROWS: readonly CriteriaRow[] = [
   {
@@ -133,7 +136,7 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
     body: "A finding is missing evidence when it is graded blocker yet names no place its claim can be re-run: `evidence.repro` must carry a command or a `doc.md#section` pointer, and a blank string is as absent as a missing key. The blocker tier is the only one that forces a decision, so it is the only one that owes readable bytes — an unreadable blocker is adopted on trust.",
     duty: "A blocker owes a non-blank `evidence.repro`: the reader re-runs it and either confirms or refutes the finding. An absent one refuses the round, and every offending row is named at once.",
     counterExample:
-      "A warn or a nit may leave `evidence` out — nobody adopts its conclusion on its word — so the absence is legal there, while the same absence on a blocker ships a decision nobody can check.",
+      "A warn may leave `evidence` out — nobody adopts its conclusion on its word — so the absence is legal there, while the same absence on a blocker ships a decision nobody can check.",
     face: "gate",
   },
   {
@@ -142,7 +145,7 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
     body: "A finding is a warn when it leaves this round's functional result unchanged but makes the next person do the wrong thing: debt (a duplicated policy · a stale docstring · a missing coverage case), a misleading claim no consumer is hurt by, a gap nobody verifies, or dead code that tempts a later reader to believe it still runs.",
     duty: "A warn owes the consequence: not a failure today, but who will take which step wrongly, and when.",
     counterExample:
-      "Dead code that nothing calls today and no output depends on is a warn, not a nit: it changes what the next reader believes, which is the warn / nit boundary itself.",
+      "Dead code that nothing calls today and no output depends on is a warn: it changes what the next reader believes, which is the warn boundary itself.",
     face: "numbered",
   },
   {
@@ -156,16 +159,16 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
   },
   {
     id: "expression-only",
-    tier: "nit",
-    body: "A finding is a nit when it is pure expression: naming, line-wrapping, comment wording, ordering inside one file — it changes neither behaviour nor anyone's judgment.",
-    duty: "A nit owes why it is not a warn: one sentence saying which judgment it leaves untouched.",
+    tier: "warn",
+    body: "Pure expression — naming, line-wrapping, comment wording, ordering inside one file — is a `notes` line, not a finding: it changes neither behaviour nor anyone's judgment, and a finding that stays must name the judgment it changes.",
+    duty: "A warn here owes two halves: the judgment it changes, and this tier's price — a fix round owed, and no re-grade of that round.",
     counterExample:
-      "A naming inconsistency that stays self-consistent inside one file is a nit, not a warn: no cross-surface reader is misled.",
+      "A naming inconsistency that stays self-consistent inside one file is a `notes` line, not a finding: no cross-surface reader is misled.",
     face: "numbered",
   },
   {
     id: "regrade-mark",
-    tier: "nit",
+    tier: "warn",
     body: "A finding is downgraded without a regrade reason when the same defect returns one tier lower and the new round states no reason for the change: the reader can no longer tell a re-grade from a changed defect, while the round's own conclusion stays what it was.",
     duty: "The mark is a display fact: it rides the board's verb token after its `+N` count and the capsule summary line, never a finding row, never a carrier entry, and never the round's conclusion.",
     counterExample:
@@ -177,7 +180,7 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
 /**
  * The criteria registry — the lookup face (`of`, an unregistered id throws) and the
  * rubric assembly (`renderRubric`). Both preserve the declared order: same-tier rows
- * sit adjacent, and the tiers run blocker → warn → nit.
+ * sit adjacent, and the tiers run blocker → warn.
  */
 export class CriteriaRegistry {
   readonly #rows: readonly CriteriaRow[];
@@ -203,10 +206,17 @@ export class CriteriaRegistry {
 
   /** The tier body the rubric is assembled from: each row contributes its three
    *  cells in the fixed order `body` → `duty` → `counterExample`, one space apart;
-   *  same-tier rows join in declaration order, and the tiers run blocker → warn →
-   *  nit. A blank cell or an empty tier throws — no tier fragment ever renders
-   *  short of a sentence. */
+   *  same-tier rows join in declaration order, and the tiers run blocker → warn. A
+   *  blank cell, an empty tier, or a row sitting outside the ladder throws — no tier
+   *  fragment ever renders short of a sentence and no row ever vanishes silently. */
   renderRubric(): string {
+    for (const row of this.#rows) {
+      if (!TIER_ORDER.includes(row.tier)) {
+        throw new Error(
+          `criteria row "${row.id}" declares the tier "${row.tier}", which sits outside the ladder — every row must land on a declared tier`,
+        );
+      }
+    }
     const tiers: string[] = [];
     for (const tier of TIER_ORDER) {
       const rows = this.#rows.filter((row) => row.tier === tier);

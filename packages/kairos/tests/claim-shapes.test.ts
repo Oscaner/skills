@@ -1,17 +1,21 @@
 // packages/kairos/tests/claim-shapes.test.ts — the claim-shape vocabulary the two
-// authoring nodes carry, read against ONE expected wording (P41 §4's resident list).
+// authoring nodes carry, read as STRUCTURE (P42 §6).
 //
 // Three homes state the same three shapes: the spec review rubric
 // (`render/templates.ts#docNarrativeAxes`), `cdd-spec-writer`'s `author-spec` node and
 // `cdd-plan`'s `author-plan` node. The gate judges a document by the rule rows those
-// lines name, so a home that words the count form differently teaches the author a shape
-// the gate then refuses — the rubric and the gate must not hold two answers.
+// lines name, so a home that points at a different row teaches the author a shape the
+// gate refuses — the rubric and the gate must not hold two answers.
 //
-// Two legs, both byte-level: each node carries the three listed lines VERBATIM (a
-// reworded bullet goes red even when it keeps the duty's sense — the sense is the rule
-// row, and a paraphrase is how the second answer is born), and the two nodes are
-// byte-identical to each other (one vocabulary, not two). Line order is pinned by the
-// same comparison: a reordered group is a different group.
+// Wording is free; the mapping is fixed; the two nodes are byte-identical. Three arms
+// read those three facts and nothing else:
+//
+//   · existence — each node carries exactly one bullet per shape prefix (`pin` ·
+//     `count` · `narrative`), so a dropped shape is red;
+//   · twin — the two nodes' bullets are byte-identical (list indent included), so a
+//     reworded bullet in ONE node is red while rewording both is green;
+//   · mapping — a shape prefix resolves to a fixed rule-id set (`pin` → one, `count` →
+//     two, `narrative` → one), and that set is exactly what the line names.
 //
 // Zero module-level bare functions — the walkers are `const` arrows (the repository's
 // zero-`function`-declaration discipline).
@@ -25,24 +29,25 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SPEC_WRITER_SKILL = path.resolve(HERE, "../skills/cdd-spec-writer/SKILL.md");
 const PLAN_SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 
-/** The final wording (P41 §4) — one line per shape, each naming the rule row it mirrors.
- *  They are the expected bytes, never a re-derivation: the point of the pin is that a
- *  reworded home is caught, which a derived expectation could not do. */
-const CLAIM_SHAPES = [
-  "- **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line coordinate is not a pin (`line-coordinate`)",
-  "- **count** — a count is stated only as `census:<id> = <n>`, the id taken from the census registry; a bare integer plus a count unit in prose is refused (`measure-literal`), as is an arithmetic over live counts (`live-arithmetic`); naming the guard that maintains the value is the reason for the reference, not its form",
-  "- **narrative** — a present-tense description of the tree as it stands is refused in a spec and in a plan alike: what belongs to the plan is the work item (`- Modify: <path>`), never a prose `path:line`; the condition that must hold belongs to the spec; restate such a description as that condition (`temporal-indicator` · `line-coordinate`)",
+/** The two authoring nodes the vocabulary lives in — file and H3 node name. */
+const NODES = [
+  [SPEC_WRITER_SKILL, "author-spec"],
+  [PLAN_SKILL, "author-plan"],
 ] as const;
 
-/** The four rule rows the three lines point at — the count line names two of them
- *  (`measure-literal` · `live-arithmetic`), beside the legal `census:<id> = <n>` form
- *  whose id lives in the census registry rather than in a rule id. */
-const NAMED_RULE_IDS = [
-  "line-coordinate",
-  "measure-literal",
-  "live-arithmetic",
-  "temporal-indicator",
-] as const;
+/** The closed shape-prefix set, in declaration order. The prefix is the shape's
+ *  identity; the sentence after it is the author's to word. */
+const SHAPE_PREFIXES = ["pin", "count", "narrative"] as const;
+
+type ShapePrefix = (typeof SHAPE_PREFIXES)[number];
+
+/** shape → the rule ids its line MUST name, and the only ones it may name: `narrative`
+ *  resolves to `line-coordinate` alone (the third shape row retired at P42 §8). */
+const RULE_IDS_BY_SHAPE: Readonly<Record<ShapePrefix, readonly string[]>> = {
+  pin: ["line-coordinate"],
+  count: ["measure-literal", "live-arithmetic"],
+  narrative: ["line-coordinate"],
+};
 
 /** The node's segment — from its own H3 heading to the next H3/H2 marker, so a sibling
  *  node's or a table's wording can never satisfy a pin this node must carry itself.
@@ -69,37 +74,61 @@ const claimShapeBullets = (segment: string): readonly string[] =>
     .map((line) => line.replace(/\r$/, ""))
     .filter((line) => /^\s*- \*\*(?:pin|count|narrative)\*\* — /.test(line));
 
-/** The same lines with the list indent trimmed — the wording face the expected strings
- *  are compared on (both nodes nest the group under their `Do` bullet). */
-const claimShapeWording = (segment: string): readonly string[] =>
-  claimShapeBullets(segment).map((line) => line.trim());
+/** The shape prefix and trimmed wording of every claim-shape bullet, in document order. */
+const shapesOf = (segment: string): readonly { shape: ShapePrefix; line: string }[] =>
+  claimShapeBullets(segment).map((bullet) => {
+    const shape = /^\s*- \*\*(pin|count|narrative)\*\* — /.exec(bullet)?.[1] as ShapePrefix;
+    return { shape, line: bullet.trim() };
+  });
 
-test("author-spec carries the three claim shapes, one line each, verbatim", () => {
-  const node = nodeText(SPEC_WRITER_SKILL, "author-spec");
-  expect(node, "the cdd-spec-writer `author-spec` node is missing").not.toBe("");
-  expect(claimShapeWording(node)).toEqual([...CLAIM_SHAPES]);
+/** The rule ids a line names — every backticked kebab-case token is a rule id (the
+ *  vocabulary writes a row id that way), while the legal `census:<id> = <n>` form and a
+ *  `path:line` / `- Modify: <path>` example are not. */
+const ruleIdsOf = (line: string): readonly string[] => {
+  const ids = [...line.matchAll(/`([a-z]+(?:-[a-z]+)+)`/g)].map((match) => match[1] ?? "");
+  return [...new Set(ids)];
+};
+
+test("each node carries one bullet per claim shape (the existence arm)", () => {
+  for (const [file, node] of NODES) {
+    const segment = nodeText(file, node);
+    expect(segment, `${file} — the \`${node}\` node is missing`).not.toBe("");
+    // Every prefix present, exactly once each, in declaration order: a dropped shape or
+    // a second bullet for one prefix is red here.
+    expect(
+      shapesOf(segment).map((entry) => entry.shape),
+      `${file} — the \`${node}\` node's claim shapes`,
+    ).toEqual([...SHAPE_PREFIXES]);
+  }
 });
 
-test("author-plan carries the same three lines, byte-identical to author-spec", () => {
+test("the two nodes state ONE vocabulary, down to the list indent (the twin arm)", () => {
   const specWriter = claimShapeBullets(nodeText(SPEC_WRITER_SKILL, "author-spec"));
   const plan = claimShapeBullets(nodeText(PLAN_SKILL, "author-plan"));
   expect(plan.length, "the cdd-plan `author-plan` node carries no claim-shape group").toBe(
-    CLAIM_SHAPES.length,
+    SHAPE_PREFIXES.length,
   );
+  // Byte-identical, wording included: the two nodes must not fork a second vocabulary.
   expect(plan, "the two nodes must state ONE vocabulary, down to the list indent").toEqual([
     ...specWriter,
   ]);
-  expect(claimShapeWording(nodeText(PLAN_SKILL, "author-plan"))).toEqual([...CLAIM_SHAPES]);
 });
 
-test("every claim shape names the rule row it mirrors", () => {
-  for (const [index, line] of CLAIM_SHAPES.entries()) {
-    const named = NAMED_RULE_IDS.filter((id) => line.includes(`\`${id}\``));
-    expect(named.length, `claim shape ${index} names no rule row`).toBeGreaterThan(0);
+test("each shape names exactly the rule ids its prefix maps to (the mapping arm)", () => {
+  for (const [file, node] of NODES) {
+    for (const { shape, line } of shapesOf(nodeText(file, node))) {
+      expect(ruleIdsOf(line), `${file} — the \`${node}\` node's ${shape} line`).toEqual([
+        ...RULE_IDS_BY_SHAPE[shape],
+      ]);
+    }
   }
-  // The count line carries the legal form itself, not just the refusals around it: a
-  // shape that names only what is refused leaves the author without a shape to write.
-  expect(CLAIM_SHAPES[1]).toContain("`census:<id> = <n>`");
-  expect(CLAIM_SHAPES[1]).toContain("census registry");
-  expect(CLAIM_SHAPES[1]).not.toContain("pinned by the named guard");
+});
+
+test("the count shape still states the legal form, not only its refusals", () => {
+  const countLine = shapesOf(nodeText(SPEC_WRITER_SKILL, "author-spec")).find(
+    (entry) => entry.shape === "count",
+  )?.line;
+  expect(countLine).toBeDefined();
+  expect(countLine).toContain("`census:<id> = <n>`");
+  expect(countLine).toContain("census registry");
 });

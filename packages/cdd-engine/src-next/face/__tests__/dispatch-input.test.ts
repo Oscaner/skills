@@ -19,6 +19,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { Contract } from "../../contract/judge.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -106,6 +107,7 @@ describe("the dispatch face after the judgment left it (P40 T5)", () => {
       const io = new SilentIo();
       const runner = new PromptRunner();
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene,
         artifacts: new ArtifactRegistry(),
         io,
@@ -141,6 +143,7 @@ describe("the dispatch face after the judgment left it (P40 T5)", () => {
       const io = new SilentIo();
       const runner = new PromptRunner();
       const lifecycle = new CliLifecycle({
+        contract: new Contract(),
         scene,
         artifacts: new ArtifactRegistry(),
         io,

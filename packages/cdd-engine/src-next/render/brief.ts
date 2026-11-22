@@ -4,7 +4,8 @@
 // read value (`PlanParsed#taskBlocks` — the same parse the graph and the dispatch
 // reuse), the step surface carries the `— checkable:` clause (the dispatch
 // contract's evidence gate), and the rendered brief appends the plan's
-// `## Constraints` section (the complete plan mirror). The brief owns no parser: a
+// `## Constraints` section (the complete plan mirror), and then the previous review
+// round's `## Notes` section when it left any (P42 §2.1). The brief owns no parser: a
 // second parse here would be a second fact source beside the plan read seam, so
 // the three faces take the document text AND the parsed document from the caller.
 // The checkable gate blocks step surfaces that carry a step with no checkable
@@ -112,12 +113,30 @@ export class BriefRenderer {
   }
 
   /** Render the brief content — the task-only projection + the plan's `## Constraints`
-   *  section (the complete plan mirror the child reads). Any requested task without a
-   *  heading blocks the whole render (out-of-bounds). */
-  render(text: string, doc: PlanParsed, tasks: readonly number[]): string {
+   *  section (the complete plan mirror the child reads), and then, when this wave's last
+   *  review round left notes, the notes section LAST (P42 §2.1): each note verbatim, no
+   *  rewrite and no added action demand. `taskBody` never carries them — the
+   *  reviewed-brief hash reads that projection alone, so a note can never look like a
+   *  plan drift. Any requested task without a heading blocks the whole render
+   *  (out-of-bounds). */
+  render(
+    text: string,
+    doc: PlanParsed,
+    tasks: readonly number[],
+    notes: readonly string[] = [],
+  ): string {
     const body = this.taskBody(text, doc, tasks);
     const constraints = this.#reader.section(text, "Constraints");
-    return constraints === "" ? `${body}\n` : `${body}\n\n${constraints}\n`;
+    const head = constraints === "" ? `${body}\n` : `${body}\n\n${constraints}\n`;
+    return notes.length === 0 ? head : `${head}\n${this.#notesSection(notes)}\n`;
+  }
+
+  /** The previous round's notes, one line each, verbatim — the engine's `## Notes`
+   *  heading is the whole of this renderer's own contribution. The engine's three note
+   *  families never arrive here: the read-side projection dropped them before the
+   *  renderer was called. */
+  #notesSection(notes: readonly string[]): string {
+    return ["## Notes", ...notes].join("\n");
   }
 
   /** The AST-range slice of one task block — the block's own lines verbatim, its

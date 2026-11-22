@@ -23,7 +23,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 #### 1.1 同一轮次有两个身份，且第二个不是单射
 
-`RoundRecord` 的身份是 `(op, cycle, attempt)`（`session/ledger.ts` 的 `RoundRecord` 类型）；产物名的身份是 `(line, op, cycle)`——`RoundNaming.finalName` 只在名字尾部拼 `.c{round}`，`#stem` 对 implement 一族直接省掉 round 令牌，家族名则由 `Ledger.handoffName` 从 `config.handoffNamespace().families` 的 `{tasks}` / `{round}` 占位替换里取。
+`RoundRecord` 的身份是 `(op, cycle, attempt)`（`session/ledger.ts` 的 `RoundRecord` 类型）；产物名的身份是 `(line, op, cycle)`——`RoundNaming.renderName` 只在名字尾部拼 `.c{round}`，`#stem` 对 implement 一族直接省掉 round 令牌，家族名则由 `Ledger.handoffName` 从 `config.handoffNamespace().families` 的 `{tasks}` / `{round}` 占位替换里取。
 
 非单射的后果只有一个方向：**同一路径被两个身份共用**。implement 面上 `finalName` 在无 round 时原样返回 draft 名，`Ledger.persistHandoff` 据此把 materialize 后的 final 写在 child 的 draft 之上；下一次 attempt 的 child 又往同一个 draft 路径写。第 1 次 attempt 的摘要（记录里的 `carrierDigest`）从此指向第 2 次 attempt 的字节。
 
@@ -147,7 +147,7 @@ owner 判据要有名字与输入，否则这条读法无法实现：**`RoundRec
 
 唯一不传帧 attempt 的仍是 `--reviews`（上一条）——它就是第二类规则在 lifecycle 那一侧的同一个答案。
 
-**摘要字段不动**：`carrierDigest` 保留——它才是完整性事实；它按哪条记录取由上面那条 `attempt` 规则定，字段与比对语义不变。`CarrierIntegrity.readFor` 的「从记录里取路径」职责退役，读面传 `(accessor 给出的路径, record.carrierDigest)`；`persistHandoff` 的写点也随 `draftPath` 一起收窄为「写 `render(id, final)`、封印 draft + final 两个名字」。
+**摘要字段不动**：`carrierDigest` 保留——它才是完整性事实；它按哪条记录取由上面那条 `attempt` 规则定，字段与比对语义不变。CarrierIntegrity 的 readFor「从记录里取路径」职责退役，读面传 `(accessor 给出的路径, record.carrierDigest)`；`persistHandoff` 的写点也随 `draftPath` 一起收窄为「写 `render(id, final)`、封印 draft + final 两个名字」。
 
 **`OUTPUT_HANDOFF`** 是 `render(id, draft)`：child 的写点与引擎的读点同源，不经过任何占位表。
 

@@ -1,22 +1,31 @@
 // packages/cdd-engine/src-next/contract/__tests__/review-criteria.test.ts
-// P37 T1 — the grading criteria registry (design spec §1, §6.1, §6.2): the three
-// tier boundaries, the evidence duty and the counterexample are ROWS, the rubric is
-// their assembly, and the execution faces are a declared census.
+// P37 T1 — the grading criteria registry (design spec §1, §6.1, §6.2): the two
+// tier boundaries of the write vocabulary, the evidence duty and the counterexample are
+// ROWS, the rubric is their assembly, and the execution faces are a declared census.
 //
 // Pins, one per claim:
 //   · every row's three cells reach `renderRubric()` verbatim (no cell is metadata);
-//   · an unregistered id throws, a blank cell throws, a tier with no row throws — the
-//     assembly-time half of the two validation contracts;
+//   · an unregistered id throws, a blank cell throws, a tier with no row throws, and a
+//     row sitting outside the ladder throws — the assembly-time half of the two
+//     validation contracts;
 //   · the face census is pinned by id: `numbered` three rows, `gate` two (the
 //     `CDD_BLOCKED: grading-impact-missing` and `CDD_BLOCKED: evidence-missing`
 //     words), `test` one (the pin gate) — changing a row's face, deleting a row or
 //     adding one goes red here.
+//
+// P42 §1.2 — the two former `nit` rows are re-graded `warn` and the table keeps every
+// row: the retired tier's boundary moves into the `warn` prose, the rendered rubric
+// carries no `nit` at all, and the assembly refuses any row that sits outside the
+// two-tier ladder instead of skipping it silently.
 //
 // The row-shape half (a deleted key is a `tsc` error, not a throw) is deliberately NOT
 // asserted through vitest: the suite runs source through esbuild, so a missing literal
 // key would only be `undefined` at runtime — `pnpm exec tsc --noEmit -p
 // packages/cdd-engine` is that pin.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   CRITERIA,
@@ -30,6 +39,17 @@ import {
   type ReviewKind,
   TIER_ORDER,
 } from "../review-criteria.ts";
+
+/** The source this file's comment pins read — the three prose sites §1.2 rewrites. */
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SOURCE = readFileSync(path.resolve(HERE, "../review-criteria.ts"), "utf8");
+
+/** The doc comment that opens immediately above `marker` — the site a pin reads. */
+const docAbove = (marker: string): string => {
+  const at = SOURCE.indexOf(marker);
+  if (at < 0) throw new Error(`the source carries no "${marker}"`);
+  return SOURCE.slice(SOURCE.lastIndexOf("/**", at), at);
+};
 
 /** One row with a replaced/blanked cell — the negative fixtures read like the table. */
 const withCell = (id: string, cell: keyof CriteriaRow, value: string): readonly CriteriaRow[] =>
@@ -52,8 +72,8 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     }
   });
 
-  it("orders the tiers blocker → warn → nit, same-tier rows adjacent", () => {
-    expect(TIER_ORDER).toEqual(["blocker", "warn", "nit"]);
+  it("orders the tiers blocker → warn, same-tier rows adjacent", () => {
+    expect(TIER_ORDER).toEqual(["blocker", "warn"]);
     const rubric = CRITERIA.renderRubric();
     const at = (text: string): number => rubric.indexOf(text);
     // the first row of each tier marks the tier's start
@@ -70,7 +90,7 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
 
   it("carries every tier's counterexample as a row cell, not a tier cell", () => {
     // The §1.3 sweep: blocker owes the missing-scenario sentence, warn owes the
-    // dead-code boundary, nit owes the self-consistent naming sentence; the second
+    // dead-code boundary and the expression boundary's destination; the second
     // blocker sentence rides the blocker row's body (its closing edge).
     expect(CRITERIA.of("grading-impact-missing").counterExample).toContain(
       "is a warn, not a blocker",
@@ -78,8 +98,10 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(CRITERIA.of("grading-impact-missing").body).toContain(
       "stay unchanged is a warn, not a blocker",
     );
-    expect(CRITERIA.of("debt-consequence").counterExample).toContain("is a warn, not a nit");
-    expect(CRITERIA.of("expression-only").counterExample).toContain("is a nit, not a warn");
+    expect(CRITERIA.of("debt-consequence").counterExample).toContain("is a warn:");
+    expect(CRITERIA.of("expression-only").counterExample).toContain(
+      "is a `notes` line, not a finding",
+    );
     // the pin row carries the §7.4 reversal reason and its boundary
     const pin = CRITERIA.of("pin-parseability");
     expect(pin.tier).toBe("warn");
@@ -88,7 +110,7 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
   });
 
   it("assembles each tier as ONE contiguous run of sentences — no fragment splices in", () => {
-    // The nit tier is where a display fragment would splice: the regrade mark is a
+    // The last tier is where a display fragment would splice: the regrade mark is a
     // token the board prints, not a criterion sentence, so it never reaches the tier
     // prose (a lowercase fragment mid-paragraph is the failure this pin forbids).
     const rubric = CRITERIA.renderRubric();
@@ -146,8 +168,101 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
         `${tier} owes a row`,
       ).toBe(true);
     }
-    const missingNit = CRITERIA_ROWS.filter((row) => row.tier !== "nit");
-    expect(() => new CriteriaRegistry(missingNit).renderRubric()).toThrow(/no "nit" row/);
+    const missingWarn = CRITERIA_ROWS.filter((row) => row.tier !== "warn");
+    expect(() => new CriteriaRegistry(missingWarn).renderRubric()).toThrow(/no "warn" row/);
+  });
+
+  it("throws on a row sitting OUTSIDE the ladder instead of skipping its prose", () => {
+    // The guard is defence in depth: `CriteriaRow.tier` is the two-value union, so a
+    // conforming registry cannot construct a third tier. The arm therefore has to lie
+    // through the type — a JSON-built table, a stale build artifact, an `as` cast.
+    const missingNit = { ...CRITERIA.of("regrade-mark"), tier: "nit" } as unknown as CriteriaRow;
+    const table = [...CRITERIA_ROWS, missingNit];
+    expect(() => new CriteriaRegistry(table).renderRubric()).toThrow(/sits outside the ladder/);
+    // the pair: deleting that one row renders the whole table again
+    expect(() => new CriteriaRegistry(CRITERIA_ROWS).renderRubric()).not.toThrow();
+    expect(new CriteriaRegistry(CRITERIA_ROWS).renderRubric()).toBe(CRITERIA.renderRubric());
+  });
+
+  it("declares exactly two tiers, and every row lands on one of them", () => {
+    expect([...TIER_ORDER]).toHaveLength(2);
+    expect(new Set(TIER_ORDER)).toEqual(new Set(["blocker", "warn"]));
+    expect([...new Set(CRITERIA.rows.map((row) => row.tier))].sort()).toEqual(["blocker", "warn"]);
+    // the table keeps every row: the retired tier loses its rank, not its row
+    expect(CRITERIA.rows).toHaveLength(6);
+  });
+
+  it("renders no `nit` word — the retired tier left the rubric's prose", () => {
+    // §1.2: the whole rendered table is the scan's surface, so a cell that still
+    // calibrates a third tier is red here even though the table is assembled row-wise.
+    expect(CRITERIA.renderRubric()).not.toMatch(/\bnit\b/);
+  });
+
+  it("names the warn tier's price in the expression row's duty — a fix round, no re-grade", () => {
+    const duty = CRITERIA.of("expression-only").duty;
+    expect(duty).toContain("a fix round owed");
+    expect(duty).toContain("no re-grade of that round");
+    // the pair: a duty that names only the judgment loses the half §1.2 spends a
+    // paragraph on, and this arm is what reads that half
+    expect(duty).toContain("the judgment it changes");
+  });
+});
+
+/**
+ * P42 §1.2 — the three prose sites beside the table. They are comments, so no runtime
+ * surface carries them; the pin reads the source bytes. Each site drops the per-tier
+ * count and keeps only what stays true: "every tier owes at least one row" plus the
+ * boundary names the rows carry, and — on the table's own comment — the one downgrade
+ * step the two-tier write vocabulary can still express.
+ */
+describe("P42 §1.2 — the table's three comments name boundaries, not per-tier counts", () => {
+  const BOUNDARIES = [
+    "functional impact",
+    "reproduction gate",
+    "the debt",
+    "the pin parseability gate",
+    "the expression boundary",
+    "the downgrade mark",
+  ] as const;
+
+  it("lists all six boundary names on the table's comment — and no per-tier count", () => {
+    const comment = docAbove("export const CRITERIA_ROWS");
+    for (const name of BOUNDARIES) expect(comment, name).toContain(name);
+    expect(comment).toContain("Every tier owes at least one row");
+    // a count written per tier is what the next re-grade falsifies: no numeral in a
+    // tier's own sentence, and no "N rows" phrasing anywhere in the block
+    const oneLine = comment.replace(/\n \* ?/g, " ").replace(/\s+/g, " ");
+    expect(oneLine).not.toMatch(/\b(blocker|warn|nit)\b[^.;]*\b(two|three|four|five|six)\b(?!-)/);
+    expect(oneLine).not.toMatch(/\b(two|three|four|five|six|\d+) rows?\b/);
+  });
+
+  it("keeps the one remaining downgrade step on the table's comment", () => {
+    // §1.1: with two write tiers the only downgrade left is `blocker` → `warn`. It
+    // lives HERE, not in `#tierRankOf` and not in any `regrade-mark` cell — that row's
+    // three cells are byte-frozen.
+    const comment = docAbove("export const CRITERIA_ROWS");
+    expect(comment).toContain("The one remaining tier");
+    expect(comment).toContain("`blocker` → `warn`");
+  });
+
+  it("states the two-tier order in the registry's class comment and in renderRubric's", () => {
+    for (const marker of ["export class CriteriaRegistry", "renderRubric(): string"]) {
+      const comment = docAbove(marker);
+      expect(comment, marker).toContain("blocker → warn");
+      expect(comment, marker).not.toMatch(/\bnit\b/);
+    }
+  });
+
+  it("leaves the downgrade mark's row byte-frozen — its three cells never moved", () => {
+    expect(CRITERIA.of("regrade-mark")).toEqual({
+      id: "regrade-mark",
+      tier: "warn",
+      body: "A finding is downgraded without a regrade reason when the same defect returns one tier lower and the new round states no reason for the change: the reader can no longer tell a re-grade from a changed defect, while the round's own conclusion stays what it was.",
+      duty: "The mark is a display fact: it rides the board's verb token after its `+N` count and the capsule summary line, never a finding row, never a carrier entry, and never the round's conclusion.",
+      counterExample:
+        "A downgrade whose previous round carried no scenario has no reference to hold it against, so the finding is read as a changed defect and carries no mark.",
+      face: "numbered",
+    });
   });
 });
 

@@ -12,7 +12,7 @@
 //   reason: <token>             (only after `next:` — the hop's named fact; no hop, no row)
 //
 // The `blocker` cell is retired: its whole information content — the blocker count —
-// is derivable from `status` (any blocker ⇒ CHANGES_REQUESTED, warn/nit-only ⇒
+// is derivable from `status` (any blocker ⇒ CHANGES_REQUESTED, warn-only ⇒
 // REVIEW_FIX, empty ⇒ APPROVED, a failure round prints no cell at all), and that
 // count is exactly the number the review criterion rules undisplayed. The key set is
 // still the word table's single source (`Words.capsuleKeys(status, withHandoff)`) —

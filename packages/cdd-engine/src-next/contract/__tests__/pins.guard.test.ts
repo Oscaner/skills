@@ -745,3 +745,140 @@ describe("P37 — the symbol corpus is the reviewed repo's own sources, not this
     ]);
   });
 });
+
+describe("P42 T11 — §9's file attribution: a member pin is judged in ITS carrier's file", () => {
+  /** A carrier whose two halves — a field and a private method — are declared once. */
+  const CARRIER = [
+    "export class RoundRecord {",
+    "  readonly carrierPath?: string | null;",
+    "  #tierRankOf(): number {",
+    "    return 0;",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  it("judges a path carrier's member in THAT file — the tree-wide identifier union is not the answer", () => {
+    const f = fixture();
+    f.write("packages/cdd-engine/src-next/ledger.ts", CARRIER);
+    f.write("packages/cdd-engine/src-next/gate.ts", "export const linePhaseOf = 1;\n");
+    // the member lives in ledger.ts, while the pin names gate.ts — live in the union,
+    // dead in the file the claim points at
+    const wrong = f.audit.scanText(bodyOf(["gate.ts#carrierPath"]), "file-face.md");
+    expect(wrong.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["gate.ts#carrierPath", "symbol"],
+    ]);
+    expect(wrong[0]?.summary).toContain("carrierPath");
+    // the pair: ONLY the path moves
+    expect(f.audit.scanText(bodyOf(["ledger.ts#carrierPath"]), "file-face.md")).toEqual([]);
+  });
+
+  it("lands a bare class name on the file that DECLARES it — an import clause declares nothing", () => {
+    const f = fixture();
+    f.write("packages/cdd-engine/src-next/ledger.ts", CARRIER);
+    f.write(
+      "packages/cdd-engine/src-next/board.ts",
+      [
+        'import { type RoundRecord } from "./ledger.ts";',
+        "export const rowsOf = (row: RoundRecord): string => String(row.carrierPath);",
+        "",
+      ].join("\n"),
+    );
+    // the class is BOUND in one file and merely named in the other's import table, so
+    // the reverse lookup lands on exactly one — reading the import clause as a
+    // declaration would make every such pin ambiguous
+    expect(f.audit.scanText(bodyOf(["RoundRecord.carrierPath"]), "carrier.md")).toEqual([]);
+    // the pair: a member the declaring file does not carry
+    const dead = f.audit.scanText(bodyOf(["RoundRecord.absentMember"]), "carrier.md");
+    expect(dead.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["RoundRecord.absentMember", "symbol"],
+    ]);
+  });
+
+  it("names EVERY candidate when a bare carrier's declarations are several — or none", () => {
+    const f = fixture();
+    f.write(
+      "packages/cdd-engine/src-next/one.ts",
+      "export class DuplicatedCarrier {\n  readonly memberKey?: string;\n}\n",
+    );
+    f.write(
+      "packages/cdd-engine/src-next/two.ts",
+      "export class DuplicatedCarrier {\n  readonly memberKey?: string;\n}\n",
+    );
+    const findings = f.audit.scanText(bodyOf(["DuplicatedCarrier.memberKey"]), "carrier.md");
+    expect(findings).toHaveLength(1);
+    // both candidates are named — the gate never picks one (the bare path's tier ③)
+    expect(findings[0]?.summary).toContain("one.ts");
+    expect(findings[0]?.summary).toContain("two.ts");
+    // the pair: the same member as a path carrier is judged by the path arm
+    expect(f.audit.scanText(bodyOf(["one.ts#memberKey"]), "carrier.md")).toEqual([]);
+    // zero declarations is one finding too, never a silent pass
+    const nowhere = f.audit.scanText(bodyOf(["ZzNowhereQq.memberKey"]), "carrier.md");
+    expect(nowhere.map((finding) => finding.pin)).toEqual(["ZzNowhereQq.memberKey"]);
+    expect(nowhere[0]?.summary).toContain("resolves nowhere in the tree");
+  });
+
+  it("reads a member in its DECLARATION shape — a literal in the file is a value, not a binding", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier.ts";
+    // the name survives in a string literal only
+    f.write(at, 'export const label = "DepthMap";\n');
+    const dead = f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+    // the pair: the same name, written in the declaration column
+    f.write(at, "export const DepthMap = new Map<string, number>();\n");
+    expect(new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+  });
+
+  it("reads the member column's interface form — a property key in the carrier's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-body.ts";
+    f.write(at, "export interface CarrierBody {\n  readonly DepthMap?: string;\n}\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the property is renamed, the pin is not — a recognizer that reads the
+    // class body alone reads BOTH states as one finding, so the first arm is red there
+    f.write(at, "export interface CarrierBody {\n  readonly depthMap?: string;\n}\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("does not let a fixture string declare a class — the pair turns the same bytes into one", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/real.ts";
+    const quoted = "packages/cdd-engine/src-next/quoted.test.ts";
+    const body = "export class HandoffSchema {\n  static gradingViolations(): void {}\n}\n";
+    f.write(at, body);
+    f.write(quoted, `const fixture = ${JSON.stringify(body)};\n`);
+    // one binding, one quoted copy: the carrier lands once, so the pin is live
+    expect(f.audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "literals.md")).toEqual(
+      [],
+    );
+    // the pair: the same bytes written as a DECLARATION in the second file make the
+    // carrier ambiguous — which is what keeping literals in the corpus would do to the
+    // whole tree
+    f.write(quoted, body);
+    const findings = new PinAudit(f.root).scanText(
+      bodyOf(["HandoffSchema.gradingViolations"]),
+      "literals.md",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.summary).toContain("real.ts");
+    expect(findings[0]?.summary).toContain("quoted.test.ts");
+  });
+
+  it("judges a DATA-file carrier as zero — the narrowed domain §9 registers, not a pass", () => {
+    const f = fixture();
+    f.write("package.json", '{"devDependencies": {"typescript": "1"}}\n');
+    // a data file's keys are string literals, so the member face has no slot there
+    expect(f.audit.scanText(bodyOf(["package.json#devDependencies"]), "data.md")).toEqual([]);
+    // the pair: the same member under a SOURCE carrier that does not declare it
+    f.write("packages/cdd-engine/src-next/carrier.ts", "export const other = 1;\n");
+    const dead = f.audit.scanText(
+      bodyOf(["packages/cdd-engine/src-next/carrier.ts#devDependencies"]),
+      "data.md",
+    );
+    expect(dead.map((finding) => finding.pin)).toEqual([
+      "packages/cdd-engine/src-next/carrier.ts#devDependencies",
+    ]);
+  });
+});

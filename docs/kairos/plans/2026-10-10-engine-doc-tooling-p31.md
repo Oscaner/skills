@@ -160,8 +160,8 @@ none
 - `Workspace.writeJsonHashed(name: string, value: unknown): string`（返回写入字节的 sha256 hex）；`writeJson` 改为 `writeJsonHashed` 的薄壳（单点序列化）
 - `Ledger.persistHandoff(...): { readonly path: string; readonly digest: string }`
 - `Ledger.readHandoff`：同名读先取该 (op,type,round) 最新记录的 `carrierDigest`，再走 `CarrierIntegrity.read(path, digest)`，最后解析 —— 摘要规则只此一处，不另写 hash 分支
-- `FixDispositions.requesterInputOf`：requester 载体经 `CarrierIntegrity.readFor(requester 记录)`（legacy 回落 `--reviews` 路径时摘要为 `null`、不比对）；mismatch 抛出，**不**折叠成 `kind: "unreadable"`
-- `BoardView.#findingsCountOf`：`CarrierIntegrity.readFor(record)`；absent 仍返 0（present facts），mismatch 抛出 → CLI 顶层通道转 `CDD_BLOCKED`（不再静默成 0）
+- `FixDispositions.requesterInputOf`：requester 载体经 CarrierIntegrity.readFor(requester 记录)（legacy 回落 `--reviews` 路径时摘要为 `null`、不比对）；mismatch 抛出，**不**折叠成 `kind: "unreadable"`
+- `BoardView.#findingsCountOf`：CarrierIntegrity.readFor(record)；absent 仍返 0（present facts），mismatch 抛出 → CLI 顶层通道转 `CDD_BLOCKED`（不再静默成 0）
 
 
 
@@ -174,7 +174,7 @@ none
 - 写失败测（spawn 前门，行为 pin）：篡改 fix 输入载体（上一轮 review 载体）后 `cdd fix` **在 child 存在之前**硬停 —— stderr 含 `CDD_BLOCKED` 与 `recorded=` / `current=` 两段前缀，注入 dispatcher 的 spy 调用计数为 0，且 `InFlight.inspect()` 为空（未 acquire）— checkable: 定向 vitest FAIL（今日 `#runDispatch` 不读载体）
 - `#runDispatch` 在 `#inflight.acquire` 之前插入该门：`op === "fix"` 且 `#reviewsPath(frame) !== null` 时，取同轮 review 记录的 `carrierDigest`（无记录 → `null`，present-facts 零比对），`CarrierIntegrity.read` 抛 `CarrierMismatchError` 即 `#blocked(err.message, false)` 并返回 `{ status: "BLOCKED" }`（不 acquire、不 spawn）。其余 op 派发前不读既有载体（`INPUT_REVIEWS` 本就是 `op === "fix"` 专属），无门可设 — checkable: 上一步 PASS
 - 写失败测（逐面读入口，行为 pin 各一枚）：board/capsule 的 `+N` 计数读与 `FixDispositions.requesterInputOf` 的裁定读分别篡改各自读到的载体后均 `CDD_BLOCKED` 且报文含 recorded/current；absent 仍走 present-facts（board 0 · fix 输入 `unreadable`）— checkable: 定向 vitest FAIL（今日两处裸读：篡改只读成 0 / `unreadable`）
-- 逐面接线：`BoardView.#findingsCountOf` 改 `CarrierIntegrity.readFor(record)`（absent → 0，mismatch 抛出）；`FixDispositions.requesterInputOf` 改 `CarrierIntegrity.readFor(requester 记录)`，legacy 回落 `--reviews` 路径且无摘要不比对，mismatch 抛出而不折叠成 `kind: "unreadable"` — checkable: 上一步两例 PASS，`board-view.test.ts` / `completion-criterion.test.ts` 既有断言全绿
+- 逐面接线：`BoardView.#findingsCountOf` 改 CarrierIntegrity.readFor(record)（absent → 0，mismatch 抛出）；`FixDispositions.requesterInputOf` 改 CarrierIntegrity.readFor(requester 记录)，legacy 回落 `--reviews` 路径且无摘要不比对，mismatch 抛出而不折叠成 `kind: "unreadable"` — checkable: 上一步两例 PASS，`board-view.test.ts` / `completion-criterion.test.ts` 既有断言全绿
 - 退路接线（不是门）：`face/cli.ts` 顶层捕获该错误走 `CDD_BLOCKED` 通道与既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获转 BLOCKED outcome — checkable: 直调 `#reconstruct` 的用例仍 `CDD_BLOCKED`（child 已存在时的最后一道，非本任务的验收门）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
@@ -260,7 +260,7 @@ none
 - 修改：`packages/cdd-engine/src-next/session/run.ts`（`#bookkeep` 失败面：`carrierPath === null` 时仍 seal 本轮草稿名）
 
 #### Consumes
-- Task 4 的 RoundNaming.finalPath、`RoundNaming.finalName`、RoundNaming.isCarrierName 与 `Ledger.handoffPath`
+- Task 4 的 RoundNaming.finalPath、`RoundNaming.renderName`、RoundNaming.isCarrierName 与 `Ledger.handoffPath`
 - `infra/workspace.ts#resolve`（工作区路径解析）
 - slug 工作区里的非 carrier JSON（`progress.json` / `base.json` / `*-test-evidence.json` / 崩溃与日志邻接 JSON）——只作「必须零触碰」的反例夹具，不进 seal 面
 

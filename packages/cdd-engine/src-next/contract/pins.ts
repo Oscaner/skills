@@ -34,16 +34,25 @@
 // read it, so one pending path answers identically wherever it is judged.
 //
 // A MEMBER reference is a spelling of the bare-symbol shape, not a fourth shape (§7.1):
-// the symbol index is a flat identifier set, so a member written with its carrier in one
-// token (`HandoffSchema.gradingViolations` · `BoardView#summaryToken`) is judged in two
-// halves — the carrier by the bare path / bare symbol sieve, the member by the same
-// symbol shape test — and either half failing to resolve is one finding. §7.3's time face
-// rides the carrier half unchanged: §7.1 sieves that half by the bare path form, so the
-// carrier IS the pending path a plan's `Create:` line declares, and it answers here as it
-// answers there (the member half is not consulted — a path the tree has not landed
-// declares no members). The shape stays `symbol`, so the census reading is unchanged by
-// this spelling. An empty carrier is not a member reference (`#reconstruct` names its own
-// symbol, `#` is its prefix), so that token falls back to the whole-token symbol judgment.
+// a member written with its carrier in one token (`HandoffSchema.gradingViolations` ·
+// `BoardView#summaryToken`) is judged in two halves — the carrier names ONE file, and
+// the member is judged THERE (§9). A path carrier resolves to its entry; a bare class
+// name rides the same table's reverse direction (`PinIndex.declaringEntries`), which
+// lands on the file that DECLARES it — zero or several declarers name no single file,
+// and that is one finding, never a picked candidate. The member itself is read by
+// `PinDeclarations`, a declaration recognizer rather than the identifier index: a name
+// counts as "in that file" when it is BOUND there or declared as a body key, so a
+// fixture string spelling a class declares nothing, and a name a file merely calls is
+// not one of its members. A carrier that resolves to a DATA file (`package.json`) has
+// no member slot — the recognizer reads code bodies and a data file's keys are string
+// literals — so that form judges ZERO findings: a narrowed domain, registered in §9,
+// not a pass. §7.3's time face rides the carrier half unchanged: §7.1 sieves that half
+// by the bare path form, so the carrier IS the pending path a plan's `Create:` line
+// declares, and it answers here as it answers there (the member half is not consulted —
+// a path the tree has not landed declares no members). The shape stays `symbol`, so the
+// census reading is unchanged by this spelling. An empty carrier is not a member
+// reference (`#reconstruct` names its own symbol, `#` is its prefix), so that token
+// falls back to the whole-token symbol judgment.
 //
 // The corpus declaration (§7.1) lives HERE as `corpusOf(root)`, so the scan, the
 // structural test and the census read one declaration rather than three copies of a
@@ -102,6 +111,19 @@ export interface PinTest {
 export interface PinMember {
   readonly carrier: string;
   readonly member: string;
+}
+
+/** One code file's declaration reading (§9): the two columns the member face reads.
+ *  `bindings` is the declaration column — a class / interface / type / const / function /
+ *  enum declared HERE, at any scope, so a function-local `const` is a binding too (the
+ *  bare-carrier reverse lookup needs that: `const planSource` in two files is two
+ *  declarations). An import clause declares nothing, so it is never read. `members` is
+ *  the member column — a property or method key of a class body, an interface body, a
+ *  type literal or an object literal, with a leading `#` stripped so a private member
+ *  answers to the name its pin writes. */
+export interface PinDeclarationSet {
+  readonly bindings: ReadonlySet<string>;
+  readonly members: ReadonlySet<string>;
 }
 
 /** The four census readings (§8.2) — one number each, taken off ONE scan and one file
@@ -534,6 +556,242 @@ export class PinSource {
 }
 
 /**
+ * PinDeclarations — the declaration recognizer (§9): what a source file BINDS and what
+ * its bodies DECLARE as keys. Its input is the code body, not the raw bytes —
+ * `PinSource.codeOf` first (comments and regex bodies blanked, so a name kept alive only
+ * by a comment is not a declaration), then one step further: string and template
+ * literals are blanked too. That second step is the recognizer's own, and it is why the
+ * reader is not the identifier index at all: `PinSource` KEEPS literals because the
+ * symbol face reads values (`CDD_BLOCKED:` is declared as a literal), while a member
+ * face wants bindings — a fixture string spelling `export class HandoffSchema {` declares
+ * nothing in the file that quotes it.
+ *
+ * Two columns, one scan. The declaration column is the six binding forms a name can be
+ * introduced by (class · interface · type · const · function · enum) wherever they
+ * appear; an `import` clause is skipped whole, because it names a binding rather than
+ * making one. The member column is the four body shapes a key is declared in — a class
+ * body, an interface body, a type literal, and an object literal's property keys — read
+ * by brace scope, so a name merely CALLED inside a method body is not a member of the
+ * class that holds it.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the declaration reader is a declared static reader set — the repo's zero-bare-function discipline admits no standalone parser.
+export class PinDeclarations {
+  /** One source text's two columns. */
+  static of(source: string): PinDeclarationSet {
+    const tokens = PinDeclarations.#tokensOf(
+      PinDeclarations.#literalFreeOf(PinSource.codeOf(source)),
+    );
+    const bindings = new Set<string>();
+    const members = new Set<string>();
+    const scopes: { readonly kind: string; readonly parens: number }[] = [];
+    let parens = 0;
+    let pending: string | null = null;
+    let previous = "";
+    for (let at = 0; at < tokens.length; at += 1) {
+      const token = tokens[at]!;
+      if (token === "import") {
+        // an import clause names a binding, it never makes one — skip to its terminator
+        while (at < tokens.length && tokens[at] !== ";") at += 1;
+        previous = ";";
+        continue;
+      }
+      if (token === "(" || token === "[") parens += 1;
+      else if (token === ")" || token === "]") parens -= 1;
+      else if (token === "{") {
+        scopes.push({ kind: pending ?? PinDeclarations.#braceKindOf(previous), parens });
+        pending = null;
+      } else if (token === "}") scopes.pop();
+      else if (token === "class" || token === "interface") pending = token;
+      else if (token === "type" && PinDeclarations.#isAliasHead(tokens, at)) pending = "type";
+      PinDeclarations.#readBinding(tokens, at, bindings);
+      PinDeclarations.#readMember(tokens, at, scopes, parens, members);
+      previous = token;
+    }
+    return { bindings, members };
+  }
+
+  /** The declaration column's six binding forms — the keyword plus the name it introduces. */
+  static #readBinding(tokens: readonly string[], at: number, bindings: Set<string>): void {
+    const keyword = tokens[at];
+    if (keyword === undefined) return;
+    const known =
+      keyword === "class" ||
+      keyword === "interface" ||
+      keyword === "enum" ||
+      keyword === "function" ||
+      keyword === "const" ||
+      (keyword === "type" && PinDeclarations.#isAliasHead(tokens, at));
+    if (!known) return;
+    const name = PinDeclarations.#nameAfter(tokens, at + 1);
+    if (name !== null) bindings.add(name);
+  }
+
+  /** The member column — a key read at the TOP level of a class / interface / type / object
+   *  brace, in a declaration shape (`key:` · `key?:` · `key(` · `key<T>(` · `key =`). */
+  static #readMember(
+    tokens: readonly string[],
+    at: number,
+    scopes: readonly { readonly kind: string; readonly parens: number }[],
+    parens: number,
+    members: Set<string>,
+  ): void {
+    const token = tokens[at];
+    const scope = scopes[scopes.length - 1];
+    if (token === undefined || scope === undefined) return;
+    if (!PinDeclarations.#isBody(scope.kind) || scope.parens !== parens) return;
+    if (!/^#?[A-Za-z_$][A-Za-z0-9_$]*$/.test(token)) return;
+    const next = tokens[at + 1];
+    if (next === undefined || !MEMBER_KEY_FOLLOWERS.has(next)) return;
+    members.add(token.replace(/^#/, ""));
+  }
+
+  /** The name one keyword introduces, skipping a generator's `*`. */
+  static #nameAfter(tokens: readonly string[], at: number): string | null {
+    const first = tokens[at] === "*" ? tokens[at + 1] : tokens[at];
+    if (first === undefined || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(first)) return null;
+    return first;
+  }
+
+  /** Whether a `type` token opens an ALIAS (`type X = …` · `type X<…> = …`) rather than
+   *  naming a re-exported or imported binding (`export type { X }` · `{ type X }`). */
+  static #isAliasHead(tokens: readonly string[], at: number): boolean {
+    const name = tokens[at + 1];
+    const after = tokens[at + 2];
+    return (
+      name !== undefined &&
+      /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) &&
+      (after === "=" || after === "<")
+    );
+  }
+
+  /** Whether a brace of this kind carries member keys. */
+  static #isBody(kind: string): boolean {
+    return kind === "class" || kind === "interface" || kind === "type" || kind === "object";
+  }
+
+  /** The kind of one `{`, read from the token before it: an expression position opens an
+   *  OBJECT literal, everything else opens a block (a body, a statement). */
+  static #braceKindOf(previous: string): string {
+    return OBJECT_BRACE_STARTS.has(previous) ? "object" : "block";
+  }
+
+  /** One text with every string / template literal blanked, length- and line-preserving.
+   *  This is the recognizer's own step ON TOP of `PinSource.codeOf`: a literal is a value
+   *  the symbol face reads and a declaration the member face must not invent. */
+  static #literalFreeOf(code: string): string {
+    const out = code.split("");
+    let at = 0;
+    while (at < code.length) {
+      const char = code[at]!;
+      if (char !== "'" && char !== '"' && char !== "`") {
+        at += 1;
+        continue;
+      }
+      const start = at;
+      at += 1;
+      while (at < code.length && code[at] !== char) {
+        if (code[at] === "\\") at += 1;
+        at += 1;
+      }
+      at += 1;
+      for (let blank = start; blank < Math.min(at, out.length); blank += 1) {
+        if (out[blank] !== "\n") out[blank] = " ";
+      }
+    }
+    return out.join("");
+  }
+
+  /** One code body as tokens — identifiers (`#`-prefixed kept whole), the multi-character
+   *  operators the brace and key readers distinguish, and single punctuation characters.
+   *  Numbers are consumed and dropped: no column reads a quantity. */
+  static #tokensOf(code: string): readonly string[] {
+    const tokens: string[] = [];
+    let at = 0;
+    while (at < code.length) {
+      const char = code[at]!;
+      const head = code.slice(at, at + 3);
+      const operator = MULTI_CHAR_OPERATORS.find((candidate) => head.startsWith(candidate));
+      if (operator !== undefined) {
+        tokens.push(operator);
+        at += operator.length;
+        continue;
+      }
+      if (char === "#" && /[A-Za-z_$]/.test(code[at + 1] ?? "")) {
+        const start = at;
+        at += 1;
+        while (/[A-Za-z0-9_$]/.test(code[at] ?? "")) at += 1;
+        tokens.push(code.slice(start, at));
+        continue;
+      }
+      if (/[A-Za-z_$]/.test(char)) {
+        const start = at;
+        while (/[A-Za-z0-9_$]/.test(code[at] ?? "")) at += 1;
+        tokens.push(code.slice(start, at));
+        continue;
+      }
+      if (/[0-9]/.test(char)) {
+        while (/[0-9._]/.test(code[at] ?? "")) at += 1;
+        continue;
+      }
+      if (/\s/.test(char)) {
+        at += 1;
+        continue;
+      }
+      tokens.push(char);
+      at += 1;
+    }
+    return tokens;
+  }
+}
+
+/** The operators one token wide enough to matter to the brace and key readers — a spread
+ *  opens an expression position, `=>` opens a BODY, and the three logical operators both
+ *  continue an expression and test it. */
+const MULTI_CHAR_OPERATORS: readonly string[] = ["...", "=>", "&&", "||", "??"];
+
+/** The tokens that follow a member key in a declaration shape — a colon, an optional
+ *  marker, a call / generic head, an initializer, or a body terminator (the shorthand a
+ *  key's own line ends on). */
+const MEMBER_KEY_FOLLOWERS: ReadonlySet<string> = new Set([
+  ":",
+  "?",
+  "(",
+  "<",
+  "=",
+  "!",
+  ",",
+  ";",
+  "}",
+]);
+
+/** The tokens an object literal's `{` can follow — an expression position, as opposed to
+ *  a body (`)` · `=>` · `else` · a statement start). */
+const OBJECT_BRACE_STARTS: ReadonlySet<string> = new Set([
+  "=",
+  "(",
+  ",",
+  ":",
+  "[",
+  "?",
+  "??",
+  "&&",
+  "||",
+  "...",
+  "as",
+  "satisfies",
+  "return",
+  "default",
+  "const",
+  "let",
+  "var",
+]);
+
+/** The empty declaration reading — a data file (a `package.json`) declares no binding and
+ *  no member key this reader can see, which is what makes its member pins judge ZERO
+ *  (design spec §9's narrowed domain), not one. */
+const EMPTY_DECLARATIONS: PinDeclarationSet = { bindings: new Set(), members: new Set() };
+
+/**
  * PinIndex — the resolution face: the repo's own entry list (files and directories, for
  * suffix resolution and the symbol index's source files), and the per-file reads the
  * line-count and test-title shapes need. Everything is built lazily and cached, so one
@@ -544,6 +802,8 @@ export class PinIndex {
   #entries: readonly string[] | null = null;
   #symbols: ReadonlySet<string> | null = null;
   readonly #lineCounts = new Map<string, number>();
+  readonly #declarations = new Map<string, PinDeclarationSet>();
+  #declarers: ReadonlyMap<string, readonly string[]> | null = null;
 
   constructor(root: string) {
     this.#root = root;
@@ -640,6 +900,57 @@ export class PinIndex {
   /** Whether one entry is a source file the symbol index reads. */
   static #isSource(entry: string): boolean {
     return /\.(ts|tsx|js|mjs|cjs|json)$/.test(entry);
+  }
+
+  /** One CODE file's declaration reading (§9) — parsed once per entry, memoized, and empty
+   *  for anything that is not a code body: a `package.json` carries no binding and no
+   *  member key (its keys are string literals), which is the narrowed domain §9 registers
+   *  — its member pins judge ZERO rather than a missing member. */
+  declarationsOf(entry: string): PinDeclarationSet {
+    const cached = this.#declarations.get(entry);
+    if (cached !== undefined) return cached;
+    const text = PinIndex.isCode(entry) ? this.textOf(entry) : null;
+    const parsed = text === null ? EMPTY_DECLARATIONS : PinDeclarations.of(text);
+    this.#declarations.set(entry, parsed);
+    return parsed;
+  }
+
+  /** Whether one file DECLARES the name — a binding or a body key (§9's one member
+   *  criterion). An import clause contributes neither: it names a binding, it makes none. */
+  declares(entry: string, name: string): boolean {
+    const parsed = this.declarationsOf(entry);
+    return parsed.bindings.has(name) || parsed.members.has(name);
+  }
+
+  /** Every code entry that DECLARES this name — §9's reverse direction, the lookup a bare
+   *  class-name carrier rides. Zero or several hits name NO single file, and the caller
+   *  reports that rather than picking a candidate (the path shape's tier ③ reading). */
+  declaringEntries(name: string): readonly string[] {
+    this.#declarers ??= PinIndex.#declarersOf(this);
+    return this.#declarers.get(name) ?? [];
+  }
+
+  /** The name → declaring entries table, built once off the entry walk the other faces
+   *  already pay for. Only BINDINGS are indexed: a member key answers "is it in that
+   *  file", never "which file declares this name". */
+  static #declarersOf(index: PinIndex): ReadonlyMap<string, readonly string[]> {
+    const table = new Map<string, string[]>();
+    for (const entry of index.entries()) {
+      if (!PinIndex.isCode(entry)) continue;
+      for (const name of index.declarationsOf(entry).bindings) {
+        const at = table.get(name);
+        if (at === undefined) table.set(name, [entry]);
+        else at.push(entry);
+      }
+    }
+    return table;
+  }
+
+  /** Whether one entry carries a code body the declaration reader can read — the source
+   *  vocabulary MINUS the data files (`package.json` is indexed for the symbol face, and
+   *  declares nothing for the member face). */
+  static isCode(entry: string): boolean {
+    return /\.(ts|tsx|js|mjs|cjs)$/.test(entry);
   }
 
   /** Every entry under one directory (or the file itself), repo-relative — one walk,
@@ -1077,20 +1388,67 @@ export class PinAudit {
     if (carrierResolution?.kind === "absent" && this.#forward.skips(member.carrier, judged)) {
       return null;
     }
-    const carrier =
-      carrierResolution === null
-        ? this.#index.symbols().has(member.carrier)
-        : carrierResolution.kind === "resolved";
-    const memberExists = this.#index.symbols().has(member.member);
-    if (carrier && memberExists) return null;
+    // §9's file attribution: the carrier names ONE file and the member is judged THERE.
+    // A path carrier resolves to its entry; a bare class name is looked up in the SAME
+    // table's reverse direction, which lands on the file that DECLARES it — zero or
+    // several declarers name no single file, and the gate reports that instead of
+    // choosing (the bare path's tier ③ reading, one shape over).
+    const carrierEntry = this.#carrierEntryOf(member, carrierResolution, judged);
+    if (carrierEntry === null) return null;
+    if (carrierEntry.kind === "dead") {
+      return PinAudit.#finding(
+        token,
+        "symbol",
+        source,
+        `its carrier \`${member.carrier}\` resolves nowhere in the tree`,
+      );
+    }
+    if (carrierEntry.kind === "ambiguous") {
+      return PinAudit.#finding(
+        token,
+        "symbol",
+        source,
+        `its carrier \`${member.carrier}\` is declared in ${carrierEntry.candidates.length} files (${carrierEntry.candidates.join(" · ")}), so it points at no single file`,
+      );
+    }
+    // §9's narrowed domain: a carrier that resolves to a DATA file has no member slot —
+    // the recognizer reads code bodies, and a data file's keys are string literals. That
+    // form judges zero findings, and the zero is the domain's edge, not a pass.
+    if (!PinIndex.isCode(carrierEntry.entry)) return null;
+    if (this.#index.declares(carrierEntry.entry, member.member)) return null;
     return PinAudit.#finding(
       token,
       "symbol",
       source,
-      carrier
-        ? `no symbol named \`${member.member}\` exists in the sources of this tree`
-        : `its carrier \`${member.carrier}\` resolves nowhere in the tree`,
+      `no symbol named \`${member.member}\` exists in the sources of this tree`,
     );
+  }
+
+  /** The ONE file a member pin's carrier half names (§9) — `null` when §7.3's pending skip
+   *  already answered, `dead` / `ambiguous` when the carrier resolves to no single file.
+   *  Both spellings ride the same reading: a path carrier by `resolve`, a bare class name by
+   *  `declaringEntries`, which is the same table read the other way. */
+  #carrierEntryOf(
+    member: PinMember,
+    resolution: PathResolution | null,
+    judged: string | null,
+  ):
+    | { readonly kind: "resolved"; readonly entry: string }
+    | { readonly kind: "dead" }
+    | { readonly kind: "ambiguous"; readonly candidates: readonly string[] }
+    | null {
+    if (resolution === null) {
+      const declarers = this.#index.declaringEntries(member.carrier);
+      const [only] = declarers;
+      if (declarers.length === 1 && only !== undefined) return { kind: "resolved", entry: only };
+      if (declarers.length === 0) return { kind: "dead" };
+      return { kind: "ambiguous", candidates: declarers };
+    }
+    if (resolution.kind === "resolved") return { kind: "resolved", entry: resolution.entry };
+    if (resolution.kind === "absent") {
+      return this.#forward.skips(member.carrier, judged) ? null : { kind: "dead" };
+    }
+    return { kind: "ambiguous", candidates: resolution.candidates };
   }
 
   /** One finding's summary — the ONE wording the guard test and the round's injected

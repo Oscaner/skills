@@ -622,12 +622,68 @@ export class PinDeclarations {
       keyword === "const" ||
       (keyword === "type" && PinDeclarations.#isAliasHead(tokens, at));
     if (!known) return;
+    if (keyword === "const") {
+      PinDeclarations.#readConstBindings(tokens, at + 1, bindings);
+      return;
+    }
     const name = PinDeclarations.#nameAfter(tokens, at + 1);
     if (name !== null) bindings.add(name);
   }
 
+  /** Every name one `const` introduces — a plain identifier, or each name a DESTRUCTURING
+   *  pattern binds (`const { Cli } = require("../dist/cli.cjs")`, the everyday `.cjs`
+   *  idiom). A destructured `const` is one of the six declared forms, so a pattern that
+   *  binds nothing reads a bound carrier as "resolves nowhere in the tree". */
+  static #readConstBindings(tokens: readonly string[], at: number, bindings: Set<string>): void {
+    const head = tokens[at];
+    if (head === "{" || head === "[") {
+      for (const name of PinDeclarations.#patternBindingsOf(tokens, at)) bindings.add(name);
+      return;
+    }
+    const name = PinDeclarations.#nameAfter(tokens, at);
+    if (name !== null) bindings.add(name);
+  }
+
+  /** Every name a destructuring pattern BINDS — a shorthand key, a renamed key's value
+   *  half, a default's target and a rest element all answer one rule, so `{ a }` ·
+   *  `{ a: b }` · `{ a = 1 }` · `{ ...rest }` · `[{ a: { b } }]` each read. A pattern's own
+   *  KEYS bind nothing. */
+  static #patternBindingsOf(tokens: readonly string[], at: number): readonly string[] {
+    const names: string[] = [];
+    let depth = 0;
+    for (let cursor = at; cursor < tokens.length; cursor += 1) {
+      const token = tokens[cursor]!;
+      if (token === "{" || token === "[") depth += 1;
+      else if (token === "}" || token === "]") {
+        depth -= 1;
+        if (depth === 0) break;
+      } else if (depth > 0 && IDENTIFIER.test(token)) {
+        if (PinDeclarations.#bindsInPattern(tokens, cursor)) names.push(token);
+      }
+    }
+    return names;
+  }
+
+  /** Whether one identifier inside a destructuring pattern sits in BINDING position — a
+   *  shorthand key, a renamed key's value half, a default's target, or a rest element. */
+  static #bindsInPattern(tokens: readonly string[], at: number): boolean {
+    const next = tokens[at + 1];
+    const previous = tokens[at - 1];
+    return (
+      next === "," ||
+      next === "}" ||
+      next === "]" ||
+      next === "=" ||
+      previous === ":" ||
+      previous === "..."
+    );
+  }
+
   /** The member column — a key read at the TOP level of a class / interface / type / object
-   *  brace, in a declaration shape (`key:` · `key?:` · `key(` · `key<T>(` · `key =`). */
+   *  brace, in a declaration shape (`key:` · `key?:` · `key(` · `key<T>(` · `key =`). The
+   *  key must also sit in KEY POSITION: the follower alone cannot tell a key from the type
+   *  or value beside it (`readonly d: MissingType;` ends on `;` exactly as a shorthand key
+   *  does, and a name after a colon is neither a binding nor a member). */
   static #readMember(
     tokens: readonly string[],
     at: number,
@@ -639,10 +695,20 @@ export class PinDeclarations {
     const scope = scopes[scopes.length - 1];
     if (token === undefined || scope === undefined) return;
     if (!PinDeclarations.#isBody(scope.kind) || scope.parens !== parens) return;
-    if (!/^#?[A-Za-z_$][A-Za-z0-9_$]*$/.test(token)) return;
+    if (!IDENTIFIER.test(token)) return;
     const next = tokens[at + 1];
     if (next === undefined || !MEMBER_KEY_FOLLOWERS.has(next)) return;
+    if (!PinDeclarations.#opensMember(tokens[at - 1])) return;
     members.add(token.replace(/^#/, ""));
+  }
+
+  /** Whether a token can PRECEDE a member key — a body's brace, a separator, a decorator's
+   *  `@`, a generator's `*`, a modifier keyword, or the file's own start. Any other
+   *  token sits inside the previous member's type or value, so the name after it is a
+   *  type or a value and never a key. */
+  static #opensMember(previous: string | undefined): boolean {
+    if (previous === undefined) return true;
+    return MEMBER_KEY_PRECEDERS.has(previous) || MEMBER_MODIFIERS.has(previous);
   }
 
   /** The name one keyword introduces, skipping a generator's `*`. */
@@ -749,6 +815,10 @@ export class PinDeclarations {
  *  continue an expression and test it. */
 const MULTI_CHAR_OPERATORS: readonly string[] = ["...", "=>", "&&", "||", "??"];
 
+/** One identifier token — the shape both declaration columns read, `#`-prefixed for a
+ *  private name. */
+const IDENTIFIER = /^#?[A-Za-z_$][A-Za-z0-9_$]*$/;
+
 /** The tokens that follow a member key in a declaration shape — a colon, an optional
  *  marker, a call / generic head, an initializer, or a body terminator (the shorthand a
  *  key's own line ends on). */
@@ -762,6 +832,27 @@ const MEMBER_KEY_FOLLOWERS: ReadonlySet<string> = new Set([
   ",",
   ";",
   "}",
+]);
+
+/** The tokens a member key can FOLLOW — a body's brace, a separator, a decorator's `@`,
+ *  or a generator's `*`. Without this half the follower alone reads a field's TYPE as a
+ *  key, because `readonly d: MissingType;` ends on `;` exactly as a shorthand key does. */
+const MEMBER_KEY_PRECEDERS: ReadonlySet<string> = new Set(["{", "}", ";", ",", "*", "@"]);
+
+/** The modifier keywords a member key follows inside one member sequence. */
+const MEMBER_MODIFIERS: ReadonlySet<string> = new Set([
+  "readonly",
+  "static",
+  "get",
+  "set",
+  "async",
+  "public",
+  "private",
+  "protected",
+  "override",
+  "abstract",
+  "declare",
+  "accessor",
 ]);
 
 /** The tokens an object literal's `{` can follow — an expression position, as opposed to
@@ -1385,9 +1476,9 @@ export class PinAudit {
     // answers it, or one pending path answers two ways inside one corpus. The member half
     // is not consulted: a path the tree has not landed declares no members, so demanding
     // one would ask for exactly the coordinate loss the skip exists to prevent.
-    if (carrierResolution?.kind === "absent" && this.#forward.skips(member.carrier, judged)) {
-      return null;
-    }
+    // That skip has ONE site — `#carrierEntryOf`'s `absent` arm, which answers it for
+    // both carrier spellings. A second test here could only disagree with it later.
+    //
     // §9's file attribution: the carrier names ONE file and the member is judged THERE.
     // A path carrier resolves to its entry; a bare class name is looked up in the SAME
     // table's reverse direction, which lands on the file that DECLARES it — zero or
@@ -1416,11 +1507,15 @@ export class PinAudit {
     // form judges zero findings, and the zero is the domain's edge, not a pass.
     if (!PinIndex.isCode(carrierEntry.entry)) return null;
     if (this.#index.declares(carrierEntry.entry, member.member)) return null;
+    // The sentence names what was READ — the carrier's own body — because §9's criterion
+    // is file-local: "no symbol named X exists in the sources of this tree" is false for
+    // the canonical failure (`gate.ts#carrierPath`, the member one file over) and sends
+    // the reader grepping a tree that does declare the name.
     return PinAudit.#finding(
       token,
       "symbol",
       source,
-      `no symbol named \`${member.member}\` exists in the sources of this tree`,
+      `its carrier \`${member.carrier}\` declares no member \`${member.member}\``,
     );
   }
 

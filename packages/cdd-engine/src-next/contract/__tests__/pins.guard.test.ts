@@ -769,6 +769,11 @@ describe("P42 T11 — §9's file attribution: a member pin is judged in ITS carr
       ["gate.ts#carrierPath", "symbol"],
     ]);
     expect(wrong[0]?.summary).toContain("carrierPath");
+    // the refusal says WHAT was read — the carrier's own body — and never claims the
+    // whole tree lacks the name: under §9 that sentence is false and sends the reader
+    // grepping for a symbol that is one file over
+    expect(wrong[0]?.summary).toContain("declares no member");
+    expect(wrong[0]?.summary).not.toContain("the sources of this tree");
     // the pair: ONLY the path moves
     expect(f.audit.scanText(bodyOf(["ledger.ts#carrierPath"]), "file-face.md")).toEqual([]);
   });
@@ -840,6 +845,56 @@ describe("P42 T11 — §9's file attribution: a member pin is judged in ITS carr
     f.write(at, "export interface CarrierBody {\n  readonly depthMap?: string;\n}\n");
     const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
     expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("reads the member column's TYPE-LITERAL form — a key in an alias's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-types.ts";
+    f.write(at, "export type CarrierTypes = {\n  readonly DepthMap?: string;\n};\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the property is renamed, the pin is not
+    f.write(at, "export type CarrierTypes = {\n  readonly depthMap?: string;\n};\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("reads the member column's OBJECT-literal form — a property key in a value's body", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-table.ts";
+    f.write(at, "export const CarrierTable = {\n  DepthMap: 1,\n};\n");
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "forms.md")).toEqual([]);
+    // the pair: the key is renamed, the pin is not
+    f.write(at, "export const CarrierTable = {\n  depthMap: 1,\n};\n");
+    const dead = new PinAudit(f.root).scanText(bodyOf([`${at}#DepthMap`]), "forms.md");
+    expect(dead.map((finding) => finding.pin)).toEqual([`${at}#DepthMap`]);
+  });
+
+  it("does not read a field's TYPE as a member key — the column is a KEY column", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/carrier-keyed.ts";
+    f.write(at, "export class CarrierKeyed {\n  readonly DepthMap?: MissingType;\n}\n");
+    // `MissingType` follows a colon: it is a type, never a key — reading the follower
+    // alone makes it a member of this file and turns a wrong coordinate green
+    const wrong = f.audit.scanText(bodyOf([`${at}#MissingType`]), "keys.md");
+    expect(wrong.map((finding) => finding.pin)).toEqual([`${at}#MissingType`]);
+    // the pair: the real key in the same body
+    expect(f.audit.scanText(bodyOf([`${at}#DepthMap`]), "keys.md")).toEqual([]);
+  });
+
+  it("reads a destructured `const` as a DECLARATION — the reverse lookup lands on it", () => {
+    const f = fixture();
+    const at = "packages/cdd-engine/src-next/bound.cjs";
+    f.write(at, 'const { CarrierOne } = require("./impl.cjs");\nconst DepthMap = 1;\n');
+    // the carrier is BOUND by destructuring — one of the six declared forms — so the
+    // bare-carrier lookup lands on this file and finds the member beside it
+    expect(f.audit.scanText(bodyOf(["CarrierOne.DepthMap"]), "binding.md")).toEqual([]);
+    // the pair: only the member declaration goes away, so the carrier still resolves and
+    // the answer is a missing member whose sentence names the carrier — not one that
+    // claims the whole tree lacks the name
+    f.write(at, 'const { CarrierOne } = require("./impl.cjs");\n');
+    const dead = new PinAudit(f.root).scanText(bodyOf(["CarrierOne.DepthMap"]), "binding.md");
+    expect(dead.map((finding) => finding.pin)).toEqual(["CarrierOne.DepthMap"]);
+    expect(dead[0]?.summary).toContain("its carrier `CarrierOne` declares no member");
   });
 
   it("does not let a fixture string declare a class — the pair turns the same bytes into one", () => {

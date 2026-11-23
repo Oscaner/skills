@@ -168,7 +168,7 @@ none
 pin 门的每一符号都已不在树上，而形状规则与闭合读数仍在生产（Task 1 的三条腿），`tsc` 与套件全绿。
 
 #### DependsOn
-Task 1
+Task 1, Task 5
 
 ### Task 5: census 比较机器退役，文法夹具分家
 
@@ -199,7 +199,7 @@ Task 1
 文法面仍在判、且能红；登记机器与语料臂消失；`biome` 与套件全绿。
 
 #### DependsOn
-Task 1, Task 4
+Task 1
 
 ### Task 6: 语料臂退役与夹具补位
 
@@ -235,7 +235,7 @@ Task 1, Task 4
 测试面不再有以本仓文档为语料的零断言，而每条规则的执行面仍在；发布面探针原样全绿。
 
 #### DependsOn
-Task 4
+Task 1
 
 ### Task 7: 记录面：引用删与数字改
 

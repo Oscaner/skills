@@ -1,7 +1,7 @@
 ---
 title: '引擎自证面退役 — Phase Spec'
 doc-type: phase-spec
-version: v0.6
+version: v0.7
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 program: 2026-10-10-engine-doc-tooling
@@ -42,20 +42,22 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 - 下线按**符号**判，不按文件判：`packages/cdd-engine/src-next/contract/pins.ts` 是混合模块——pin 门与两条生产读者同居一处，整文件删除会把形状规则依赖的读者一起拔掉，`pnpm exec tsc --noEmit -p packages/cdd-engine` 当场红在 `contract/invariants.ts` 的 import 上。
 - 尚未落树的名字在本文里不加代码跨度（新模块路径与新类名都是）：它们还不在树上，写成代码跨度就是 pin 门读到的一条死引用——正是 §1.1 描述的那类误判，而这正是本相位要撤的门。
-- 搬走一 —— 栅栏读者：`PinSpans` 的两个入口 `proseEntriesOf` · `blankedOf`（栅栏的唯一判读，`contract/invariants.ts` 的形状行、`ProseLines` 与句子索引都走在它上面）落新模块 contract/markdown-spans.ts 的 ProseSpans 类，生产调用点改指新名，**不退役**。
-- 搬走二 —— 路径文法：`PinVocabulary.pathOf` 连它读到的占位符判读（形状谓词，不是 pin 定义）与扩展名词表一起落 contract/shape-rules.ts，供 `contract/invariants.ts#SingleCreateInvariant` 的 `#claimSets` 筛 `declaration.path`。
-- 搬走三 —— 闭合读数：落 contract/closed-document.ts 的 ClosedDocument 类，读宪章 Phase inventory 的 `Design spec` / `Implementation plan` 两格，极性逐字保留。它是 `Contract.validate` 第二实参在生产里唯一的产出者（`face/lifecycle.ts` 的判据注入 · `face/cli.ts` 的 `#auditOf` · `session/preflight.ts` 的 `provenClosed` 选项），退役就等于让形状行在已闭合文档上照跑。
+- 搬走一 —— 栅栏读者：`PinSpans` 整个搬走，不挑入口——`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 四个公开成员一起落新模块 contract/markdown-spans.ts 的 ProseSpans 类，生产调用点改指新名，**不退役**。`proseOf` 不只是内部步：`contract/__tests__/shape-rules.test.ts` 导入并调用它（栅栏的唯一判读，`contract/invariants.ts` 的形状行、`ProseLines` 与句子索引都走在它上面），只搬 `proseEntriesOf` 与 `blankedOf` 就会让这份留下的夹具编不过；`tokensOf` 是其余成员脚下的跨度层，搬走后若类外无读者，实现侧把它收为私有——可见性由编译器裁定，行为不删。
+- 搬走二 —— 路径文法：`PinVocabulary.pathOf` 连它读到的 `isPattern` 占位符判读（形状谓词，不是 pin 定义）与扩展名词表一起落 contract/shape-rules.ts，供 `contract/invariants.ts#SingleCreateInvariant` 的 `#claimSets` 筛 `declaration.path`；pin 侧的分类谓词 `testOf` · `memberOf` · `isSymbol` 没有第二个读者，随它们分类的 pin 定义一起退役（`memberOf` 对 `pathOf` 的那次读也随之消失），于是 `pathOf`（连 `isPattern` 与扩展名词表）就是搬走后该模块的全部内容。
+- 搬走三 —— 闭合读数：落 contract/closed-document.ts 的 ClosedDocument 类，读宪章 Phase inventory 的 `Design spec` / `Implementation plan` 两格，极性逐字保留——零命中与多命中都不证明闭合，只有唯一命中且那份文档就是被审文档才闭合。它是 `Contract.validate` 第二实参在生产里唯一的产出者（`face/lifecycle.ts` 的判据注入 · `face/cli.ts` 的 `#auditOf` · `session/preflight.ts` 的 `provenClosed` 选项），退役就等于让形状行在已闭合文档上照跑。
+- 搬走三的深一层 —— 搬的不是两格读取，是整条读链：`ForwardPaths#provenClosed` 连 `#namedCellsOf` · `#resolveCell` · `#namesDoc` · `DONE_CELL` 一起搬，因为成对夹具守的正是「格里的文件名解析到几份在册文档」这条唯一性证明。它脚下的文档枚举今天由 `PinIndex.entries()` 供给，而 `PinIndex` 在本批退役，所以搬迁必须点明替代：枚举改走 `infra/slug-index.ts#SlugIndex`（`entries` 答「枚举哪些文档」· `entryAt` 答「这一份在不在册」），宪章正文从在册路径读，**不新起一次目录走读**；`#inDocRoots` 也不抄第二份路径谓词，改指 `SlugIndex.insideDocRoots`。最短的错误发明——拿格里的文件名直接比被审文档的 basename、跳过唯一性证明——正好让零命中与多命中的登记闭合一份文档，那是一种本相位不接受的静默豁免，所以搬过去的夹具必须带这两臂。
+- 搬走三的接线：`face/lifecycle.ts` 的 pin 面在该站点退役——`#pinIndex` 的 `PinAudit | null` · `#pinAuditFactory` · 构造选项 `pinAudit?: () => PinAudit` · `#pinAudit()` 成为闭合读数的同名面（#closedDocument · #closedDocumentFactory · 构造选项 closedDocument · #closedDocument()）；`face/cli.ts` 的 `#audit` 由 `RootMemo<PinAudit>` 改承 ClosedDocument，`#auditOf` 改名为 #closedOf，注入行由 `pinAudit: () => this.#auditOf(…)` 改为 closedDocument: () => this.#closedOf(…)。树上不留任何一处 `() => PinAudit` 类型的悬空注入；`session/preflight.ts` 的 `provenClosed` 选项形态不变，只换产出者。
 - 随门退役：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf`，以及 `PinVocabulary` 的 pin 定义（`isPin` · `#isProduct` · 模板词表）。
 - `contract/review-criteria.ts#CRITERIA_ROWS` 的 `pin-parseability` 判据行整行删除（含 `body` / `duty` / `counterExample`）；`CriteriaFace` 的 `test` 取值只剩这一行接线，随之退出。
 - `render/templates.ts#pinLensOf` 及其注入行：被审文档的 pin 回读不再注入 review prompt；`ReviewGuides.pinLens` 字段与 `REVIEWS` 每一行的取值一并删除——注入是它们唯一的读者，留着就是死数据。
 - `contract/census.ts` 的 `pin.*` 四行登记（`pin.symbol` · `pin.path` · `pin.total` · `pin.files`）与其 `PinAudit` 依赖。
-- 同一批：`contract/census.ts#censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 随比较机器一同消失；`CensusGate.referencesOf` 留作文法，供 `contract/invariants.ts#MeasureLiteralInvariant` 的跨度读（§4.1）。
+- 同一批：`contract/census.ts#censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 随比较机器一同消失；`CensusGate.referencesOf` 留作文法，供 `contract/invariants.ts#MeasureLiteralInvariant` 的跨度读（§4.1）。幸存者的形态因此要写明：`CensusGate` 只剩这一个静态方法，落地时按树上既有做法带一行 biome-ignore 注释（规则 noStaticOnlyClass）加一句理由（理由就是 §4.1 的调用点不动），不导出模块级箭头；落地形态上 `pnpm run biome` 必须 exit 0——这是本相位的门，不是 hook 的偶然。
 - `face/lifecycle.ts` 的三处调用面退役：被审文档正文的 pin 回读 · 交接单 `contract.path` 的解析腿 · 判据注入；判据注入的那一处改为把 contract/closed-document.ts 的闭合读数交给 `Contract.validate`。
 - `face/cli.ts`：census 面随 `#auditOf` 一起走；`#auditOf` 由审计构造点改为闭合读数的构造点。
 - 测试文件整文件退役：`contract/__tests__/pins.guard.test.ts` · `contract/__tests__/scan-coverage.test.ts`（后者的证明对象就是 pin 扫描的覆盖）。
 - 测试文件按面拆：`contract/__tests__/pins-guard-closure.test.ts` 的闭合成对夹具改名落 contract/__tests__/closed-document.test.ts——极性必须留证据；构造点那一段改写为「每 dispatch 一个闭合读数」，`contract.path` 回读的提问点随该腿退役。
 - 测试文件只退 pin 面，其余留且必绿：`contract/__tests__/review-criteria.test.ts`（行名册收为删除后的 id 集 · 弃掉 `test` 面的断言 · 去掉 `pin-parseability` 的层级与 `P28` / `PinAudit` 反例句格子）与 `render/__tests__/templates.test.ts`（`pinLensOf` 的类型派生 · 漂移抛错 · `REVIEWS[key].pinLens` 三格删）。
-- 测试文件改指不退役：`session/__tests__/preflight-rows.test.ts` 与 `session/__tests__/fix-round-gate.test.ts` 只借 `PinAudit` 拿闭合事实，改指 contract/closed-document.ts——它们判的是这条缝，不是门。
+- 测试文件改指不退役：`session/__tests__/preflight-rows.test.ts` 与 `session/__tests__/fix-round-gate.test.ts` 只借 `PinAudit` 拿闭合事实，改指 contract/closed-document.ts——它们判的是这条缝，不是门；`contract/__tests__/shape-rules.test.ts` 的 `PinSpans` import 由 `../pins.ts` 改指 contract/markdown-spans.ts，搬完后这份留下的夹具仍编得过、绿得了。
 
 #### 2.2 活着的引用：随门退役的删，量树上的改
 
@@ -81,7 +83,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 - `contract/__tests__/doc-corpus.guard.test.ts`：撤全语料 doc-contract 扫描与四腿血缘回读；无留（判据本体在引擎，语料臂是它唯一的断言对象）。
 - `contract/__tests__/phase-inventory.guard.test.ts`：撤对宪章 Phase inventory 的逐行七格判；无留。
-- `contract/__tests__/census.guard.test.ts`：整个文件随登记机器一起退役（§4.1）；文法面由 `measure-literal` 自己的夹具守（§4.2）。
+- `contract/__tests__/census.guard.test.ts`：按面拆，不整文件退役。语料臂（拿本仓文档跟登记表比对）与登记机器臂（七行登记表 · 未登记 id 抛错 · 一位数字改动即红）随比较机器退役；引用文法臂留下，搬进新夹具文件 contract/__tests__/census-grammar.test.ts——占位符读作散文 · 小数与带后缀的值读作散文（终止符规则）· 只读右值这三臂。它们是 `CensusGate.referencesOf` 在树上唯一的断言：`measure-literal` 自己的夹具（`contract/__tests__/shape-rules.test.ts`）只守合法引用形态与那条规则自己的数字守卫，并不带非法形态臂（§4.2）。留下后的读法只调 `CensusGate.referencesOf`，不调已退役的 `report()`。
 - `contract/__tests__/charter-self-repair.test.ts`：撤宪章五节零 finding 那一臂；无留。
 - `contract/__tests__/single-create.test.ts`：撤读 `docs/kairos/plans` 目录的那一段；留 VERB / CLAIM 两面的成对夹具。
 - `__tests__/floor.guard.test.ts`：不动——README 安装行与 `engines` 的一致性臂、类型剥离臂都留在树上。它读的是消费者拿到的 README 字节（§1.2），不是本仓 `docs/kairos/**`。
@@ -108,7 +110,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 #### 4.2 收敛后的夹具面
 
-- 文法面：点分小写 id · 十进制整数 · 终止符不是数字 / 字母 / 点；合法引用被解析，非法形态不被解析。
+- 文法面（contract/__tests__/census-grammar.test.ts，从 `census.guard` 的引用文法臂搬来）：点分小写 id · 十进制整数 · 终止符不是数字 / 字母 / 点；合法引用被解析；占位符 `census:<id> = <n>` 与它自己的 grep 形态读作散文；小数与带后缀的值（`3.5` · `3abc` · `0x10`）读作散文——截成前导整数就会判一句文法之外的句子；只读右值，引用旁的邻居数字不产生第二次读。
 - 判据面（`measure-literal`）：裸测量的违规夹具必报 · 带合规引用的邻居夹具必沉默 · 零候选即红。
 - 登记面的三条（未登记 id 抛 · 数字与登记值不符即红 · 登记表零候选即红）随登记机器一起退役：没有登记表就没有这三条，本相位不新造一个。
 
@@ -206,9 +208,9 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 ### Acceptance criteria
 
-- `pin` 门零残座（按符号判，不按文件判）：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义与判据行 · `pinLensOf` 注入面 · `ReviewGuides.pinLens` 与其取值 · `pin.*` 四行登记与比较机器 · 整文件退役的测试，全树没有留存；同时 contract/markdown-spans.ts 的 ProseSpans · contract/shape-rules.ts 的路径文法 · contract/closed-document.ts 的 ClosedDocument 在籍且被生产读；`contract/census.ts` 不再 import `PinAudit`，`CensusGate.referencesOf` 留在文法面上。
-- 形状行仍拿得到生产的闭合实参：`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 contract/__tests__/closed-document.test.ts 的成对夹具证明两格各自闭合、零命中与多命中都不闭合。
-- 被撤语料臂的判据仍可红：`single-create` 与 P41 的五条形状规则各有违规 / 邻合格夹具；`measure-literal` 的裸测量必报、带合规引用的邻居沉默、零候选即红；`selector-coverage` 删一条 selector 即红。
+- `pin` 门零残座（按符号判，不按文件判）：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义（含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）与判据行 · `pinLensOf` 注入面 · `ReviewGuides.pinLens` 与其取值 · `pin.*` 四行登记与比较机器 · 整文件退役的测试，全树没有留存；同时 contract/markdown-spans.ts 的 ProseSpans 在籍且被生产读，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 都在它上面（`contract/__tests__/shape-rules.test.ts` 的 import 已改指新模块，夹具绿），contract/shape-rules.ts 的路径文法与 contract/closed-document.ts 的 ClosedDocument 同样在籍；`contract/census.ts` 不再 import `PinAudit`，`CensusGate.referencesOf` 留在文法面上，其类的幸存形态带一行 noStaticOnlyClass 的 biome-ignore 注释，且 `pnpm run biome` 在该形态上 exit 0。
+- 形状行仍拿得到生产的闭合实参：`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 contract/__tests__/closed-document.test.ts 的成对夹具证明两格各自闭合、零命中与多命中都不闭合；闭合读数的文档枚举走 `infra/slug-index.ts#SlugIndex`，树上不存在第二处目录走读。
+- 被撤语料臂的判据仍可红：`single-create` 与 P41 的五条形状规则各有违规 / 邻合格夹具；`measure-literal` 的裸测量必报、带合规引用的邻居沉默、零候选即红；`CensusGate.referencesOf` 的文法臂（占位符 · 小数与带后缀的值 · 只读右值）在 contract/__tests__/census-grammar.test.ts 上各自可红；`selector-coverage` 删一条 selector 即红。
 - `selector-coverage` 在合成物料上全绿，且把任一份合成文档的字段名改错即红。
 - `emit:check` 接管原生成物断言：篡改 `.claude-plugin/` 一处、`docs/diagrams/src/*.json` 一处、ISSUE_TEMPLATE 一处，各使 `emit:check` 非零退出；`diagrams.guard` 那一格产物的 tag 读取与 EN↔zh-CN 孪生对的真实产物比较也在这一门上，两条各拿一份篡改去红。
 - 测试面零语料臂：引擎与 kairos 两套测试里不存在以本仓 `docs/kairos/**` 为语料并断言其状态的断言；发布面探针（README family · `AGENTS.md` · `marketplace/source.json` · skills · 生成物）照旧断言其状态且全绿；孪生判据只对夹具；`diagrams.guard` 的源内容臂与 `diagram-twin` 的内存注入臂均保留并绿。
@@ -240,3 +242,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 | v0.4 | 2026-11-23 | **按 doc-contract 的 `presence` 重排结构**：九个 Design 组各补 `#### N.M` 条目、内容改为条目下的条目行，正文判定一字未改；评审轮一（`CDD_BLOCKED: doc-contract · presence`）的整改 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
 | v0.5 | 2026-11-23 | **评审轮一整改（F1–F5，用户裁定边界按消费者划）**：`docs/kairos/**` 退役而 README family · skills · 生成物仍在判内 · `floor.guard` 双臂与 `presentation-surface` 不动 · `grep-sweep-regression` 只去掉 `docs/` 扫描根 · `plugins.guard` 无清单臂（三方对齐是 `emit:check` 的 `deriveSourceDoc`）· 孪生对的 EN↔zh-CN 配对搬入 `emit:check` 而留下的夹具臂按内存反向注入命名 · 登记机器随四行退役、`referencesOf` 留作文法 · 已闭合文档的引用删除降级为记录卫生 · §9.2 的理由改指 `#valueToken` · 撤回 README 漂移代价且后续条目顺延 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
 | v0.6 | 2026-11-23 | **评审轮二整改（F1–F4，用户裁定）**：pin 下线改按符号判——栅栏读者搬 contract/markdown-spans.ts 的 ProseSpans、路径文法搬 contract/shape-rules.ts、闭合读数搬 contract/closed-document.ts 的 ClosedDocument，只退 pin 审计与 `PinVocabulary` 的 pin 定义；补入受影响测试文件的逐文件处置（`pins-guard-closure` 拆篇、`review-criteria` 与 `templates` 只退 pin 面、两份 session 测试改指闭合读数）；`CriteriaFace` 的 `test` 取值与 `ReviewGuides.pinLens` 及其取值一并退；登记表按七行记而退比较机器、留写作形态，`census:criteria.rows` 声明改读删除后的行数；§6 把 `diagrams.guard` 的一格产物读取与孪生对的真实产物格子搬入 `emit:check`，五条源内容臂与内存注入臂留下 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
+| v0.7 | 2026-11-23 | **评审轮三整改（F1–F4，用户裁定，含对轮二裁定的更正）**：`PinSpans` 整类搬入 ProseSpans，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 一并走，`contract/__tests__/shape-rules.test.ts` 的 import 改指新模块，`PinVocabulary` 的 `testOf` · `memberOf` · `isSymbol` 随 pin 定义退役；闭合读数搬整条读链（含 `DONE_CELL` 与唯一性证明），文档枚举改走 `SlugIndex` 而不另起目录走读，`face/lifecycle.ts` 与 `face/cli.ts` 的 pin 注入面改名换型；`census.guard` 按面拆——语料臂与登记机器臂退役，引用文法臂搬 contract/__tests__/census-grammar.test.ts；`CensusGate` 的单静态幸存形态写明 noStaticOnlyClass 的 biome-ignore 与 `pnpm run biome` exit 0 | Oscaner M. · Claude（kairos:cdd-spec-writer） |

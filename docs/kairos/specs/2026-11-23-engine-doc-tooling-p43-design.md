@@ -176,13 +176,13 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 - pin 门不再能审计搬家。P39 改为冻结 `src-next/` + 新开 `src/` 重建（用户 2026-11-23 裁定），宪章的对应行已在本相位注册时补句作废，P39 自己的会话重写它。
 
-#### 8.5 实现窗口的预期红：本相位的文档自己会读成「符号不存在」
+#### 8.4 实现窗口的预期红：本相位的文档自己会读成「符号不存在」
 
 - 本相位的 spec 与 plan 声明了一批**尚未落树**的新符号（`ProseSpans` · `PathShape` · `ClosedDocument` · `#closedDocument`）。pin 的时间面只跳过 `Create:` 行声明的**路径**，不跳过符号名，所以从本相位的文档落树到 §2.1 删掉那一臂之间，`pins.guard` 的语料例题恒红。
 - 这就是 github#517 那句假话的形态复现：不是「符号不存在」，是「还不存在，而文档声明了要建」。它不构成回归，也不属于任何任务的改动面。
 - 窗口的撤销方式是交付 §2.1，不是改文档：任何一轮若出现「把新符号从文档里拿掉以消红」，按缺陷处理（同 Constraints 的「禁止为了消红改文档」）。
 
-#### 8.6 读实现理由的人要多打一个旗标
+#### 8.5 读实现理由的人要多打一个旗标
 
 - 这是 §9 的附带代价，不是疏漏——正文的权威载体在轮次 handoff 与 `logs/`，board 不再做第三份副本。
 
@@ -249,4 +249,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 | v0.5 | 2026-11-23 | **评审轮一整改（F1–F5，用户裁定边界按消费者划）**：`docs/kairos/**` 退役而 README family · skills · 生成物仍在判内 · `floor.guard` 双臂与 `presentation-surface` 不动 · `grep-sweep-regression` 只去掉 `docs/` 扫描根 · `plugins.guard` 无清单臂（三方对齐是 `emit:check` 的 `deriveSourceDoc`）· 孪生对的 EN↔zh-CN 配对搬入 `emit:check` 而留下的夹具臂按内存反向注入命名 · 登记机器随四行退役、`referencesOf` 留作文法 · 已闭合文档的引用删除降级为记录卫生 · §9.2 的理由改指 `#valueToken` · 撤回 README 漂移代价且后续条目顺延 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
 | v0.6 | 2026-11-23 | **评审轮二整改（F1–F4，用户裁定）**：pin 下线改按符号判——栅栏读者搬 contract/markdown-spans.ts 的 ProseSpans、路径文法搬 contract/shape-rules.ts、闭合读数搬 contract/closed-document.ts 的 ClosedDocument，只退 pin 审计与 `PinVocabulary` 的 pin 定义；补入受影响测试文件的逐文件处置（`pins-guard-closure` 拆篇、`review-criteria` 与 `templates` 只退 pin 面、两份 session 测试改指闭合读数）；`CriteriaFace` 的 `test` 取值与 `ReviewGuides.pinLens` 及其取值一并退；登记表按七行记而退比较机器、留写作形态，`census:criteria.rows` 声明改读删除后的行数；§6 把 `diagrams.guard` 的一格产物读取与孪生对的真实产物格子搬入 `emit:check`，五条源内容臂与内存注入臂留下 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
 | v0.7 | 2026-11-23 | **评审轮三整改（F1–F4，用户裁定，含对轮二裁定的更正）**：`PinSpans` 整类搬入 ProseSpans，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 一并走，`contract/__tests__/shape-rules.test.ts` 的 import 改指新模块，`PinVocabulary` 的 `testOf` · `memberOf` · `isSymbol` 随 pin 定义退役；闭合读数搬整条读链（含 `DONE_CELL` 与唯一性证明），文档枚举改走 `SlugIndex` 而不另起目录走读，`face/lifecycle.ts` 与 `face/cli.ts` 的 pin 注入面改名换型；`census.guard` 按面拆——语料臂与登记机器臂退役，引用文法臂搬 contract/__tests__/census-grammar.test.ts；`CensusGate` 的单静态幸存形态写明 noStaticOnlyClass 的 biome-ignore 与 `pnpm run biome` exit 0 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
-| v0.8 | 2026-11-23 | **plan 起草时的 design 回填**：补 §8.5——本相位的 spec 与 plan 声明的新符号在落树前会被 pin 语料臂读成「树上不存在」（github#517 的假话形态），窗口自文档落树至 §2.1 删臂，不得以改文档消红；原 8.4 顺延为 8.6。 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.8 | 2026-11-23 | **plan 起草时的 design 回填**：补 §8.5——本相位的 spec 与 plan 声明的新符号在落树前会被 pin 语料臂读成「树上不存在」（github#517 的假话形态），窗口自文档落树至 §2.1 删臂，不得以改文档消红；原 8.4 顺延为 8.5。 | Oscaner M. · Claude（kairos:cdd-plan） |

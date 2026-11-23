@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -14,7 +14,7 @@ base: develop
 - **下线按符号判，不按文件判**：形状规则依赖的栅栏读者与路径文法搬去规则面而不退役；`Contract.validate` 的闭合实参必须仍由生产供给。
 - **不写测试来证明自己的文档干净**：任何一门若在文档上断言零，它就该是夹具而不是语料臂。
 - **禁止为了消红改文档**：出现「门报错 → 改文档」的处置，按缺陷处理。
-- **对已闭合文档只动随门退役的读数**：删 `census:pin.*` 引用、把 `census:criteria.rows` 改成删除后的行数；不动任何结论、裁定或交付记录（D22 窄反转）。
+- **对已闭合文档只动随门退役的读数**：删 `census:pin.*` 的引用——文法判定的形态 `census:<id> = <n>`——把 `census:criteria.rows` 改成删除后的行数；不带等号与数字的散文提及留作退役记录；不动任何结论、裁定或交付记录（D22 窄反转）。
 - **一对夹具优先于一次全语料扫描**：每条保留的规则付出的是违规/邻合/零候选三条臂，不是语料。
 - **折叠只改打印，不改口径**：`notes +M` 的 M 与今天同源；board 不新增第三态。
 - **changeset 记 `cdd-engine` minor**（D74）。
@@ -28,7 +28,11 @@ base: develop
 - 路径文法：`PinVocabulary.pathOf` 连它读到的 `isPattern` 占位符判读与扩展名词表一起搬进新模块 `contract/shape-rules.ts`（类名 `PathShape`）；它服务的形状规则类仍住 `contract/invariants.ts`，本相位不搬那些类。
 - 闭合读数：`PinAudit#provenClosed` → `ForwardPaths#provenClosed` 的整条委派链（`#namedCellsOf` · `#resolveCell` · `#namesDoc` · `DONE_CELL`）搬进 `contract/closed-document.ts`，类名 `ClosedDocument`，方法 `closed(rel: string): boolean`；文档枚举改走 `infra/slug-index.ts#SlugIndex` 的文档读面，不再经 `PinIndex.entries()`。极性逐字保留：零命中与多命中都不闭合，只有唯一命中且那份文档就是被审文档才闭合。
 
-生产接线改名不改形：`face/lifecycle.ts` 的 `#pinAudit` 面成为 `#closedDocument` 面（`#pinAuditFactory` · 构造选项 `pinAudit` 同步改名），`face/cli.ts` 的 `#auditOf` 只保留闭合读数这一用，`session/preflight.ts` 的 `provenClosed` 选项名不动（它是缝的名字，不是门的名）。
+生产接线改名不改形，目标拼写由本任务写死：`face/lifecycle.ts` 的 `#pinIndex` · `#pinAuditFactory` · 构造选项 `pinAudit` · `#pinAudit()` 整面成为 `#closedDocument` · `#closedDocumentFactory` · 构造选项 `closedDocument` · `#closedDocument()`；`face/cli.ts` 的 `#audit` 备忘由 `PinAudit` 改承 `ClosedDocument`，`#auditOf` 改名为 `#closedOf`，注入行随之改指。
+
+惰性 fallback 是这条接线的写集之一：`#closedDocument()` 在调用点未注入访问者时自己组装 `new ClosedDocument(...)`，索引取自契约面的既有默认索引槽（`contract/invariants.ts` 的 `ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs)` 那一处），`face/lifecycle.ts` 不新起 `SlugIndex.build`，所以 `face/__tests__/cli.test.ts` 的 P36 T3 构造点清单保持绿，`new CliLifecycle(` 的其余构造点一处都不欠改。`session/preflight.ts` 的 `provenClosed` 选项名不动（它是缝的名字，不是门的名）。
+
+`contract/pins.ts` 在本任务是收缩而不是退役：`Modify` 行在下面，`Delete` 行在 Task 4。先收后删是合法的两步，形状门既不把它读成双重创造，也不把它读成提前删除；本任务收尾时它仍编译通过。
 
 #### Files
 - Create: `packages/cdd-engine/src-next/contract/markdown-spans.ts`
@@ -36,11 +40,14 @@ base: develop
 - Create: `packages/cdd-engine/src-next/contract/closed-document.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/closed-document.test.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/markdown-spans.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/pins.ts`
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/single-create.test.ts`
+- Delete: `packages/cdd-engine/src-next/contract/__tests__/pins-guard-closure.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/__tests__/fix-round-gate.test.ts`
 
@@ -51,18 +58,18 @@ base: develop
 - `contract/judge.ts#Contract.validate` 的第二实参（闭合实参的消费者，签名不动）
 
 #### Produces
-- `contract/markdown-spans.ts#ProseSpans`——四个成员的公开面，`invariants.ts` 的五处调用点改指它
+- `contract/markdown-spans.ts#ProseSpans`——四个成员的公开面；`invariants.ts` 的形状行散文读、句子索引的空白化与形状臂的行级遮蔽一并改指它，import 行随之改指
 - `contract/shape-rules.ts#PathShape`——`pathOf` 与 `isPattern` 的公开面，`invariants.ts#SingleCreateInvariant` 的 `#claimSets` 与 `contract/__tests__/single-create.test.ts` 的路径筛都改指它；同模块收下路径归一化，闭合读数链开头的归一化改指它
 - `contract/closed-document.ts#ClosedDocument`——`closed(rel): boolean`，`face/lifecycle.ts` · `face/cli.ts` · `session/preflight.ts` 的闭合实参唯一来源；链内对 `PinIndex` 的静态调用零命中
-- `contract/__tests__/closed-document.test.ts`——从 `pins-guard-closure.test.ts` 接过的成对夹具（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一命中且同 slug 才闭合）
-- `pins.ts` 在本任务后仍编译通过（退役是 Task 4 的事）
+- `contract/__tests__/closed-document.test.ts`——从 `pins-guard-closure.test.ts` 整篇接过的两段：成对夹具（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一命中且同 slug 才闭合）与构造点臂（一次 dispatch 只取一个闭合读数，该读数就是交给 `Contract.validate` 的那一个；未注入访问者时由 fallback 构造，同一惰性备忘）；`pins-guard-closure.test.ts` 因此整文件退役，`Delete` 行在本任务的 Files 里（内容整体搬进新文件，旧文件名不再需要）。
+- `pins.ts` 在本任务后仍编译通过（本任务只给它 `Modify` 行，退役与 `Delete` 行在 Task 4）
 
 #### Steps
-- 建 `markdown-spans.ts`，把 `PinSpans` 整类搬入并改名 `ProseSpans` — checkable: `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 `invariants.ts` 的栅栏读全部改指新类、`PinSpans` 在该文件零命中
+- 建 `markdown-spans.ts`，把 `PinSpans` 整类搬入并改名 `ProseSpans` — checkable: `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 `invariants.ts` 的栅栏读全部改指新类、`PinSpans` 在该文件零命中；`contract/__tests__/pins.guard.test.ts` 的 `PinSpans` import 改指 `ProseSpans`，其 `tokensOf` 臂随可见性改指或搬进 `markdown-spans.test.ts`
 - 建 `shape-rules.ts`，把 `pathOf` · `isPattern` 与扩展名词表搬入并命名 `PathShape` — checkable: `invariants.ts#SingleCreateInvariant` 的 `#claimSets` 只经 `PathShape.pathOf` 判 `declaration.path`；`shape-rules.test.ts` 的既有断言全绿
 - 建 `closed-document.ts`，把委派链搬入，枚举改走 `SlugIndex`；链开头的归一化函数随路径文法一起搬（搬走二的同一处），链内改指新名 — checkable: `closed-document.test.ts` 的四臂全红/全绿成对成立（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一同 slug 闭合）；把归一化留在 `PinIndex` 上 ⇒ `pnpm exec tsc --noEmit -p packages/cdd-engine` 在 Task 4 删 `pins.ts` 时红，且本任务里 `closed-document.ts` 上 `PinIndex` 零命中
-- 改三处生产接线名 — checkable: `face/lifecycle.ts` 与 `face/cli.ts` 上 `pinAudit` / `#auditOf` 的闭合法为零命中（改名后只余闭合面）；`session/preflight.ts` 的 `provenClosed` 选项名逐字未变
-- 两份 session 测试与 `single-create.test.ts` 改指 `ClosedDocument` / `PathShape` — checkable: `session/__tests__/preflight-rows.test.ts` 与 `fix-round-gate.test.ts` 不再构造 `PinAudit`；`single-create.test.ts` 的 `pathOf` 调用改指 `PathShape.pathOf` 而上 `PinVocabulary` 零命中；三个文件全绿
+- 按写死的目标名改生产接线，并把 fallback 改成闭合读数自身的构造 — checkable: `face/lifecycle.ts` 与 `face/cli.ts` 上 `pinAudit` · `#pinIndex` · `#auditOf` 零命中，而 `#closedDocument` · `#closedDocumentFactory` · `closedDocument` · `#closedOf` 各在其位、`#audit` 备忘的类型是 `ClosedDocument`；`new CliLifecycle(` 的构造点一处未改而 `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（选项仍是可选）；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/cli.test.ts` 的 P36 T3 保持绿（fallback 不新起 `SlugIndex.build`）；`session/preflight.ts` 的 `provenClosed` 选项名逐字未变
+- 两份 session 测试改指 `ClosedDocument` / `PathShape`，并把 `pins-guard-closure.test.ts` 的两段搬进 `closed-document.test.ts` — checkable: `session/__tests__/preflight-rows.test.ts` 与 `fix-round-gate.test.ts` 不再构造 `PinAudit`；`single-create.test.ts` 的 `pathOf` 调用改指 `PathShape.pathOf` 而上 `PinVocabulary` 零命中；`closed-document.test.ts` 同时带成对夹具与构造点臂且全绿，`pins-guard-closure.test.ts` 不在树上；成对：去掉那条零注入的臂 ⇒ 从注入访问者的 dispatch 仍绿而零注入的那条红
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
@@ -106,6 +113,7 @@ none
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
 - Modify: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`
+- Modify: `packages/cdd-engine/src-next/session/__tests__/notes-channel.test.ts`
 
 #### Consumes
 - `face/declare.ts#ChannelArgRow` 的 `artifacts` 行（bool 折叠的既有先例，本任务照抄形态）
@@ -116,11 +124,13 @@ none
 - `--notes` 通道行（board 命令）；缺省 = 折叠
 - `BoardView#summaryToken` 的折叠分支：`notes +M` 在，正文不在；`--notes` 打开时字节与改动前逐字相同
 - `board-view.test.ts` 的成对臂：默认无正文 · `--notes` 展开逐字节相等 · 段序不变 · 展开面仍是一行（` · ` 与换行都不出现）
+- `notes-channel.test.ts` 的 board token 断言改到折叠形态：默认臂只断言 `notes +M`（计数在、正文不在），展开臂逐字节断言原正文；brief 渲染组不在本任务的面内，一行不动
 
 #### Steps
 - 加 `--notes` 通道行并接到 board — checkable: `cdd board --help` 出现 `--notes`，且不写 `--notes` 时不把正文打进输出
 - 改 `#summaryToken` 的 notes 段为折叠/展开两支 — checkable: `board-view.test.ts` 三臂（默认零正文 · `--notes` 逐字节相等 · 段序逐字同序）各自可红：把展开支删掉 ⇒ 第二臂红；把计数挪出 token ⇒ 第三臂红
 - 展开面仍走 `displayReason` 的一行折叠 — checkable: 一条含换行与 ` · ` 的 note 在 `--notes` 下仍是一行（成对：改用裸 `join` ⇒ 该臂红）
+- 把 `session/__tests__/notes-channel.test.ts` 上按展开字节 pin 的 board token 断言改到折叠形态 — checkable: 该文件的默认臂只余 `notes +M`（正文零命中），`--notes` 臂逐字节等于改动前的原串；brief 渲染组断言未动且全绿；成对：把默认改回展开 ⇒ 默认臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p43):` 起头
 
 #### Acceptance
@@ -132,12 +142,13 @@ none
 ### Task 4: pin 门退役
 
 #### Objective
-在 Task 1 把生产腿搬走之后，把 pin 门本体整批删掉：`contract/pins.ts` 余下部分（`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义，含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）· `pin-parseability` 判据行（连 `CriteriaFace` 的 `test` 取值）· `pinLensOf` 与 `ReviewGuides.pinLens` 字段及其六个取值 · 三个测试文件 · 受影响测试的 pin 面。文件 `pins.ts` 在此任务后不存在。
+在 Task 1 把生产腿搬走之后，把 pin 门本体整批删掉：`contract/pins.ts` 余下部分（`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义，含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）· `pin-parseability` 判据行（连 `CriteriaFace` 的 `test` 取值）· `pinLensOf` 与 `ReviewGuides.pinLens` 字段与 `REVIEWS` 上每一处声明它的取值 · 余下的 pin 测试文件（`pins-guard-closure.test.ts` 已在 Task 1 搬篇时退役，本任务只删剩下两份）· 受影响测试的 pin 面。文件 `pins.ts` 在此任务后不存在。
+
+Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census.guard.test.ts` 的引用文法臂都在那一轮离开，所以本任务收尾时全树 `contract/pins` 的零命中是可达的，而不是靠删记录凑出的零。
 
 #### Files
 - Delete: `packages/cdd-engine/src-next/contract/pins.ts`
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
-- Delete: `packages/cdd-engine/src-next/contract/__tests__/pins-guard-closure.test.ts`
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/scan-coverage.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`
@@ -152,16 +163,16 @@ none
 - `contract/judge.ts#Contract.validate` 的第二实参（由 `ClosedDocument` 供给）
 
 #### Produces
-- `pins.ts` 及其三个测试文件从树上消失；`Contract` / `invariants` / `lifecycle` / `cli` 零 pin 引用
+- `pins.ts` 与余下两份 pin 测试文件从树上消失；全树 `contract/pins` 零 import，`Contract` / `invariants` / `lifecycle` / `cli` 零 pin 引用
 - `CRITERIA_ROWS` 少一行（`pin-parseability`），`CriteriaFace` 的 `test` 取值随之无人使用并删除
-- `ReviewGuides.pinLens` 与 `REVIEWS` 六行的该取值删除
+- `ReviewGuides.pinLens` 与 `REVIEWS` 上每一处声明它的取值删除
 - `review-criteria.test.ts` 的 id 名册收为删除后的集合、去掉 `test` 面断言、`pin-parseability` 的层级与反例句格子删；`templates.test.ts` 的 `pinLensOf` 三格删，其余留
 
 #### Steps
-- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中，`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中（`contract/census.ts` 的类型 import 已在 Task 5 离开），`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
 - 删判据行与 `CriteriaFace` 的 `test` 取值 — checkable: `CRITERIA_ROWS` 的行名册不再含 `pin-parseability`；`review-criteria.test.ts` 按删除后的 id 集断言（成对：把该行加回 ⇒ 名册臂红）
 - 删 `pinLensOf` 与 `ReviewGuides.pinLens` — checkable: `render/templates.ts` 上 `pinLens` 零命中，`templates.test.ts` 只余非 pin 臂且全绿
-- 删三个测试文件；`lifecycle.test.ts` 只退 pin 回读面 — checkable: 三个路径不存在；`face/__tests__/lifecycle.test.ts` 上「pin 回读语料注入」与「交接单 `contract.path` 解析」两个 describe 退役、其余全绿
+- 删余下两份 pin 测试文件（`pins-guard-closure.test.ts` 的成对夹具与构造点臂已在 Task 1 搬进 `closed-document.test.ts`）；`lifecycle.test.ts` 只退 pin 回读面 — checkable: 三份 pin 测试文件都不在树上；`face/__tests__/lifecycle.test.ts` 上「pin 回读语料注入」与「交接单 `contract.path` 解析」两个 describe 退役、其余全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
@@ -186,12 +197,12 @@ Task 1, Task 5
 - `contract/__tests__/census.guard.test.ts` 的引用文法臂（搬迁源）
 
 #### Produces
-- `contract/census.ts` 只剩 `referencesOf`（单静态类 + `biome-ignore` 行）；登记表与比较机器不存在
+- `contract/census.ts` 只剩 `referencesOf`（单静态类 + `biome-ignore` 行）；登记表与比较机器不存在，`PinAudit` 的类型 import 随四行 `pin.*` 登记一并离开该文件
 - `contract/__tests__/census-grammar.test.ts`——三臂各自可红（占位符 · 小数与带后缀值 · 只读右值）
 - `invariants.ts#MeasureLiteralInvariant` 的调用点不动（仍只读文法）
 
 #### Steps
-- 删登记表与比较机器，收 `CensusGate` 为单静态类 — checkable: `pnpm run biome` exit 0（单静态类落在 `biome-ignore` 之下）；成对：删掉那行 ignore ⇒ `biome check` 非零退出
+- 删登记表与比较机器，收 `CensusGate` 为单静态类 — checkable: `pnpm run biome` exit 0（单静态类落在 `biome-ignore` 之下）；`contract/census.ts` 上 `PinAudit` 零命中；成对：删掉那行 ignore ⇒ `biome check` 非零退出
 - 搬文法臂到新文件 — checkable: `census-grammar.test.ts` 三臂全绿；把 `REFERENCE` 的终止符规则去掉再跑 ⇒ `3.5` 那一臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
@@ -240,7 +251,7 @@ Task 1
 ### Task 7: 记录面：引用删与数字改
 
 #### Objective
-把已闭合文档里随门退役的读数处理掉：`census:pin.*` 的引用与 P41 两份文档的散文提及删除；带 `census:criteria.rows` 的声明改读删除 `pin-parseability` 之后的行数。不动任何结论、裁定或交付记录。
+把已闭合文档里随门退役的读数处理掉：P37 的 spec 与 plan 上 `census:pin.* = <n>` 形式的引用删除，P41 那处指向退役登记行的散文提及同批抹掉（记录卫生）；带 `census:criteria.rows` 的声明改读删除 `pin-parseability` 之后的行数。散文提及本身不构成引用，也不在本任务的判据里：宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan，都把 `census:pin` 这个名字当作退役记录——不附等号与数字，文法从不解析它们，删它们属于改记录。不动任何结论、裁定或交付记录。
 
 #### Files
 - Modify: `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`
@@ -255,12 +266,13 @@ Task 1
 - `contract/review-criteria.ts#CRITERIA_ROWS`（删除后的行数，作为数字改写的唯一来源）
 
 #### Produces
-- 语料上 `census:pin.*` 零命中（引用与散文提及都不留）
+- 声明的语料上 `census:pin.*` 的引用零命中：引用指文法判定的形态（`census:<id> = <n>` · 点分小写 id · 十进制整数 · 终止符不是数字/字母/点）；不附等号与数字的散文提及留作退役记录，声明的文件集内外都允许存在
+- P41 两份文档上指向退役登记行的那句散文提及消失
 - 每处 `census:criteria.rows` 声明等于 `CRITERIA_ROWS` 删除后的行数
 - `census:questions.rows` 与 `questions.cells` 原样未动
 
 #### Steps
-- 删 `census:pin.*` 的引用与 P41 的散文提及 — checkable: `grep -rn "census:pin" docs/` 零命中
+- 删 `census:pin.*` 的引用与 P41 的散文提及 — checkable: 按 `CensusGate.referencesOf` 的形态，声明的六份文件上 `census:pin` 的引用为零（成对：把一处带 `= 0` 的 `census:pin` 引用写回 P37 的 spec ⇒ 该臂红）；P41 的散文提及消失；宪章与本相位自己文档里的同一字面仍在、未被改写
 - 改 `census:criteria.rows` 的声明数字 — checkable: 全库该 id 的声明值与 `CRITERIA_ROWS` 的实际行数相等（成对：把一处改回旧值 ⇒ 该断言红）
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p43):` 起头
 
@@ -273,7 +285,7 @@ Task 4, Task 5
 ### Task 8: 生成物一致收归 `emit:check`
 
 #### Objective
-把两处读**渲染产物**的臂移出测试，交给 `emit:check`：`face/__tests__/diagrams.guard.test.ts` 里读 HTML 的那一格（tag 在场、退役 tag 不在场）与 `face/__tests__/diagram-twin.guard.test.ts` 里源↔产物的成对比较（覆盖与图型根 · 产物命名 · 两侧修订一致 · 引用多重集 · 文案逐格）。该文件的五条源内容臂与内存反向注入臂留下。
+把两处读**渲染产物**的臂移出测试，交给 `emit:check`：`face/__tests__/diagrams.guard.test.ts` 里读 HTML 的那一格（tag 在场、退役 tag 不在场）与 `face/__tests__/diagram-twin.guard.test.ts` 里源↔产物的成对比较（覆盖与图型根 · 产物命名 · 两侧修订一致 · 引用多重集 · 文案逐格）。该文件的五条源内容臂与内存反向注入臂留下。字节相等并不推出那一格 tag 读取，所以它是这一轮唯一要新写的断言，落点在 `scripts/lib/diagrams.ts`；孪生对的引用多重集与文案逐格由逐字节相等蕴含，不另立一条。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts`
@@ -287,11 +299,12 @@ Task 4, Task 5
 
 #### Produces
 - `emit:check` 覆盖三项生成物面：`.claude-plugin/` 与 marketplace 的派生、ISSUE_TEMPLATE、`docs/diagrams` 的源↔产物（含孪生对）
+- `scripts/lib/diagrams.ts` 的产物断言：源里的 `tag` 落在该源渲染出的执行卡首行、源的 `retiredTag` 不在产物上——两侧字面从源读，与逐字节比对并列
 - `diagrams.guard.test.ts` 只余五条源内容臂 + P28 T2 那一格；`diagram-twin.guard.test.ts` 只余内存反向注入臂
 - 两个测试文件不再读 HTML
 
 #### Steps
-- 把 HTML 读取与孪生比对搬进 `emit:check` — checkable: 篡改 `docs/diagrams` 任一份产物 ⇒ `pnpm run emit:check` 非零退出；篡改一份生成的 `.claude-plugin` 文件 ⇒ 同样非零
+- 把 HTML 读取与孪生比对搬进 `emit:check`，并把 tag 读取落成它自己的断言 — checkable: 篡改 `docs/diagrams` 任一份产物 ⇒ `pnpm run emit:check` 非零退出；篡改一份生成的 `.claude-plugin` 文件 ⇒ 同样非零；改 `docs/diagrams/src/*.json` 里一份源的 `tag` 后重生成 ⇒ 新断言使 `emit:check` 非零退出（成对：把新断言去掉再跑同一处 ⇒ 回到 exit 0，这一半证明接住它的是新断言而不是字节比对）
 - 从两份测试里删去读产物的臂 — checkable: 两文件上 `docs/diagrams` 的 HTML 路径零命中，其余臂全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p43):` 起头
 
@@ -367,3 +380,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-23 | 初稿（cdd-plan 会话）：按 spec v0.7 的九节拆为十任务五波——三条生产腿搬家 · AGENTS.md 规范 · board 折叠 · pin 门退役 · census 文法分家 · 语料臂退役与夹具补位 · 记录面引用 · 生成物归 `emit:check` · selector 合成物料 · changeset 收口 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.2 | 2026-11-23 | **按 spec 评审轮四的 F1–F4 修正任务面（spec v0.9）**：Task 1 补 `single-create.test.ts` 的重指与路径归一化的归属（`PinIndex.normalize` 随路径文法搬）；Task 4 补 `lifecycle.test.ts` 的两个 pin 回读 describe；Task 6 收掉 `seat` 的 `corpus` 幻面（词表与 33 行 + `rules.test.ts` 字面表同批） | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.3 | 2026-11-23 | **按 plan 评审轮一的 F1–F9 用户裁定修正**：Task 1 的 Files 收为自己的写集（`contract/pins.ts` 的收缩行 · `pins.guard.test.ts` 的重指 · `pins-guard-closure.test.ts` 整篇搬进 `closed-document.test.ts` 后的退役行），Objective 写死闭合面的目标拼写与 fallback 的闭合构造，两处假计数改成点名；Task 3 收 `notes-channel.test.ts` 的 board token 断言；Task 4 只删余下两份 pin 测试并写明 `contract/census.ts` 的 import 已由 Task 5 先清；Task 5 的 Produces 点明类型 import 离开；Task 7 的判据改成文法形态、散文提及留作记录；Task 8 的 checkable 换成两侧可辨的成对判据并点明 tag 断言的落点 | Oscaner M. · Claude（kairos:cdd-plan） |

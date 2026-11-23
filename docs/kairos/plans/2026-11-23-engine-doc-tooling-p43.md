@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -40,6 +40,7 @@ base: develop
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/single-create.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/__tests__/fix-round-gate.test.ts`
 
@@ -51,17 +52,17 @@ base: develop
 
 #### Produces
 - `contract/markdown-spans.ts#ProseSpans`——四个成员的公开面，`invariants.ts` 的五处调用点改指它
-- `contract/shape-rules.ts#PathShape`——`pathOf` 与 `isPattern` 的公开面，`invariants.ts#SingleCreateInvariant` 的 `#claimSets` 改指它
-- `contract/closed-document.ts#ClosedDocument`——`closed(rel): boolean`，`face/lifecycle.ts` · `face/cli.ts` · `session/preflight.ts` 的闭合实参唯一来源
+- `contract/shape-rules.ts#PathShape`——`pathOf` 与 `isPattern` 的公开面，`invariants.ts#SingleCreateInvariant` 的 `#claimSets` 与 `contract/__tests__/single-create.test.ts` 的路径筛都改指它；同模块收下路径归一化，闭合读数链开头的归一化改指它
+- `contract/closed-document.ts#ClosedDocument`——`closed(rel): boolean`，`face/lifecycle.ts` · `face/cli.ts` · `session/preflight.ts` 的闭合实参唯一来源；链内对 `PinIndex` 的静态调用零命中
 - `contract/__tests__/closed-document.test.ts`——从 `pins-guard-closure.test.ts` 接过的成对夹具（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一命中且同 slug 才闭合）
 - `pins.ts` 在本任务后仍编译通过（退役是 Task 4 的事）
 
 #### Steps
 - 建 `markdown-spans.ts`，把 `PinSpans` 整类搬入并改名 `ProseSpans` — checkable: `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 `invariants.ts` 的栅栏读全部改指新类、`PinSpans` 在该文件零命中
 - 建 `shape-rules.ts`，把 `pathOf` · `isPattern` 与扩展名词表搬入并命名 `PathShape` — checkable: `invariants.ts#SingleCreateInvariant` 的 `#claimSets` 只经 `PathShape.pathOf` 判 `declaration.path`；`shape-rules.test.ts` 的既有断言全绿
-- 建 `closed-document.ts`，把委派链搬入，枚举改走 `SlugIndex` — checkable: `closed-document.test.ts` 的四臂全红/全绿成对成立（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一同 slug 闭合）；把枚举改回 `PinIndex.entries()` ⇒ 该文件仍绿而 `closed-document.ts` 的 import 面出现 `PinIndex`（本步的判据是 import 面，因为行为等价）
+- 建 `closed-document.ts`，把委派链搬入，枚举改走 `SlugIndex`；链开头的归一化函数随路径文法一起搬（搬走二的同一处），链内改指新名 — checkable: `closed-document.test.ts` 的四臂全红/全绿成对成立（两格各自闭合 · 零命中不闭合 · 多命中不闭合 · 唯一同 slug 闭合）；把归一化留在 `PinIndex` 上 ⇒ `pnpm exec tsc --noEmit -p packages/cdd-engine` 在 Task 4 删 `pins.ts` 时红，且本任务里 `closed-document.ts` 上 `PinIndex` 零命中
 - 改三处生产接线名 — checkable: `face/lifecycle.ts` 与 `face/cli.ts` 上 `pinAudit` / `#auditOf` 的闭合法为零命中（改名后只余闭合面）；`session/preflight.ts` 的 `provenClosed` 选项名逐字未变
-- 两份 session 测试改指 `ClosedDocument` — checkable: `session/__tests__/preflight-rows.test.ts` 与 `fix-round-gate.test.ts` 不再构造 `PinAudit`，且两文件全绿
+- 两份 session 测试与 `single-create.test.ts` 改指 `ClosedDocument` / `PathShape` — checkable: `session/__tests__/preflight-rows.test.ts` 与 `fix-round-gate.test.ts` 不再构造 `PinAudit`；`single-create.test.ts` 的 `pathOf` 调用改指 `PathShape.pathOf` 而上 `PinVocabulary` 零命中；三个文件全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
@@ -144,6 +145,7 @@ none
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/review-criteria.test.ts`
 - Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
+- Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`
 
 #### Consumes
 - `contract/markdown-spans.ts#ProseSpans` · `contract/shape-rules.ts#PathShape` · `contract/closed-document.ts#ClosedDocument`（Task 1 已接走的三条腿）
@@ -159,7 +161,7 @@ none
 - 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中，`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
 - 删判据行与 `CriteriaFace` 的 `test` 取值 — checkable: `CRITERIA_ROWS` 的行名册不再含 `pin-parseability`；`review-criteria.test.ts` 按删除后的 id 集断言（成对：把该行加回 ⇒ 名册臂红）
 - 删 `pinLensOf` 与 `ReviewGuides.pinLens` — checkable: `render/templates.ts` 上 `pinLens` 零命中，`templates.test.ts` 只余非 pin 臂且全绿
-- 删三个测试文件 — checkable: 三个路径不存在，引擎套件全绿
+- 删三个测试文件；`lifecycle.test.ts` 只退 pin 回读面 — checkable: 三个路径不存在；`face/__tests__/lifecycle.test.ts` 上「pin 回读语料注入」与「交接单 `contract.path` 解析」两个 describe 退役、其余全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
@@ -210,6 +212,8 @@ Task 1, Task 4
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/single-create.test.ts`
 - Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
 
 #### Consumes
 - `contract/judge.ts#Contract`（doc-contract 各腿的夹具入口）
@@ -223,6 +227,7 @@ Task 1, Task 4
 #### Steps
 - 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 不再读 `docs/kairos`，且全绿
 - `grep-sweep` 去掉 `docs/` 根 — checkable: 该文件的扫描根上 `docs/` 零命中；成对：把一个已删 token 写进 `docs/` 下的文件 ⇒ 不红（扫面不含它），写进 `packages/` ⇒ 红
+- 把 `seat` 的 `corpus` 面从词表与每一行上拿掉 — checkable: `contract/rules.ts` 上 `corpus` 零命中；`contract/__tests__/rules.test.ts` 的字面表只余树上真实存在的两个面（成对：把 `corpus` 加回词表而不加行 ⇒ 词表臂红；把它加回某一行 ⇒ 行臂红）
 - 逐规则核对三条臂并补缺 — checkable: 对每条被撤语料臂涉及的规则各跑一次「违规夹具必报 / 邻居夹具沉默 / 零候选即红」；缺的那条在本任务补出格
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p43):` 起头
 
@@ -361,3 +366,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-23 | 初稿（cdd-plan 会话）：按 spec v0.7 的九节拆为十任务五波——三条生产腿搬家 · AGENTS.md 规范 · board 折叠 · pin 门退役 · census 文法分家 · 语料臂退役与夹具补位 · 记录面引用 · 生成物归 `emit:check` · selector 合成物料 · changeset 收口 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.2 | 2026-11-23 | **按 spec 评审轮四的 F1–F4 修正任务面（spec v0.9）**：Task 1 补 `single-create.test.ts` 的重指与路径归一化的归属（`PinIndex.normalize` 随路径文法搬）；Task 4 补 `lifecycle.test.ts` 的两个 pin 回读 describe；Task 6 收掉 `seat` 的 `corpus` 幻面（词表与 33 行 + `rules.test.ts` 字面表同批） | Oscaner M. · Claude（kairos:cdd-plan） |

@@ -466,12 +466,12 @@ export class Cli {
   }
 
   /** The command boundary — the ONE invalidation point of every snapshot a command
-   *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
-   *  per-root memos (`#index` · `#audit` · the production pre-flight, whose closure port
-   *  closes over the audit) and the judgment instance's own right-domain corpus are
-   *  dropped here, so the next invocation re-scans. A memo carried across commands
-   *  would answer from a snapshot taken before the documents this command writes or
-   *  observes — the `✔ Done` cell of the judged document included.
+   *  may take and the next one must not inherit. One COMMAND, one snapshot: the four
+   *  per-root memos (`#index` · `#audit` · `#closed` · the production pre-flight, whose
+   *  closure port closes over `#closed`) and the judgment instance's own right-domain
+   *  corpus are dropped here, so the next invocation re-scans. A memo carried across
+   *  commands would answer from a snapshot taken before the documents this command
+   *  writes or observes — the `✔ Done` cell of the judged document included.
    *
    *  The memos stay keyed on the repo root (one `Cli` may serve several fixtures), and
    *  the invalidation lives here rather than in a `#...Root` companion every seam has
@@ -479,6 +479,7 @@ export class Cli {
   #beginCommand(): void {
     this.#index.reset();
     this.#audit.reset();
+    this.#closed.reset();
     this.#preflight.reset();
     // The strategies hold their own state (the `single-home` corpus per root); a fresh
     // judgment instance is the whole reset, and its construction reads no file.

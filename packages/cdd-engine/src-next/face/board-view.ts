@@ -147,6 +147,17 @@ export interface ArtifactProjection {
  *  no artifacts passes (a `null` registry answers zero `art:` rows). */
 export const NO_ARTIFACTS: ArtifactProjection = { registry: null, showAll: false };
 
+/** The board's PRINTING face — the switches that change what the board prints and
+ *  nothing it judges. `notes` opens the child-note bodies the folded default keeps as a
+ *  count (`--notes`): the default token stays `notes +M`, and the expanded token appends
+ *  the same folded rows at the same position, so only the bytes after the count move. */
+export interface BoardDisplay {
+  readonly notes: boolean;
+}
+
+/** The folded default — no note bodies, the count alone. */
+export const FOLDED_NOTES: BoardDisplay = { notes: false };
+
 /** One ledger's construction facts — the `progress.json` read face and the workspace
  *  every name in it resolves inside. Built in ONE place (`#ledgerOf`) so the ledger and
  *  the artifact read seam share one workspace instance instead of deriving two. */
@@ -608,27 +619,38 @@ export class BoardView {
    *  face of each verb merges into at most one token (never rendered at zero successes),
    *  the ANOMALY face expands one token per failed attempt. Tokens are verb-major in
    *  `VERB_ORDER`, a verb's success token before its failures, those in stored order. The
-   *  range form (`review 1–10 ✓`) never renders: the aggregation IS the count. */
-  static summaryCell(records: readonly RoundRecord[], carriers: LineCarriers): string {
+   *  range form (`review 1–10 ✓`) never renders: the aggregation IS the count. `display`
+   *  is the printing face alone: the notes segment prints its count either way and its
+   *  bodies only when `--notes` is open. */
+  static summaryCell(
+    records: readonly RoundRecord[],
+    carriers: LineCarriers,
+    display: BoardDisplay = FOLDED_NOTES,
+  ): string {
     const tokens: string[] = [];
     const extra = [...new Set(records.map((record) => record.op))].filter(
       (op) => !VERB_ORDER.includes(op),
     );
     for (const verb of [...VERB_ORDER, ...extra]) {
       const faces = BoardView.#judgementRuns(records.filter((record) => record.op === verb));
-      tokens.push(...BoardView.#verbTokens(verb, faces, carriers));
+      tokens.push(...BoardView.#verbTokens(verb, faces, carriers, display));
     }
     return tokens.join(" · ");
   }
 
   /** One verb's tokens — its success token (absent at zero successes) followed by one
    *  token per failed attempt, so a failure never drifts to the line's tail (P24 §12). */
-  static #verbTokens(verb: string, faces: VerdictFaces, carriers: LineCarriers): readonly string[] {
+  static #verbTokens(
+    verb: string,
+    faces: VerdictFaces,
+    carriers: LineCarriers,
+    display: BoardDisplay,
+  ): readonly string[] {
     const tokens: string[] = [];
-    const success = BoardView.#successToken(verb, faces, carriers);
+    const success = BoardView.#successToken(verb, faces, carriers, display);
     if (success !== null) tokens.push(success);
     for (const record of faces.failures) {
-      tokens.push(BoardView.#failureToken(verb, record, faces.successes, carriers));
+      tokens.push(BoardView.#failureToken(verb, record, faces.successes, carriers, display));
     }
     return tokens;
   }
@@ -639,7 +661,12 @@ export class BoardView {
    *  `{succeeded}/{attempts}` ratio — never a superscript — once it has one (P24 §12).
    *  Its `+N` counts the SUCCESS records' carriers alone; a failed attempt's findings
    *  already ride that attempt's own token. */
-  static #successToken(verb: string, faces: VerdictFaces, carriers: LineCarriers): string | null {
+  static #successToken(
+    verb: string,
+    faces: VerdictFaces,
+    carriers: LineCarriers,
+    display: BoardDisplay,
+  ): string | null {
     const count = faces.successes.length;
     if (count === 0) return null;
     const last = faces.successes[count - 1]!;
@@ -647,7 +674,14 @@ export class BoardView {
       faces.failures.length === 0
         ? `${count}${BoardView.attemptSuffix(last)}`
         : `${count}/${count + faces.failures.length}`;
-    return BoardView.#summaryToken(verb, body, JUDGEMENT_MARKERS.passed, faces.successes, carriers);
+    return BoardView.#summaryToken(
+      verb,
+      body,
+      JUDGEMENT_MARKERS.passed,
+      faces.successes,
+      carriers,
+      display,
+    );
   }
 
   /** One failed attempt's token — `{verb} {cycle}{aN} ✗{+N}`, the cycle naming the round
@@ -660,13 +694,14 @@ export class BoardView {
     record: RoundRecord,
     successes: readonly RoundRecord[],
     carriers: LineCarriers,
+    display: BoardDisplay,
   ): string {
     const recovered = successes.some(
       (other) => other.cycle === record.cycle && other.attempt === record.attempt + 1,
     );
     const mark = recovered ? JUDGEMENT_MARKERS.recovered : JUDGEMENT_MARKERS.failed;
     const body = `${record.cycle}${BoardView.attemptSuffix(record)}`;
-    return BoardView.#summaryToken(verb, body, mark, [record], carriers);
+    return BoardView.#summaryToken(verb, body, mark, [record], carriers, display);
   }
 
   /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
@@ -681,6 +716,7 @@ export class BoardView {
     mark: string,
     run: readonly RoundRecord[],
     carriers: LineCarriers,
+    display: BoardDisplay,
   ): string {
     // Rule zero (class-size limit): this file is well past the limit and predates it —
     // splitting it is P39's work (design spec D95 ②), not this round's.
@@ -695,16 +731,16 @@ export class BoardView {
     // P42 §2.1 — the child's own notes ride the SAME token at its VERY END, after the
     // downgrade note: `notes +M` counts the run's note rows (the same `run` the `+N`
     // counts, so a merged success token counts its group and a failure token its one
-    // record), then lists them folded by the criteria module's display fold. The join
-    // order `verb · body · mark · +N · regrade note` never moves — a new segment is
-    // appended, never spliced.
+    // record). The count is ALWAYS printed and the bodies are printed only under
+    // `--notes` (the folded default), folded row by row through the criteria module's
+    // one display fold. The join order `verb · body · mark · +N · regrade note · notes
+    // +M` never moves, and folding never removes the segment — it prints the count
+    // alone, so an expanded token is the folded token plus the same bytes appended.
     const noteRows = run.flatMap((record) => carriers.notesOf(record));
-    const notesSegment =
-      noteRows.length === 0
-        ? ""
-        : ` notes +${noteRows.length}${noteRows
-            .map((row) => `${REGRADE_NOTE_SEPARATOR}${displayReason(row)}`)
-            .join("")}`;
+    const noteBodies = display.notes
+      ? noteRows.map((row) => `${REGRADE_NOTE_SEPARATOR}${displayReason(row)}`).join("")
+      : "";
+    const notesSegment = noteRows.length === 0 ? "" : ` notes +${noteRows.length}${noteBodies}`;
     return `${verb} ${body} ${mark}${suffix}${note}${notesSegment}`;
   }
 
@@ -894,7 +930,8 @@ export class BoardView {
    *
    *  `projection` is the artifact observation's ONE input (the matrix seam plus the
    *  `--artifacts` switch) — the two halves travel together so neither can arrive
-   *  without the other. */
+   *  without the other. `display` is the PRINTING face (`--notes`): it changes the
+   *  notes segment's bytes, never the count, the segment order or any judgment. */
   static render(
     readTable: readonly PlanRead[],
     plan: PlanSource,
@@ -908,6 +945,7 @@ export class BoardView {
     holding: InFlightState = { kind: "absent" },
     next: NextHop | null = null,
     projection: ArtifactProjection = NO_ARTIFACTS,
+    display: BoardDisplay = FOLDED_NOTES,
   ): BoardRender {
     const lines: string[] = [`cdd board: ${entry.slug ?? "(none)"}`, ""];
     // The repo-basis value object — constructed ONCE at this boundary, the ONE
@@ -918,7 +956,17 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words, projection)
+        ? BoardView.#programBoard(
+            readTable,
+            plan,
+            lines,
+            index,
+            entry,
+            root,
+            words,
+            projection,
+            display,
+          )
         : BoardView.#nodeBoard(
             // A node board is ONE document: the caller's single row. An empty table
             // means no document was read at all — the seam's own undeclared value is
@@ -936,6 +984,7 @@ export class BoardView {
             holding,
             next,
             projection,
+            display,
           );
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
@@ -964,6 +1013,7 @@ export class BoardView {
     holding: InFlightState,
     next: NextHop | null,
     projection: ArtifactProjection,
+    display: BoardDisplay,
   ): number {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
@@ -1085,6 +1135,7 @@ export class BoardView {
         row.line,
         nameWidth,
         row.mark,
+        display,
       );
       lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${cell.text}`.trimEnd());
       blocked ||= cell.blocked;
@@ -1114,7 +1165,7 @@ export class BoardView {
         waves.forEach((wave, index) => {
           const prefix =
             index === 0 ? `  ${"wave".padEnd(LABEL_WIDTH)}` : " ".repeat(2 + LABEL_WIDTH);
-          const cell = BoardView.summaryCell(wave.rounds, wave.carriers);
+          const cell = BoardView.summaryCell(wave.rounds, wave.carriers, display);
           const label = wave.label.padEnd(labelWidth);
           lines.push(
             `${prefix}${label}  ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
@@ -1135,7 +1186,7 @@ export class BoardView {
         : branchState === "reopened"
           ? `${PROGRESS_MARKERS.current} open`
           : `${PROGRESS_MARKERS.pending} open`;
-    const branchRounds = BoardView.summaryCell(branchLine.rounds, branchLine.carriers);
+    const branchRounds = BoardView.summaryCell(branchLine.rounds, branchLine.carriers, display);
     lines.push(
       `  ${"branch".padEnd(LABEL_WIDTH)}${branchMark}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
@@ -1194,6 +1245,7 @@ export class BoardView {
     root: RepoRoot,
     words: Words,
     projection: ArtifactProjection,
+    display: BoardDisplay,
   ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
@@ -1214,6 +1266,7 @@ export class BoardView {
       overallLine,
       path.basename(entry.path).length,
       BoardView.#entryMark(index, entry, "identity"),
+      display,
     );
     lines.push(`  ${"overall".padEnd(LABEL_WIDTH)}${overallDoc.text}`);
     lines.push("");
@@ -1257,13 +1310,13 @@ export class BoardView {
       const planCell =
         planSlot.kind === "many"
           ? [MARK_SLUG_DUPLICATED, planSlot.found.map((doc) => doc.rel).join(" · ")].join("   ")
-          : BoardView.summaryCell(planLine.rounds, planLine.carriers);
+          : BoardView.summaryCell(planLine.rounds, planLine.carriers, display);
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
-        ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers)],
+        ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers, display)],
         ["plan", planCell],
         ["wave", waveCell],
-        ["branch", BoardView.summaryCell(branchLine.rounds, branchLine.carriers)],
+        ["branch", BoardView.summaryCell(branchLine.rounds, branchLine.carriers, display)],
       ];
       for (const [key, cell] of cells) if (cell !== "") parts.push(`${key} ${cell}`);
       const tail = parts.join(" · ");
@@ -1362,6 +1415,7 @@ export class BoardView {
     line: BoardLine,
     nameWidth: number,
     mark: string | null,
+    display: BoardDisplay,
   ): { text: string; blocked: boolean } {
     if (entry === null) return { text: "(none)", blocked: false };
     const name = path.basename(entry.path).padEnd(nameWidth);
@@ -1372,7 +1426,7 @@ export class BoardView {
     }
     const cells: string[] = [name];
     if (meta !== "") cells.push(meta);
-    const rounds = BoardView.summaryCell(line.rounds, line.carriers);
+    const rounds = BoardView.summaryCell(line.rounds, line.carriers, display);
     if (rounds !== "") cells.push(rounds);
     return { text: cells.join("   "), blocked: false };
   }

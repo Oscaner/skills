@@ -99,7 +99,7 @@ import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
+import { type ArtifactProjection, type BoardDisplay, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import {
@@ -761,6 +761,10 @@ export class Cli {
       registry: artifacts,
       showAll: parsed.args.artifacts === "true",
     };
+    // The board's PRINTING face — `--notes` opens the child-note bodies the folded
+    // default keeps as a count. It changes no judgment and no token order: the same
+    // `notes +M` segment either stops at the count or appends its rows.
+    const display: BoardDisplay = { notes: parsed.args.notes === "true" };
     const next = BoardNext.of(read, planSource, index, entry, root, projection);
     // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
     // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
@@ -783,6 +787,7 @@ export class Cli {
       await inflight.inspect(),
       next,
       projection,
+      display,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;

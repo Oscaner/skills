@@ -1,7 +1,7 @@
 ---
 title: '引擎自证面退役 — Phase Spec'
 doc-type: phase-spec
-version: v0.16
+version: v0.17
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 program: 2026-10-10-engine-doc-tooling
@@ -270,3 +270,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 | v0.14 | 2026-11-23 | **评审轮八整改（F1–F2）**：§4.1 的夹具处置由两份文件扩到整棵树——补 `render/__tests__/templates.test.ts`（锚点换成改读后那句的稳定片段、`SHAPE_RULE_IDS` 去 id）· `contract/__tests__/charter-self-repair.test.ts`（读该族的臂与缺口 describe 随族退出、不重挂）· `face/__tests__/cli.test.ts`（P41 T5 两格换载体）· `session/__tests__/fix-round-gate.test.ts`（`NAMED` 表与假造 kind 同步）· `contract/__tests__/rules.test.ts`（两处写死读数改从表自身取），并把「剩下的夹具是绿的」换成可执行的两件读数；`#docNarrativeAxes` 改读后的句子逐字落定（三格同句），`claim-shapes` 的合法形态臂随之一并反转；退役清单点名 `contract/invariants.ts#MeasureLiteralInvariant` 与它读的两个常量、写明缺口读数随族离树。宪章 D101 ① 的 `census:pin.total` 删除句补上正文段限定并指回 §2.2。 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.15 | 2026-11-23 | **评审轮九整改（F1–F4 · 用户裁定）**：缺口读数改挂到留在册的形状行 `line-coordinate`（`LineCoordinateInvariant.evaluate` 接手 `ProseFace.gaps`），§4.1 撤回「不重挂」的禁条；§4.2 收成名册与各臂归属的唯一一句（每规则违规 · 邻居两臂，零候选臂一条归 `line-coordinate`），§1.3 · §3.2 · §7.1 · 验收格与宪章 D101 ② 只指回它；`fix-round-gate.test.ts` 的夹具按载体处置（`MEASURE` / `MEASURE_OTHER` 改成 `line-coordinate` 的违规并改名 · 措辞断言随新报文 · 手写 baseline 取同一条在册行）；§4.1 的处置证据收为处置面的 `rg` 并将 `contract/invariants.ts` 与 `charter-self-repair.test.ts` 的头注释记入清单，`charter-self-repair.test.ts` 的缺口 describe 留下换 kind、`single-home` 臂的字面断言随行退役；宪章 D101 ⑥ · P43 ⑥ 与验收 ⑧ 的形状门计数改为指向 §4.2。 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.16 | 2026-11-23 | **评审轮十整改（F1–F2 · 用户裁定）**：§4.1 的处置面补上形状门自身的计数散句——`contract/rules.ts` 的 `skipWhenClosed` 列注释与登记表头 · `ProseWalk` 与 `ProseFace` 头注释 · `contract/__tests__/shape-rules.test.ts` 的文件头与两条 describe 标题，并写明门有几行、几种文法只住 §4.2（交付时删掉那个数、指回名册，不就地重新推导）；§7.1 要点三与 `AGENTS.md` 验收格改为交付后的臂读数——每条规则欠违规必报与邻居沉默这一对，零候选臂由整门担且只担一条，指针落到 D101 ② 而消费面不写节号。 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.17 | 2026-11-24 | **收口**：P43 全链闭合——六轴交付（pin 按符号退役 · 语料臂退役而判据留 · 生成物归 emit:check · `AGENTS.md` 立规范 · board notes 默认折叠 · `measure-literal` 整条退出）· 分支终评 closed-line · `pnpm run validate` 全绿。 | Oscaner M. · Claude（kairos:cdd-close） |

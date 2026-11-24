@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.28
+version: v0.29
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -528,3 +528,4 @@ Task 4, Task 5, Task 10
 | v0.26 | 2026-11-24 | **按 plan 评审轮十八的 F1–F2 修正（Task 11 面，结构面未动）**：F1 把 `selector-coverage.test.ts` 那处人口读数的接管从文件头一处扩到全文件——括注与读它的头臂取四类登记表的合计，两条写死的 `expect(total).toBe(…)` 断言改成同一合计的派生读，两个 describe 标题去掉读数、改读成 `every declared element`，成对两向写进步骤：「往登记表加一个元素 ⇒ 只有头臂红」与「把任一条断言改回写死的邻值 ⇒ 该条臂红」；F2 让 Consumes 的两处交付面各自落在声明的依赖边上——changeset 是 Task 10 自己的交付，`selector-coverage.test.ts` 的文件头（Task 9 的交付）随 Task 10 的依赖边在树上，`#### DependsOn` 的边集一字不动 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.27 | 2026-11-24 | **按 wave 11 评审轮三的 F1–F2 修正（Task 11 面，结构面未动）**：两处都是本轮退役留下的「一句现在时读数活得比它的主体长」，各自只改注释、断言语义不动——F1 把 `templates.test.ts` 上 `SHAPE_RULE_IDS` 的段注按它实际的来源重述：两个 authoring 节点的 `count` 行改读后一句规则 id 也不点名，故「两个节点在 `- **` 项目里点名」这句只对 `line-coordinate` 成立，而常量本身仍要守（评审正文一句 id 也不点名，`live-arithmetic` 的形状仍以散文在册），故段注改读成「两条 variable-class 形状行，id 住在节点子弹与 docs-fix shell 自己的写作约束上」、常数不动；F2 给 `preflight-rows.test.ts` 补一行 `Modify:`——它的 `SHAPE_ROW_IDS` 段注声称「真实登记表带着六个」closed-exempt 行，删行后为五，故删数目、只留指针（夹具自己的 `SHAPE_ROW_IDS` 与下方各臂不动），这一处今天无臂可红、按交付后的读数核 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.28 | 2026-11-24 | **按 plan 评审轮十九的 F1–F3 修正（Task 11 面，结构面未动）**：三条都是同一类——计划把「谁署这一处读数」写窄了一格，而树上的交付比计划宽或比计划换了一处——各自只改文字、写集与边集都不动：F1 把 Task 11 Objective 对 `selector-coverage.test.ts` 的接管从文件头一处改写成这一文件的每一处人口读数，与 Files 行口径一致（两条派生断言与两个 describe 标题当初各自手抄了一份，Task 9 交付之后它们同属本任务）；F2 把第 5 步的成对臂改写成树实际产出的那一向——往任一声明登记表加一个元素时头臂红、`resolves every declared element on the conforming carrier of their own type` 臂也红并点名新元素在静态载体上无形态，而那两条派生断言与两个标题本就不重抄任何读数，故「只有头臂红」不是派生读的判据；F3 把 `preflight-rows.test.ts` 那处退役读数按符号定位——「真实登记表带着六个」住在 `SHAPE_ROW_IDS` 的段注里，文件头从未携带它，Files 行与本行同批改读 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.29 | 2026-11-24 | **按 branch 评审轮四的 F1–F2 裁定修正（Task 9 与 Task 1 两面，结构面未动）**：F1 给 `selector-coverage.test.ts` 补上右域注入的守卫臂——判据句植进判定上下文自持的语料（第二份载体旁的一份文档）⇒ `single-home` 恰报一条并点名该持有者，语料原样 ⇒ 同一载体沉默；把 `fs` 缝摘掉即红，故 Task 9 声明的「语料里写进一份载体的判据句 ⇒ 那一格红」不再只是注释里的一句话（`Fixtures#findings` 因此收一个 `planted` 入参，`#corpus` 随之接它）；F2 把 `single-create.test.ts` 上 `.changeset` 那处的理由改读 `PathShape.pathOf` 的形状判读（`.changeset` 路径本就是路径形，该规则判的是身份而不是可追性），不再向已退休的 pin 排除求援；同批把 `PathShape.normalize` 的形参名与 `closed-document.ts` 段注的时态收口 | Oscaner M. · Claude（kairos:cdd-fix） |

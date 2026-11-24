@@ -168,8 +168,9 @@ describe("P42 T4 — the path shape filter", () => {
   });
 
   it("judges two different `.changeset` files as no conflict and the same one as a conflict", () => {
-    // a `.changeset` path is a coordinate here even though §7.1's pin vocabulary leaves
-    // it out: the pin exclusion is about what a reader can chase, not about identity
+    // a `.changeset` path is path-shaped (`PathShape.pathOf` accepts it as a plain file
+    // coordinate) and this rule judges identity: two tasks claiming one file conflict
+    // whether or not a reader could follow the path
     expect(
       singleCreateOf([
         { id: 3, files: ["- Create: `.changeset/p42-a.md`"] },

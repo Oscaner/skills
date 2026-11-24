@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/contract/closed-document.ts
 // The PROVEN-closure reading (design spec §1.4) — the one POSITIVE reading of a phase
-// registration, kept on the rule plane after the pin module retires: the shape gate's
+// registration, kept on the rule plane after the pin module retired: the shape gate's
 // `Contract.validate` closure argument is this class's answer, and nothing else builds
 // one.
 //

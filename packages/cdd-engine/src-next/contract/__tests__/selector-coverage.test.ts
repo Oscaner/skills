@@ -33,7 +33,7 @@ import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
 import { Words } from "../../face/words.ts";
 import { ENGINE_DOC_ROOTS } from "../../infra/doc-roots.ts";
 import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
-import type { Finding } from "../invariants.ts";
+import { type Finding, SingleHomeInvariant } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
 import { Translator } from "../translate.ts";
@@ -86,14 +86,20 @@ class Fixtures {
 
   /** Every finding doc-contract reports on one carrier text (`text` is a mutation of the
    *  fixture, so a drop cell can judge what the engine says about the mutated carrier).
-   *  The right domain is the corpus below, never the checkout. */
-  findings(docType: DocType, text = this.text(docType)): readonly Finding[] {
+   *  The right domain is the corpus below, never the checkout; `planted` is a document
+   *  written BESIDE the carriers (absolute path → body, a mounted copy when the path
+   *  names one), so the right domain's red side is material this file supplies. */
+  findings(
+    docType: DocType,
+    text = this.text(docType),
+    planted: Readonly<Record<string, string>> = {},
+  ): readonly Finding[] {
     return new Contract().validate({
       docKey: docType,
       path: path.join(REPO_ROOT, fixturePath(docType)),
       content: text,
       root: REPO_ROOT,
-      fs: this.#corpus(docType),
+      fs: this.#corpus(docType, planted),
     });
   }
 
@@ -105,7 +111,7 @@ class Fixtures {
    *  and its same-slug sibling are the two faces of ONE design (a spec and its plan), and
    *  `single-home` skips that pair on purpose — four carriers still on the skeleton's
    *  `:::fill slug` would compare nothing and read clean for the wrong reason. */
-  #corpus(excluded: DocType): MemoryFs {
+  #corpus(excluded: DocType, planted: Readonly<Record<string, string>> = {}): MemoryFs {
     const files: Record<string, string> = {};
     for (const docType of DOC_TYPES) {
       if (docType === excluded) continue;
@@ -115,7 +121,7 @@ class Fixtures {
         `slug: '${docType}-fixture'`,
       );
     }
-    return new MemoryFs(files);
+    return new MemoryFs({ ...files, ...planted });
   }
 
   /** The declared elements of one doc type that resolve on no node of the carrier text —
@@ -368,6 +374,55 @@ describe("selector coverage — every declared element carries a resolvable loca
       }
     }
     expect(offenders, `carriers with findings: ${offenders.join(" | ")}`).toEqual([]);
+  });
+
+  it("reports a criterion the corpus carries beside the judged carrier — and only then", () => {
+    // The right-domain read's own red side. `single-home` sweeps the mounted corpus
+    // through the judge context's `fs` seam, so a criterion the FILE writes into that
+    // corpus is reported on the carrier that states it, and the same carrier judged
+    // against the unplanted corpus is silent. Drop the seam and this arm reddens: the
+    // checkout carries no such sentence, so the matrix's silence can no longer become a
+    // claim about this repository's own records without a red to catch it.
+    const criterion =
+      "The contract gate refuses a round only when a declared rule reports a blocking finding.";
+    const carrier = replacing("- :::fill constraint", `- ${criterion}`)(fixtures.text("plan"));
+    const plantedAt = path.join(REPO_ROOT, ENGINE_DOC_ROOTS.specs, "planted-criterion-fixture.md");
+    const planted = {
+      [plantedAt]: [
+        "---",
+        "title: Planted Criterion Fixture",
+        "doc-type: phase-spec",
+        "version: v0.1",
+        "date: 2026-11-23",
+        "slug: planted-criterion-fixture",
+        "parent-version: v0.1",
+        "program: x-program",
+        "author: fixture",
+        "---",
+        "",
+        "## Design",
+        "",
+        `- ${criterion}`,
+        "",
+      ].join("\n"),
+    };
+    const kind = new SingleHomeInvariant().name;
+    const reported = fixtures
+      .findings("plan", carrier, planted)
+      .filter((finding) => finding.kind === kind);
+    expect(reported, "the planted neighbour is named").toHaveLength(1);
+    expect(reported[0]?.message).toContain("planted-criterion-fixture.md");
+    // the pair, isolable half: the SAME mutated carrier judged against the unplanted
+    // corpus is silent, so the red above comes from the corpus this case writes
+    expect(
+      fixtures.findings("plan", carrier).filter((finding) => finding.kind === kind),
+      "the mutation alone states nothing to report",
+    ).toEqual([]);
+    // the pair: the unmutated carrier against the same unplanted corpus is silent too
+    expect(
+      fixtures.findings("plan").filter((finding) => finding.kind === kind),
+      "an unplanted corpus states nothing to report",
+    ).toEqual([]);
   });
 
   it("reddens the presence arm for exactly the form a carrier drops — one cell per declared form", () => {

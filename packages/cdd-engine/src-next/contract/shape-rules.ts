@@ -102,7 +102,7 @@ export class PathShape {
   /** The ONE spelling of a path's normalization — a leading `./` and trailing slashes
    *  are prose, not coordinates. Every comparison in the rule plane goes through it, so
    *  two spellings of one location never read as two locations. */
-  static normalize(pinPath: string): string {
-    return pinPath.replace(/^\.\//, "").replace(/\/+$/, "");
+  static normalize(written: string): string {
+    return written.replace(/^\.\//, "").replace(/\/+$/, "");
   }
 }

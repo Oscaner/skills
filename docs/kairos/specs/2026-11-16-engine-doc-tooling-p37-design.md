@@ -32,7 +32,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 #### 1.3 反例句（每行一条，入册）
 
-反例句是判据**行**的格子，不是档位的格子：§6.1 的行形态里 `counterExample` 与 `tier` 平级，每一条判据行都带一条。因此每档至少一条，判据表 `census:criteria.rows = 5` 行：blocker 一条（`grading-impact-missing`）、`warn` 两条（`debt-consequence` 与 pin 可解析性那条 `pin-parseability`——后者把 P28 的反转理由写在自己的 `counterExample` 里，§7.4）、`nit` 两条（`expression-only` 与 §5.2 的降档标记行 `regrade-mark`）。下面四句里三句各是某一行的 `counterExample` 格子；第二句是例外，它落在 blocker 行的 `body` 上（紧挨 blocker 的定义才封得住 (a) 的旧漏洞），不占反例句格。四句按档位读如下，blocker 那句排在最前，因为它是把 §2.2 的举证判据翻成判档语言的那一句：
+反例句是判据**行**的格子，不是档位的格子：§6.1 的行形态里 `counterExample` 与 `tier` 平级，每一条判据行都带一条。因此每档至少一条，判据表 `census:criteria.rows = 5` 行；这五行的构成按本相位落笔时的表记：blocker 一条（`grading-impact-missing`）、`warn` 两条（`debt-consequence` 与 pin 可解析性那条 `pin-parseability`——后者把 P28 的反转理由写在自己的 `counterExample` 里，§7.4；该行已随 pin 门由 P43 撤除）、`nit` 两条（`expression-only` 与 §5.2 的降档标记行 `regrade-mark`）。下面四句里三句各是某一行的 `counterExample` 格子；第二句是例外，它落在 blocker 行的 `body` 上（紧挨 blocker 的定义才封得住 (a) 的旧漏洞），不占反例句格。四句按档位读如下，blocker 那句排在最前，因为它是把 §2.2 的举证判据翻成判档语言的那一句：
 
 - 说得出一处偏离预期，却举不出「哪条合法输入 → 实际是什么 → 预期是什么」⇒ **warn**，不是 blocker：举不出场景的偏离没法被下一位评审者当场否证，也就不成立为功能影响，按缺陷描述自身的后果定档。
 - 违反了一句写着的话，但消费者拿到的字节不变 ⇒ **warn**，不是 blocker。这一句封住 (a) 的旧漏洞：引得到条款不等于功能受影响。（这句是 blocker 判据行的 `body` 句，不是 `counterExample` 格。）

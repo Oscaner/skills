@@ -4,46 +4,44 @@
 // query that terminates at the document root, and every selector RESOLVES on a
 // conforming document of its own type.
 //
-// The fixtures are the repository's own documents, canonicalized through the
-// translation layer first (the tree's input contract: the normalized view, so a
-// legacy Chinese charter marker matches its English canonical element). The
-// single-spec has no document in this repository, so its fixture is the
-// registry-derived skeleton — the conforming carrier the engine itself renders.
+// The fixtures are four SYNTHETIC conforming documents, one per doc type, living in
+// `fixtures/` beside this file. Each is the registry-derived skeleton the engine itself
+// renders, so every field name answers the declared registry and the carrier is
+// conforming by construction; the overall's optional `## File paths` facet rides the
+// declared conforming form. Each one is judged by the same doc-contract a consumer
+// document meets — no exemption, and no corpus arm over this repository's own
+// documents. The canonicalization through the translation layer stays: it is the tree's
+// input contract (the normalized view), not a property of the old fixtures.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { Words } from "../../face/words.ts";
-import { SkeletonAssembler } from "../../render/skeleton.ts";
 import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
 import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
-import { Projector } from "../project.ts";
 import { Translator } from "../translate.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 
-/** The fixture document of one doc type — the repository's own doc, canonicalized
+/** The four synthetic carriers — one conforming document per doc type. */
+const FIXTURE_DIR = path.resolve(import.meta.dirname, "fixtures");
+
+/** One fixture's repo-relative path — the coordinate the judgment reads. */
+const fixturePath = (docType: DocType): string =>
+  path.relative(REPO_ROOT, path.join(FIXTURE_DIR, `${docType}.md`));
+
+/** The four doc types — the fixture set and the registry walk share this one list. */
+const DOC_TYPES: readonly DocType[] = ["overall", "plan", "phase-spec", "single-spec"];
+
+/** The fixture documents — one synthetic conforming carrier per doc type, canonicalized
  *  through the same translation face the judgment plane applies. */
 class Fixtures {
   readonly #translator = new Translator(new Words());
 
-  /** The raw fixture text of one doc type (a repository document, or the rendered
-   *  skeleton where the repository carries no document of the type). */
+  /** The raw fixture text of one doc type (`fixtures/<doc-type>.md`). */
   text(docType: DocType): string {
-    switch (docType) {
-      case "overall":
-        return this.#read("docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md");
-      case "plan":
-        return this.#read("docs/kairos/plans/2026-10-10-engine-doc-tooling-p21.md");
-      case "phase-spec":
-        return this.#read("docs/kairos/specs/2026-10-10-engine-doc-tooling-p21-design.md");
-      case "single-spec":
-        return new SkeletonAssembler(
-          new Projector(declaredRegistries).skeleton()["single-spec"],
-          "2026-10-10",
-        ).render();
-    }
+    return this.#read(fixturePath(docType));
   }
 
   /** The canonicalized tree of one doc type — the normalized view the tree reads. */
@@ -101,12 +99,32 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(total).toBe(112);
   });
 
-  it("keeps the selector face and the declared value shape aligned — zero domain findings on the canonical charter", () => {
+  it("judges each synthetic carrier clean — doc-contract reports nothing on any of the four", () => {
+    // The carriers are conforming by construction (a skeleton render plus the declared
+    // optional facets), and they are judged by the SAME entry a consumer document meets:
+    // one finding here would mean the fixture props up the coverage matrix with a
+    // document the engine itself refuses.
+    const offenders: string[] = [];
+    for (const docType of DOC_TYPES) {
+      const findings = new Contract().validate({
+        docKey: docType,
+        path: path.join(REPO_ROOT, fixturePath(docType)),
+        content: fixtures.text(docType),
+        root: REPO_ROOT,
+      });
+      for (const finding of findings) {
+        offenders.push(`${docType} · ${finding.kind} · ${finding.field} · ${finding.message}`);
+      }
+    }
+    expect(offenders, `carriers with findings: ${offenders.join(" | ")}`).toEqual([]);
+  });
+
+  it("keeps the selector face and the declared value shape aligned — zero domain findings on the synthetic carriers", () => {
     // The coverage matrix above proves a selector RESOLVES; it cannot see a
     // selector that resolves onto a node its own element's `valuePattern` rejects —
     // or a cell selector that resolves a SIBLING column. This arm runs the real
-    // domain judgment over every doc type's carrier and pins the canonical overall
-    // charter, the one carrier where the two Phase-inventory faces can disagree.
+    // domain judgment over every doc type's carrier and pins the overall fixture, the
+    // one carrier where the two Phase-inventory faces can disagree.
     const carriers: Record<DocType, string> = {
       overall: fixtures.text("overall"),
       plan: fixtures.canonicalizedText("plan", SAMPLE_FORMS.plan),
@@ -117,7 +135,7 @@ describe("selector coverage — every declared element carries a resolvable loca
     for (const docType of Object.keys(carriers) as DocType[]) {
       const findings = new Contract().validate({
         docKey: docType,
-        path: path.join(REPO_ROOT, `docs/kairos/overalls/conforming-${docType}.md`),
+        path: path.join(REPO_ROOT, fixturePath(docType)),
         content: carriers[docType],
         root: REPO_ROOT,
       });
@@ -129,11 +147,8 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
   });
 
-  it("locates every overall table, then reads the charter's rules clean", () => {
-    const charter = path.join(
-      REPO_ROOT,
-      "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
-    );
+  it("locates every overall table, then reads the fixture's rules clean", () => {
+    const fixture = path.join(REPO_ROOT, fixturePath("overall"));
     const tree = fixtures.tree("overall");
     // What this covers is the SELECTOR (does `tableUnder` still land on the real table
     // and read its body?), not how many rows the charter happens to carry: an exact row
@@ -153,22 +168,21 @@ describe("selector coverage — every declared element carries a resolvable loca
     }
     const findings = new Contract().validate({
       docKey: "overall",
-      path: charter,
+      path: fixture,
       content: fixtures.text("overall"),
       root: REPO_ROOT,
     });
     // The subject here is the SELECTOR read — the rules that judge the located nodes —
-    // not the charter's history. P30's closeout REPAIRED that table's width drift (the
-    // header had been widened by hand to five columns), so this gate no longer assumes
-    // the charter is ragged: it asserts agreement with the document's OWN ragged count
-    // (0 today; an append that goes ragged reds here by name). The leg's LIVENESS is
+    // not the fixture's history. The synthetic carrier's change-history rows are as
+    // wide as their header, so this gate asserts agreement with the document's OWN
+    // ragged count (0; a row that goes ragged reds here by name). The leg's LIVENESS is
     // asserted separately below against a synthetic ragged table — a dead leg can no
     // longer hide behind a clean document.
     const changeHistory = tree.tableUnder("## Change history");
     const width = changeHistory?.header?.length ?? 0;
     const ragged = (changeHistory?.body ?? []).filter((row) => row.length !== width).length;
     const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
-    expect(shape, "the shape leg agrees with the charter's own ragged-row count").toHaveLength(
+    expect(shape, "the shape leg agrees with the fixture's own ragged-row count").toHaveLength(
       ragged,
     );
     expect(
@@ -179,7 +193,7 @@ describe("selector coverage — every declared element carries a resolvable loca
       findings
         .filter((finding) => finding.kind !== "change-history-row-shape")
         .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
-      "the canonical charter's rules judge clean (its shape state is no longer exempt)",
+      "the synthetic overall judges clean (its shape state is no longer exempt)",
     ).toEqual([]);
   });
 

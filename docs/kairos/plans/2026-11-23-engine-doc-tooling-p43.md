@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -14,10 +14,10 @@ base: develop
 - **下线按符号判，不按文件判**：形状规则依赖的栅栏读者与路径文法搬去规则面而不退役；`Contract.validate` 的闭合实参必须仍由生产供给。
 - **不写测试来证明自己的文档干净**：任何一门若在文档上断言零，它就该是夹具而不是语料臂。
 - **禁止为了消红改文档**：出现「门报错 → 改文档」的处置，按缺陷处理。
-- **对已闭合文档只动随门退役的读数**：删 `census:pin.*` 的引用——文法判定的形态 `census:<id> = <n>`——把 `census:criteria.rows` 改成删除后的行数；P41 的两份文档上把退役登记行写成枚举成员的散文提及（spec 的 ② · plan 的两处），按 spec §2.2 就地把该成员删掉，并把枚举自己的计数与连接词折到剩下的成员上；除此之外，不带等号与数字的散文提及留作退役记录——宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan 是它们的家；不动任何结论、裁定或交付记录（D22 窄反转）。
+- **对已闭合文档只动随门退役的读数**：删 `census:pin.*` 的引用——文法判定的形态 `census:<id> = <n>`——把 `census:criteria.rows` 改成删除后的行数；P41 的两份文档上把退役登记行写成枚举成员的散文提及（spec 的 ② · plan 的两处），按 spec §2.2 就地把该成员删掉，并把枚举自己的计数与连接词折到剩下的成员上；除此之外，不带等号与数字的散文提及留作退役记录——宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan 是它们的家；变更史行里带等号的读数同样不改写，因为一行版本记录的是「当时写下了什么」，改它就等于把历史陈述改成从未发生的事；不动任何结论、裁定或交付记录（D22 窄反转）。
 - **一对夹具优先于一次全语料扫描**：每条保留的规则付出的是违规/邻合/零候选三条臂，不是语料。
 - **折叠只改打印，不改口径**：`notes +M` 的 M 与今天同源；board 不新增第三态。
-- **除 Task 10 外，「套件全绿」按文件读**：窗口的账按文档记，不按固定的文件记——`pins.guard` 的语料臂读的是「本仓文档引用的符号 · 路径 · 测试题」，凡引用了树上不再承载的名字的文档都落在窗口内：本计划自己声明的未落树符号 · 宪章里登记本相位的回填行 · 以及 Task 1 的改名与搬篇退役之后仍按旧名引用的已闭合相位记录（旧名就是 Task 1 的 Objective 逐条列出的那些）。所以从本相位文档落树到 Task 4 删掉那一臂之间，`pins.guard` 的语料臂恒红——那就是 spec §8.4 的窗口，不是回归；窗口的成员按文档记，由该臂当次的读数给出，不在这里写死，因为那份读数正是本相位要退役的东西。故除 Task 10 外，每个任务的「套件全绿」指本任务 Files 涉及的文件加上 `pnpm exec tsc --noEmit -p packages/cdd-engine`；语料臂的红按该窗口处理，只能由 Task 4 的删除撤销，绝不以改冻结文档消红。宪章那一处由 Task 2 就地改成散文（那行登记本就在它的写集里）。
+- **除 Task 10 外，「套件全绿」按文件读**：窗口的账按文档记，不按固定的文件记——`pins.guard` 的语料臂读的是「本仓文档引用的符号 · 路径 · 测试题」，凡引用了树上不再承载的名字的文档都落在窗口内。窗口的成员就是该臂当次读数报出的那些文档，本段不列举：列举是一句未经度量的断言，而那份读数正是本相位要退役的东西；哪份文档为什么进窗口，归到拥有那次改动的任务里去说。所以从本相位文档落树到 Task 4 删掉那一臂之间，`pins.guard` 的语料臂恒红——那就是 spec §8.4 的窗口，不是回归。故除 Task 10 外，每个任务的「套件全绿」指本任务 Files 涉及的文件加上 `pnpm exec tsc --noEmit -p packages/cdd-engine`；语料臂的红按该窗口处理，只能由 Task 4 的删除撤销，绝不以改冻结文档消红。宪章那一处由 Task 2 就地改成散文（那行登记本就在它的写集里）。
 - **changeset 记 `cdd-engine` minor**（D74）。
 
 ### Task 1: 三条生产腿搬出 `pins.ts`
@@ -272,7 +272,9 @@ Task 1
 ### Task 7: 记录面：引用删与数字改
 
 #### Objective
-把已闭合文档里随门退役的读数处理掉：P37 的 spec 与 plan 上 `census:pin.* = <n>` 形式的引用删除；P41 的两份文档上指向退役登记行的提及不是独立句子，而是三个枚举各自的成员——spec 的窗口纪律段里那个以「窗口内三条纪律」起头的枚举的 ②（`census:pin.total` 取活读数那一条）· plan 的窗口预期红段里「其一 / 其二」那一对的 `其二`（连它后面以「两者」收口的衔接句）· plan 全量门 checkable 里「两处预期红」那个括注中的 pin 半句。修法因此是就地改写枚举而不是整句删除：其余成员留下，只去掉退役读数那一半，并把枚举自己的计数与连接词折到剩下的成员上（spec 的「三条纪律」随 ② 的离场读成余下的两项 · plan 的「两者」「两处」收成剩下那一项的指代 · 括注的「两处预期红」收成唯一留下的那一处）；改写后每处仍读成一份完整清单（没有空位，也没有冒号后无项），同段其余句子与任何结论、裁定、交付记录逐字不动；带 `census:criteria.rows` 的声明改读删除 `pin-parseability` 之后的行数。散文提及本身不构成引用，也不在本任务的判据里：宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan，都把 `census:pin` 这个名字当作退役记录——不附等号与数字，文法从不解析它们，删它们属于改记录。不动任何结论、裁定或交付记录。
+把已闭合文档里随门退役的读数处理掉：P37 的 spec 与 plan 正文段上 `census:pin.* = <n>` 形式的引用删除（变更史行是例外，见后段）；P41 的两份文档上指向退役登记行的提及不是独立句子，而是三个枚举各自的成员——spec 的窗口纪律段里那个以「窗口内三条纪律」起头的枚举的 ②（`census:pin.total` 取活读数那一条）· plan 的窗口预期红段里「其一 / 其二」那一对的 `其二`（连它后面以「两者」收口的衔接句）· plan 全量门 checkable 里「两处预期红」那个括注中的 pin 半句。修法因此是就地改写枚举而不是整句删除：其余成员留下，只去掉退役读数那一半，并把枚举自己的计数与连接词折到剩下的成员上（spec 的「三条纪律」随 ② 的离场读成余下的两项 · plan 的「两者」「两处」收成剩下那一项的指代 · 括注的「两处预期红」收成唯一留下的那一处）；改写后每处仍读成一份完整清单（没有空位，也没有冒号后无项），同段其余句子与任何结论、裁定、交付记录逐字不动；带 `census:criteria.rows` 的声明改读删除 `pin-parseability` 之后的行数。
+
+变更史是这条规则唯一的例外，而且例外的单位是那张表、不是整份文件：一行版本记录的是「当时写下了什么读数」，改写它就把已交付的记录改成从未发生的事——与 `.changeset/*` 是记录而不是坐标同一个理由。故本任务的可判只圈正文段：`## Change history` 表以外的 `census:pin` 引用一律删净，表内的引用原值保留、逐字不动。受此例外的行按文档与版本点名，实现者不必自己去搜：`docs/kairos/plans/2026-11-16-engine-doc-tooling-p37.md` 的 `v0.20` · `v0.22` · `v0.23` 三行（`v0.23` 行内引用出现两次，两处都保留），`docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md` 的 `v0.19` 行与 `v0.13` 行。成对判据随这条豁免一并写死：往 P37 文档的正文段写回一处带 `= 0` 的 `census:pin` 引用 ⇒ 该臂红；这些历史行原样留着 ⇒ 该臂不红，也不因此红。这条豁免不是本计划的发明：宪章的「不动任何结论、裁定或交付记录」与 spec §8.2 的全库归零在同一行上相遇时，前者胜——那行本身就是交付记录，行内容下的就是当时写下的读数，改它等于断言一件没发生过的事。散文提及本身不构成引用，也不在本任务的判据里：宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan，都把 `census:pin` 这个名字当作退役记录——不附等号与数字，文法从不解析它们，删它们属于改记录。不动任何结论、裁定或交付记录。
 
 #### Files
 - Modify: `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`
@@ -287,13 +289,13 @@ Task 1
 - `contract/review-criteria.ts#CRITERIA_ROWS`（删除后的行数，作为数字改写的唯一来源）
 
 #### Produces
-- 声明的语料上 `census:pin.*` 的引用零命中：引用指文法判定的形态（`census:<id> = <n>` · 点分小写 id · 十进制整数 · 终止符不是数字/字母/点）；不附等号与数字的散文提及留作退役记录，声明的文件集内外都允许存在
+- 声明的语料上 `census:pin.*` 的引用零命中——引用指文法判定的形态（`census:<id> = <n>` · 点分小写 id · 十进制整数 · 终止符不是数字/字母/点），且零命中的范围是正文段，`## Change history` 表内的引用作为记录原值保留；不附等号与数字的散文提及留作退役记录，声明的文件集内外都允许存在
 - P41 两份文档的「实现窗口」理由段上指向退役登记行的枚举成员消失，枚举的其余成员、计数与连接词随之折到剩下的项上，改写后仍是一份完整清单；同段其余句子与两份文档上的结论、裁定、交付记录逐字未动
 - 每处 `census:criteria.rows` 声明等于 `CRITERIA_ROWS` 删除后的行数
 - `census:questions.rows` 与 `questions.cells` 原样未动
 
 #### Steps
-- 删 `census:pin.*` 的引用与 P41 的三个枚举成员 — checkable: 按 `CensusGate.referencesOf` 的形态，声明的六份文件上 `census:pin` 的引用为零（成对：把一处带 `= 0` 的 `census:pin` 引用写回 P37 的 spec ⇒ 该臂红）；P41 两份文档上 `census:pin` 零命中，两处理由段的其余句子逐字未动，且三处枚举改写后各自读成一份完整清单（无空位 · 无冒号后无项 · 衔接句的指代有项可指）；宪章与本相位自己文档里的同一字面仍在、未被改写
+- 删 `census:pin.*` 的引用与 P41 的三个枚举成员 — checkable: 按 `CensusGate.referencesOf` 的形态，声明的六份文件的正文段上（`## Change history` 表以外）`census:pin` 的引用为零，而表内引用逐字保留（成对：把一处带 `= 0` 的 `census:pin` 引用写回 P37 的 spec 正文段 ⇒ 该臂红；P37 plan 的 `v0.20` · `v0.22` · `v0.23` 行与 P37 spec 的 `v0.19` · `v0.13` 行原样留着 ⇒ 该臂不红）；P41 两份文档上 `census:pin` 零命中，两处理由段的其余句子逐字未动，且三处枚举改写后各自读成一份完整清单（无空位 · 无冒号后无项 · 衔接句的指代有项可指）；宪章与本相位自己文档里的同一字面仍在、未被改写
 - 改 `census:criteria.rows` 的声明数字 — checkable: 全库该 id 的声明值等于 `contract/review-criteria.ts#CRITERIA_ROWS` 删掉 `pin-parseability` 之后的行数（读一次该模块自己的度量，不另立比对臂：该声明唯一会红的机械对照是 `census.guard.test.ts` 的已闭合语料臂，Task 5 已先把它退役，本任务不再有可红的面，也不为此新造一门）
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p43):` 起头
 
@@ -308,7 +310,7 @@ Task 4, Task 5
 #### Objective
 把两处读**渲染产物**的臂移出测试，交给 `emit:check`：`face/__tests__/diagrams.guard.test.ts` 里读 HTML 的那一格（tag 在场、退役 tag 不在场）与 `face/__tests__/diagram-twin.guard.test.ts` 里源↔产物的成对比较（覆盖与图型根 · 产物命名 · 两侧修订一致 · 引用多重集 · 文案逐格）。两文件的源内容臂与内存反向注入臂留下。
 
-搬过去的是孪生对的每一格，不留一格靠字节比对隐式接住：`scripts/lib/diagrams.ts` 上各落一条断言，除退役拼写那一格外，两侧字面都从源与暂存渲染读（不读已提交产物）——源声明的引擎节点 `tag` 落在该源渲染出的产物上（对应面是节点标记而不是执行卡首行：卡片首行携带的是 `detail` 散文，节点的 `tag` 从不写进那里，所以执行卡首行的读数仍作为源内容臂留在 `diagrams.guard.test.ts`）；退役拼写不在渲染里——这一格的两侧都不在源上：源 `docs/diagrams/src/*.json` 上 `retiredTag` 零命中，退役拼写今天是测试侧的字面（`diagrams.guard.test.ts` 的 `DiagramPin` 上 `retiredTag` 那一对，英文与中文各一条），搬过来时落成 `scripts/lib/diagrams.ts` 的一张字面表，与 `DIAGRAM_SRC_DIR` 派生的产品清单同住一个模块，断言读这张表与源的暂存渲染（退役拼写在渲染里零命中），不读任何源声明的字段；源 `meta.repository.revision` 等于产物证据块的 `repository.revision`；源的引用多重集与证据块的 `referenceCount` 同多重、同计数；源的每个文案格（标签 · 副标 · tag · 卡片串）在产物里逐字在场。覆盖与图型根、产物命名两格不另立断言：`emit:check` 既有的树比对接住多出来的或改名后的产物，`scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住不再产出的 html。逐字节相等比的是「已提交产物 vs 同一份源的重渲染」，渲染器丢掉一条引用、一个标签或一个 tag，或不再把 `meta.repository.revision` 抄进证据块时，两侧仍然相等——所以修订一致、引用多重集与文案逐格都不能由字节比对蕴含，必须并列声明；它们正是因此留在 `emit:check` 而不回测试。
+搬过去的是孪生对的每一格，不留一格靠字节比对隐式接住：`scripts/lib/diagrams.ts` 上各落一条断言，除退役拼写那一格外，两侧字面都从源与暂存渲染读（不读已提交产物）——源声明的引擎节点 `tag` 落在该源渲染出的产物上（对应面是节点标记而不是执行卡首行：卡片首行携带的是 `detail` 散文，节点的 `tag` 从不写进那里，所以执行卡首行的读数仍作为源内容臂留在 `diagrams.guard.test.ts`）；退役拼写不在渲染里——这一格的两侧都不在源上：源 `docs/diagrams/src/*.json` 上 `retiredTag` 零命中，退役拼写今天是测试侧的字面（`diagrams.guard.test.ts` 的 `DiagramPin` 上 `retiredTag` 那一对，英文与中文各一条），搬过来时落成 `scripts/lib/diagrams.ts` 的一张字面表，与 `DIAGRAM_SRC_DIR` 派生的产品清单同住一个模块，断言读这张表与源的暂存渲染（退役拼写在渲染里零命中），不读任何源声明的字段；源 `meta.repository.revision` 等于产物证据块的 `repository.revision`；源的引用多重集与证据块的 `referenceCount` 同多重、同计数；源的每个文案格（标签 · 副标 · tag · 卡片串）以逐字或 HTML 转义后的形态在产物里在场，与 `DiagramTwin#copyMismatches` 同判——它的合同本就是 escaped-or-raw（`&#39;` 这类转义满足在场，带撇号的卡片串在干净树上正是这样通过的），所以这一格判的是「在场」而不是「字节相同」。覆盖与图型根、产物命名两格不另立断言：`emit:check` 既有的树比对接住多出来的或改名后的产物，`scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住不再产出的 html。逐字节相等比的是「已提交产物 vs 同一份源的重渲染」，渲染器丢掉一条引用、一个标签或一个 tag，或不再把 `meta.repository.revision` 抄进证据块时，两侧仍然相等——所以修订一致、引用多重集与文案逐格都不能由字节比对蕴含，必须并列声明；它们正是因此留在 `emit:check` 而不回测试。
 
 反向注入臂不读产物：本任务给它们一份内存里的 html 夹具（一段携带注入要动的元素的字符串），`diagram-twin.guard.test.ts` 因此一行 `docs/diagrams` 产物路径都不读。
 
@@ -325,7 +327,7 @@ Task 4, Task 5
 
 #### Produces
 - `emit:check` 覆盖生成物面：`.claude-plugin/` 与 marketplace 的派生、ISSUE_TEMPLATE、`docs/diagrams` 的源↔产物（含孪生对）；孪生对的覆盖与图型根、产物命名两格由既有的树比对与 `scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住
-- `scripts/lib/diagrams.ts` 的产物断言逐格一条：源里的引擎节点 `tag` 落在该源渲染出的产物上（节点标记在场） · 模块里那张退役拼写字面表在源的暂存渲染里零命中（源上无此字段：源侧是字面表，产物侧是暂存渲染，测试侧的 `DiagramPin` 字面随这一格搬出去） · 源的 `meta.repository.revision` 等于产物证据块的 `repository.revision` · 源的引用多重集与证据块的 `referenceCount` 同多重、同计数 · 源的每个文案格在产物里逐字在场——除退役拼写那一格外，两侧字面从源与暂存渲染读，与逐字节比对并列；执行卡首行不是 `tag` 的对应面，它的读数留在 `diagrams.guard.test.ts` 的源内容面
+- `scripts/lib/diagrams.ts` 的产物断言逐格一条：源里的引擎节点 `tag` 落在该源渲染出的产物上（节点标记在场） · 模块里那张退役拼写字面表在源的暂存渲染里零命中（源上无此字段：源侧是字面表，产物侧是暂存渲染，测试侧的 `DiagramPin` 字面随这一格搬出去） · 源的 `meta.repository.revision` 等于产物证据块的 `repository.revision` · 源的引用多重集与证据块的 `referenceCount` 同多重、同计数 · 源的每个文案格以逐字或 HTML 转义后的形态在产物里在场（与 `DiagramTwin#copyMismatches` 同判，不是字节相同）——除退役拼写那一格外，两侧字面从源与暂存渲染读，与逐字节比对并列；执行卡首行不是 `tag` 的对应面，它的读数留在 `diagrams.guard.test.ts` 的源内容面
 - `diagrams.guard.test.ts` 只余源内容臂 + P28 T2 那一格；`diagram-twin.guard.test.ts` 只余内存反向注入臂，且它们的 html 来自内存夹具而不是已提交产物；产物读者 `DiagramTwin.of` 与它的源清单 `DiagramTwin.SOURCES` 一并离场——搬走的那几段是它们仅有的调用者，留下任何一处就是文件里还开着已提交产物的读法
 - 两个测试文件不再读 HTML
 
@@ -375,27 +377,28 @@ Task 6
 ### Task 10: changeset 与全量门
 
 #### Objective
-收口：加 `cdd-engine` minor 的 changeset（消费面字节变化：判据行少一条、prompt 少一段 lens、`cdd board` 的默认输出变化、生成物比对归口变化），并跑全量门。
+收口：把本相位早已在册的那份 changeset 补成完整的一份（消费面字节变化：判据行少一条、prompt 少一段 lens、`cdd board` 的默认输出变化、生成物比对归口变化），并跑全量门。本相位只此一份 note——再写一份就是把同一个相位从两个不完整的角度各说一遍，而树上那份的「pin 门没有任何消费面字节变化」在 Task 4 删掉判据行与 lens 之后已经与发布的字节相反。
 
 #### Files
-- Create: `.changeset/p43-self-verification.md`
+- Modify: `.changeset/p43-self-assertion-retirement.md`
 - Modify: `docs/kairos/plans/2026-11-23-engine-doc-tooling-p43.md`
 
 #### Consumes
 - 全量门的既有入口 `pnpm run validate`（本任务只跑不改）
 - 变更史纪律（`.changeset/README.md` 的级别判据）
+- 树上已有的 `.changeset/p43-self-assertion-retirement.md`（本轮之前由 `chore(p43): declare the engine's minor for the board notes fold` 建立，本任务扩写它而不是另起一份）
 
 #### Produces
-- 一份 minor changeset，摘要点名四处消费面变化
+- 本相位的一份 minor changeset（就是树上那份 note），摘要点名四处消费面变化，且不再声称 pin 门字节未动
 - 计划文档的变更史追加一行（本任务的收口读数）
 
 #### Steps
-- 写 changeset — checkable: 合 `changeset-levels.test.ts` 的级别判据（非 `major`），且摘要含四处消费面变化
+- 收齐 changeset — checkable: 合 `changeset-levels.test.ts` 的级别判据（非 `major`），且摘要含四处消费面变化；`.changeset/` 下本相位的 note 只有一份（出现第二份即缺陷），与已落地字节矛盾的那句随本次编辑删掉
 - 跑全量门 — checkable: `pnpm run validate` exit 0
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p43):` 起头
 
 #### Acceptance
-`validate` 全绿；changeset 在册且级别为 minor；本相位的十项任务全部落地。
+`validate` 全绿；本相位只有一份 changeset、在册且级别为 minor，摘要覆盖四处消费面变化；本相位的十项任务全部落地。
 
 #### DependsOn
 Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
@@ -411,3 +414,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.5 | 2026-11-23 | **按 plan 评审轮三的 F1–F4 用户裁定修正**：Constraints 的窗口账改成按文档记（本计划付引用 · 宪章的回填行带一处 · spec 按 §2.1 写散文不带），Task 2 同批把宪章登记行的行内代码段改成散文；Task 4 收两处散文里的退役边界名（段注的边界清单与 `BOUNDARIES` 的逐名断言）；Task 7 的 P41 修法从「删句子」改成「就地改写枚举」（三个枚举各留其余成员，计数与连接词折到剩下的项，改写后仍读成完整清单）；Task 8 把孪生对的修订一致格补成自己的断言（源 `meta.repository.revision` 对产物证据块），覆盖与图型根 · 产物命名两格明写由树比对与孤儿走读接住 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.6 | 2026-11-23 | **记录 `a611459d` 的 Task 3 补写（本行追登）并应用 plan 评审轮四的 F1–F6 用户裁定**：Task 3 的写集与它的 CLI 级成对臂（`face/__tests__/cli.test.ts` 上的 `--notes` 透传，参数读取与 `display` 经 `BoardView.render` 端到端可红）在本行正式入账；Task 4 的 Objective 与 checkable 按 ID 点名 `P37 T6` / `P37 T7` 两段 describe，并写明该文件其余臂为何留；Task 7 的 `census:criteria.rows` 步骤改成读一次 `CRITERIA_ROWS` 的度量并明写 Task 5 之后没有比对臂可红；Constraints 的对已闭合文档条补上 P41 的枚举改写（spec §2.2），窗口账改按文档记、点名 Task 1 改名让已闭合相位的记录付红、删掉会随树漂移的文档普查；Task 8 的 tag 格改按节点标记判（执行卡首行携带 `detail` 散文，不是 `tag`），篡改改由注入的 stub 渲染判，`scripts/__tests__/diagrams.test.ts` 随之进写集 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.7 | 2026-11-23 | **按 plan 评审轮五的 F1–F3 用户裁定修正（Task 6 与 Task 8 两任务面，结构面未动）**：Task 6 的 Objective 点名 `charter-self-repair.test.ts` 第二个 describe 的两臂——零 finding 臂整臂退役，P42 T9 的候选面臂只撤真宪章读取、量缺口的一对重挂到 `charterBody([...])` 合成宪章上（`measure-literal` 的缺口对不丢），步骤一的可判改成读机制（两文件全绿且非语料臂留在原位 + 重挂后的缺口对成对可辨），整文件删除仍不是修法；Task 8 的退役拼写格按树改写——源上无 `retiredTag` 字段，退役拼写今天住在 `diagrams.guard.test.ts` 的 `DiagramPin` 字面上，搬过去落成 `scripts/lib/diagrams.ts` 的模块内字面表、断言读该表与源的暂存渲染，Objective / Produces / 步骤一的 stub 表述同批改齐；Task 8 的产物读者离场入账（`DiagramTwin.of` 与 `DiagramTwin.SOURCES` 随两个 describe 搬走后零调用，步骤二的可判改按机制判，HTML 路径字面只作副证） | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.8 | 2026-11-23 | **按 plan 评审轮六的 F1–F4 用户裁定修正**：Task 7 把变更史行逐条点名为例外——零命中只圈正文段，表内引用原值保留（`## Change history` 是记录不是活引用），成对判据写死「正文段写回即红 / 历史行原样不红」；Task 8 的文案格改写成 escaped-or-raw 的在场判据（与 `DiagramTwin#copyMismatches` 同判），不再暗示字节相同；Constraints 的窗口段删掉成员枚举，只留按文档记的规则与该臂当次读数；Task 10 从新建 changeset 改成扩写树上已有的 `.changeset/p43-self-assertion-retirement.md`，一个相位一份 note | Oscaner M. · Claude（kairos:cdd-docs-fix） |

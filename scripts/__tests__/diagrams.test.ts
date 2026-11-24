@@ -18,7 +18,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { emitService, REPO_ROOT } from "../emit.ts";
-import { DIAGRAM_SRC_DIR, type DiagramProduct, DiagramProducts } from "../lib/diagrams.ts";
+import {
+  DIAGRAM_SRC_DIR,
+  type DiagramProduct,
+  DiagramProducts,
+  DiagramTwins,
+} from "../lib/diagrams.ts";
 
 /** One source document's product face, read straight from the source bytes. */
 const sourceFace = (file: string): { type: string; out: string; quality: string } => {
@@ -212,5 +217,241 @@ describe("DiagramProducts — the default renderer's call face", () => {
     expect(source).toContain("Archify missing — run pnpm install");
     expect(source).not.toMatch(/shell:\s*true/);
     expect(source).not.toContain("execSync");
+  });
+});
+
+/**
+ * P43 T8 — the twin assertions' execution face. `emit:check` is the ONE place a source
+ * is judged against its rendered artifact, so every arm here drives
+ * `DiagramTwins.mismatchesOf` through an INJECTED renderer: the artifact the stub writes
+ * is the artifact the assertions read, and the committed product is never touched.
+ * Each leg gets a pair — a faithful render stays silent, one tampered render turns that
+ * leg red — because a leg that cannot report is worth nothing, and a leg that always
+ * reports is worth less.
+ */
+
+/** The evidence block's script tag — the artifact's machine-readable carrier. */
+const EVIDENCE_SCRIPT =
+  /<script id="archify-source-evidence-data" type="application\/json">([\s\S]*?)<\/script>/;
+
+/** One source document as the twin assertions read it. */
+interface TwinSource {
+  readonly diagram_type: string;
+  readonly meta: { readonly repository: { readonly revision: string } };
+  readonly components?: readonly TwinNode[];
+  readonly states?: readonly TwinNode[];
+  readonly nodes?: readonly TwinNode[];
+  readonly cards?: readonly TwinCard[];
+}
+
+/** One node of a source document. */
+interface TwinNode {
+  readonly id: string;
+  readonly label?: string;
+  readonly sublabel?: string;
+  readonly tag?: string;
+  readonly sources?: readonly { path: string; line: number; end_line: number }[];
+}
+
+/** One summary card of a source document. */
+interface TwinCard {
+  readonly title: string;
+  readonly items?: readonly string[];
+}
+
+/** The artifact-side evidence block. */
+interface TwinEvidence {
+  readonly repository: { readonly revision: string };
+  readonly referenceCount: number;
+  readonly nodes: Readonly<
+    Record<string, readonly { path: string; line: number; endLine: number }[]>
+  >;
+}
+
+/** One string as the artifact writes a text node. */
+const escapeOf = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+/** The nodes of one source under its declared root. */
+const nodesOfSource = (source: TwinSource): readonly TwinNode[] => [
+  ...(source.components ?? []),
+  ...(source.states ?? []),
+  ...(source.nodes ?? []),
+];
+
+/** Every copy cell one source declares — labels, sublabels, tags, card titles and card
+ *  items, in the order the artifact writes them. */
+const copyCellsOf = (source: TwinSource): readonly string[] => {
+  const nodes = nodesOfSource(source);
+  const cells = [...nodes.flatMap((node) => [node.label, node.sublabel, node.tag])];
+  for (const card of source.cards ?? []) cells.push(card.title, ...(card.items ?? []));
+  return cells.filter((text): text is string => typeof text === "string" && text.length > 0);
+};
+
+/** The artifact one source renders to: its copy cells as escaped text nodes plus one
+ *  evidence block carrying the same citations and the same revision pin. */
+const artifactOfSource = (source: TwinSource): string => {
+  const nodes = nodesOfSource(source);
+  const references = nodes.flatMap((node) =>
+    (node.sources ?? []).map((cited) => ({
+      path: cited.path,
+      line: cited.line,
+      endLine: cited.end_line,
+    })),
+  );
+  const evidence: TwinEvidence = {
+    repository: source.meta.repository,
+    referenceCount: references.length,
+    nodes: { [nodes[0]?.id ?? "node"]: references },
+  };
+  return [
+    "<!doctype html><html><body>",
+    ...copyCellsOf(source).map((text) => `<span>${escapeOf(text)}</span>`),
+    `<script id="archify-source-evidence-data" type="application/json">${JSON.stringify(evidence)}</script>`,
+    "</body></html>",
+    "",
+  ].join("\n");
+};
+
+/** Rewrite the evidence block of one artifact. */
+const withEvidence = (html: string, mutate: (evidence: TwinEvidence) => TwinEvidence): string => {
+  const script = EVIDENCE_SCRIPT.exec(html);
+  if (script === null) throw new Error("the stub artifact carries no evidence block");
+  const rewritten = JSON.stringify(mutate(JSON.parse(script[1]) as TwinEvidence));
+  return html.replace(
+    EVIDENCE_SCRIPT,
+    () => `<script id="archify-source-evidence-data" type="application/json">${rewritten}</script>`,
+  );
+};
+
+/** The six ways a renderer can disagree with its source — one per asserted leg, plus
+ *  the faithful pass every pair is measured against. */
+type Tamper =
+  | "none"
+  | "drop-tag"
+  | "retired-spelling"
+  | "drop-reference"
+  | "change-copy"
+  | "other-revision";
+
+/** One renderer that writes a faithful artifact and then applies one tamper. */
+const tamperingRenderer =
+  (tamper: Tamper) =>
+  (request: { srcAbs: string; outAbs: string }): void => {
+    const source = JSON.parse(readFileSync(request.srcAbs, "utf8")) as TwinSource;
+    const faithful = artifactOfSource(source);
+    const html = twinTampered(faithful, source, tamper);
+    mkdirSync(path.dirname(request.outAbs), { recursive: true });
+    writeFileSync(request.outAbs, html, "utf8");
+  };
+
+/** One tamper applied to a faithful artifact. */
+const twinTampered = (faithful: string, source: TwinSource, tamper: Tamper): string => {
+  switch (tamper) {
+    case "none":
+      return faithful;
+    case "drop-tag": {
+      const tag = nodesOfSource(source).find((node) => (node.tag ?? "").length > 0)?.tag ?? "";
+      return faithful.split(escapeOf(tag)).join("");
+    }
+    case "retired-spelling":
+      return faithful.replace("</body>", "<p>7 commands</p></body>");
+    case "drop-reference":
+      return withEvidence(faithful, (evidence) => {
+        const [first] = Object.keys(evidence.nodes);
+        return {
+          ...evidence,
+          nodes: { ...evidence.nodes, [first]: evidence.nodes[first]?.slice(1) ?? [] },
+        };
+      });
+    case "change-copy": {
+      const [first] = copyCellsOf(source);
+      return faithful.replace(
+        `<span>${escapeOf(first ?? "")}</span>`,
+        "<span>rewritten, never regenerated</span>",
+      );
+    }
+    case "other-revision":
+      return withEvidence(faithful, (evidence) => ({
+        ...evidence,
+        repository: { revision: "0".repeat(40) },
+      }));
+  }
+};
+
+/** One emit pass with the given renderer, judged — the mismatches it reports. */
+const judgedPass = (tamper: Tamper): readonly string[] => {
+  const out = outputRoot();
+  try {
+    const products = new DiagramProducts(REPO_ROOT, { render: tamperingRenderer(tamper) });
+    const renderings = products.emit(out, []);
+    return DiagramTwins.mismatchesOf(REPO_ROOT, renderings);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+};
+
+/** The mismatches of one leg — the message prefix names the leg. */
+const legOf = (mismatches: readonly string[], leg: string): readonly string[] =>
+  mismatches.filter((message) => message.startsWith(`${leg}:`));
+
+describe("DiagramTwins — the five generation-consistency legs (emit:check's face)", () => {
+  it("stays silent when the renderer reproduces every source", () => {
+    expect(judgedPass("none")).toEqual([]);
+  });
+
+  it("reports a node tag the rendering dropped — the node marker is the corresponding face", () => {
+    const mismatches = judgedPass("drop-tag");
+    expect(legOf(mismatches, "tag").length).toBeGreaterThan(0);
+    // the copy leg reads the same absence: dropping a tag also empties its copy cell
+    expect(legOf(mismatches, "copy").length).toBeGreaterThan(0);
+    expect(legOf(mismatches, "revision")).toEqual([]);
+    expect(legOf(mismatches, "reference")).toEqual([]);
+  });
+
+  it("reports a retired command spelling that survived the render", () => {
+    const mismatches = judgedPass("retired-spelling");
+    expect(legOf(mismatches, "retired-tag").length).toBeGreaterThan(0);
+    expect(legOf(mismatches, "tag")).toEqual([]);
+    expect(legOf(mismatches, "reference")).toEqual([]);
+    expect(legOf(mismatches, "copy")).toEqual([]);
+  });
+
+  it("reports a source citation the rendering lost — the multiset and its count", () => {
+    const mismatches = judgedPass("drop-reference");
+    expect(legOf(mismatches, "reference").length).toBeGreaterThan(0);
+    expect(legOf(mismatches, "revision")).toEqual([]);
+    expect(legOf(mismatches, "copy")).toEqual([]);
+  });
+
+  it("reports a copy cell the rendering rewrote", () => {
+    const mismatches = judgedPass("change-copy");
+    expect(legOf(mismatches, "copy").length).toBeGreaterThan(0);
+    expect(legOf(mismatches, "card-title")).toEqual([]);
+    expect(legOf(mismatches, "reference")).toEqual([]);
+  });
+
+  it("reports an evidence revision the source does not pin", () => {
+    const mismatches = judgedPass("other-revision");
+    expect(legOf(mismatches, "revision").length).toBeGreaterThan(0);
+    expect(legOf(mismatches, "reference")).toEqual([]);
+    expect(legOf(mismatches, "copy")).toEqual([]);
+  });
+
+  it("names the leg in the message — a red says which comparison failed, never just that one did", () => {
+    for (const [tamper, leg] of [
+      ["drop-reference", "reference"],
+      ["other-revision", "revision"],
+      ["change-copy", "copy"],
+    ] as const) {
+      const [first] = legOf(judgedPass(tamper), leg);
+      expect(first).toBeDefined();
+      expect(first?.startsWith(`${leg}:`)).toBe(true);
+    }
   });
 });

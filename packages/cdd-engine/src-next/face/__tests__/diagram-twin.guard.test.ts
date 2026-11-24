@@ -1,9 +1,5 @@
 // packages/cdd-engine/src-next/face/__tests__/diagram-twin.guard.test.ts
-// P26 T2 (#418) — the six-source diagram twin gate. The diagram plane ships six
-// sources (architecture / journey / next-loop, each en + zh-CN) and until now each
-// pair was only half-pinned: `journey` had no pin at all, `next-loop` had no HTML leg,
-// so "edit the source, never regenerate" was invisible. This gate gives every source
-// the SAME three legs:
+// The twin legs' own pins — the three legs a (source, artifact) pair is judged on:
 //   · the citation twin — every node's `sources[]` (path, line, end_line) must equal
 //     the artifact's embedded `archify-source-evidence-data` references
 //     (path, line, endLine) as a MULTISET (a duplicate reference is still a
@@ -12,31 +8,23 @@
 //   · the copy twin — every node `label` / `sublabel` / `tag`, every card `title` and
 //     every card `items[]` entry appears in the artifact (HTML-escaped), so a source
 //     edit without a regeneration turns red;
-//   · the artifact identity — `meta.output` names the artifact this gate read.
-// The three `diagram_type` roots (architecture → `components`, lifecycle → `states`,
-// workflow → `nodes`) share ONE normalization; the six sources cover all three, so a
-// gate hard-wired to `components` cannot silently pass.
+//   · the repair path (P28 T2) — every leg's red means the same thing: the source moved
+//     and the artifact did not follow, so every mismatch string ends with `pnpm run
+//     emit`. The semantic gate (`diagrams.guard.test.ts`) deliberately carries no such
+//     suffix: there the source itself is wrong.
 //
-// Reverse injections (spec acceptance 5) are asserted against IN-MEMORY copies — a
-// mutated source object or a mutated evidence block re-parsed through the same
-// `DiagramTwin` — never against the working tree: the gate is read-only by
-// construction, and `docs/diagrams/*.html` stays untouchable (no hand-edited
-// artifact, no restore dance).
-//
-// The repair path (P28 T2): every leg's red means the SAME thing — the source moved
-// and the artifact did not follow — so every mismatch string ends with the one repair
-// that needs no extra install, `pnpm run emit`. The semantic gate
-// (`diagrams.guard.test.ts`) deliberately carries no such suffix: there the source
-// itself is wrong, and regenerating it would only re-print the mistake.
+// The shipped six sources against their rendered artifacts are NOT read here. That
+// judgment belongs to `scripts/lib/diagrams.ts#DiagramTwins`, executed by
+// `pnpm run emit:check`: a byte comparison of a committed artifact with a re-render of
+// the same source cannot see a dropped tag, citation or copy cell, so the reading moved
+// to the one face that judges source against a fresh render. Every arm below pairs an
+// IN-MEMORY source with an IN-MEMORY artifact — never `docs/diagrams/*.html`, which is
+// a committed product and stays untouchable (no hand-edited artifact, no restore dance).
 //
 // Rule zero (over the 200-line class/limit): the reader stays one class because every
 // leg is a pure projection of the SAME (source, artifact) pair.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 
 /** One `sources[]` citation as a source file writes it. */
 interface SourceCitation {
@@ -60,10 +48,11 @@ interface SourceCard {
   readonly items?: readonly string[];
 }
 
-/** One diagram source — the three roots are read by `diagram_type`. */
+/** One diagram source — the three roots are read by `diagram_type`. The artifact name is
+ *  NOT declared here: these arms pair in-memory copies, so no artifact path is read. */
 interface DiagramSourceDoc {
   readonly diagram_type: string;
-  readonly meta: { readonly output: string; readonly repository: { readonly revision: string } };
+  readonly meta: { readonly repository: { readonly revision: string } };
   readonly components?: readonly SourceNode[];
   readonly states?: readonly SourceNode[];
   readonly nodes?: readonly SourceNode[];
@@ -107,16 +96,6 @@ class DiagramTwin {
     workflow: "nodes",
   };
 
-  /** The six shipped sources — every diagram this repo draws. */
-  static readonly SOURCES = [
-    "docs/diagrams/src/architecture.en.json",
-    "docs/diagrams/src/architecture.zh-CN.json",
-    "docs/diagrams/src/journey.en.json",
-    "docs/diagrams/src/journey.zh-CN.json",
-    "docs/diagrams/src/next-loop.en.json",
-    "docs/diagrams/src/next-loop.zh-CN.json",
-  ] as const;
-
   readonly #source: DiagramSourceDoc;
   readonly #html: string;
   readonly #evidence: EvidenceDoc | null;
@@ -127,20 +106,9 @@ class DiagramTwin {
     this.#evidence = DiagramTwin.#evidenceOf(html);
   }
 
-  /** Read one shipped source and the artifact its `meta.output` names. */
-  static of(rel: string): DiagramTwin {
-    const source = JSON.parse(readFileSync(`${REPO}${rel}`, "utf8")) as DiagramSourceDoc;
-    return new DiagramTwin(source, readFileSync(`${REPO}${source.meta.output}`, "utf8"));
-  }
-
-  /** Pair an in-memory source copy with an artifact — the reverse-injection entry. */
+  /** Pair an in-memory source copy with an in-memory artifact — the ONE entry point. */
   static withSource(source: DiagramSourceDoc, html: string): DiagramTwin {
     return new DiagramTwin(source, html);
-  }
-
-  /** The artifact path the source declares (the artifact-identity leg). */
-  get output(): string {
-    return this.#source.meta.output;
   }
 
   /** The declared diagram type — the root this pair normalizes through. */
@@ -267,7 +235,66 @@ class DiagramTwin {
   }
 }
 
-/** One artifact with its evidence block rewritten — the reference-leg injection. */
+/** The repair suffix every twin mismatch ends with — one wording for all three legs. */
+const REPAIR_HINT = "— regenerate: pnpm run emit";
+
+/** One in-memory source — the copy cells cover all three fields, a card, an item and an
+ *  apostrophe (so the escaped-or-raw judgment has both branches). */
+const FIXTURE_SOURCE: DiagramSourceDoc = {
+  diagram_type: "architecture",
+  meta: { repository: { revision: "a".repeat(40) } },
+  components: [
+    {
+      id: "engine",
+      label: "Engine",
+      sublabel: "one dispatch",
+      tag: "8 commands",
+      sources: [{ path: "packages/cdd-engine/src-next/bin.ts", line: 1, end_line: 9 }],
+    },
+  ],
+  cards: [{ title: "Execution", items: ["the engine's own judgment"] }],
+};
+
+/** One string as the artifact writes a text node. */
+const escapeOf = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+/** The artifact one in-memory source renders to: its copy cells as escaped text nodes
+ *  plus one evidence block carrying the same citations and the same revision pin. */
+const artifactOf = (source: DiagramSourceDoc): string => {
+  const nodes = [...(source.components ?? []), ...(source.states ?? []), ...(source.nodes ?? [])];
+  const copy = nodes.flatMap((node) => [node.label, node.sublabel, node.tag]);
+  const cards = (source.cards ?? []).flatMap((card) => [card.title, ...(card.items ?? [])]);
+  const references = nodes.flatMap((node) =>
+    (node.sources ?? []).map((cited) => ({
+      path: cited.path,
+      line: cited.line,
+      endLine: cited.end_line,
+    })),
+  );
+  const evidence: EvidenceDoc = {
+    repository: source.meta.repository,
+    referenceCount: references.length,
+    nodes: { [nodes[0]?.id ?? "node"]: references },
+  };
+  return [
+    "<!doctype html><html><body>",
+    ...[...copy, ...cards]
+      .filter((text): text is string => typeof text === "string")
+      .map((text) => `<span>${escapeOf(text)}</span>`),
+    `<script id="archify-source-evidence-data" type="application/json">${JSON.stringify(evidence)}</script>`,
+    "</body></html>",
+    "",
+  ].join("\n");
+};
+
+/** One artifact with its evidence block rewritten — the reference- and revision-leg
+ *  injection. */
 const withEvidence = (
   twin: DiagramTwin,
   mutate: (evidence: EvidenceDoc) => EvidenceDoc,
@@ -281,63 +308,38 @@ const withEvidence = (
   );
 };
 
-/** The source document behind one shipped twin — the reverse-injection base copy. */
-const sourceOf = (rel: string): DiagramSourceDoc =>
-  JSON.parse(readFileSync(`${REPO}${rel}`, "utf8")) as DiagramSourceDoc;
-
 /** One node list copy with the first node's field replaced — the copy-leg injection. */
-const withSublabel = (
+const withNodeField = (
   source: DiagramSourceDoc,
   root: "components" | "states" | "nodes",
+  field: "sublabel",
+  value: string,
 ): DiagramSourceDoc => {
   const nodes = [...(source[root] ?? [])];
   const [first] = nodes;
   expect(first, "the source carries no node to mutate").toBeDefined();
-  nodes[0] = { ...first, sublabel: "a sublabel that was never regenerated" };
+  nodes[0] = { ...first, [field]: value };
   return { ...source, [root]: nodes };
 };
 
-const ARCHITECTURE = "docs/diagrams/src/architecture.en.json";
+/** The faithful pair's baseline — one source, one artifact rendered from it. */
+const twinOf = (source: DiagramSourceDoc = FIXTURE_SOURCE): DiagramTwin =>
+  DiagramTwin.withSource(source, artifactOf(source));
 
-/** The repair suffix every twin mismatch ends with — one wording for all three legs. */
-const REPAIR_HINT = "— regenerate: pnpm run emit";
-
-describe("the six diagram twins — citation, copy and revision legs (P26 T2)", () => {
-  it("covers six sources and all three diagram_type roots", () => {
-    const twins = DiagramTwin.SOURCES.map((rel) => DiagramTwin.of(rel));
-    expect(twins.length).toBe(6);
-    const types = [...new Set(twins.map((twin) => twin.diagramType))].sort();
-    expect(types).toEqual(["architecture", "lifecycle", "workflow"]);
-    for (const twin of twins)
-      expect(Object.keys(DiagramTwin.ROOT_BY_TYPE)).toContain(twin.diagramType);
+describe("a faithful pair keeps every leg silent", () => {
+  it("pairs the in-memory source with its own rendering — three legs, zero mismatches", () => {
+    const twin = twinOf();
+    expect(twin.diagramType).toBe("architecture");
+    expect(twin.revisionMismatches()).toEqual([]);
+    expect(twin.referenceMismatches()).toEqual([]);
+    expect(twin.copyMismatches()).toEqual([]);
+    expect(twin.cardTitles()).toEqual(["Execution"]);
   });
-
-  for (const rel of DiagramTwin.SOURCES) {
-    describe(rel, () => {
-      const twin = DiagramTwin.of(rel);
-
-      it("names the artifact it was read from", () => {
-        expect(twin.output).toBe(rel.replace("src/", "").replace(/\.json$/, ".html"));
-      });
-
-      it("pins the same revision on both sides", () => {
-        expect(twin.revisionMismatches()).toEqual([]);
-      });
-
-      it("twins the citation multiset and its referenceCount", () => {
-        expect(twin.referenceMismatches()).toEqual([]);
-      });
-
-      it("twins every label, sublabel, tag, card title and card item", () => {
-        expect(twin.copyMismatches()).toEqual([]);
-      });
-    });
-  }
 });
 
 describe("the twin legs go red when one side moves (reverse injection)", () => {
-  it("a hand-edited artifact reference turns the citation leg red (and only that leg)", () => {
-    const twin = DiagramTwin.of(ARCHITECTURE);
+  it("a drifted artifact reference turns the citation leg red (and only that leg)", () => {
+    const twin = twinOf();
     const html = withEvidence(twin, (evidence) => {
       const [first] = Object.keys(evidence.nodes);
       const [cited] = evidence.nodes[first];
@@ -349,7 +351,7 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
         },
       };
     });
-    const drifted = DiagramTwin.withSource(sourceOf(ARCHITECTURE), html);
+    const drifted = DiagramTwin.withSource(FIXTURE_SOURCE, html);
     const references = drifted.referenceMismatches();
     expect(references.length).toBeGreaterThan(0);
     expect(references.every((message) => message.startsWith("reference:"))).toBe(true);
@@ -359,12 +361,12 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
   });
 
   it("a source revision pin without a regeneration names the repair", () => {
-    const twin = DiagramTwin.of(ARCHITECTURE);
+    const twin = twinOf();
     const html = withEvidence(twin, (evidence) => ({
       ...evidence,
       repository: { revision: "0".repeat(40) },
     }));
-    const drifted = DiagramTwin.withSource(sourceOf(ARCHITECTURE), html);
+    const drifted = DiagramTwin.withSource(FIXTURE_SOURCE, html);
     const revisions = drifted.revisionMismatches();
     expect(revisions.length).toBeGreaterThan(0);
     expect(revisions.every((message) => message.startsWith("revision:"))).toBe(true);
@@ -373,9 +375,14 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
   });
 
   it("a source sublabel edit without a regeneration turns the copy leg red", () => {
-    const twin = DiagramTwin.of(ARCHITECTURE);
+    const twin = twinOf();
     const drifted = DiagramTwin.withSource(
-      withSublabel(sourceOf(ARCHITECTURE), "components"),
+      withNodeField(
+        FIXTURE_SOURCE,
+        "components",
+        "sublabel",
+        "a sublabel that was never regenerated",
+      ),
       twin.html,
     );
     const copy = drifted.copyMismatches();
@@ -388,16 +395,27 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
   });
 
   it("a card-title edit without a regeneration turns the card-title leg red", () => {
-    const twin = DiagramTwin.of(ARCHITECTURE);
-    const source = sourceOf(ARCHITECTURE);
-    const cards = [...(source.cards ?? [])];
+    const twin = twinOf();
+    const cards = [...(FIXTURE_SOURCE.cards ?? [])];
     cards[0] = { ...cards[0], title: "A title that was never regenerated" };
-    const drifted = DiagramTwin.withSource({ ...source, cards }, twin.html);
+    const drifted = DiagramTwin.withSource({ ...FIXTURE_SOURCE, cards }, twin.html);
     const copy = drifted.copyMismatches();
     expect(copy.some((message) => message.startsWith("card-title:"))).toBe(true);
     expect(copy.every((message) => message.endsWith(REPAIR_HINT))).toBe(true);
     // the items leg stays green for every card whose title did not move
     expect(copy.filter((message) => message.startsWith("copy:"))).toEqual([]);
     expect(drifted.referenceMismatches()).toEqual([]);
+  });
+
+  it("drops the evidence block — the citation leg reads an absent candidate, not a pass", () => {
+    const twin = twinOf();
+    const drifted = DiagramTwin.withSource(
+      FIXTURE_SOURCE,
+      twin.html.replace(EVIDENCE_SCRIPT, "<p>no evidence</p>"),
+    );
+    expect(drifted.referenceMismatches()).toEqual([
+      `reference: the artifact carries no evidence block ${REPAIR_HINT}`,
+    ]);
+    expect(drifted.revisionMismatches().length).toBeGreaterThan(0);
   });
 });

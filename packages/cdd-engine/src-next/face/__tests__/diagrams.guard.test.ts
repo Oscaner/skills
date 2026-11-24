@@ -1,7 +1,8 @@
 // packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts
-// The architecture-diagram pin — the diagram is a consumer surface, and no other
-// validation step reads it (`.github/workflows/static.yml` only uploads the directory),
-// so this gate is what keeps the picture honest:
+// The architecture-diagram pin — the diagram is a consumer surface, and the
+// generation-consistency legs (a source string reaching its rendered artifact, the
+// citation multiset, the revision pair) live in `scripts/lib/diagrams.ts`, executed by
+// `pnpm run emit:check`. What stays here judges the SOURCE, on its own terms:
 //   · the command surface — both source JSONs tag the engine node with the eight-command
 //     count AND state it in the Execution card's first line, with zero residue of the
 //     retired seven-command spellings. A tag saying eight next to prose saying "runs
@@ -16,10 +17,10 @@
 //     `meta.repository.revision` (the tree the evidence was taken from), still contain
 //     their identifiers. The working-tree check above cannot catch a revision pin that
 //     lags the renumbered spans: the source would carry one tree's hash and another
-//     tree's line numbers, so a consumer's source link would land on unrelated lines;
-//   · the generated artifacts — both HTMLs carry the eight-command surface and no
-//     seven-command residue, so editing a source without regenerating (or hand-editing
-//     an artifact) fails here.
+//     tree's line numbers, so a consumer's source link would land on unrelated lines.
+// The rendered artifact is NOT read here: a tag, a citation or a copy cell the renderer
+// drops is invisible to a byte comparison of two renders of the same source, so those
+// legs judge a staged render in `emit:check` instead.
 // Domicile: engine suite (the cross-plane read precedent: the gate reads the diagram
 // plane, the way the retired `install-rows.guard.test.ts` read the README plane).
 
@@ -64,14 +65,12 @@ interface DiagramPinMetadata {
   readonly repository: { readonly revision: string };
 }
 
-/** One language's pins — the count wording in both places it is written, the card the
- *  detail line rides, and the artifact that must carry the same surface. */
+/** One language's pins — the count wording in both places the SOURCE writes it, and the
+ *  card the detail line rides. */
 interface DiagramPin {
   readonly tag: string;
   readonly detail: string;
   readonly card: string;
-  readonly html: string;
-  readonly retiredTag: string;
 }
 
 const SOURCES: Readonly<Record<string, DiagramPin>> = {
@@ -79,15 +78,11 @@ const SOURCES: Readonly<Record<string, DiagramPin>> = {
     tag: "8 commands",
     detail: "eight commands",
     card: "Execution",
-    html: "docs/diagrams/architecture.en.html",
-    retiredTag: "7 commands",
   },
   "docs/diagrams/src/architecture.zh-CN.json": {
     tag: "8 条命令",
     detail: "八条命令",
     card: "执行",
-    html: "docs/diagrams/architecture.zh-CN.html",
-    retiredTag: "7 条命令",
   },
 };
 
@@ -259,17 +254,6 @@ for (const [rel, pin] of Object.entries(SOURCES)) {
           `${rel}: at revision ${revision}, ${cited!.path}:${cited!.line}-${cited!.end_line} must contain ${citation.identifier} — re-verify the span and re-pin the revision`,
         ).toBe(true);
       }
-    });
-
-    it("regenerates the artifact with the eight-command surface and no residue", () => {
-      const html = read(pin.html);
-      expect(html.includes(pin.tag), `${pin.html}: the artifact must carry "${pin.tag}"`).toBe(
-        true,
-      );
-      expect(
-        html.includes(pin.retiredTag),
-        `${pin.html}: the artifact must not carry "${pin.retiredTag}" — regenerate, never hand-edit`,
-      ).toBe(false);
     });
   });
 }

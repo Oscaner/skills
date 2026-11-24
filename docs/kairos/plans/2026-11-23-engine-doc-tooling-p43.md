@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.19
+version: v0.20
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -430,37 +430,62 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 ### Task 11: `measure-literal` 整条退出
 
 #### Objective
-分支终评之后追加的工作项（用户裁定）：登记表随 `pin.*` 四行退役之后，`measure-literal` 要求的 `census:` 形态已无人比对——写一个荒唐的值也过——而实测里出错的一直是「数对不上指称物」那一类（数字改了枚举没改 · 文件头的种群计数过期 · 历史行的读数被当活引用），它一条都抓不到。要求形态而无值可核的规则与 pin 门同族，故整条退出：`contract/invariants.ts` 的 `MeasureLiteralInvariant` 与它的 token 文法、量词词表一并删除；`contract/rules.ts` 的规则行删除；`contract/census.ts` 整个模块随它唯一的读者消失；`contract/__tests__/census-grammar.test.ts` 删除。P41 的形状门从六条收成五条，其余五条一字不动。
+分支终评之后追加的工作项（用户裁定）：登记表随 `pin.*` 四行退役之后，`measure-literal` 要求的 `census:` 形态已无人比对——写一个荒唐的值也过——而实测里出错的一直是「数对不上指称物」那一类（数字改了枚举没改 · 文件头的种群计数过期 · 历史行的读数被当活引用），它一条都抓不到。要求形态而无值可核的规则与 pin 门同族，故整条退出：`contract/invariants.ts` 的 `MeasureLiteralInvariant` 与它的 token 文法、量词词表一并删除；`contract/rules.ts` 的规则行删除；`contract/census.ts` 整个模块随它唯一的读者消失；`contract/__tests__/census-grammar.test.ts` 删除。
+
+撤一条规则撤的是三张面，缺一面留下的就是「声明活得比机制长」：**执行面**（登记行 · 判据本体 · 它读的常量）· **教学面**（两个 authoring 节点的 `count` 造句 · `#docNarrativeAxes` 的评审正文与它的段注 · `#DOCS_FIX_SHAPE_RULES` 的点数词与清单）· **断言面**（钉住那几处句子的探针与读该族读数的夹具）。该 id 在这三张面上的每一处都归本任务，一处不留——`contract/rules.ts` 的登记表头与 `skipWhenClosed` 列注释、`contract/invariants.ts` 的 `ProseWalk` 与 `ProseFace` 两处头注释、`contract/__tests__/shape-rules.test.ts` 的文件头与两条 describe 标题同在这张面上，交付时删掉那个数目并指回 spec §4.2 的名册，不就地重新推导。P41 的形状门只余 `RULE_REGISTRY` 里留下的那几条形状行，其余一字不动；本任务不在任何一处写下那个数目，名册与各臂的归属住 spec §4.2。
+
+缺口读数随该行改挂到留在册的形状行 `line-coordinate`，这不是顺带的收尾而是退役的一半：`MeasureLiteralInvariant.evaluate` 是全树唯一调 `ProseFace.gaps` 的地方，而缺口读数按规则名落 finding——删掉那个调用者而不接管，形状门就同时失去它唯一的零候选臂，「脸读不出任何声明面」与「文档干净」从此是同一个答案。故 `LineCoordinateInvariant.evaluate` 起调 `ProseFace.gaps(ctx, this.name)`，自己的违规臂照旧：一份文档的脸读不出任何声明面时报一条 kind 为 `line-coordinate` 的缺口 finding，同一份正文放到已登记的小标题下则沉默。接手的是这一行本来的职责，不是给规则加的新读数——判据语义未动。
+
+本任务同时接过两处先前任务的交付面，因为那两处在各自的块闭合之后才被读出与树不符：`.changeset/p43-self-assertion-retirement.md` 的 census 段（Task 10 已闭合——该段声称 `contract/census.ts` 只留引用文法，而本任务把这个模块整个删掉，且摘要从未点名 `count` 造句的退役）· `contract/__tests__/selector-coverage.test.ts` 的文件头括注（Task 9 已闭合——它声称括注在本任务的写集里，而交付的文件头仍停在旧读数）。闭合任务的文字是交付记录，不回头重写；两处由本任务接管并在 Objective 里记为对那两块文字的取代。
 
 已闭合文档里的 `census:` 声明不做任何迁移：没有判据读它们，也就没有「与登记面不符」这回事。文档里的测量数字从此只剩写作纪律与评审，这是 spec §4.2 登记的代价。
 
 #### Files
 - Delete: `packages/cdd-engine/src-next/contract/census.ts`
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/census-grammar.test.ts`
-- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
-- Modify: `packages/cdd-engine/src-next/contract/rules.ts`
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（规则类与它读的两个常量删除；`LineCoordinateInvariant.evaluate` 接手 `ProseFace.gaps`；`ProseWalk` 与 `ProseFace` 两处头注释与文件头的形状门头注释按留下的名册重述，不写数目）
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（删 `measure-literal` 行；登记表头的计数分句与 `skipWhenClosed` 列注释改指 spec §4.2 的名册）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（删该 id 的席位行；两处写死读数改成从登记表自身取，夹具不留第三个数目）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`（`SHAPE_RULE_IDS` 去 id、绑定该规则的 `measure` 辅助与以它为读法的 describe 删除；`unmapped` 那条缺口臂改挂 `line-coordinate` 的 describe 并断言它的 kind；文件头与两条 describe 标题按留下的名册重述）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`#docNarrativeAxes` 的正文与它上方的段注 · `#DOCS_FIX_SHAPE_RULES` 的点数词与清单 · 它上方的段注）
+- Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`（`VOLATILE_FACT_ANCHORS` 的锚点换成改读后那句的稳定片段 · `SHAPE_RULE_IDS` 去 id · 文件头注释改读）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（读该族的臂与 `single-home` 臂里断言该 id 的零读数删除，P41 的缺口 describe 留下换 kind，文件头注释改读）
+- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（P41 T5 两格的载体换成 `line-coordinate`，断言面逐字同形）
+- Modify: `packages/cdd-engine/src-next/session/__tests__/fix-round-gate.test.ts`（`MEASURE` 与 `MEASURE_OTHER` 两份夹具改写成 `line-coordinate` 的违规并改名、措辞断言随新报文、手写 baseline 取同一条在册行）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts`（文件头括注的数目取四类 `declaredRegistries[type].elements.length` 的合计，并配成对臂；Task 9 的同一句由本任务接管）
+- Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（`author-spec` 节点的 `count` 行按 spec §4.1 落定的那一句改写）
+- Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（`author-plan` 节点的 `count` 行同批，与上一条逐字相同）
+- Modify: `packages/kairos/tests/claim-shapes.test.ts`（`RULE_IDS_BY_SHAPE.count` 去 id，合法形态臂反转为要求那句说出没有这样的登记表）
+- Modify: `.changeset/p43-self-assertion-retirement.md`（census 段按模块的实际命运改写，摘要点名 `count` 造句的退役）
 
 #### Consumes
-- `contract/rules.ts#RULE_REGISTRY` 的 `measure-literal` 行（登记面的删除对象）
-- `contract/invariants.ts#MeasureLiteralInvariant` 与其 token 文法、量词词表（判据本体）
-- `contract/__tests__/shape-rules.test.ts` 的 `measure-literal` 臂与 `contract/__tests__/rules.test.ts` 的 id 字面表（两条夹具面）
+- `contract/rules.ts#RULE_REGISTRY` 的 `measure-literal` 行（登记面的删除对象）与它留下的形状行（改名册的唯一来源）
+- `contract/invariants.ts#MeasureLiteralInvariant` 与其 token 文法、量词词表（判据本体），以及它 `evaluate` 里那一处 `ProseFace.gaps` 调用（接手的对象）
+- `contract/invariants.ts#ProseFace.gaps` 与它读的 `ProseWalk`（零候选臂的唯一来源）
+- `contract/__tests__/shape-rules.test.ts` 的该规则臂与 `contract/__tests__/rules.test.ts` 的 id 字面表（两条夹具面）
+- `render/templates.ts#docNarrativeAxes` 与 `#DOCS_FIX_SHAPE_RULES` · 两份 authoring 节点 · `packages/kairos/tests/claim-shapes.test.ts` 的三条探针（教学面与断言面）
+- spec §4.1 落定的那一句（教学面四处逐字同句的唯一依据）与 spec §4.2 的名册（不写数目的依据）
+- 树上已有的 `.changeset/p43-self-assertion-retirement.md`（Task 10 的交付，本任务改写的对象）与 `selector-coverage.test.ts` 的文件头（Task 9 的交付）
 
 #### Produces
 - `contract/census.ts` 从树上消失；`contract/invariants.ts` 上 `CensusGate` 与 `measure-literal` 零命中
 - `RULE_REGISTRY` 的 doc 规则少一行，字面表与登记面同批收准
-- `shape-rules.test.ts` 只余五条形状规则的臂，且各自可红
+- `shape-rules.test.ts` 的形状行臂与 `RULE_REGISTRY` 里留下的形状行一一对应，且各自可红
+- 形状门的零候选臂仍在：`ProseFace.gaps` 的读者是 `LineCoordinateInvariant.evaluate`，它落的 finding kind 是 `line-coordinate`
+- 教学面三处同句、写作约束只列留下的形状行；断言面不红在一条已不在树上的规则上
+- 本任务接过的两处交付面就位：changeset 不再声称 `contract/census.ts` 幸存、摘要点名 `count` 造句；`selector-coverage.test.ts` 的文件头括注与它自己量的合计同源
 - 全树没有一条判据读 `census:` 形态
 
 #### Steps
-- 删规则行与判据本体 — checkable: `grep -rn "measure-literal" packages/cdd-engine/src-next` 零命中；`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- 删规则行与判据本体，并把缺口读数交给 `line-coordinate` — checkable: `grep -rn "measure-literal" packages/cdd-engine/src-next` 零命中；`LineCoordinateInvariant.evaluate` 调 `ProseFace.gaps(ctx, this.name)`；`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0。成对两向：把 `ProseFace.gaps` 那一行从 `LineCoordinateInvariant.evaluate` 里删掉、其余一字不动 ⇒ 缺口臂红（一份文档的脸读不出任何声明面时，门只剩沉默），其余形状臂照旧全绿；把 `MeasureLiteralInvariant` 的 `evaluate` 单独写回而不恢复它的登记行 ⇒ 该读数落在一个没有声明的 kind 上，缺口臂红
 - 删 `census.ts` 与文法夹具 — checkable: 两个路径不存在；全树 `CensusGate` 零命中（成对：把 `referencesOf` 的任何调用加回 ⇒ 该 grep 红，因为模块已不在）
-- 收准字面表与其余五臂 — checkable: `rules.test.ts` 的 id 表等于登记面的实际行数；`shape-rules.test.ts` 的五条臂各自可红（成对：删任一条臂的违规夹具 ⇒ 该条失去执行面，字面表的 drop 臂红）
+- 收准字面表与留下的形状臂，读数从表自身取 — checkable: `rules.test.ts` 的 id 表与 `RULE_REGISTRY` 逐 id 对齐，登记表长度与两条 scope 的过滤结果互相比对，夹具里不留第三个写死的数目（成对：往 `RULE_REGISTRY` 加一行而夹具不动 ⇒ 该臂红，因为每一处断言比的都是表自己产出的值）；`shape-rules.test.ts` 的形状行臂与登记表里留下的形状行同集且各自可红（成对：删任一条臂的违规夹具 ⇒ 该条失去执行面，字面表的 drop 臂红）
+- 改读教学面与它的探针 — checkable: 两个 authoring 节点的 `count` 行 · `#docNarrativeAxes` 的正文 · `VOLATILE_FACT_ANCHORS` 取的稳定片段逐字同句，且与 spec §4.1 落定的那一句一致；`#DOCS_FIX_SHAPE_RULES` 只列 `RULE_REGISTRY` 里留下的形状行、点数词与那份清单逐项对齐；`claim-shapes.test.ts` 的合法形态臂要求那句 `no census registry exists`（成对：把 `count` 行写回 `census:<id> = <n>` 的形态 ⇒ 该臂红）；处置面（夹具 · 模板 · 两个 skill 节点 · 登记行 · 各处头注释）上一次只圈这些路径的 `rg` 对该 id 零命中，两份 `CHANGELOG.md` 的发行史与 `docs/kairos/**` 的退役记录不在此列
+- 补齐两处已闭合任务的交付面 — checkable: changeset 里 `contract/census.ts` 那一段说的是它被删除、摘要点名 `count` 造句的退役；`selector-coverage.test.ts` 的括注等于四类 `declaredRegistries[type].elements.length` 的合计（成对：把括注写成一个与合计不符的邻值 ⇒ 该臂红）
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
-形状门在册五条、各自可红；`census:` 不再有任何读者；`pnpm run validate` exit 0。
+形状门只按 `RULE_REGISTRY` 里留下的形状行在册、各自可红，整门的零候选臂仍有一条且由 `line-coordinate` 承担（一份文档的脸读不出任何声明面时报一条 kind 为 `line-coordinate` 的缺口 finding，同一份正文放到已登记的小标题下则沉默）；`census:` 不再有任何读者，处置面上该 id 的读取为零，教学面四处与探针同句且不红在一条已不在树上的规则上；changeset 与 `selector-coverage.test.ts` 两处补写就位；`pnpm run validate` exit 0。
 
 #### DependsOn
 Task 4, Task 5
@@ -488,3 +513,4 @@ Task 4, Task 5
 | v0.17 | 2026-11-24 | **按 branch 评审轮三的 F1–F2 裁定修正（Task 9 与 Task 2 两任务面，结构面未动）**：Task 9 的右域收进夹具——`selector-coverage.test.ts` 的判定不再以 `root: REPO_ROOT` + 默认 `NodeFs` 扫本仓 `docs/kairos/**`，`single-home` 的邻域改经 `fs` 缝注入本文件自持的内存语料（`__tests__/support/memory-fs.ts` 的 `MemoryFs`，其余三份载体按各自 doc-type 的 doc root 挂载且各带自己的 slug——同 slug 的兄弟被该规则按设计跳过，停在骨架的 `:::fill slug` 上会什么也对比不到），Objective · Produces 与新增的一步同批落笔，成对为「语料里写进一份载体的判据句 ⇒ 那一格红」与「checkout 里临时放一份同句文档 ⇒ 套件照旧全绿」；Task 2 的 Produces 补上宪章 Phase inventory 行的栅栏读者一格（改读当时名为 `PinSpans` 的四个公开成员，与 spec §2.1 · Task 1 · v4.63 行同构） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.18 | 2026-11-24 | **按 plan 评审轮十二的 F1 修正（Task 9 面，结构面未动）**：`selector-coverage.test.ts` 的文件头括注在 `7346cc12` 之后停在旧读数——同文件两处断言与其上那条 `all … elements` 的题目量的都是四类登记表的合计，文件头却不再与它同源，而计划里没有一行署这个括注；Task 9 的 Objective · Produces · Steps 与 Acceptance 同批落笔：括注的数目与 `declaredRegistries[type].elements.length` 的合计同源，成对判据为「括注写成一个与合计不符的邻值 ⇒ 该臂红」 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.19 | 2026-11-23 | **追加 Task 11（分支终评后用户裁定）**：`measure-literal` 整条退出——规则行 · 判据本体 · `census.ts` 整模块 · 文法夹具全批下线，P41 形状门收成五条；已闭合文档的 `census:` 声明不迁移（无读者）。`DependsOn` 只指向已闭合的 Task 4 / Task 5，引擎据此派生新波。 | Oscaner M. · Claude（kairos:cdd-dev） |
+| v0.20 | 2026-11-24 | **按 plan 评审轮十三的 F1–F6 用户裁定修正（Task 11 面，结构面未动；Task 9 与 Task 10 已闭合，其文字不改，接管记录在 Task 11 的 Objective）**：F1 把撤一条规则的三张面收进 Task 11——执行面（登记行 · 判据本体 · 它读的两个常量）· 教学面（两份 authoring 节点的 `count` 行 · `#docNarrativeAxes` · `#DOCS_FIX_SHAPE_RULES`）· 断言面（`templates.test.ts` 的两个常量 · `charter-self-repair.test.ts` · `cli.test.ts` · `fix-round-gate.test.ts` · `claim-shapes.test.ts`），全部进 Files 并各署一行处置；F2 把缺口读数的接手写进 Objective · Produces · Steps 与 Acceptance——`LineCoordinateInvariant.evaluate` 起调 `ProseFace.gaps(ctx, this.name)`，成对为「删掉那一行 ⇒ 缺口臂红而其余臂全绿」与「同一份正文放到已登记的小标题下 ⇒ 沉默」；F3 让形状门的名册只读 `RULE_REGISTRY` 里留下的形状行，四处数目分句一并撤掉、改指 spec §4.2；F4 把 `.changeset/p43-self-assertion-retirement.md` 加进写集，census 段按模块的实际命运改写、摘要点名 `count` 造句；F5 把 `selector-coverage.test.ts` 的文件头括注接到本任务；F6 把 `rules.test.ts` 的两处写死读数改成从登记表自身取（长度与两条 scope 的过滤结果互相比对，夹具不留第三个数目） | Oscaner M. · Claude（kairos:cdd-docs-fix） |

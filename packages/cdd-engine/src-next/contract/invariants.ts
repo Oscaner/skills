@@ -2111,9 +2111,9 @@ class ProseFace {
 }
 
 /** measure-literal — the decision face states no bare count (P41 §1.2). A count is
- *  legal in exactly one form: a `census:<id> = <n>` reference, supplied by the census
- *  registry and compared by `CensusGate`. The grammar is a token shape, never a
- *  semantic class: the gate has no classifier for "is this claim about the live
+ *  legal in exactly one form: a `census:<id> = <n>` reference, whose shape this rule
+ *  reads through `CensusGate.referencesOf`. The grammar is a token shape, never a
+ *  semantic class: the rule has no classifier for "is this claim about the live
  *  tree", so the shape itself is the judgment. */
 export class MeasureLiteralInvariant extends Invariant {
   readonly name = "measure-literal";

@@ -741,8 +741,8 @@ const markerRow = (
   create: () => new MarkerInvariant(id, marker),
 });
 
-/** The six shape rows' ids — the closed-document exemption's subject (the real registry
- *  carries six, and the arms below read all of them). */
+/** The fixture's shape rows' ids — the closed-document exemption's subject (the arms
+ *  below read all of them; the real roster lives in the phase spec's §4.2). */
 const SHAPE_ROW_IDS = [
   "shape-one",
   "shape-two",

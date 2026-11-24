@@ -175,10 +175,12 @@ const VOLATILE_FACT_ANCHORS = [
   "belongs to the plan",
 ] as const;
 
-/** The shape rule rows the two authoring nodes name in their `- **` bullets. The
- *  rubric states the same shapes as ONE prose axis and names none of them, so this is the
- *  reverse read of the node face: a batch that copies a node's block into
- *  `docNarrativeAxes` would give the same sentence a second form, which reddens here. */
+/** The two variable-class shape rows — `line-coordinate` (a line coordinate is not a
+ *  pin) and `live-arithmetic` (no arithmetic over live counts). The rubric states both
+ *  shapes as ONE prose axis and names neither id: the ids ride the `pin` / `narrative`
+ *  node bullets and the docs-fix shell's own write constraints, so a batch that copies
+ *  either form into `docNarrativeAxes` gives the same sentence a second form, which
+ *  reddens here. */
 const SHAPE_RULE_IDS = ["line-coordinate", "live-arithmetic"] as const;
 
 /** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the

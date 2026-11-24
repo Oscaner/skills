@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -175,6 +175,7 @@ Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census
 - Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 - Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（闭合端口段注里的 `audit accessor` 随符号收口改指闭合读数）
+- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（`ArtifactRegistry.ownsName` 的唯一读者是 pin 门的「它是词表，不是可跟随的坐标」排除，随门退役而死，删除属本任务的收口）
 - Modify: `packages/cdd-engine/src-next/contract/markdown-spans.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/markdown-spans.test.ts`
 - Modify: `docs/diagrams/src/architecture.en.json`
@@ -429,3 +430,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.10 | 2026-11-23 | **按 plan 评审轮八的 F1–F2 用户裁定修正（Task 4 与 Task 7 两任务面，结构面未动）**：Task 7 的声明步骤收成单一读法——按 `CRITERIA_ROWS` 的度量逐处核，并明写 Task 5 之后树上没有任何面能把它重判红，删掉与自家括注互斥的成对臂；豁免段的成对判据随之只留在引用那一半，声明那一半明写不配成对臂；Task 4 的写集、步骤一与 Acceptance 补上散文那半——`face/cli.ts` 的 `#audit` 段注、memo 清单、pre-flight 与 `#auditOf` 段注随符号收口，`review-criteria.test.ts` 文件头不再称 `test` 为 pin 门，成对判据是「散文写回 ⇒ 散文半红而符号半绿」与「符号写回 ⇒ 符号半红而散文半绿」两向，两半互不代偿 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.11 | 2026-11-24 | **记录 `0284f07d` 的 Task 4 与 Task 8 补写（本行追登）并应用 plan 评审轮九的 F1–F2 用户裁定**：该提交给 Task 4 的 Files 加了七行与 pin 退役散文面同批的写集（`session/preflight.ts` · `contract/markdown-spans.ts` 与它的测试 · 两份 `docs/diagrams/src/architecture.*.json` · 两份生成物 `architecture.*.html`），并给 Task 8 加了 `scripts/emit.ts` 一行，本行把两处入账；Task 4 的散文半补第三处——`contract/markdown-spans.ts` 的模块段注与 `contract/__tests__/markdown-spans.test.ts` 的文件头不再把这条行读说成 pin 扫描的共用者，Objective · 步骤一的可判与 Acceptance 同批收该处与它自己的成对臂 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.12 | 2026-11-24 | **Task 10 收口（implement 轮）**：本相位那份 changeset 补上第四处消费面变化——生成物一致的执行面收归 `emit:check`（引用多重集与其计数 · 源的修订钉对产物证据块 · 文案格 · 源的节点 `tag` · 退役拼写各一条断言，`DiagramTwin` 的产物读者随它仅有的调用者离场），两份架构产物随 `init` 块搬进 `face/cli.ts` 的重渲染同批入账；相位仍只一份 note、级别 minor，全量门 `pnpm run validate` exit 0（root 6 文件 / 41 例 · kairos 17 / 106 · engine 98 / 2254，零告警） | Oscaner M. · Claude（kairos:cdd-dev） |
+| v0.13 | 2026-11-24 | **记录 `2a2b1312` 的 Task 4 写集补写（本行追登）并应用 branch 评审轮一的 F1 裁定**：该提交删掉 `session/round-artifacts.ts` 上的 `ArtifactRegistry.ownsName`（−10 行）——它的唯一读者是 pin 门的 artifact 名排除，Task 4 一退役它就是死代码；文件本身不在任何任务的 `**Files:**` 里，本行给 Task 4 补上该 `Modify:` 行，使计划的写集与 `git diff origin/develop...HEAD` 的文件面重新一一对应（除本相位的 spec 外，该 diff 不再有不被计划署名的文件） | Oscaner M. · Claude（kairos:cdd-fix） |

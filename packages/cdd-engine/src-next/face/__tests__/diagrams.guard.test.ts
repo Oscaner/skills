@@ -7,7 +7,9 @@
 //     count AND state it in the Execution card's first line, with zero residue of the
 //     retired seven-command spellings. A tag saying eight next to prose saying "runs
 //     seven commands" would otherwise reach consumers silently, because nothing else
-//     reads either string;
+//     reads either string. The retired table is IMPORTED from
+//     `scripts/lib/diagrams.ts#DIAGRAM_RETIRED_SPELLINGS` — the one the render leg reads
+//     — so a new retirement reaches both arms or neither;
 //   · the citations — the three evidence anchors (`upstream` / `host` / `engine`) point
 //     INSIDE the declaration they name, and the cited span really contains that
 //     identifier. This judgment lives here rather than in the Archify finalize pass,
@@ -28,6 +30,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { DIAGRAM_RETIRED_SPELLINGS } from "../../../../../scripts/lib/diagrams.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 
@@ -85,18 +88,6 @@ const SOURCES: Readonly<Record<string, DiagramPin>> = {
     card: "执行",
   },
 };
-
-/** The retired seven-command spellings — the English `seven` form is included because
- *  the tag alone cannot catch it: a tag saying 8 with a body saying "runs seven
- *  commands" is a two-voice surface no other check reads. */
-const RETIRED_SPELLINGS = [
-  "7 commands",
-  "7 条命令",
-  "七条命令",
-  "seven commands",
-  "runs seven",
-  "七条",
-];
 
 /** One evidence citation's home declaration — the node id, the file it cites, the
  *  opening/closing line patterns of the named declaration, and the identifier the
@@ -197,7 +188,7 @@ for (const [rel, pin] of Object.entries(SOURCES)) {
       expect(lead, `${rel}: the execution card must enumerate the bootstrap command`).toContain(
         "init",
       );
-      for (const retired of RETIRED_SPELLINGS) {
+      for (const retired of DIAGRAM_RETIRED_SPELLINGS) {
         expect(lead.includes(retired), `${rel}: "${retired}" survives in the execution card`).toBe(
           false,
         );
@@ -205,7 +196,7 @@ for (const [rel, pin] of Object.entries(SOURCES)) {
     });
 
     it("carries zero residue of the retired seven-command spellings", () => {
-      for (const retired of RETIRED_SPELLINGS) {
+      for (const retired of DIAGRAM_RETIRED_SPELLINGS) {
         expect(text.includes(retired), `${rel}: "${retired}" survives in the diagram source`).toBe(
           false,
         );

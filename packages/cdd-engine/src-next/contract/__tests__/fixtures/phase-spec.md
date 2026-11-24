@@ -25,6 +25,24 @@ author: ':::fill author'
 
 - :::fill constraint
 
+## Deviations
+
+| Overall assumption | Phase decision | Overall updated? |
+| --- | --- | --- |
+| :::fill overall-assumption | :::fill phase-decision | Yes |
+
+## Incremental warning
+
+:::fill incremental-warning
+
+## Notes for downstream
+
+:::fill notes-for-downstream
+
+## Review record
+
+:::fill review-record
+
 ## Change history
 
 | Version | date | summary | author |

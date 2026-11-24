@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -159,7 +159,7 @@ none
 
 退役的不只是判据行本身：那个边界的名字还留在两处散文里——`CRITERIA_ROWS` 上方那段段注的 warn 档边界清单，与 `review-criteria.test.ts` 里逐名断言该清单的 `BOUNDARIES` 表。两处都不在产物上，故删掉判据行之后它们照旧全绿，却让判据表继续宣告一条已撤的边界；同批把名字从两处拿走，剩下的边界名仍逐名在位。
 
-同一个缝在代码与散文里各宣告一次，故退场也按两条读，散文那半同样在本任务的写集里：`face/cli.ts` 上 `#audit` 的散文随符号收口——`RootMemo` 段注与命令边界的 memo 清单里它消失、清单自己的计数与连接词折到剩下的条目上（`four per-root memos` 不再读得通），pre-flight 那段不再要求闭合端口「点名本次调用的 pin audit」而去指闭合读数，`#auditOf` 的段注不再自称「那份物料的唯一构造点」；`contract/__tests__/review-criteria.test.ts` 的文件头不再把 `test` 取值说成「the pin gate」，那一处正是文件里既有的 `pin-parseability` grep 接不住的形态。两半各判各的：符号零命中不代偿散文，反之亦然。
+同一个缝在代码与散文里各宣告一次，故退场也按两条读，散文那半同样在本任务的写集里：`face/cli.ts` 上 `#audit` 的散文随符号收口——`RootMemo` 段注与命令边界的 memo 清单里它消失、清单自己的计数与连接词折到剩下的条目上（`four per-root memos` 不再读得通），pre-flight 那段不再要求闭合端口「点名本次调用的 pin audit」而去指闭合读数，`#auditOf` 的段注不再自称「那份物料的唯一构造点」；`contract/__tests__/review-criteria.test.ts` 的文件头不再把 `test` 取值说成「the pin gate」，那一处正是文件里既有的 `pin-parseability` grep 接不住的形态；散文半还有第三处，落在被搬走的那个读者自己的文件头上——`contract/markdown-spans.ts` 的模块段注把 `ProseSpans` 说成「形状文法、句子索引与 pin 扫描」共用的那一处行读，pin 门退役后它仍宣告一个没有读者的名字，同批把该句收成剩下的两个读者，`contract/__tests__/markdown-spans.test.ts` 的文件头同理（它把这份 span 清单说成 pin 模块的读法，收成「曾经由它读这道门」）。两半各判各的：符号零命中不代偿散文，反之亦然。散文半的三处各判各的，谁都不替另一处过关。
 
 Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census.guard.test.ts` 的引用文法臂都在那一轮离开，所以本任务收尾时全树 `contract/pins` 的零命中是可达的，而不是靠删记录凑出的零。
 
@@ -194,14 +194,14 @@ Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census
 - `CRITERIA_ROWS` 上方段注的边界清单与 `review-criteria.test.ts` 的 `BOUNDARIES` 同批去掉 `the pin parseability gate`，那处 `lists all six boundary names` 的标题与计数读删除后的集合；其余边界名仍逐名断言（成对：整段重写时漏掉一个活着的边界名 ⇒ 该臂红）
 
 #### Steps
-- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用，符号那半与散文那半一起收 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中（`contract/census.ts` 的类型 import 已在 Task 5 离开），`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0；`face/cli.ts` 与 `contract/__tests__/review-criteria.test.ts` 上 `#audit` · `#auditOf` · `pinAudit` 零命中；两半各判各的——成对：只往 `RootMemo` 段注里写回一处 `#audit` 的指名（不写回任何字段）⇒ 散文半红而符号半照旧零命中；把 `#audit` 备忘写回而段注不动 ⇒ 符号半红而散文半不红。谁都不替对方过关
+- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用，符号那半与散文那半一起收 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中（`contract/census.ts` 的类型 import 已在 Task 5 离开），`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0；`face/cli.ts` 与 `contract/__tests__/review-criteria.test.ts` 上 `#audit` · `#auditOf` · `pinAudit` 零命中；`contract/markdown-spans.ts` 与 `contract/__tests__/markdown-spans.test.ts` 上 `pin` 零命中；两半各判各的——成对：只往 `RootMemo` 段注里写回一处 `#audit` 的指名（不写回任何字段）⇒ 散文半红而符号半照旧零命中；把 `#audit` 备忘写回而段注不动 ⇒ 符号半红而散文半不红；只把 `ProseSpans` 的段注写回成「与 pin 扫描共用」⇒ 该处臂红而符号半与另两处仍绿。谁都不替对方过关
 - 删判据行、`CriteriaFace` 的 `test` 取值与它在两处散文里的名字 — checkable: `CRITERIA_ROWS` 的行名册不再含 `pin-parseability`；`review-criteria.test.ts` 按删除后的 id 集断言（成对：把该行加回 ⇒ 名册臂红）；`contract/review-criteria.ts` 与 `contract/__tests__/review-criteria.test.ts` 上 `pin parseability` 零命中，且其余边界名在两处仍逐名在位（成对：从段注里删掉一个活着的边界名 ⇒ 该臂红）
 - 删 `pinLensOf` 与 `ReviewGuides.pinLens` — checkable: `render/templates.ts` 上 `pinLens` 零命中，`templates.test.ts` 只余非 pin 臂且全绿
 - 删余下两份 pin 测试文件（`pins-guard-closure.test.ts` 的成对夹具与构造点臂已在 Task 1 搬进 `closed-document.test.ts`）；`lifecycle.test.ts` 只退 pin 回读面，即 `P37 T6` 与 `P37 T7` 两段 describe — checkable: 两份 pin 测试文件都不在树上；`face/__tests__/lifecycle.test.ts` 上 `P37 T6 — the pin read-back corpora inject real warn findings` 与 `P37 T7 — the pin time face reads the judged identity at the call site` 两段 describe 整段退役，该文件其余的臂（评分门 · 载体完整性 · 胶囊标记 · dispatch 面）一字不动且全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
-pin 门的每一符号都已不在树上，`face/cli.ts` 与 `contract/__tests__/review-criteria.test.ts` 上也没有一句话再宣告被撤的那条注入；形状规则与闭合读数仍在生产（Task 1 的三条腿），`tsc` 与套件全绿。
+pin 门的每一符号都已不在树上，`face/cli.ts` · `contract/__tests__/review-criteria.test.ts` · `contract/markdown-spans.ts` 与 `contract/__tests__/markdown-spans.test.ts` 上也没有一句话再宣告被撤的那条注入（第三处的说法是那道门曾经由这份读者读过，不是它仍在树上读）；形状规则与闭合读数仍在生产（Task 1 的三条腿），`tsc` 与套件全绿。
 
 #### DependsOn
 Task 1, Task 5
@@ -427,3 +427,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.8 | 2026-11-23 | **按 plan 评审轮六的 F1–F4 用户裁定修正**：Task 7 把变更史行逐条点名为例外——零命中只圈正文段，表内引用原值保留（`## Change history` 是记录不是活引用），成对判据写死「正文段写回即红 / 历史行原样不红」；Task 8 的文案格改写成 escaped-or-raw 的在场判据（与 `DiagramTwin#copyMismatches` 同判），不再暗示字节相同；Constraints 的窗口段删掉成员枚举，只留按文档记的规则与该臂当次读数；Task 10 从新建 changeset 改成扩写树上已有的 `.changeset/p43-self-assertion-retirement.md`，一个相位一份 note | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.9 | 2026-11-23 | **按 plan 评审轮七的 F1 用户裁定修正**：Task 7 的变更史豁免从一条 id 的措辞改成一条覆盖两个 id 的规则——可判仍只圈正文段，而 `census:pin` 引用与 `census:criteria.rows` 声明同在例外之内，例外的单位是行不是 id；`v0.13` 行被点名为本段存在的那个案例（它记的是当时把裸计数改写成声明的那次读数），Produces 与步骤二随之收成「表以外等于删除后的行数、表内原值保留」，两条 id 各一半的成对判据各自可红 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.10 | 2026-11-23 | **按 plan 评审轮八的 F1–F2 用户裁定修正（Task 4 与 Task 7 两任务面，结构面未动）**：Task 7 的声明步骤收成单一读法——按 `CRITERIA_ROWS` 的度量逐处核，并明写 Task 5 之后树上没有任何面能把它重判红，删掉与自家括注互斥的成对臂；豁免段的成对判据随之只留在引用那一半，声明那一半明写不配成对臂；Task 4 的写集、步骤一与 Acceptance 补上散文那半——`face/cli.ts` 的 `#audit` 段注、memo 清单、pre-flight 与 `#auditOf` 段注随符号收口，`review-criteria.test.ts` 文件头不再称 `test` 为 pin 门，成对判据是「散文写回 ⇒ 散文半红而符号半绿」与「符号写回 ⇒ 符号半红而散文半绿」两向，两半互不代偿 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.11 | 2026-11-24 | **记录 `0284f07d` 的 Task 4 与 Task 8 补写（本行追登）并应用 plan 评审轮九的 F1–F2 用户裁定**：该提交给 Task 4 的 Files 加了七行与 pin 退役散文面同批的写集（`session/preflight.ts` · `contract/markdown-spans.ts` 与它的测试 · 两份 `docs/diagrams/src/architecture.*.json` · 两份生成物 `architecture.*.html`），并给 Task 8 加了 `scripts/emit.ts` 一行，本行把两处入账；Task 4 的散文半补第三处——`contract/markdown-spans.ts` 的模块段注与 `contract/__tests__/markdown-spans.test.ts` 的文件头不再把这条行读说成 pin 扫描的共用者，Objective · 步骤一的可判与 Acceptance 同批收该处与它自己的成对臂 | Oscaner M. · Claude（kairos:cdd-docs-fix） |

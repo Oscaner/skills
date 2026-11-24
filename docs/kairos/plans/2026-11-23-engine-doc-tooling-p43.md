@@ -218,7 +218,7 @@ Task 1, Task 5
 - `invariants.ts#MeasureLiteralInvariant` 的调用点不动（仍只读文法）
 
 #### Steps
-- 删登记表与比较机器，收 `CensusGate` 为单静态类 — checkable: `pnpm run biome` exit 0（单静态类落在 `biome-ignore` 之下）；`contract/census.ts` 上 `PinAudit` 零命中；成对：删掉那行 ignore ⇒ `biome check` 非零退出
+- 删登记表与比较机器，收 `CensusGate` 为单静态类 — checkable: `pnpm run biome` exit 0（单静态类落在 `biome-ignore` 之下）；`contract/census.ts` 上 `PinAudit` 零命中；成对：删掉那行 ignore ⇒ `biome check` 报出 `noStaticOnlyClass` 诊断（该规则在 recommended 预设下是 warning 级，退出码不变，故判据读诊断而不是退出码）
 - 搬文法臂到新文件 — checkable: `census-grammar.test.ts` 三臂全绿；把 `REFERENCE` 的终止符规则去掉再跑 ⇒ `3.5` 那一臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
@@ -241,6 +241,11 @@ Task 1
 - Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/change-history-header.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/rules-severity.test.ts`
+- Modify: `packages/cdd-engine/src-next/session/__tests__/preflight-rows.test.ts`
 
 #### Consumes
 - `contract/judge.ts#Contract`（doc-contract 各腿的夹具入口）
@@ -254,8 +259,8 @@ Task 1
 #### Steps
 - 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 上 `docs/kairos` 零命中（含 `CHARTER_REL` 的取值与 `REPO_ROOT` 拼出的真宪章路径），而两文件仍整文件在树上、全绿，非语料臂逐条留在原位且可红（`charter-self-repair.test.ts` 的 `single-home` 与 `measure-literal` 夹具臂照旧报它读的那一句）；重挂后的缺口对成对可辨：把合成宪章的一处标题改成面图放不下的名字 ⇒ 那一臂报缺口，用它自己的合成体 ⇒ 零缺口
 - `grep-sweep` 去掉 `docs/` 根 — checkable: 该文件的扫描根上 `docs/` 零命中；成对：把一个已删 token 写进 `docs/` 下的文件 ⇒ 不红（扫面不含它），写进 `packages/` ⇒ 红
-- 把 `seat` 的 `corpus` 面从词表与每一行上拿掉 — checkable: `contract/rules.ts` 上 `corpus` 零命中；`contract/__tests__/rules.test.ts` 的字面表只余树上真实存在的两个面（成对：把 `corpus` 加回词表而不加行 ⇒ 词表臂红；把它加回某一行 ⇒ 行臂红）
-- 逐规则核对三条臂并补缺 — checkable: 对每条被撤语料臂涉及的规则各跑一次「违规夹具必报 / 邻居夹具沉默 / 零候选即红」——doc-contract 各腿 · P41 的 doc 形状行（`measure-literal` · `line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape`）· `single-create`；缺的那条补在该规则臂的宿主文件里，宿主不在 Files 时同一次编辑把它加进去
+- 把 `seat` 的 `corpus` 面从词表与每一行上拿掉 — checkable: `contract/rules.ts` 上 `corpus` 零命中；`contract/__tests__/rules.test.ts` 的字面表只余树上真实存在的两个面（成对：把 `corpus` 加回词表而不加行 ⇒ 词表臂红；把它加回某一行 ⇒ 行臂红）；两份以注入声明代行注册表的夹具（`rules-severity.test.ts` 的 `probeDeclaration` · `session/__tests__/preflight-rows.test.ts` 的 `markerRow`）同批改成两个面，`tsc` 于是仍是零错误
+- 逐规则核对三条臂并补缺 — checkable: 对每条被撤语料臂涉及的规则各跑一次「违规夹具必报 / 邻居夹具沉默 / 零候选即红」——doc-contract 各腿 · P41 的 doc 形状行（`measure-literal` · `line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape`）· `single-create`；缺的那条补在该规则臂的宿主文件里，宿主不在 Files 时同一次编辑把它加进去。本轮实测的缺口与补位：`change-history-row-shape` · `change-history-version-unique` · `change-history-latest-matches-front-matter` 三条腿的零候选读数随 `doc-corpus.guard` 的 `reads change-history-row-shape's candidate face off the section heading` 一并退役，补在 `judge.test.ts` 的合成 plan 上（无 `## Change history` 表 ⇒ 解析出的表为空且规则零 finding；成对各自那条缺陷 ⇒ 恰一条）；`change-history-date-shape` 的候选面同样补在 `shape-rules.test.ts`（无表 ⇒ 零候选；成对非 ISO 日期单元 ⇒ 恰一条）；`change-history-header-columns` 的零候选臂原在 `change-history-header.test.ts` `is silent on a document with no Change-history section`，留下；五条 P41 形状行的零候选读数原是面图的 gap 臂（`shape-rules.test.ts` 的 `falls to the gap verdict when the face read carries no heading stack`），已在；`single-create` 的零候选读数是 `counts only path-shaped tokens` 那一臂，已在。`change-history-header.test.ts` 头部指向已删的 `doc-corpus.guard.test.ts` 的那句同批收成 `judge.test.ts` 一处
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p43):` 起头
 
 #### Acceptance

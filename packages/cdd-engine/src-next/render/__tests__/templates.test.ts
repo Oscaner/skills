@@ -33,9 +33,7 @@ import {
   CLOSED_WAVE_DISCIPLINE,
   type ContextLine,
   type ModePromptRow,
-  pinLensOf,
   REVIEWS,
-  type ReviewGuides,
   type ReviewKey,
   reviewBodyOf,
   reviewGuideOf,
@@ -354,51 +352,6 @@ describe("P37 T2 — the lens questions ride the review prompt bytes", () => {
     expect(projected.split("\n")).toHaveLength(3);
     expect(projected).not.toContain(LENS_QUESTIONS.of("wave", "scope").question);
     expect(numberedLinesOf(REVIEWS.wave.axesGuide)).toHaveLength(4);
-  });
-});
-
-/**
- * P37 §7.2 — the lens an engine-AUTHORED pin row carries (fix round 3). The child's
- * prompt declares a lens menu per face and the read-back injects its own pin rows
- * into the same carrier, so the two surfaces must name the same vocabulary: the row
- * is written for a reader (the next fix round, the maintainer) who cannot otherwise
- * tell an engine row from a child that ignored the enum. The gate lives at
- * `pinLensOf`, which throws on a drifted pair; the pair's exact values are pinned
- * here because they are the carrier bytes a consumer reads.
- */
-describe("P37 §7.2 — the injected pin row carries the face's own declared lens", () => {
-  it("declares every face's pin lens inside that face's own menu", () => {
-    for (const key of CRITERIA_KEYS) {
-      expect(REVIEWS[key].lensEnum, `${key} menu`).toContain(REVIEWS[key].pinLens);
-    }
-  });
-
-  it("derives the per-face value from the target type — the two spec shapes share one word", () => {
-    const byType: Readonly<Record<TargetType, string>> = {
-      wave: "standards",
-      branch: "standards",
-      plan: "buildability",
-      overall: "inventory",
-      "phase-spec": "consistency",
-      "single-spec": "consistency",
-    };
-    for (const type of TARGET_TYPES) {
-      expect(pinLensOf(type), type).toBe(byType[type]);
-      // the value is a label of the menu the SAME round's prompt prints
-      expect(REVIEWS[reviewBodyOf(type)].lensEnum, type).toContain(pinLensOf(type));
-    }
-  });
-
-  it("throws when a face's pin lens drifts off its menu — the gate, not a silent carrier row", () => {
-    const drifted: ReviewGuides = {
-      ...REVIEWS,
-      overall: { ...REVIEWS.overall, pinLens: "consistency" },
-    };
-    expect(() => pinLensOf("overall", drifted)).toThrow(
-      /the pin lens "consistency" is not declared by the overall lens menu/,
-    );
-    // the declared table is untouched: the throw reads the argument, never mutates it
-    expect(pinLensOf("overall")).toBe("inventory");
   });
 });
 

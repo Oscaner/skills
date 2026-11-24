@@ -131,12 +131,6 @@ export interface TemplatePrompt {
 export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
-  /** The lens an engine-AUTHORED row carries on this face (design spec §7.2) — the
-   *  pin rows the read-back injects. Declared beside `lensEnum` so the two surfaces
-   *  that must agree are written in one place, and cross-checked by `pinLensOf`
-   *  before any row is written: the engine never carries a label the same round's
-   *  prompt declares impossible. */
-  pinLens: string;
   /** The axes/URC guide prose — the criteria body (the task/branch four axes +
    *  verification-evidence duty; the document shapes' URC rows). */
   axesGuide: string;
@@ -694,41 +688,30 @@ const docCharterAxes = (guide: string): string =>
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability", "scope"],
-    pinLens: "standards",
     axesGuide: `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding. The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}
 
 ${lensQuestionBlock("wave")}`,
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability", "scope"],
-    pinLens: "standards",
     axesGuide: `Same four axes as the wave review (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding, normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.
 
 ${lensQuestionBlock("branch")}`,
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    // §7.2's own word for this corpus: two statements of one fact — the document's
-    // claim and the tree — disagree.
-    pinLens: "consistency",
     axesGuide: `${docNarrativeAxes(reviewGuideOf("spec"))}
 
 ${lensQuestionBlock("spec")}`,
   },
   overall: {
     lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"],
-    // The charter's criterion 6 is this row's home: the inventory and the tree
-    // disagree, so a pin that resolves nowhere reads as a ledger drift.
-    pinLens: "inventory",
     axesGuide: `${docCharterAxes(reviewGuideOf("overall"))}
 
 ${lensQuestionBlock("overall")}`,
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    // A step naming a coordinate the tree does not have is a step that cannot be
-    // executed against the tree as it stands.
-    pinLens: "buildability",
     axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}
 
 ${lensQuestionBlock("plan")}`,
@@ -741,25 +724,6 @@ ${lensQuestionBlock("plan")}`,
  *  means a target cannot silently drift onto another target's criteria. */
 export const reviewBodyOf = (type: TargetType): ReviewKey =>
   type === "phase-spec" || type === "single-spec" ? "spec" : type;
-
-/** The lens an engine-authored pin row carries on one target's face (design spec
- *  §7.2) — the ONE derivation the read-back's injection point reads. The value is
- *  the face's declared `pinLens`, and it is cross-checked against that face's own
- *  `lensEnum` here: the menu and the injected row are written for different readers
- *  (the child's prompt vs the carrier), so a drifted pair must throw at its first
- *  dispatch instead of reaching a carrier as a label the same round's prompt calls
- *  impossible. `guides` is the declared table, injectable so the gate itself is
- *  pinnable. */
-export const pinLensOf = (type: TargetType, guides: ReviewGuides = REVIEWS): string => {
-  const key = reviewBodyOf(type);
-  const row = guides[key];
-  if (!row.lensEnum.includes(row.pinLens)) {
-    throw new Error(
-      `the pin lens "${row.pinLens}" is not declared by the ${key} lens menu (${row.lensEnum.join(" | ")})`,
-    );
-  }
-  return row.pinLens;
-};
 
 /** The six target types every review variant renders — the review row's `serves`
  *  set (§1.1): one criteria body per type, one shared dynamic tail. */

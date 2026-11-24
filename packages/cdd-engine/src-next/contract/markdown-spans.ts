@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/contract/markdown-spans.ts
-// The markdown span reader — the ONE fence-aware line read the shape grammars, the
-// sentence index and the pin scan share. Only INLINE code spans carry a claim: a fenced
+// The markdown span reader — the ONE fence-aware line read the shape grammars and the
+// sentence index share. Only INLINE code spans carry a claim: a fenced
 // block is example code (its bytes are not a document's assertion), and a span's content
 // is the text between a backtick run and the next run of the same length.
 //

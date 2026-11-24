@@ -228,7 +228,7 @@ export class PreFlight {
   /** The filesystem seam the doc-contract gate reads (defaults to node:fs). */
   readonly #fs: DocFs;
   /** The closure port (design spec §1.4) — the ONE method the gate asks, so the
-   *  closure material has one construction point (the composition root's audit
+   *  closure material has one construction point (the composition root's closure
    *  accessor). The default proves nothing: a construction site that supplies no
    *  accessor therefore has no closed document, and owes no edit. */
   readonly #provenClosed: (rel: string) => boolean;

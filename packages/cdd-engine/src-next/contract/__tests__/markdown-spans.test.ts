@@ -1,8 +1,7 @@
 // packages/cdd-engine/src-next/contract/__tests__/markdown-spans.test.ts
 // The markdown span reader's own face — the four entry points `ProseSpans` carries and
-// the one fence judgment they all ride. The pins guard read this same reader through the
-// pin scan; here it is judged on its own terms, so the reader survives the pin module
-// (Task 1 of the retirement moves it to the rule plane, and Task 4 removes its old home).
+// the one fence judgment they all ride. It is judged here on its own terms, so the reader
+// survives the retirement of the gate that once read it through this same span list.
 //
 // Three pairs, each with the neighbouring read beside it:
 //   · a fence hides its lines from the prose face, and the same bytes outside the fence

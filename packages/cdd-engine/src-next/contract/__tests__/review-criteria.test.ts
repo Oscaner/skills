@@ -10,8 +10,7 @@
 //     validation contracts;
 //   · the face census is pinned by id: `numbered` three rows, `gate` two (the
 //     `CDD_BLOCKED: grading-impact-missing` and `CDD_BLOCKED: evidence-missing`
-//     words), `test` one (the pin gate) — changing a row's face, deleting a row or
-//     adding one goes red here.
+//     words) — changing a row's face, deleting a row or adding one goes red here.
 //
 // P42 §1.2 — the two former `nit` rows are re-graded `warn` and the table keeps every
 // row: the retired tier's boundary moves into the `warn` prose, the rendered rubric
@@ -80,9 +79,6 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(at(CRITERIA.of("grading-impact-missing").body)).toBeLessThan(
       at(CRITERIA.of("debt-consequence").body),
     );
-    expect(at(CRITERIA.of("pin-parseability").body)).toBeLessThan(
-      at(CRITERIA.of("expression-only").body),
-    );
     expect(at(CRITERIA.of("expression-only").body)).toBeLessThan(
       at(CRITERIA.of("regrade-mark").body),
     );
@@ -102,11 +98,6 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(CRITERIA.of("expression-only").counterExample).toContain(
       "is a `notes` line, not a finding",
     );
-    // the pin row carries the §7.4 reversal reason and its boundary
-    const pin = CRITERIA.of("pin-parseability");
-    expect(pin.tier).toBe("warn");
-    expect(pin.counterExample).toContain("P28");
-    expect(pin.counterExample).toContain("`PinAudit` never carries");
   });
 
   it("assembles each tier as ONE contiguous run of sentences — no fragment splices in", () => {
@@ -141,13 +132,12 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(CRITERIA.renderRubric()).not.toContain(`. ${REGRADE_MARK} `);
   });
 
-  it("pins the face census by id — numbered three, gate two, test one", () => {
+  it("pins the face census by id — numbered three, gate two", () => {
     // The row set itself is pinned: deleting a row or adding one goes red.
     expect(CRITERIA.rows.map((row) => row.id)).toEqual([
       "grading-impact-missing",
       "evidence-missing",
       "debt-consequence",
-      "pin-parseability",
       "expression-only",
       "regrade-mark",
     ]);
@@ -155,7 +145,6 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
       CRITERIA.rows.filter((row) => row.face === face).map((row) => row.id);
     expect(idsOf("numbered")).toEqual(["debt-consequence", "expression-only", "regrade-mark"]);
     expect(idsOf("gate")).toEqual(["grading-impact-missing", "evidence-missing"]);
-    expect(idsOf("test")).toEqual(["pin-parseability"]);
     // Both gate rows sit on the blocker tier — the tier that forces a decision is the
     // tier both refusals guard.
     for (const id of idsOf("gate")) expect(CRITERIA.of(id).tier).toBe("blocker");
@@ -189,7 +178,7 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(new Set(TIER_ORDER)).toEqual(new Set(["blocker", "warn"]));
     expect([...new Set(CRITERIA.rows.map((row) => row.tier))].sort()).toEqual(["blocker", "warn"]);
     // the table keeps every row: the retired tier loses its rank, not its row
-    expect(CRITERIA.rows).toHaveLength(6);
+    expect(CRITERIA.rows).toHaveLength(5);
   });
 
   it("renders no `nit` word — the retired tier left the rubric's prose", () => {
@@ -220,12 +209,11 @@ describe("P42 §1.2 — the table's three comments name boundaries, not per-tier
     "functional impact",
     "reproduction gate",
     "the debt",
-    "the pin parseability gate",
     "the expression boundary",
     "the downgrade mark",
   ] as const;
 
-  it("lists all six boundary names on the table's comment — and no per-tier count", () => {
+  it("lists all five boundary names on the table's comment — and no per-tier count", () => {
     const comment = docAbove("export const CRITERIA_ROWS");
     for (const name of BOUNDARIES) expect(comment, name).toContain(name);
     expect(comment).toContain("Every tier owes at least one row");

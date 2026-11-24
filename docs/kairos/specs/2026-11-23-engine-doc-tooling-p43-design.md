@@ -1,7 +1,7 @@
 ---
 title: '引擎自证面退役 — Phase Spec'
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 program: 2026-10-10-engine-doc-tooling
@@ -51,7 +51,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 - `contract/review-criteria.ts#CRITERIA_ROWS` 的 `pin-parseability` 判据行整行删除（含 `body` / `duty` / `counterExample`）；`CriteriaFace` 的 `test` 取值只剩这一行接线，随之退出。
 - `render/templates.ts#pinLensOf` 及其注入行：被审文档的 pin 回读不再注入 review prompt；`ReviewGuides.pinLens` 字段与 `REVIEWS` 每一行的取值一并删除——注入是它们唯一的读者，留着就是死数据。
 - `contract/census.ts` 的 `pin.*` 四行登记（`pin.symbol` · `pin.path` · `pin.total` · `pin.files`）与其 `PinAudit` 依赖。
-- 同一批：`contract/census.ts#censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 随比较机器一同消失；`CensusGate.referencesOf` 留作文法，供 `contract/invariants.ts#MeasureLiteralInvariant` 的跨度读（§4.1）。幸存者的形态因此要写明：`CensusGate` 只剩这一个静态方法，落地时按树上既有做法带一行 biome-ignore 注释（规则 noStaticOnlyClass）加一句理由（理由就是 §4.1 的调用点不动），不导出模块级箭头；落地形态上 `pnpm run biome` 必须 exit 0——这是本相位的门，不是 hook 的偶然。
+- 同一批：`contract/census.ts` 整个模块随 §4.1 下线——`censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 与比较机器一同消失，文法 `CensusGate.referencesOf` 连同它返回的 `CensusReference` 类型也不留在树上。于是没有幸存者的形态要写：既没有单静态类要带 biome-ignore 开脱，也没有 `pnpm run biome` 要在它上面取证——这条模块的唯一结局是整份离树。
 - `face/lifecycle.ts` 的三处调用面退役：被审文档正文的 pin 回读 · 交接单 `contract.path` 的解析腿 · 判据注入；判据注入的那一处改为把 contract/closed-document.ts 的闭合读数交给 `Contract.validate`。
 - `face/cli.ts`：census 面随 `#auditOf` 一起走；`#auditOf` 由审计构造点改为闭合读数的构造点。
 - 测试文件整文件退役：`contract/__tests__/pins.guard.test.ts` · `contract/__tests__/scan-coverage.test.ts`（后者的证明对象就是 pin 扫描的覆盖）。
@@ -62,14 +62,14 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 #### 2.2 活着的引用：随门退役的删，量树上的改
 
-- 引用的情形分两类处置：量 pin 门的删，量树上行数的改——而`census:` 这套形态本身也在 §4 一并退役，所以两类处置都只为「记录面不再指向已撤的东西」，不为让某个判据继续可核。
+- 引用的情形本可分成两类处置：量 pin 门的删，量树上行数的改——而 `census:` 这套形态本身也在 §4 一并退役，改数字那一类随之落空：没有读者，就无所谓「改成什么」。于是处置只剩一条——删掉指向已撤之门的引用，其余声明原样留着，处置只为「记录面不再指向已撤的东西」。
 - 门的文法（`census:<id> = <n>`，点分小写 id · 十进制整数）只认真正的引用：P37 的 spec 与 plan 各带 `census:pin.* = <n>` 引用；P41 的 spec 与 plan 只有散文提及，文法从不解析它们。
 - `census:pin.*` 引用同批删除，理由与「否则会抛错」无关——登记面从未接进 doc-contract 腿（§4.1）。留一句 `= 0` 就是断言一个不再存在的门，`pin.total` 的数字更是墓碑读数。
 - P41 的散文提及也删：那句话描述的读数，其登记行正在退役，留下它就是一句指向空处的句子——记录卫生，不是消费者安全。
 - 三条非 pin 行（`criteria.rows` · `questions.rows` · `questions.cells`）随比较机器一起退役，它们的引用保持原样：已撤的登记行与已撤的文法都不再有读者（§4），改不改数字都不影响任何判据，故不为它们做迁移。
-- 删掉 `pin-parseability` 行让 `CRITERIA_ROWS` 少一行，于是每一处 `census:criteria.rows` 声明在同一个提交里变假：P37 的 spec 与 plan、P42 的 spec 与 plan 带它，同批改成删除后的 `CRITERIA_ROWS` 行数。改的是数字，不是结论。
+- 因此带 `census:criteria.rows` 的声明一个字也不改（P37 与 P42 各自的 spec 与 plan，含历史行里的那个读数）：删掉 `pin-parseability` 确实让登记面变短，但那个数字的新旧都不再有判据可核，改它既不加证据也不减缺陷，只给已闭合文档留一道无人读的编辑痕迹——「改的是数字，不是结论」这条理由在这里退化为「没有数字值得改」。
 - `census:questions.rows` 与 `census:questions.cells` 的登记行没有变更，它们的引用原样不动。
-- 删引用与改数字改的都是**记录面**，不是结论面——这是 D22 的窄反转，形态同 D100 的 `temporal-indicator` 整条退出。
+- 删引用改的是**记录面**，不是结论面——这是 D22 的窄反转，形态同 D100 的 `temporal-indicator` 整条退出；而「改数字」那一半在本相位不存在，非 pin 行的读数原样留着。
 
 #### 2.3 非目标
 
@@ -84,7 +84,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 - `contract/__tests__/doc-corpus.guard.test.ts`：撤全语料 doc-contract 扫描与四腿血缘回读；无留（判据本体在引擎，语料臂是它唯一的断言对象）。
 - `contract/__tests__/phase-inventory.guard.test.ts`：撤对宪章 Phase inventory 的逐行七格判；无留。
-- `contract/__tests__/census.guard.test.ts`：按面拆，不整文件退役。语料臂（拿本仓文档跟登记表比对）与登记机器臂（七行登记表 · 未登记 id 抛错 · 一位数字改动即红）随比较机器退役；引用文法臂留下，搬进新夹具文件 contract/__tests__/census-grammar.test.ts——占位符读作散文 · 小数与带后缀的值读作散文（终止符规则）· 只读右值这三臂。它们是 `CensusGate.referencesOf` 在树上唯一的断言：`measure-literal` 自己的夹具（`contract/__tests__/shape-rules.test.ts`）只守合法引用形态与那条规则自己的数字守卫，并不带非法形态臂（§4.2）。留下后的读法只调 `CensusGate.referencesOf`，不调已退役的 `report()`。
+- `contract/__tests__/census.guard.test.ts`：按面拆，不整文件退役。语料臂（拿本仓文档跟登记表比对）与登记机器臂（七行登记表 · 未登记 id 抛错 · 一位数字改动即红）随比较机器退役；引用文法臂留下，搬进新夹具文件 contract/__tests__/census-grammar.test.ts——占位符读作散文 · 小数与带后缀的值读作散文（终止符规则）· 只读右值。这次拆分是交付记录，不是相位的终点：新夹具与文法同命运，随 §4.1 的整条退役一并下线，所以相位收口时树上没有它；它在树上的那段窗口里只调 `CensusGate.referencesOf`，不调已退役的 `report()`。`measure-literal` 自己的夹具（`contract/__tests__/shape-rules.test.ts`）守的是合法引用形态与那条规则自己的数字守卫，盖不到非法形态臂，故窗口内这组臂不可省。
 - `contract/__tests__/charter-self-repair.test.ts`：撤宪章五节零 finding 那一臂；无留。
 - `contract/__tests__/single-create.test.ts`：撤读 `docs/kairos/plans` 目录的那一段；留 VERB / CLAIM 两面的成对夹具。
 - `__tests__/floor.guard.test.ts`：不动——README 安装行与 `engines` 的一致性臂、类型剥离臂都留在树上。它读的是消费者拿到的 README 字节（§1.2），不是本仓 `docs/kairos/**`。
@@ -103,15 +103,16 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 #### 4.1 `measure-literal` 整条退出：它要求的形态已无人比对
 
-- 事实一：没有生产代码构造登记表。`censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 只在测试里被构造。
+- 事实一：`contract/census.ts` 今天的内容就是引用文法——`CensusReference` 类型加一个静态的 `referencesOf`；登记表的构造与比较机器已随 pin 面的收窄离树，没有任何生产代码构造过它们。
 - 事实二：`CensusGate.referencesOf` 唯一的读者是 `MeasureLiteralInvariant` 的跨度读。
-- 于是登记表随 `pin.*` 四行退役之后，`measure-literal` 只剩「要求把数字写成 `census:<id> = <n>`」这一半，而**没有任何东西比对那个值**：写 `census:criteria.rows = 999` 一样过。
+- 登记表既然不在树上，`measure-literal` 就只剩「要求把数字写成 `census:<id> = <n>`」这一半，而**没有任何东西比对那个值**：写 `census:criteria.rows = 999` 一样过。
 - 一条要求形态、却无值可核的规则，与 pin 门同族：它说得出「你的数字没按这个写法写」，说不出「你的数字是错的」。而实测里真正出错的是后者——数字改了枚举没改 · 文件头的种群计数过期 · 历史行的读数被当活引用，三例它一条都抓不到。
 - 所以整条退出：规则行与它的夹具 · 文法 `referencesOf` · `contract/census.ts` 整个模块 · Task 5 建起的 `census-grammar.test.ts`，全批下线；P41 的形状门从六条收成五条。
+- 留下的夹具里的字面同日对齐，否则它们红在本相位删掉的那条规则上：`contract/__tests__/shape-rules.test.ts` 的 `SHAPE_RULE_IDS` 去掉 `measure-literal`（那条「每条形状行 `block` 且跳过已闭合文档」的臂按留下的形状行重述），绑定该规则的 `measure` 辅助与每一段以它为读法的 describe 一并删除，文件里拿它当例子的臂（判定面上下文里断言零读数的那几条）改读留下的形状行或删除；`contract/__tests__/rules.test.ts` 的字面席位表删掉 `measure-literal` 那一行（席位词表本身已由 §3.1 交代）。留下的夹具因此绿的，是因为它们只判留在树上的行。
 
 #### 4.2 退出后的面
 
-- 文档里的测量数字不再有任何机械面：写作纪律与评审是它剩下的全部。这是本相位接受的代价（§8），与 D98 ③ 对测试面的处置同构——那边的「手写语料读数」与这边的「手写文档读数」是同一件事的两半。
+- 文档里的测量数字不再有任何机械面：写作纪律与评审是它剩下的全部。这是本相位接受的代价（§8）。D98 ③ 给语料读数留过两条出路——删掉，或搬进 `census:<id>` 由引擎比对；本相位撤掉后一条，宪章 D98 行已补作废句（D101 ⑥），于是那边的手写语料读数与这边的手写文档读数从此由同一把尺子处置：删掉，覆盖由夹具证明。
 - 形状门其余五条不动：`line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape` · `residue`。
 - 已闭合文档里的 `census:<id> = <n>` 声明不再有读者，本相位不为它们做任何迁移：没有判据读它们，也就不存在「与登记面不符」这回事。
 
@@ -170,7 +171,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 - `census:pin.*` 的引用删除后不可回滚成数字——它们描述的门已经不在树上。
 - 逐文件读数：P37 的 spec 与 plan 的 `census:pin.*` 引用各归零；P41 的两份文档本来就没有引用，只有被同批删掉的散文提及。
-- 另一面是改数字：`pin-parseability` 行一删，带 `census:criteria.rows` 声明的四份文档（P37 与 P42 各一份 spec 与 plan）就在同一个提交里变得不自洽，同批改成删除后的 `CRITERIA_ROWS` 行数。
+- 另一面不是改数字：`pin-parseability` 行一删，`census:criteria.rows` 的声明在 P37 与 P42 的 spec 与 plan 里都对新登记面失真，但没有任何读者会去比，所以本相位一个字也不改——理由与 §2.2 同一条：一个无人核的数字不是读数，改它只是给已闭合文档留一道编辑痕迹。
 - 这不是一条消费者安全腿：登记面从未接进 doc-contract 腿（§4.1），所以没有「跑一次 `cdd review`」这回事，本相位也不拿它当验收。
 
 #### 8.3 P39 的审计理由作废
@@ -215,16 +216,16 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 
 ### Acceptance criteria
 
-- `pin` 门零残座（按符号判，不按文件判）：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义（含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）与判据行 · `pinLensOf` 注入面 · `ReviewGuides.pinLens` 与其取值 · `pin.*` 四行登记与比较机器 · 整文件退役的测试，全树没有留存；同时 contract/markdown-spans.ts 的 ProseSpans 在籍且被生产读，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 都在它上面（`contract/__tests__/shape-rules.test.ts` 的 import 已改指新模块，夹具绿），contract/shape-rules.ts 的路径文法与 contract/closed-document.ts 的 ClosedDocument 同样在籍；`contract/census.ts` 不再 import `PinAudit`，`CensusGate.referencesOf` 留在文法面上，其类的幸存形态带一行 noStaticOnlyClass 的 biome-ignore 注释，且 `pnpm run biome` 在该形态上 exit 0。
+- `pin` 门零残座（按符号判，不按文件判）：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义（含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）与判据行 · `pinLensOf` 注入面 · `ReviewGuides.pinLens` 与其取值 · `pin.*` 四行登记与比较机器 · 整文件退役的测试，全树没有留存；同时 contract/markdown-spans.ts 的 ProseSpans 在籍且被生产读，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 都在它上面（`contract/__tests__/shape-rules.test.ts` 的 import 已改指新模块，夹具绿），contract/shape-rules.ts 的路径文法与 contract/closed-document.ts 的 ClosedDocument 同样在籍；`contract/census.ts` 整个模块随 §4.1 下线、不在树上，没有幸存形态要开脱。
 - 形状行仍拿得到生产的闭合实参：`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 contract/__tests__/closed-document.test.ts 的成对夹具证明两格各自闭合、零命中与多命中都不闭合；闭合读数的文档枚举走 `infra/slug-index.ts#SlugIndex`，路径归一化只在 contract/shape-rules.ts 一处实现（闭合读链与 `pathOf` 同源），索引由调用点注入而不新起构造（`face/__tests__/cli.test.ts` 的 P36 T3 保持绿），树上不存在第二处目录走读。
 - pin 面的改指不留悬空 import：`session/__tests__/preflight-rows.test.ts` · `session/__tests__/fix-round-gate.test.ts` · `contract/__tests__/shape-rules.test.ts` · `contract/__tests__/single-create.test.ts` 都编得过、绿得了，`packages/cdd-engine/src-next/contract/pins.ts` 不再在树上。
-- 被撤语料臂的判据仍可红：`single-create` 与 P41 形状门其余五条各有违规 / 邻合格夹具；`selector-coverage` 删一条 selector 即红。`measure-literal` 与它的文法臂不在册——它们随 §4 一并退役。
+- 被撤语料臂的判据仍可红：`single-create` 与 P41 形状门其余五条各有违规 / 邻合格夹具；`selector-coverage` 删一条 selector 即红。`measure-literal` 与它的文法臂不在册——它们随 §4 一并退役，留下的夹具里也没有它的字面（`SHAPE_RULE_IDS` 与 `contract/__tests__/rules.test.ts` 的席位表都不再列它）。
 - `selector-coverage` 在合成物料上全绿，且把任一份合成文档的字段名改错即红。
 - `emit:check` 接管原生成物断言：篡改 `.claude-plugin/` 一处、`docs/diagrams/src/*.json` 一处、ISSUE_TEMPLATE 一处，各使 `emit:check` 非零退出；`diagrams.guard` 那一格产物的 tag 读取与 EN↔zh-CN 孪生对的真实产物比较也在这一门上，两条各拿一份篡改去红。
 - 测试面零语料臂：引擎与 kairos 两套测试里不存在以本仓 `docs/kairos/**` 为语料并断言其状态的断言；发布面探针（README family · `AGENTS.md` · `marketplace/source.json` · skills · 生成物）照旧断言其状态且全绿；孪生判据只对夹具；`diagrams.guard` 的源内容臂与 `diagram-twin` 的内存注入臂均保留并绿。
 - `AGENTS.md` 规范行在册，与宪章 D101 互为指针，且本仓测试面无一违反（上一格即其证据）。
 - `seat` 面零死声明：`contract/rules.ts#RuleSeat` 的闭集里不再有 `corpus`，每一条 doc 行的席位列也不再声明它，`contract/__tests__/rules.test.ts` 的字面席位表与登记表逐 id 对齐且绿。
-- 引用迁移到位：`census:pin.*` 引用为零（P37 的 spec 与 plan 各归零，P41 的两份文档只带散文提及且同批消失）；存活的 `census:criteria.rows` 声明一律等于删除后的 `CRITERIA_ROWS` 行数（P37 与 P42 各自的 spec 与 plan）；`census:questions.rows` 与 `census:questions.cells` 的引用原样未动。
+- 引用迁移到位：`census:pin.*` 引用为零（P37 的 spec 与 plan 各归零，P41 的两份文档只带散文提及且同批消失）；`census:criteria.rows` · `census:questions.rows` · `census:questions.cells` 的声明全部原样未动（P37 与 P42 各自的 spec 与 plan，含历史行里的那个读数）——没有读者，故不迁移。
 - board 默认输出零 note 正文：wave 行以 `notes +M` 收尾，M 与该 run 的 note 行数同源；`--notes` 展开后的字节与改动前逐字相同；token 段序与折叠时逐字同序。
 - `pnpm run validate` exit 0；changeset 记 `cdd-engine` **minor**（D74：方法论契约不变，消费面字节破坏仍 minor）。
 
@@ -233,7 +234,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 - **判据只撤语料臂，不改语义；唯二例外是 pin 门与 `measure-literal`**：doc-contract 除这两条外的腿 / `single-create` / P41 形状门其余五条的判定语义一字不动；本相位动的是「拿什么物料去跑」，不是「跑什么形式」。
 - **边界按消费者划，不按路径划**：`docs/kairos/**` 是引擎在真实运行里消费的物料，不在测试面被判；README family · `AGENTS.md` · `marketplace/source.json` · skills · 生成物是消费者拿到的字节，照旧在判。
 - **不写测试来证明自己的文档干净**：本相位的验收里没有任何一条要求本仓文档处于某状态。违反这一条就是相位失败，而不是验收漏项。
-- **对已闭合文档只动随门退役的读数**：删 `census:pin.*` 引用、把 `census:criteria.rows` 改成删除后的行数，不动任何结论、裁定或交付记录；这是 D22 的窄反转，边界与 P37 的存量化迁移同款。
+- **对已闭合文档只动随门退役的读数**：只删 `census:pin.*` 引用；三条非 pin 行的声明（`criteria.rows` · `questions.rows` · `questions.cells`）连同历史行里的读数原样留着——没有读者，改它就是无据编辑。两者都不动任何结论、裁定或交付记录；这是 D22 的窄反转，边界与 P37 的存量化迁移同款。
 - **一对夹具优先于一次全语料扫描**：任一规则若要保住执行面，代价是夹具而不是语料。语料只提供「今天恰好干净」这个读数，而它对正确实现与没跑的实现同时成立（D98 的三条臂即为此立）。
 - **禁止为了消红改文档**：本相位任何一轮若出现「门报错 → 改文档」的处置，按缺陷处理——那正是本相位要消灭的链路。
 - **pin 判据的下线不用新解析器替代**：路径 / 符号 / 测试题三形不再有人判；issue 提议的 plan 三行对账不在本相位。
@@ -255,3 +256,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 | v0.8 | 2026-11-23 | **plan 起草时的 design 回填**：补 §8.4——本相位的 spec 与 plan 声明的新符号在落树前会被 pin 语料臂读成「树上不存在」（github#517 的假话形态），窗口自文档落树至 §2.1 删臂，不得以改文档消红；原 §8.4 顺延为 §8.5。 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.9 | 2026-11-23 | **评审轮四整改（F1–F6，用户裁定）**：§2.1 的改指清单补 `contract/__tests__/single-create.test.ts`（`PinVocabulary` 的 import 随 `pathOf` 走）、写明搬走二的落点是 contract/shape-rules.ts 且 `packages/cdd-engine/src-next/contract/pins.ts` 整文件删除；搬走三的深一层补路径归一化的新家与闭合读数的索引注入点（P36 T3 锁住构造点，不新起第二次构造）；§3.1 补 `face/__tests__/lifecycle.test.ts` 的 P37 T6 / P37 T7 两段退役，并把 `corpus` 席位从 `contract/rules.ts#RuleSeat` 与每一条 doc 行里删除、同批对齐 `contract/__tests__/rules.test.ts` 的字面表；§8.4 把四个未落树的名字改写成散文描述（F7–F10 的四条 pin 随之消失），v0.8 行的两个指针改回 §8.4 / §8.5。 | Oscaner M. · Claude（kairos:cdd-spec-writer） |
 | v0.10 | 2026-11-23 | **`measure-literal` 整条退出（用户裁定 · 分支终评后）**：登记表随 `pin.*` 退役后，它要求的 `census:<id> = <n>` 形态已无人比对——写 999 也过；而实测里出错的一直是「数对不上指称物」那一类（数字改了枚举没改 · 文件头计数过期 · 历史行读数被当活引用），它一条都抓不到。规则行 · 夹具 · 文法 · `census.ts` 整模块 · `census-grammar.test.ts` 全批下线，P41 形状门收成五条；§2.2 与 §4 重写，验收相应收窄。 | Oscaner M. · Claude（kairos:cdd-dev） |
+| v0.11 | 2026-11-23 | **评审轮五整改（F1–F6）**：§2.1 删掉 `referencesOf` 幸存者条款与它的 biome-ignore 形态，`contract/census.ts` 整模块随 §4.1 下线（验收格一同步）；§3.1 的 `census.guard` 行记明新建夹具与文法同命运、随 §4.1 收口即下线；§2.2 · §8.2 · 验收与 Constraints 收成同一条：非 pin 行的 `census:` 声明一律不迁移（没有读者）；§4.1 的事实一按模块现状重述（只剩引用文法，登记表构造早已离树），并补上留下的夹具里的字面处置（`SHAPE_RULE_IDS` · `measure` 辅助 · `rules.test.ts` 的席位行）；§4.2 改指宪章 D98 的作废句而不是「同构」。 | Oscaner M. · Claude（kairos:cdd-fix） |

@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -159,6 +159,8 @@ none
 
 退役的不只是判据行本身：那个边界的名字还留在两处散文里——`CRITERIA_ROWS` 上方那段段注的 warn 档边界清单，与 `review-criteria.test.ts` 里逐名断言该清单的 `BOUNDARIES` 表。两处都不在产物上，故删掉判据行之后它们照旧全绿，却让判据表继续宣告一条已撤的边界；同批把名字从两处拿走，剩下的边界名仍逐名在位。
 
+同一个缝在代码与散文里各宣告一次，故退场也按两条读，散文那半同样在本任务的写集里：`face/cli.ts` 上 `#audit` 的散文随符号收口——`RootMemo` 段注与命令边界的 memo 清单里它消失、清单自己的计数与连接词折到剩下的条目上（`four per-root memos` 不再读得通），pre-flight 那段不再要求闭合端口「点名本次调用的 pin audit」而去指闭合读数，`#auditOf` 的段注不再自称「那份物料的唯一构造点」；`contract/__tests__/review-criteria.test.ts` 的文件头不再把 `test` 取值说成「the pin gate」，那一处正是文件里既有的 `pin-parseability` grep 接不住的形态。两半各判各的：符号零命中不代偿散文，反之亦然。
+
 Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census.guard.test.ts` 的引用文法臂都在那一轮离开，所以本任务收尾时全树 `contract/pins` 的零命中是可达的，而不是靠删记录凑出的零。
 
 #### Files
@@ -185,14 +187,14 @@ Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census
 - `CRITERIA_ROWS` 上方段注的边界清单与 `review-criteria.test.ts` 的 `BOUNDARIES` 同批去掉 `the pin parseability gate`，那处 `lists all six boundary names` 的标题与计数读删除后的集合；其余边界名仍逐名断言（成对：整段重写时漏掉一个活着的边界名 ⇒ 该臂红）
 
 #### Steps
-- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中（`contract/census.ts` 的类型 import 已在 Task 5 离开），`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- 删 `pins.ts` 并清 `Contract` / `invariants` / `lifecycle` / `cli` 的引用，符号那半与散文那半一起收 — checkable: 全树 `grep -rn "contract/pins" packages/cdd-engine/src-next` 零命中（`contract/census.ts` 的类型 import 已在 Task 5 离开），`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0；`face/cli.ts` 与 `contract/__tests__/review-criteria.test.ts` 上 `#audit` · `#auditOf` · `pinAudit` 零命中；两半各判各的——成对：只往 `RootMemo` 段注里写回一处 `#audit` 的指名（不写回任何字段）⇒ 散文半红而符号半照旧零命中；把 `#audit` 备忘写回而段注不动 ⇒ 符号半红而散文半不红。谁都不替对方过关
 - 删判据行、`CriteriaFace` 的 `test` 取值与它在两处散文里的名字 — checkable: `CRITERIA_ROWS` 的行名册不再含 `pin-parseability`；`review-criteria.test.ts` 按删除后的 id 集断言（成对：把该行加回 ⇒ 名册臂红）；`contract/review-criteria.ts` 与 `contract/__tests__/review-criteria.test.ts` 上 `pin parseability` 零命中，且其余边界名在两处仍逐名在位（成对：从段注里删掉一个活着的边界名 ⇒ 该臂红）
 - 删 `pinLensOf` 与 `ReviewGuides.pinLens` — checkable: `render/templates.ts` 上 `pinLens` 零命中，`templates.test.ts` 只余非 pin 臂且全绿
 - 删余下两份 pin 测试文件（`pins-guard-closure.test.ts` 的成对夹具与构造点臂已在 Task 1 搬进 `closed-document.test.ts`）；`lifecycle.test.ts` 只退 pin 回读面，即 `P37 T6` 与 `P37 T7` 两段 describe — checkable: 两份 pin 测试文件都不在树上；`face/__tests__/lifecycle.test.ts` 上 `P37 T6 — the pin read-back corpora inject real warn findings` 与 `P37 T7 — the pin time face reads the judged identity at the call site` 两段 describe 整段退役，该文件其余的臂（评分门 · 载体完整性 · 胶囊标记 · dispatch 面）一字不动且全绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
-pin 门的每一符号都已不在树上，而形状规则与闭合读数仍在生产（Task 1 的三条腿），`tsc` 与套件全绿。
+pin 门的每一符号都已不在树上，`face/cli.ts` 与 `contract/__tests__/review-criteria.test.ts` 上也没有一句话再宣告被撤的那条注入；形状规则与闭合读数仍在生产（Task 1 的三条腿），`tsc` 与套件全绿。
 
 #### DependsOn
 Task 1, Task 5
@@ -274,7 +276,7 @@ Task 1
 #### Objective
 把已闭合文档里随门退役的读数处理掉：P37 的 spec 与 plan 正文段上 `census:pin.* = <n>` 形式的引用删除（变更史行是例外，见后段）；P41 的两份文档上指向退役登记行的提及不是独立句子，而是三个枚举各自的成员——spec 的窗口纪律段里那个以「窗口内三条纪律」起头的枚举的 ②（`census:pin.total` 取活读数那一条）· plan 的窗口预期红段里「其一 / 其二」那一对的 `其二`（连它后面以「两者」收口的衔接句）· plan 全量门 checkable 里「两处预期红」那个括注中的 pin 半句。修法因此是就地改写枚举而不是整句删除：其余成员留下，只去掉退役读数那一半，并把枚举自己的计数与连接词折到剩下的成员上（spec 的「三条纪律」随 ② 的离场读成余下的两项 · plan 的「两者」「两处」收成剩下那一项的指代 · 括注的「两处预期红」收成唯一留下的那一处）；改写后每处仍读成一份完整清单（没有空位，也没有冒号后无项），同段其余句子与任何结论、裁定、交付记录逐字不动；正文段上带 `census:criteria.rows` 的声明改读删除 `pin-parseability` 之后的行数（变更史行同下段的例外）。
 
-变更史是这条规则唯一的例外，而且例外的单位是那张表、不是整份文件：一行版本记录的是「当时写下了什么读数」，改写它就把已交付的记录改成从未发生的事——与 `.changeset/*` 是记录而不是坐标同一个理由。故本任务的可判只圈正文段：`## Change history` 表以外的带等号读数——`census:pin.*` 的引用与 `census:criteria.rows` 的声明——一律删净或改读删除后的行数，表内的读数原值保留、逐字不动。两个 id 共用同一条豁免：例外的单位是行，不是 id。受此例外的行按文档与版本点名，实现者不必自己去搜：`docs/kairos/plans/2026-11-16-engine-doc-tooling-p37.md` 的 `v0.20` · `v0.22` · `v0.23` 三行（`v0.23` 行内引用出现两次，两处都保留），`docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md` 的 `v0.19` 行与 `v0.13` 行。`v0.13` 行就是本段存在的那个案例：它记的是当时把裸计数改写成 `census:criteria.rows` 声明的那次读数，正文段的同一声明已改读删除后的行数，而这一行仍留当时的数。成对判据随这条豁免一并写死，每个 id 各一半、各自可红：往 P37 文档的正文段写回一处带 `= 0` 的 `census:pin` 引用 ⇒ 该臂红；往正文段写一处 `census:criteria.rows` 声明而值不等于删除后的行数 ⇒ 该臂红；这些历史行原样留着 ⇒ 两半都不红，也不因此红。这条豁免不是本计划的发明：宪章的「不动任何结论、裁定或交付记录」与 spec §8.2 的全库归零在同一行上相遇时，前者胜——那行本身就是交付记录，行内容下的就是当时写下的读数，改它等于断言一件没发生过的事。散文提及本身不构成引用，也不在本任务的判据里：宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan，都把 `census:pin` 这个名字当作退役记录——不附等号与数字，文法从不解析它们，删它们属于改记录。不动任何结论、裁定或交付记录。
+变更史是这条规则唯一的例外，而且例外的单位是那张表、不是整份文件：一行版本记录的是「当时写下了什么读数」，改写它就把已交付的记录改成从未发生的事——与 `.changeset/*` 是记录而不是坐标同一个理由。故本任务的可判只圈正文段：`## Change history` 表以外的带等号读数——`census:pin.*` 的引用与 `census:criteria.rows` 的声明——一律删净或改读删除后的行数，表内的读数原值保留、逐字不动。两个 id 共用同一条豁免：例外的单位是行，不是 id。受此例外的行按文档与版本点名，实现者不必自己去搜：`docs/kairos/plans/2026-11-16-engine-doc-tooling-p37.md` 的 `v0.20` · `v0.22` · `v0.23` 三行（`v0.23` 行内引用出现两次，两处都保留），`docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md` 的 `v0.19` 行与 `v0.13` 行。`v0.13` 行就是本段存在的那个案例：它记的是当时把裸计数改写成 `census:criteria.rows` 声明的那次读数，正文段的同一声明已改读删除后的行数，而这一行仍留当时的数。成对判据只随引用那一半写死：往 P37 文档的正文段写回一处带 `= 0` 的 `census:pin` 引用 ⇒ 该臂红；这些历史行原样留着 ⇒ 该臂不红，也不因此红。声明那一半不配成对臂——Task 5 之后树上没有任何面读它（见本任务步骤二），故它只按读数核，把它写成别的数既不红也不假装红。这条豁免不是本计划的发明：宪章的「不动任何结论、裁定或交付记录」与 spec §8.2 的全库归零在同一行上相遇时，前者胜——那行本身就是交付记录，行内容下的就是当时写下的读数，改它等于断言一件没发生过的事。散文提及本身不构成引用，也不在本任务的判据里：宪章的 D101 行 · Phase inventory 的 P43 行 · 变更史，以及本相位自己的 spec 与 plan，都把 `census:pin` 这个名字当作退役记录——不附等号与数字，文法从不解析它们，删它们属于改记录。不动任何结论、裁定或交付记录。
 
 #### Files
 - Modify: `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`
@@ -296,7 +298,7 @@ Task 1
 
 #### Steps
 - 删 `census:pin.*` 的引用与 P41 的三个枚举成员 — checkable: 按 `CensusGate.referencesOf` 的形态，声明的六份文件的正文段上（`## Change history` 表以外）`census:pin` 的引用为零，而表内引用逐字保留（成对：把一处带 `= 0` 的 `census:pin` 引用写回 P37 的 spec 正文段 ⇒ 该臂红；P37 plan 的 `v0.20` · `v0.22` · `v0.23` 行与 P37 spec 的 `v0.19` · `v0.13` 行原样留着 ⇒ 该臂不红）；P41 两份文档上 `census:pin` 零命中，两处理由段的其余句子逐字未动，且三处枚举改写后各自读成一份完整清单（无空位 · 无冒号后无项 · 衔接句的指代有项可指）；宪章与本相位自己文档里的同一字面仍在、未被改写
-- 改 `census:criteria.rows` 的声明数字 — checkable: 全库范围内、`## Change history` 表以外的每处该 id 声明等于 `contract/review-criteria.ts#CRITERIA_ROWS` 删掉 `pin-parseability` 之后的行数（读一次该模块自己的度量，不另立比对臂：该声明唯一会红的机械对照是 `census.guard.test.ts` 的已闭合语料臂，Task 5 已先把它退役，本任务不再有可红的面，也不为此新造一门）；成对：把正文段的一处声明改成别的数字 ⇒ 该臂红，而 P37 spec 的 `v0.13` 行原样留着 ⇒ 该臂不红
+- 改 `census:criteria.rows` 的声明数字 — checkable: 全库范围内、`## Change history` 表以外的每处该 id 声明等于 `contract/review-criteria.ts#CRITERIA_ROWS` 删掉 `pin-parseability` 之后的行数——读一次该模块自己的度量，逐处核对写下的数（不另立比对臂：该声明唯一会红的机械对照是 `census.guard.test.ts` 的已闭合语料臂，Task 5 已先把它退役，本任务之后树上没有任何面能把它重判红，本步骤也不为此新造一门，故这一步只按读数核，不配成对臂）；表内 `v0.13` 行当时的数原样保留
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p43):` 起头
 
 #### Acceptance
@@ -416,3 +418,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.7 | 2026-11-23 | **按 plan 评审轮五的 F1–F3 用户裁定修正（Task 6 与 Task 8 两任务面，结构面未动）**：Task 6 的 Objective 点名 `charter-self-repair.test.ts` 第二个 describe 的两臂——零 finding 臂整臂退役，P42 T9 的候选面臂只撤真宪章读取、量缺口的一对重挂到 `charterBody([...])` 合成宪章上（`measure-literal` 的缺口对不丢），步骤一的可判改成读机制（两文件全绿且非语料臂留在原位 + 重挂后的缺口对成对可辨），整文件删除仍不是修法；Task 8 的退役拼写格按树改写——源上无 `retiredTag` 字段，退役拼写今天住在 `diagrams.guard.test.ts` 的 `DiagramPin` 字面上，搬过去落成 `scripts/lib/diagrams.ts` 的模块内字面表、断言读该表与源的暂存渲染，Objective / Produces / 步骤一的 stub 表述同批改齐；Task 8 的产物读者离场入账（`DiagramTwin.of` 与 `DiagramTwin.SOURCES` 随两个 describe 搬走后零调用，步骤二的可判改按机制判，HTML 路径字面只作副证） | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.8 | 2026-11-23 | **按 plan 评审轮六的 F1–F4 用户裁定修正**：Task 7 把变更史行逐条点名为例外——零命中只圈正文段，表内引用原值保留（`## Change history` 是记录不是活引用），成对判据写死「正文段写回即红 / 历史行原样不红」；Task 8 的文案格改写成 escaped-or-raw 的在场判据（与 `DiagramTwin#copyMismatches` 同判），不再暗示字节相同；Constraints 的窗口段删掉成员枚举，只留按文档记的规则与该臂当次读数；Task 10 从新建 changeset 改成扩写树上已有的 `.changeset/p43-self-assertion-retirement.md`，一个相位一份 note | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.9 | 2026-11-23 | **按 plan 评审轮七的 F1 用户裁定修正**：Task 7 的变更史豁免从一条 id 的措辞改成一条覆盖两个 id 的规则——可判仍只圈正文段，而 `census:pin` 引用与 `census:criteria.rows` 声明同在例外之内，例外的单位是行不是 id；`v0.13` 行被点名为本段存在的那个案例（它记的是当时把裸计数改写成声明的那次读数），Produces 与步骤二随之收成「表以外等于删除后的行数、表内原值保留」，两条 id 各一半的成对判据各自可红 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.10 | 2026-11-23 | **按 plan 评审轮八的 F1–F2 用户裁定修正（Task 4 与 Task 7 两任务面，结构面未动）**：Task 7 的声明步骤收成单一读法——按 `CRITERIA_ROWS` 的度量逐处核，并明写 Task 5 之后树上没有任何面能把它重判红，删掉与自家括注互斥的成对臂；豁免段的成对判据随之只留在引用那一半，声明那一半明写不配成对臂；Task 4 的写集、步骤一与 Acceptance 补上散文那半——`face/cli.ts` 的 `#audit` 段注、memo 清单、pre-flight 与 `#auditOf` 段注随符号收口，`review-criteria.test.ts` 文件头不再称 `test` 为 pin 门，成对判据是「散文写回 ⇒ 散文半红而符号半绿」与「符号写回 ⇒ 符号半红而散文半绿」两向，两半互不代偿 | Oscaner M. · Claude（kairos:cdd-docs-fix） |

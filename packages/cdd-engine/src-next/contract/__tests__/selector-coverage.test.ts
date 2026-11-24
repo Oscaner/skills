@@ -60,6 +60,15 @@ const DOC_ROOT: Readonly<Record<DocType, string>> = {
   "single-spec": ENGINE_DOC_ROOTS.specs,
 };
 
+/** The declared population — the four registries' element counts, summed once. The module
+ *  header writes this figure and no other reading keeps a number of its own: a registry
+ *  that grows moves the header's written figure away from this total, so the header arm is
+ *  the one red that names a stale figure while the derived reads below move with the table. */
+const DECLARED_POPULATION = Object.values(declaredRegistries).reduce(
+  (sum, registry) => sum + registry.elements.length,
+  0,
+);
+
 /** The fixture documents — one synthetic conforming carrier per doc type, canonicalized
  *  through the same translation face the judgment plane applies. */
 class Fixtures {
@@ -312,15 +321,11 @@ describe("selector coverage — every declared element carries a resolvable loca
     ).match(/registries \((\d+) elements\)/);
     // the pair: a header without the figure leaves this comparison no subject
     expect(header).not.toBeNull();
-    const total = Object.values(declaredRegistries).reduce(
-      (sum, registry) => sum + registry.elements.length,
-      0,
-    );
     // the pair: a neighbour value in the header is red
-    expect(Number(header?.[1])).toBe(total);
+    expect(Number(header?.[1])).toBe(DECLARED_POPULATION);
   });
 
-  it("declares a well-formed selector on all 112 elements", () => {
+  it("declares a well-formed selector on every declared element", () => {
     let total = 0;
     for (const registry of Object.values(declaredRegistries)) {
       for (const element of registry.elements) {
@@ -331,10 +336,11 @@ describe("selector coverage — every declared element carries a resolvable loca
         ).toBe(true);
       }
     }
-    expect(total).toBe(112);
+    // the walk covers the declared population; the figure itself is the header's
+    expect(total).toBe(DECLARED_POPULATION);
   });
 
-  it("resolves all 112 elements on the conforming carrier of their own type", () => {
+  it("resolves every declared element on the conforming carrier of their own type", () => {
     // The matrix reads the four synthetic carriers and nothing else; every optional and
     // conditional form lives on the carrier, so "no occurrence" never passes as coverage
     // and the failure names the exact form that went missing.
@@ -345,7 +351,8 @@ describe("selector coverage — every declared element carries a resolvable loca
       for (const anchor of fixtures.unresolved(docType)) missing.push(`${docType} · ${anchor}`);
     }
     expect(missing, `unresolved elements: ${missing.join(" | ")}`).toEqual([]);
-    expect(total).toBe(112);
+    // the doc-type list walks every registry, so this read is the population again
+    expect(total).toBe(DECLARED_POPULATION);
   });
 
   it("judges each synthetic carrier clean — doc-contract reports nothing of any kind", () => {

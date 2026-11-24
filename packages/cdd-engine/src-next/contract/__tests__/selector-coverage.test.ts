@@ -9,9 +9,16 @@
 // renders, so every field name answers the declared registry and the carrier is
 // conforming by construction; the overall's optional `## File paths` facet rides the
 // declared conforming form. Each one is judged by the same doc-contract a consumer
-// document meets — no exemption, and no corpus arm over this repository's own
-// documents. The canonicalization through the translation layer stays: it is the tree's
-// input contract (the normalized view), not a property of the old fixtures.
+// document meets — no exemption.
+//
+// The judgment's RIGHT DOMAIN is the four carriers themselves, mounted into an in-memory
+// corpus this file owns (the judge context's `fs` seam). `single-home` is the one rule
+// that sweeps neighbours, and it reads them through that seam: pointing the judgment at
+// the checkout instead would make the matrix's silence a claim about this repository's
+// own records — the surface this phase retires — and a contributor editing an internal
+// record would redden a test that never named that document. The canonicalization
+// through the translation layer stays: it is the tree's input contract (the normalized
+// view), not a property of the old fixtures.
 //
 // Every optional and conditional form the registry lets a document omit rides the
 // carrier itself, never a block appended for the matrix's benefit: a form carried by
@@ -22,7 +29,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
 import { Words } from "../../face/words.ts";
+import { ENGINE_DOC_ROOTS } from "../../infra/doc-roots.ts";
 import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
 import type { Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
@@ -41,6 +50,16 @@ const fixturePath = (docType: DocType): string =>
 /** The four doc types — the fixture set and the registry walk share this one list. */
 const DOC_TYPES: readonly DocType[] = ["overall", "plan", "phase-spec", "single-spec"];
 
+/** The doc root each carrier's own type belongs to — the mount point that makes the
+ *  carriers a neighbour corpus `single-home` actually sweeps (a document outside the doc
+ *  roots is invisible to that rule's right domain). */
+const DOC_ROOT: Readonly<Record<DocType, string>> = {
+  overall: ENGINE_DOC_ROOTS.overalls,
+  "phase-spec": ENGINE_DOC_ROOTS.specs,
+  plan: ENGINE_DOC_ROOTS.plans,
+  "single-spec": ENGINE_DOC_ROOTS.specs,
+};
+
 /** The fixture documents — one synthetic conforming carrier per doc type, canonicalized
  *  through the same translation face the judgment plane applies. */
 class Fixtures {
@@ -57,14 +76,37 @@ class Fixtures {
   }
 
   /** Every finding doc-contract reports on one carrier text (`text` is a mutation of the
-   *  fixture, so a drop cell can judge what the engine says about the mutated carrier). */
+   *  fixture, so a drop cell can judge what the engine says about the mutated carrier).
+   *  The right domain is the corpus below, never the checkout. */
   findings(docType: DocType, text = this.text(docType)): readonly Finding[] {
     return new Contract().validate({
       docKey: docType,
       path: path.join(REPO_ROOT, fixturePath(docType)),
       content: text,
       root: REPO_ROOT,
+      fs: this.#corpus(docType),
     });
+  }
+
+  /** The right domain one judgment sweeps — the OTHER three carriers, mounted under the
+   *  doc root their own type belongs to. The file owns this material, so the matrix's
+   *  silence is a statement about the corpus it writes.
+   *
+   *  The mounted copies carry a slug of their own, and that is load-bearing: a document
+   *  and its same-slug sibling are the two faces of ONE design (a spec and its plan), and
+   *  `single-home` skips that pair on purpose — four carriers still on the skeleton's
+   *  `:::fill slug` would compare nothing and read clean for the wrong reason. */
+  #corpus(excluded: DocType): MemoryFs {
+    const files: Record<string, string> = {};
+    for (const docType of DOC_TYPES) {
+      if (docType === excluded) continue;
+      const mounted = path.join(REPO_ROOT, DOC_ROOT[docType], `${docType}-fixture.md`);
+      files[mounted] = this.text(docType).replace(
+        "slug: ':::fill slug'",
+        `slug: '${docType}-fixture'`,
+      );
+    }
+    return new MemoryFs(files);
   }
 
   /** The declared elements of one doc type that resolve on no node of the carrier text —
@@ -422,7 +464,8 @@ describe("selector coverage — every declared element carries a resolvable loca
       docKey: "overall",
       path: "synthetic-overall-probe.md",
       content,
-      root: REPO_ROOT,
+      root: "/repo",
+      fs: new MemoryFs({}),
     });
     const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
     expect(shape, "one shape finding per ragged row, none for the uniform row").toHaveLength(1);

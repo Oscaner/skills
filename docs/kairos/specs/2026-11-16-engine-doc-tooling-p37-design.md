@@ -32,7 +32,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 #### 1.3 反例句（每行一条，入册）
 
-反例句是判据**行**的格子，不是档位的格子：§6.1 的行形态里 `counterExample` 与 `tier` 平级，每一条判据行都带一条。因此每档至少一条，判据表 `census:criteria.rows = 6` 行：blocker 一条（`grading-impact-missing`）、`warn` 两条（`debt-consequence` 与 pin 可解析性那条 `pin-parseability`——后者把 P28 的反转理由写在自己的 `counterExample` 里，§7.4）、`nit` 两条（`expression-only` 与 §5.2 的降档标记行 `regrade-mark`）。下面四句里三句各是某一行的 `counterExample` 格子；第二句是例外，它落在 blocker 行的 `body` 上（紧挨 blocker 的定义才封得住 (a) 的旧漏洞），不占反例句格。四句按档位读如下，blocker 那句排在最前，因为它是把 §2.2 的举证判据翻成判档语言的那一句：
+反例句是判据**行**的格子，不是档位的格子：§6.1 的行形态里 `counterExample` 与 `tier` 平级，每一条判据行都带一条。因此每档至少一条，判据表 `census:criteria.rows = 5` 行：blocker 一条（`grading-impact-missing`）、`warn` 两条（`debt-consequence` 与 pin 可解析性那条 `pin-parseability`——后者把 P28 的反转理由写在自己的 `counterExample` 里，§7.4）、`nit` 两条（`expression-only` 与 §5.2 的降档标记行 `regrade-mark`）。下面四句里三句各是某一行的 `counterExample` 格子；第二句是例外，它落在 blocker 行的 `body` 上（紧挨 blocker 的定义才封得住 (a) 的旧漏洞），不占反例句格。四句按档位读如下，blocker 那句排在最前，因为它是把 §2.2 的举证判据翻成判档语言的那一句：
 
 - 说得出一处偏离预期，却举不出「哪条合法输入 → 实际是什么 → 预期是什么」⇒ **warn**，不是 blocker：举不出场景的偏离没法被下一位评审者当场否证，也就不成立为功能影响，按缺陷描述自身的后果定档。
 - 违反了一句写着的话，但消费者拿到的字节不变 ⇒ **warn**，不是 blocker。这一句封住 (a) 的旧漏洞：引得到条款不等于功能受影响。（这句是 blocker 判据行的 `body` 句，不是 `counterExample` 格。）
@@ -149,7 +149,7 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 问句的投影面只有一处：`render/templates.ts` 每类 review 的 `axesGuide` 由该类问句装配——`LENS_QUESTIONS.forReviewKind(reviewKind)` 按声明序取行，渲染成从 1 起的编号清单（`1. <question>` 逐行），追加到该类 `axesGuide` 末尾；`reviewRow(type)` 把整段 `axesGuide` 原样折进 `**Criteria — <type>:**` 那一行，问句因此随 prompt 字节下发。五类 review 各装配自己的一段：`wave` / `branch` 行正文相同、`reviewKind` 不同，两类共用同一批行，故条数相同；`plan` / `spec` / `overall` 各取自己 `reviewKinds` 命中的行。逐类条数不在此复述：它是投影的读数（`LENS_QUESTIONS.forReviewKind(reviewKind)` 的行数），由 §6.2 的 `numbered` 面与 `render/__tests__/templates.test.ts` 对着渲染产物核；写成手测数字只会多一处没有 `census:` id 的测量（§8.1）。表里有行不等于 prompt 里有问句，因此核对落在渲染产物上（§6.2 的 `numbered` 面），不是落在表的行数上。
 
-两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对；写进散文的计数带 `census:` 引用（§8），因此本段的三处数字是门核对的引用而不是手测：判据表 `census:criteria.rows = 6` 行 · 问句表 `census:questions.rows = 15` 行 / `census:questions.cells = 19` 格。
+两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对；写进散文的计数带 `census:` 引用（§8），因此本段的三处数字是门核对的引用而不是手测：判据表 `census:criteria.rows = 5` 行 · 问句表 `census:questions.rows = 15` 行 / `census:questions.cells = 19` 格。
 
 #### 6.2 边界
 
@@ -205,7 +205,7 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 **为什么钉身份键而不只钉 `program:`**：pin 门对所有消费者开放，而 `program:` → 母宪章 → `## Phase inventory` 这条链**只有本仓这种带宪章的程序才有**。把它写成唯一入口会让 single-spec 与不用 overalls 的仓永久红：它们既没有 `program:`，也没有宪章，条件 ① 永不成立。`slug:` 是引擎自己的身份模型（spec 与 plan 共享同一个 `slug:`，即 `infra/slug-index.ts` 的 same-slug Class-A arm），三类消费者都有；宪章的 `slug:` 与它自己的计划不同，但计划的身份文档写着 `program:` = 宪章的 `slug:`——两个键因此归到同一个共同项：**被审文档自己的 `slug:`**。宪章不靠「同 slug」到达，靠的是计划身份文档那一格 `program:`；两者都不是文件名推演。
 
-代价要说准，两处仍然会红，本相位不打算救：**相位已 `✔ Done` 后追加 `Create:` 行的计划**——相位已关闭，它的待建路径按条件 ③ 不再跳过，因此在落地前就是一条 finding；重开一个已闭合相位是本宪章「变更先回填 overall」的变更，不是 pin 门的例外。**不用 overalls 的仓**——条件 ① 成立（同 slug），条件 ③ 退化为声明边界，因此这条臂比带宪章的程序**弱**：活着但作废的声明在那里不会转红。反方向（没有闭合登记面即不跳过）不成立，理由是相位自己的顺序：single-spec 的规格在它自己的计划落地前每轮评审都会被注入一批指向待建模块的死 pin，规格评审永远到不了 `APPROVED`，而那个模块又要等计划落地——那个环正是本相位要拆的东西。**跳过判在哪一层**：判定落在 `PinAudit` 这一处判据里，不落在调用方——待建路径表在判定前一次算好，`scan`（全语料）、`scanText`（被审文档正文，即 §7.2 的第二份语料）与 `pathResolves`（交接单 finding 行的 `contract.path`）三份语料读同一张表，因此同一条待建路径在三份语料上得到同一个答案；不存在「§7.2 自己再判一次跳过」的第二套读法，也不存在「语料零 finding」与「扫描计数」成为同一个名字下的两个事实。§8.2 的 `pin.total` 就是这一次扫描在时间面判定之后剩下的 finding 数：作者态它是 `census:pin.total = 0`（待建的都跳过了），关闭时它仍是零（门的上线条件），两处是同一个函数的一次读数。时间面对三份语料一视同仁是它的必要条件而不是便利：三份语料若各判一套，同一条待建路径在不同面上会得到不同答案，`pin.total` 也就失去「一次扫描的读数」这个含义。
+代价要说准，两处仍然会红，本相位不打算救：**相位已 `✔ Done` 后追加 `Create:` 行的计划**——相位已关闭，它的待建路径按条件 ③ 不再跳过，因此在落地前就是一条 finding；重开一个已闭合相位是本宪章「变更先回填 overall」的变更，不是 pin 门的例外。**不用 overalls 的仓**——条件 ① 成立（同 slug），条件 ③ 退化为声明边界，因此这条臂比带宪章的程序**弱**：活着但作废的声明在那里不会转红。反方向（没有闭合登记面即不跳过）不成立，理由是相位自己的顺序：single-spec 的规格在它自己的计划落地前每轮评审都会被注入一批指向待建模块的死 pin，规格评审永远到不了 `APPROVED`，而那个模块又要等计划落地——那个环正是本相位要拆的东西。**跳过判在哪一层**：判定落在 `PinAudit` 这一处判据里，不落在调用方——待建路径表在判定前一次算好，`scan`（全语料）、`scanText`（被审文档正文，即 §7.2 的第二份语料）与 `pathResolves`（交接单 finding 行的 `contract.path`）三份语料读同一张表，因此同一条待建路径在三份语料上得到同一个答案；不存在「§7.2 自己再判一次跳过」的第二套读法，也不存在「语料零 finding」与「扫描计数」成为同一个名字下的两个事实。§8.2 的 `pin.total` 就是这一次扫描在时间面判定之后剩下的 finding 数：作者态它是零（待建的都跳过了），关闭时它仍是零（门的上线条件），两处是同一个函数的一次读数。时间面对三份语料一视同仁是它的必要条件而不是便利：三份语料若各判一套，同一条待建路径在不同面上会得到不同答案，`pin.total` 也就失去「一次扫描的读数」这个含义。
 
 因此它是**时间面**而不是豁免机制：§7.2 的「无基线、无白名单、无豁免」逐字成立（关闭时门必须为零），而「该计划已关闭、路径仍缺席」由同一扫描判红。
 

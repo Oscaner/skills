@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v4.63
+version: v4.64
 date: 2026-11-19
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
@@ -311,7 +311,7 @@ Legend:
 - **跨程序树协调（D8 · 拆 pin 后）**：本程序 P1/P2 引擎改动先行于现行 `src-next/` 树实现（不等 rename P2）——rename sweep 全库 `grep -rn src-next` 改本程序新文件面（Q3→b · 豁免面为空）
 - 需求变更在 phase 中发生时，回填纪律住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`；受影响 phase 的 scope / acceptance / dependency 随同一次写入同步
 - **验证面的归属（D98）**：引擎的行为由夹具判，物料的状态由引擎判；测试里不再出现手写的语料读数，生成物一致性只经 `emit:check`。裁定正文与正反例住本表 D98，此处不重述。
-- **验自面的边界（D101）**：tests 衡量引擎，不规训我们自己的文档——`docs/kairos/**`、README 类文档、生成物一致都不由测试断言；每条规则留成对夹具（违规必报 · 邻居沉默 · 零候选即红），生成物一致只归 `emit:check`，skills 属发布物检查面不在内。规范本体住 `AGENTS.md`，裁定与实测账住本表 D101，此处只留指针。
+- **验自面的边界（D101）**：边界按消费者划，不按路径划——退役面只有 `docs/kairos/**`（引擎在真实 CDD 运行里消费的物料）；保留面是消费者拿到的字节：README family · `AGENTS.md` · `marketplace/source.json` · `packages/kairos/skills/` 与其探针 · 生成物。每条规则留成对夹具（违规必报 · 邻居沉默 · 零候选即红），生成物一致只归 `emit:check`。规范本体住 `AGENTS.md`，裁定与实测账住本表 D101，此处只留指针。
 - **相位开工的两件初始化**：特性分支（`feat/<phase>`）与 `base.json`（`cdd base set --source plan-field`）。两者缺任一，`--type wave` 与 `--type branch` 的派发都以 `BASE_BRANCH · empty-value` 拒绝——`develop` 上直接开工因此不可行。
 - **引擎命令是状态机，不是开关**：`--recover` 只在 stale holder 或 `drift ∧ pending-fix` 时有效；`--dry-run` 预览下一步派发而不判文档契约；`implement --tasks` 是波次事务，波未闭合不能回补。三条都曾按「选项」误用并各付一次拒绝。
 - **模板结构保真**：骨架（声明面 = `schema get <type> --output skeleton <target>`）= declare.ts 派生（标题树/表列/脚手架 by construction），编辑器只填内容不重排——违反 = 保真破坏，视为 defect
@@ -605,4 +605,5 @@ Legend:
 | v4.60 | 2026-11-23 | **github#518 并入 P43（用户 2026-11-23 裁定）**：board 的 notes 默认折叠——进度面板今天把每轮的实现叙述原样内联，99% 的输出不是进度，而同一份散文的另一载体（轮次 handoff · `logs/`）已经存在。scope 加 ⑤（`notes +M` 计数留痕 · 单键 `--notes` 展全部 · 不改 P42 的 token 形态）· 验收加 ⑦ 并把 validate 腿抬为 ⑧ · D101 记该并入的理由（同一族的输出面镜像）。 | Oscaner M. · Claude（kairos:cdd-design） |
 | v4.61 | 2026-11-23 | **评审轮一后回填 P43（F1–F5 · 用户裁定边界按消费者划）**：D101 的边界由「docs/kairos + README + 生成物」收为「谁消费这份物料」——退役面只 `docs/kairos/**`，README family / `AGENTS.md` / marketplace / skills / 生成物继续判；Phase inventory 行同步：① 把登记机器随四行 `pin.*` 一并退役（生产面零读者，只留 `referencesOf`）并把 `scan-coverage` 记入三个测试文件，② `floor.guard` / `presentation-surface` / `plugins.guard` 归入保留面、`grep-sweep-regression` 只收窄扫描根，③ 注明 `plugins.guard` 无清单臂（三方对齐由 `deriveSourceDoc` + `emit:check` 负责），验收 ② 与 ⑤ 随之改准。 | Oscaner M. · Claude（kairos:cdd-design） |
 | v4.62 | 2026-11-23 | **评审轮二后回填 P43（F1–F4）**：① 的「`pins.ts` 全模块」改正为按符号判——栅栏读者 · 路径文法 · 闭合读数三条生产腿搬去规则面并在籍，退役面逐符号列出；`pin-parseability` 行退时把 `CriteriaFace` 的 `test` 取值与 `ReviewGuides.pinLens` 一并带下；比较机器的退役理由改成「它的执行面是本仓语料臂」而不是「读者为零」（它还有三条 `criteria.*`/`questions.*` 行）；带 `census:criteria.rows` 的声明同批改数。 | Oscaner M. · Claude（kairos:cdd-design） |
-| v4.63 | 2026-11-23 | **评审轮三后回填 P43（F1–F4，零 blocker）**：② 的 `census.guard` 从「整个退役」改为只退语料与登记两臂（引用文法的成对夹具是 `referencesOf` 唯一的断言面）；同步 spec 的四条整改——栅栏读者四个公开成员整体搬 `ProseSpans` · 闭合读数需要替掉 `PinIndex` 的枚举面（以 `SlugIndex` 为枚举源、保住唯一性证明）· 引用文法臂留下 · `CensusGate` 收成单静态类时按仓库先例加 `biome-ignore` 而不是新造机制。 | Oscaner M. · Claude（kairos:cdd-design） |
+| v4.63 | 2026-11-23 | **评审轮三后回填 P43（F1–F4，零 blocker）**：② 的 `census.guard` 从「整个退役」改为只退语料与登记两臂（引用文法的成对夹具是 `referencesOf` 唯一的断言面）；同步 spec 的四条整改——栅栏读者四个公开成员整体搬进规则面的新模块（类名在计划里以散文记：尚未落树的符号不写进行内代码段）· 闭合读数需要替掉 `PinIndex` 的枚举面（以 `SlugIndex` 为枚举源、保住唯一性证明）· 引用文法臂留下 · `CensusGate` 收成单静态类时按仓库先例加 `biome-ignore` 而不是新造机制。 | Oscaner M. · Claude（kairos:cdd-design） |
+| v4.64 | 2026-11-23 | **P43 规范行落地（AGENTS.md + 边界同界）**：`AGENTS.md` 的「Conventions not enforced by the formatter」节写入「tests 衡量引擎，不规训我们自己的文档」——测试只断言引擎对自持夹具做了什么 · 以本仓 `docs/kairos/**` 为语料并断言其状态是禁止的（误判会在文档里被静默修复，缺陷照发消费者）· 每条规则留三条臂（违规必报 · 邻居沉默 · 零候选即红）而生成物一致只归 `emit:check`；边界同批写明：退役面只 `docs/kairos/**`，README family · `AGENTS.md` · `marketplace/source.json` · `packages/kairos/skills/` 与生成物仍由探针守。同批把本节 D101 行改到同一条边界并只留指针，登记本相位的回填行不再用行内代码段写尚未落树的符号。 | Oscaner M. · Claude（kairos:cdd-dev） |

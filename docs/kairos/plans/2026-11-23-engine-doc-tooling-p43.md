@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -231,7 +231,7 @@ Task 1
 ### Task 6: 语料臂退役与夹具补位
 
 #### Objective
-撤掉「拿本仓 `docs/kairos/**` 跑一遍并断言零」的那一臂，判据本体与夹具留下：`doc-corpus.guard.test.ts` 与 `phase-inventory.guard.test.ts` 整文件退役；`charter-self-repair.test.ts` 撤宪章零 finding 那一臂；`single-create.test.ts` 撤读 `docs/kairos/plans` 的那一段；`packages/kairos/tests/grep-sweep-regression.test.ts` 的扫描根去掉 `docs/`。同批核对每条被撤臂的判据是否仍有违规/邻合/零候选三条臂，缺则本任务补：补位落在该规则臂的既有宿主文件；一条规则今天没有臂宿主时，本步骤点名要新建的夹具文件，并在同一次编辑里把它加进本任务的 Files——缺口不能以「未点宿主」被读成「无缺口」。
+撤掉「拿本仓 `docs/kairos/**` 跑一遍并断言零」的那一臂，判据本体与夹具留下：`doc-corpus.guard.test.ts` 与 `phase-inventory.guard.test.ts` 整文件退役；`charter-self-repair.test.ts` 的第二个 describe 里两臂都读真宪章，按各自断言的东西点名分别处置：`reports nothing on the real charter — both families at zero` 那一臂在真宪章上断言零 finding，整臂退役；`reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence` 那一臂只撤它的真宪章读取（`CHARTER_REL` 的 `readFileSync`，以及它对未改文本的 `gapsOf(text)` 零断言），量缺口的那一对重挂到邻臂已在用的 `charterBody([...])` 合成宪章上——两臂各自的真宪章读取都退役，留下的是合成宪章上的夹具；`measure-literal` 得保住那条把「干净的宪章」与「面从未跑过」分开的臂，缺口不随这次退役丢失，也不靠删臂消红；`single-create.test.ts` 撤读 `docs/kairos/plans` 的那一段；`packages/kairos/tests/grep-sweep-regression.test.ts` 的扫描根去掉 `docs/`。同批核对每条被撤臂的判据是否仍有违规/邻合/零候选三条臂，缺则本任务补：补位落在该规则臂的既有宿主文件；一条规则今天没有臂宿主时，本步骤点名要新建的夹具文件，并在同一次编辑里把它加进本任务的 Files——缺口不能以「未点宿主」被读成「无缺口」。
 
 #### Files
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`
@@ -252,7 +252,7 @@ Task 1
 - 缺口补位：任一被撤语料臂涉及的规则，若其夹具缺「违规必报 / 邻居沉默 / 零候选即红」中的一条，本任务补上，宿主文件随之进本任务的 Files
 
 #### Steps
-- 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 不再读 `docs/kairos`，且全绿
+- 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 上 `docs/kairos` 零命中（含 `CHARTER_REL` 的取值与 `REPO_ROOT` 拼出的真宪章路径），而两文件仍整文件在树上、全绿，非语料臂逐条留在原位且可红（`charter-self-repair.test.ts` 的 `single-home` 与 `measure-literal` 夹具臂照旧报它读的那一句）；重挂后的缺口对成对可辨：把合成宪章的一处标题改成面图放不下的名字 ⇒ 那一臂报缺口，用它自己的合成体 ⇒ 零缺口
 - `grep-sweep` 去掉 `docs/` 根 — checkable: 该文件的扫描根上 `docs/` 零命中；成对：把一个已删 token 写进 `docs/` 下的文件 ⇒ 不红（扫面不含它），写进 `packages/` ⇒ 红
 - 把 `seat` 的 `corpus` 面从词表与每一行上拿掉 — checkable: `contract/rules.ts` 上 `corpus` 零命中；`contract/__tests__/rules.test.ts` 的字面表只余树上真实存在的两个面（成对：把 `corpus` 加回词表而不加行 ⇒ 词表臂红；把它加回某一行 ⇒ 行臂红）
 - 逐规则核对三条臂并补缺 — checkable: 对每条被撤语料臂涉及的规则各跑一次「违规夹具必报 / 邻居夹具沉默 / 零候选即红」——doc-contract 各腿 · P41 的 doc 形状行（`measure-literal` · `line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape`）· `single-create`；缺的那条补在该规则臂的宿主文件里，宿主不在 Files 时同一次编辑把它加进去
@@ -303,7 +303,7 @@ Task 4, Task 5
 #### Objective
 把两处读**渲染产物**的臂移出测试，交给 `emit:check`：`face/__tests__/diagrams.guard.test.ts` 里读 HTML 的那一格（tag 在场、退役 tag 不在场）与 `face/__tests__/diagram-twin.guard.test.ts` 里源↔产物的成对比较（覆盖与图型根 · 产物命名 · 两侧修订一致 · 引用多重集 · 文案逐格）。两文件的源内容臂与内存反向注入臂留下。
 
-搬过去的是孪生对的每一格，不留一格靠字节比对隐式接住：`scripts/lib/diagrams.ts` 上各落一条断言，两侧字面都从源与暂存渲染读（不读已提交产物）——源声明的引擎节点 `tag` 落在该源渲染出的产物上（对应面是节点标记而不是执行卡首行：卡片首行携带的是 `detail` 散文，节点的 `tag` 从不写进那里，所以执行卡首行的读数仍作为源内容臂留在 `diagrams.guard.test.ts`）；源的 `retiredTag` 不在产物上；源 `meta.repository.revision` 等于产物证据块的 `repository.revision`；源的引用多重集与证据块的 `referenceCount` 同多重、同计数；源的每个文案格（标签 · 副标 · tag · 卡片串）在产物里逐字在场。覆盖与图型根、产物命名两格不另立断言：`emit:check` 既有的树比对接住多出来的或改名后的产物，`scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住不再产出的 html。逐字节相等比的是「已提交产物 vs 同一份源的重渲染」，渲染器丢掉一条引用、一个标签或一个 tag，或不再把 `meta.repository.revision` 抄进证据块时，两侧仍然相等——所以修订一致、引用多重集与文案逐格都不能由字节比对蕴含，必须并列声明；它们正是因此留在 `emit:check` 而不回测试。
+搬过去的是孪生对的每一格，不留一格靠字节比对隐式接住：`scripts/lib/diagrams.ts` 上各落一条断言，除退役拼写那一格外，两侧字面都从源与暂存渲染读（不读已提交产物）——源声明的引擎节点 `tag` 落在该源渲染出的产物上（对应面是节点标记而不是执行卡首行：卡片首行携带的是 `detail` 散文，节点的 `tag` 从不写进那里，所以执行卡首行的读数仍作为源内容臂留在 `diagrams.guard.test.ts`）；退役拼写不在渲染里——这一格的两侧都不在源上：源 `docs/diagrams/src/*.json` 上 `retiredTag` 零命中，退役拼写今天是测试侧的字面（`diagrams.guard.test.ts` 的 `DiagramPin` 上 `retiredTag` 那一对，英文与中文各一条），搬过来时落成 `scripts/lib/diagrams.ts` 的一张字面表，与 `DIAGRAM_SRC_DIR` 派生的产品清单同住一个模块，断言读这张表与源的暂存渲染（退役拼写在渲染里零命中），不读任何源声明的字段；源 `meta.repository.revision` 等于产物证据块的 `repository.revision`；源的引用多重集与证据块的 `referenceCount` 同多重、同计数；源的每个文案格（标签 · 副标 · tag · 卡片串）在产物里逐字在场。覆盖与图型根、产物命名两格不另立断言：`emit:check` 既有的树比对接住多出来的或改名后的产物，`scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住不再产出的 html。逐字节相等比的是「已提交产物 vs 同一份源的重渲染」，渲染器丢掉一条引用、一个标签或一个 tag，或不再把 `meta.repository.revision` 抄进证据块时，两侧仍然相等——所以修订一致、引用多重集与文案逐格都不能由字节比对蕴含，必须并列声明；它们正是因此留在 `emit:check` 而不回测试。
 
 反向注入臂不读产物：本任务给它们一份内存里的 html 夹具（一段携带注入要动的元素的字符串），`diagram-twin.guard.test.ts` 因此一行 `docs/diagrams` 产物路径都不读。
 
@@ -320,13 +320,13 @@ Task 4, Task 5
 
 #### Produces
 - `emit:check` 覆盖生成物面：`.claude-plugin/` 与 marketplace 的派生、ISSUE_TEMPLATE、`docs/diagrams` 的源↔产物（含孪生对）；孪生对的覆盖与图型根、产物命名两格由既有的树比对与 `scripts/lib/diagrams.ts#DiagramProducts` 的孤儿走读接住
-- `scripts/lib/diagrams.ts` 的产物断言逐格一条：源里的引擎节点 `tag` 落在该源渲染出的产物上（节点标记在场） · 源的 `retiredTag` 不在产物上 · 源的 `meta.repository.revision` 等于产物证据块的 `repository.revision` · 源的引用多重集与证据块的 `referenceCount` 同多重、同计数 · 源的每个文案格在产物里逐字在场——两侧字面从源与暂存渲染读，与逐字节比对并列；执行卡首行不是 `tag` 的对应面，它的读数留在 `diagrams.guard.test.ts` 的源内容面
-- `diagrams.guard.test.ts` 只余源内容臂 + P28 T2 那一格；`diagram-twin.guard.test.ts` 只余内存反向注入臂，且它们的 html 来自内存夹具而不是已提交产物
+- `scripts/lib/diagrams.ts` 的产物断言逐格一条：源里的引擎节点 `tag` 落在该源渲染出的产物上（节点标记在场） · 模块里那张退役拼写字面表在源的暂存渲染里零命中（源上无此字段：源侧是字面表，产物侧是暂存渲染，测试侧的 `DiagramPin` 字面随这一格搬出去） · 源的 `meta.repository.revision` 等于产物证据块的 `repository.revision` · 源的引用多重集与证据块的 `referenceCount` 同多重、同计数 · 源的每个文案格在产物里逐字在场——除退役拼写那一格外，两侧字面从源与暂存渲染读，与逐字节比对并列；执行卡首行不是 `tag` 的对应面，它的读数留在 `diagrams.guard.test.ts` 的源内容面
+- `diagrams.guard.test.ts` 只余源内容臂 + P28 T2 那一格；`diagram-twin.guard.test.ts` 只余内存反向注入臂，且它们的 html 来自内存夹具而不是已提交产物；产物读者 `DiagramTwin.of` 与它的源清单 `DiagramTwin.SOURCES` 一并离场——搬走的那几段是它们仅有的调用者，留下任何一处就是文件里还开着已提交产物的读法
 - 两个测试文件不再读 HTML
 
 #### Steps
-- 把 HTML 读取与孪生比对搬进 `emit:check`，并把各格读数落成各自的断言 — checkable: 判据只从注入的渲染输出读——往 `scripts/lib/diagrams.ts#DiagramProducts` 注入一份 stub 渲染，让它的产物缺掉源声明的引擎节点 `tag`（或带上 `retiredTag` · 丢掉一条源引用 · 改掉一个文案格 · 把证据块的 `repository.revision` 写成源之外的值），那一格各自报红；同一份源配一份照源渲染的 stub ⇒ 各格沉默（成对）。篡改已提交产物这条路走不通：`emit:check` 会用源重新渲染并覆盖它，字节比对在前一格就先红，所以这一层只能由注入的渲染输出判；把新加的任一格断言去掉、重跑同一份 stub ⇒ 该格回到沉默，加回 ⇒ 红。篡改一份生成的 `.claude-plugin` 文件 ⇒ `pnpm run emit:check` 非零退出
-- 从两份测试里删去读产物的臂，反向注入臂改用内存 html 夹具 — checkable: 两文件上 `docs/diagrams` 的 HTML 路径零命中；`diagram-twin.guard.test.ts` 的内存反向注入臂全绿，且把夹具里的源或格文案改一处 ⇒ 对应臂红
+- 把 HTML 读取与孪生比对搬进 `emit:check`，并把各格读数落成各自的断言 — checkable: 判据只从注入的渲染输出读——往 `scripts/lib/diagrams.ts#DiagramProducts` 注入一份 stub 渲染，让它的产物缺掉源声明的引擎节点 `tag`（或让渲染里带上字面表列的退役拼写 · 丢掉一条源引用 · 改掉一个文案格 · 把证据块的 `repository.revision` 写成源之外的值），那一格各自报红；同一份源配一份照源渲染的 stub ⇒ 各格沉默（成对）。篡改已提交产物这条路走不通：`emit:check` 会用源重新渲染并覆盖它，字节比对在前一格就先红，所以这一层只能由注入的渲染输出判；把新加的任一格断言去掉、重跑同一份 stub ⇒ 该格回到沉默，加回 ⇒ 红。篡改一份生成的 `.claude-plugin` 文件 ⇒ `pnpm run emit:check` 非零退出
+- 从两份测试里删去读产物的臂，反向注入臂改用内存 html 夹具 — checkable: 判据按机制判、不按拼写判——`diagram-twin.guard.test.ts` 上 `DiagramTwin.of` 与 `DiagramTwin.SOURCES` 零命中（产物读者离场，没有一处调用它），`meta.output` 的读法零命中（`of` 取值走这条，路径字面从来不是它的形态），存活的每条反向注入臂都用 `DiagramTwin.withSource` 拿一份内存 html 与自己构造的源配对；`docs/diagrams` 的 HTML 路径字面零命中只作副证，不作证明；`diagram-twin.guard.test.ts` 的反向注入臂全绿，且把夹具里的源或格文案改一处 ⇒ 对应臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p43):` 起头
 
 #### Acceptance
@@ -405,3 +405,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.4 | 2026-11-23 | **按 plan 评审轮二的 F1–F10 用户裁定修正**：Constraints 加「除 Task 10 外套件全绿按文件读」与 spec §8.4 的窗口；Task 1 改成给闭合访问者做加法（pin 访问者与两个读回语料留到 Task 4）、fallback 走 `contract/invariants.ts` 导出的默认索引读（`SlugIndex.build` 字面仍只一处）、Acceptance 按窗口读红；Task 2 收宪章的 D101 边界行（两个家同界）；Task 5 去掉假计数、Acceptance 按窗口读红；Task 6 点名缺口补位的宿主文件与逐规则清单；Task 7 点名 P41 的两处窗口理由段；Task 8 的篡改落在已提交产物、引用多重集与文案逐格并列成断言、反向注入臂改用内存 html 夹具 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.5 | 2026-11-23 | **按 plan 评审轮三的 F1–F4 用户裁定修正**：Constraints 的窗口账改成按文档记（本计划付引用 · 宪章的回填行带一处 · spec 按 §2.1 写散文不带），Task 2 同批把宪章登记行的行内代码段改成散文；Task 4 收两处散文里的退役边界名（段注的边界清单与 `BOUNDARIES` 的逐名断言）；Task 7 的 P41 修法从「删句子」改成「就地改写枚举」（三个枚举各留其余成员，计数与连接词折到剩下的项，改写后仍读成完整清单）；Task 8 把孪生对的修订一致格补成自己的断言（源 `meta.repository.revision` 对产物证据块），覆盖与图型根 · 产物命名两格明写由树比对与孤儿走读接住 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.6 | 2026-11-23 | **记录 `a611459d` 的 Task 3 补写（本行追登）并应用 plan 评审轮四的 F1–F6 用户裁定**：Task 3 的写集与它的 CLI 级成对臂（`face/__tests__/cli.test.ts` 上的 `--notes` 透传，参数读取与 `display` 经 `BoardView.render` 端到端可红）在本行正式入账；Task 4 的 Objective 与 checkable 按 ID 点名 `P37 T6` / `P37 T7` 两段 describe，并写明该文件其余臂为何留；Task 7 的 `census:criteria.rows` 步骤改成读一次 `CRITERIA_ROWS` 的度量并明写 Task 5 之后没有比对臂可红；Constraints 的对已闭合文档条补上 P41 的枚举改写（spec §2.2），窗口账改按文档记、点名 Task 1 改名让已闭合相位的记录付红、删掉会随树漂移的文档普查；Task 8 的 tag 格改按节点标记判（执行卡首行携带 `detail` 散文，不是 `tag`），篡改改由注入的 stub 渲染判，`scripts/__tests__/diagrams.test.ts` 随之进写集 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.7 | 2026-11-23 | **按 plan 评审轮五的 F1–F3 用户裁定修正（Task 6 与 Task 8 两任务面，结构面未动）**：Task 6 的 Objective 点名 `charter-self-repair.test.ts` 第二个 describe 的两臂——零 finding 臂整臂退役，P42 T9 的候选面臂只撤真宪章读取、量缺口的一对重挂到 `charterBody([...])` 合成宪章上（`measure-literal` 的缺口对不丢），步骤一的可判改成读机制（两文件全绿且非语料臂留在原位 + 重挂后的缺口对成对可辨），整文件删除仍不是修法；Task 8 的退役拼写格按树改写——源上无 `retiredTag` 字段，退役拼写今天住在 `diagrams.guard.test.ts` 的 `DiagramPin` 字面上，搬过去落成 `scripts/lib/diagrams.ts` 的模块内字面表、断言读该表与源的暂存渲染，Objective / Produces / 步骤一的 stub 表述同批改齐；Task 8 的产物读者离场入账（`DiagramTwin.of` 与 `DiagramTwin.SOURCES` 随两个 describe 搬走后零调用，步骤二的可判改按机制判，HTML 路径字面只作副证） | Oscaner M. · Claude（kairos:cdd-docs-fix） |

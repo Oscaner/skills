@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts
 // P21 §7.5 — the selector coverage matrix. Every declared element of the four
-// registries (111 rows) carries a `selector`, every selector is a well-formed
+// registries (112 elements) carries a `selector`, every selector is a well-formed
 // query that terminates at the document root, and every selector RESOLVES on a
 // conforming document of its own type.
 //
@@ -300,6 +300,25 @@ const DROP_CELLS: readonly DropCell[] = [
 
 describe("selector coverage — every declared element carries a resolvable locator", () => {
   const fixtures = new Fixtures();
+
+  it("keeps the module header's figure equal to the four registries' own lengths", () => {
+    // The header's figure is a claim about the tree, and a hand-written one is what went
+    // stale here before: it read 111 against 112 declared elements. The arm reads the
+    // header off this file's own bytes and compares it with the registries' lengths, so
+    // the figure has one subject and one red.
+    const header = readFileSync(
+      path.join(import.meta.dirname, "selector-coverage.test.ts"),
+      "utf8",
+    ).match(/registries \((\d+) elements\)/);
+    // the pair: a header without the figure leaves this comparison no subject
+    expect(header).not.toBeNull();
+    const total = Object.values(declaredRegistries).reduce(
+      (sum, registry) => sum + registry.elements.length,
+      0,
+    );
+    // the pair: a neighbour value in the header is red
+    expect(Number(header?.[1])).toBe(total);
+  });
 
   it("declares a well-formed selector on all 112 elements", () => {
     let total = 0;

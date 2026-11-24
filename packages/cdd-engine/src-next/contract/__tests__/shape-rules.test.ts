@@ -1,11 +1,12 @@
 // packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts
-// P41 T2/T3 — the shape gate's three variable classes and the record face's date shape.
+// P41 T2/T3 — the shape gate's variable classes and the record face's date shape.
 // Every arm is a PAIR: one form is reported and the neighbouring legal form is silent,
-// so a rule cannot pass by judging everything (or by judging nothing).
+// so a rule cannot pass by judging everything (or by judging nothing). The roster of
+// shape rows, and which row carries which arm, lives in the phase spec's §4.2.
 //
 // The scan face is the row source's body text (`JudgeContext.text`): the front-matter
 // head is data, and a head line belongs to no registered section — scanning the file
-// through the filesystem seam would turn a clean body into a face gap. The three grammars
+// through the filesystem seam would turn a clean body into a face gap. The grammars
 // judge the DECISION face only; a line under an undeclared heading yields the gap
 // verdict, and a `#### 7.5.1` item inherits its `### 7.` group's role through the
 // heading stack (the pair: a two-argument face read falls to the gap).
@@ -27,10 +28,9 @@ import { RULE_REGISTRY } from "../rules.ts";
  *  strategies on the same policy do (they must not touch the real tree). */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
 
-/** The five shape rows this file judges — the three variable classes, `single-home` and
- *  the date row — all `block` since P41's own close-out. */
+/** The shape rows this file judges — the variable classes, `single-home` and the date
+ *  row — all `block` since P41's own close-out. */
 const SHAPE_RULE_IDS = [
-  "measure-literal",
   "line-coordinate",
   "live-arithmetic",
   "single-home",
@@ -186,10 +186,7 @@ const findingsOf = (
     .validate({ docKey, path, content, root: "/repo", fs: FS })
     .filter((finding) => finding.kind === kind);
 
-/** The measure-literal findings of one decision-face line. */
-const measure = (line: string) => findingsOf(designDoc([line]), "measure-literal");
-
-describe("P41 T2 — the five shape rows carry `block` and skip a closed document", () => {
+describe("P41 T2 — the shape rows carry `block` and skip a closed document", () => {
   it("declares every shape row with `severity: block` and `skipWhenClosed: true`", () => {
     const byId = new Map(RULE_REGISTRY.map((row) => [row.id, row]));
     for (const id of SHAPE_RULE_IDS) {
@@ -237,57 +234,14 @@ describe("P41 T2 — the scan face is the row source's body, never the front-mat
       `slug: x-shape\n${headLine}`,
     );
 
-  it("yields zero shape findings for a measurement and a coordinate in the head", () => {
-    const content = headCarrier("note: 97 passed 第 41 行", ["判据面正文。"]);
-    expect(findingsOf(content, "measure-literal")).toEqual([]);
+  it("yields zero shape findings for a coordinate in the head", () => {
+    const content = headCarrier("note: 第 41 行", ["判据面正文。"]);
     expect(findingsOf(content, "line-coordinate")).toEqual([]);
   });
 
-  it("reports the same strings once they sit on the decision face (the pair)", () => {
-    const content = headCarrier("note: 判据面正文。", ["97 passed 与 contract/judge.ts:41"]);
-    expect(findingsOf(content, "measure-literal")).toHaveLength(1);
+  it("reports the same string once it sits on the decision face (the pair)", () => {
+    const content = headCarrier("note: 判据面正文。", ["contract/judge.ts:41"]);
     expect(findingsOf(content, "line-coordinate")).toHaveLength(1);
-  });
-});
-
-describe("P41 T2 — measure-literal: an independent integer beside a closed-set unit", () => {
-  it("reports a bare count", () => {
-    const findings = measure("本相位补了 97 passed 的用例。");
-    expect(findings).toHaveLength(1);
-    expect(findings[0]?.message).toContain("97 passed");
-  });
-
-  it("leaves the census reference form alone", () => {
-    expect(measure("计数写成 census:<id> = <n> 的形态。")).toEqual([]);
-    expect(measure("读数写成 census:pin.files = 42 files 的形态。")).toEqual([]);
-  });
-
-  it("leaves a Chinese numeral alone", () => {
-    expect(measure("豁免面共七处。")).toEqual([]);
-  });
-
-  it("leaves the fractional part of a decimal alone", () => {
-    expect(measure("覆盖 0.5 rows 的一档。")).toEqual([]);
-  });
-
-  it("leaves the number inside a dotted id alone", () => {
-    expect(measure("v1.2 rows 不是整数。")).toEqual([]);
-  });
-
-  it("leaves a bare integer whose unit is outside the closed set (the exit arm)", () => {
-    // The closed unit set IS the grammar: a number that counts widgets is outside it,
-    // so the row judges nothing there. Without this arm, widening `MEASURE_UNITS` would
-    // refuse prose the criterion never named, and no test would say so.
-    expect(measure("本相位补了 42 widgets 的一档。")).toEqual([]);
-  });
-
-  it("leaves a Chinese quantifier alone — it counts prose spans, not the tree", () => {
-    // The unit set is the tree's own measurement words. A Chinese quantifier is outside
-    // it (P42 §8 withdrew the widened set), and the pair below is the closed set's
-    // English half still reporting.
-    expect(measure("共 3 处 的改动。")).toEqual([]);
-    expect(measure("共 3 行 的改动。")).toEqual([]);
-    expect(measure("本相位补了 3 tests 的一档。")).toHaveLength(1);
   });
 });
 
@@ -354,12 +308,9 @@ describe("P41 T2 — line-coordinate: the three declared shapes", () => {
     ).toHaveLength(1);
   });
 
-  it("reports `第 N 行` once — the coordinate's integer is no measurement unit", () => {
-    // `第 N 行` is the coordinate's OWN shape; `行` is outside the measurement unit set,
-    // so the coordinate is refused once and never blamed on "a bare measurement". One
-    // fact, one rule.
+  it("reports `第 N 行` once — one shape, one finding", () => {
+    // `第 N 行` is the coordinate's own shape: the row that judges it reports it once.
     const content = designDoc(["参照第 41 行。"]);
-    expect(findingsOf(content, "measure-literal")).toEqual([]);
     expect(findingsOf(content, "line-coordinate")).toHaveLength(1);
   });
 
@@ -405,8 +356,7 @@ describe("P41 T2 — live-arithmetic: three glyphs, one verdict", () => {
 describe("P41 T2 — a present-tense description is prose, not a shape violation", () => {
   it("leaves an indicator beside a symbol alone (P42 §8 withdrew the row)", () => {
     // The present-tense row left the contract at P42 §8: a decision-face sentence that
-    // states the tree as it stands is no longer refused by any shape row. The pair below
-    // is the row that does still judge the same sentence's own shape.
+    // states the tree as it stands is no longer refused by any shape row.
     for (const line of ["今日形面 `schema get` 输出骸架。", "豁免面仍为空。"]) {
       expect(
         new Contract()
@@ -420,12 +370,10 @@ describe("P41 T2 — a present-tense description is prose, not a shape violation
           .filter((finding) => SHAPE_RULE_IDS.some((id) => id === finding.kind)),
       ).toEqual([]);
     }
-    // the pair: an English closed-set unit beside a number in the same face still reports
-    expect(measure("豁免面仍为 3 rows 的读数。")).toHaveLength(1);
   });
 });
 
-describe("P41 T2 — the three grammars judge the decision face alone", () => {
+describe("P41 T2 — the shape grammars judge the decision face alone", () => {
   it("reports an overall `## Constraints` coordinate", () => {
     const content = overallDoc(["第 41 行"], ["登记面正文。"]);
     expect(
@@ -463,14 +411,27 @@ describe("P41 T2 — the role is inherited through the heading stack", () => {
 
   it("falls to the gap verdict when the face read carries no heading stack", () => {
     // The pair: with the two-argument read the same line has no face, so the coordinate
-    // rule reports NOTHING on it and the line's only verdict is the map's gap — reported
-    // once, by the family's first row, under that row's name (never `line-coordinate`).
+    // row reports no coordinate on it and the line's only verdict is the map's gap —
+    // reported once, by the one row that carries the gate's zero-candidate arm.
     const unmapped = designDoc(["## Review Focus", "", "详见第 41 行。"]);
-    expect(findingsOf(unmapped, "line-coordinate")).toEqual([]);
-    const gaps = findingsOf(unmapped, "measure-literal");
+    const coordinates = findingsOf(unmapped, "line-coordinate").filter((finding) =>
+      finding.message.includes("line coordinate"),
+    );
+    expect(coordinates).toEqual([]);
+    // The gap is counted over the WHOLE gate, never by kind: a second producer would
+    // split the verdict across two kinds, and this read goes red on the length.
+    const gaps = new Contract()
+      .validate({
+        docKey: "phase-spec",
+        path: "docs/kairos/specs/x-shape.md",
+        content: unmapped,
+        root: "/repo",
+        fs: FS,
+      })
+      .filter((finding) => finding.message.includes("no declared face"));
     expect(gaps).toHaveLength(1);
+    expect(gaps[0]?.kind).toBe("line-coordinate");
     expect(gaps[0]?.field).toBe("## Review Focus");
-    expect(gaps[0]?.message).toContain("no declared face");
     expect(gaps[0]?.message).not.toContain("第 41 行");
   });
 });

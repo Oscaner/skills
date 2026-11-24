@@ -51,7 +51,6 @@ import {
   LinkShapeInvariant,
   ListMarkerInvariant,
   LiveArithmeticInvariant,
-  MeasureLiteralInvariant,
   PhaseDesignSpecIsPhaseSpecInvariant,
   PhaseIdUniqueInvariant,
   PresenceInvariant,
@@ -80,8 +79,9 @@ export interface RuleDeclarationBase {
   /** The tier a hit carries: `block` refuses the round, `warn` only annotates it. The
    *  value is stamped onto every finding this row produces (never filled by a strategy). */
   readonly severity: "block" | "warn";
-  /** Whether a CLOSED document exempts this row (design spec §1.4): the five shape
-   *  rules do, the long-standing structural rules do not. */
+  /** Whether a CLOSED document exempts this row (design spec §1.4): the shape rows
+   *  do, the long-standing structural rules do not. The roster of shape rows lives in
+   *  the phase spec's §4.2, never in this comment. */
   readonly skipWhenClosed: boolean;
   /** WHERE this row's judgment runs (P42 §8) — a non-empty subset of the closed set
    *  below. A doc row carries the two doc-side seats; a ledger row carries `ledger`.
@@ -118,11 +118,12 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
-/** The rule registry — doc scope 33 rows + ledger scope 2 rows = 35. The five shape
- *  rows (the three variable classes · single-home · the record face's date shape) are
- *  P41's additions; they land at `block` beside the pre-existing block rows, the flip
- *  from their transitional `warn` being the phase's own last action. P42 adds four:
- *  `single-create` (the declaration set), the two task-graph judgments
+/** The rule registry — doc scope 32 rows + ledger scope 2 rows = 34. The shape rows
+ *  (the variable classes · single-home · the record face's date shape) are P41's
+ *  additions; they land at `block` beside the pre-existing block rows, the flip from
+ *  their transitional `warn` being the phase's own last action. The roster of shape
+ *  rows, and which row carries which arm, lives in the phase spec's §4.2 — never here.
+ *  P42 adds four: `single-create` (the declaration set), the two task-graph judgments
  *  (`dangling-task-ref` · `depends-on-cycle`) and the Change-history order row
  *  (`change-history-newest-last`) — all four at `warn` until the phase's own flip.
  *
@@ -389,18 +390,11 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     skipWhenClosed: false,
     create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
   },
-  // P41's shape gate — five rows, flipped to `block` by the phase's own last action (they
-  // landed as `warn`, so no half-flipped state was ever registered). P42 §8 withdrew the
-  // sixth: a present-tense description of the tree is prose, not a shape violation.
-  {
-    scope: "doc",
-    id: "measure-literal",
-    docKeys: "all",
-    severity: "block",
-    seat: ["dispatch", "close"],
-    skipWhenClosed: true,
-    create: () => new MeasureLiteralInvariant(),
-  },
+  // P41's shape gate — the rows below, flipped to `block` by the phase's own last
+  // action (they landed as `warn`, so no half-flipped state was ever registered). P42 §8
+  // withdrew the present-tense row: a description of the tree as it stands is prose, not
+  // a shape violation. The roster of shape rows, and which row carries which arm, is the
+  // phase spec's §4.2.
   {
     scope: "doc",
     id: "line-coordinate",

@@ -14,8 +14,8 @@
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
-//                 the shape gate (P41) — measure-literal · line-coordinate ·
-//                  live-arithmetic · single-home · change-history-date-shape;
+//                 the shape gate (P41) — line-coordinate · live-arithmetic ·
+//                  single-home · change-history-date-shape;
 //   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
 //                  tasks (a `LedgerRule`, judged with the ledger fact bundle).
 // Each doc strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; each
@@ -29,7 +29,6 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
-import { CensusGate } from "./census.ts";
 import { type DocFace, type ElementRegistry, FaceMap, type RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
@@ -1944,23 +1943,6 @@ export class SingleCreateInvariant extends Invariant {
 // the shape-gate family (P41 §1.2 · §1.5 · §3.1)
 // ---------------------------------------------------------------------------
 
-/** The closed measurement-unit set of the `measure-literal` grammar (§1.2). A count
- *  unit is a WORD: a bare integer beside one of these states a measurement in prose.
- *  The closed set IS the grammar — a unit outside it is not a judgment. It holds the
- *  tree's own measurement words only: a Chinese quantifier counts prose spans rather
- *  than the tree, so it is outside the judgment and `第 N 行` stays the coordinate row's
- *  shape alone. */
-const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows"] as const;
-
-/** The `measure-literal` token grammar — an independent decimal integer, one space,
- *  one word of the closed unit set. "Independent" is the two lookarounds: a decimal's
- *  fractional part and the number inside a dotted id are not integers; "one word" is
- *  the right lookahead, which also refuses a unit embedded in a longer compound. */
-const MEASURE_LITERAL = new RegExp(
-  `(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
-  "g",
-);
-
 /** The three `line-coordinate` shapes (§1.2): `第 N 行` · `line N` · a path followed
  *  by `:N`. The third shape requires at least one LETTER before its colon: a file name
  *  carries one, a decimal ratio (`4.5:1`) does not — the colon alone does not make a
@@ -2028,8 +2010,7 @@ export class ProseLines {
 // biome-ignore lint/complexity/noStaticOnlyClass: the heading-stack prose walk is a declared static reader set — the repo's zero-bare-function discipline admits no standalone walker.
 class ProseWalk {
   /** Every non-blank prose line of the judged body with its face role — the ONE
-   *  heading-stack advance behind the three shape grammars and the shared sentence
-   *  read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
+   *  heading-stack advance behind the shape grammars and the shared sentence read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
    *  innermost-first, so a `#### 7.5.1` item inherits the role of the `### 7.` group
    *  above it. */
   static of(ctx: JudgeContext): readonly ProseLineRecord[] {
@@ -2064,7 +2045,7 @@ class ProseWalk {
 
 // biome-ignore lint/complexity/noStaticOnlyClass: the shared shape-rule frame is a declared static walk frame — the repo's zero-bare-function discipline admits no standalone frame.
 class ProseFace {
-  /** The shared evaluation frame of the three shape grammars: only a DECISION-face
+  /** The shared evaluation frame of the shape grammars: only a DECISION-face
    *  line is judged. A line whose heading the map cannot place is not a token question — it
    *  is the map's own gap, reported once by `gaps()`. */
   static judge(
@@ -2081,10 +2062,10 @@ class ProseFace {
 
   /** The gap verdict — ONE finding per heading the map cannot place (the `unmapped`
    *  face cannot be judged for a token, so the gap itself is the verdict, never a
-   *  silence). It is produced by the family's first row alone: the gap is a property of
-   *  the face, so the same gap under three grammars must not report three times, and the
-   *  reporting row has to be a declared one — a kind no declaration owns would leave the
-   *  `checked:` face with a finding no row accounts for. */
+   *  silence). It is produced by ONE row of the shape gate: the gap is a property of
+   *  the face, so the same gap under every grammar must not report once per grammar,
+   *  and the reporting row has to be a declared one — a kind no declaration owns would
+   *  leave the `checked:` face with a finding no row accounts for. */
   static gaps(ctx: JudgeContext, kind: string): FindingDraft[] {
     const findings: FindingDraft[] = [];
     const reported = new Set<string>();
@@ -2110,66 +2091,19 @@ class ProseFace {
   }
 }
 
-/** measure-literal — the decision face states no bare count (P41 §1.2). A count is
- *  legal in exactly one form: a `census:<id> = <n>` reference, whose shape this rule
- *  reads through `CensusGate.referencesOf`. The grammar is a token shape, never a
- *  semantic class: the rule has no classifier for "is this claim about the live
- *  tree", so the shape itself is the judgment. */
-export class MeasureLiteralInvariant extends Invariant {
-  readonly name = "measure-literal";
-
-  evaluate(ctx: JudgeContext): FindingDraft[] {
-    // The family's first row owns the map's gap verdict (one gap, one finding — see
-    // `ProseFace.gaps`), so the other three grammars judge the decision face alone.
-    return [
-      ...ProseFace.gaps(ctx, this.name),
-      ...ProseFace.judge(ctx, (record) => this.#literalsOf(ctx, record)),
-    ];
-  }
-
-  /** The bare literals of one decision-face line — a `census` reference's own number
-   *  is the reference, not a bare count (the span read rides `CensusGate`'s grammar). */
-  #literalsOf(ctx: JudgeContext, record: ProseLineRecord): FindingDraft[] {
-    const findings: FindingDraft[] = [];
-    const references = MeasureLiteralInvariant.#referenceSpans(record.blanked, ctx.path);
-    for (const match of record.blanked.matchAll(MEASURE_LITERAL)) {
-      const at = match.index ?? 0;
-      // The integer's POSITION is the read: a unit written right after a census
-      // reference's number still belongs to that reference.
-      if (references.some((span) => at >= span.from && at < span.to)) continue;
-      findings.push(
-        this.finding(
-          ctx,
-          ProseFace.fieldOf(record),
-          `the decision face states a bare measurement: ${match[0]}`,
-          "state the count as census:<id> = <n> (the census registry supplies the value) or drop the number",
-        ),
-      );
-    }
-    return findings;
-  }
-
-  /** The `census:<id> = <n>` spans of one line — read through the gate's own reference
-   *  grammar, so an illegal form is prose about the form and carries no span. */
-  static #referenceSpans(line: string, source: string): readonly { from: number; to: number }[] {
-    const spans: { from: number; to: number }[] = [];
-    let cursor = 0;
-    for (const reference of CensusGate.referencesOf(line, source)) {
-      const at = line.indexOf(reference.text, cursor);
-      if (at === -1) continue;
-      spans.push({ from: at, to: at + reference.text.length });
-      cursor = at + reference.text.length;
-    }
-    return spans;
-  }
-}
-
 /** line-coordinate — the decision face cites no line number (P41 §1.2). A claim
- *  cites a module path plus a symbol name; a line coordinate is not a pin. */
+ *  cites a module path plus a symbol name; a line coordinate is not a pin. The row
+ *  also carries the shape gate's ONE zero-candidate arm: a document whose face map
+ *  places nothing is reported as the gap, never read as a clean document. */
 export class LineCoordinateInvariant extends Invariant {
   readonly name = "line-coordinate";
 
   evaluate(ctx: JudgeContext): FindingDraft[] {
+    return [...ProseFace.gaps(ctx, this.name), ...this.#coordinatesOf(ctx)];
+  }
+
+  /** The line coordinates of every decision-face line. */
+  #coordinatesOf(ctx: JudgeContext): FindingDraft[] {
     return ProseFace.judge(ctx, (record) => {
       const findings: FindingDraft[] = [];
       for (const pattern of LINE_COORDINATES) {

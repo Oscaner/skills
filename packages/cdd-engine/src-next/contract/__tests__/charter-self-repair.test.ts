@@ -1,16 +1,13 @@
 // packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts
-// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the five
-// shape rules into `block` rows, and an overall's five decision sections would then
-// refuse a charter that states the tree as it stands instead of the condition it keeps.
-// The delivery is two families at zero, not one:
+// P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the
+// shape rows into `block` rows, and an overall's decision sections would then refuse a
+// charter that states the tree as it stands instead of the condition it keeps.
+// `single-home` reports nothing on the repaired charter — its right domain holds the
+// phase documents, which repeat the charter's gate / release / backfill sentences, so the
+// charter states each of those once as a POINTER at its holder.
 //
-//   · the measurement grammar (`measure-literal`) reports nothing on the five sections;
-//   · `single-home` reports nothing on the charter — its right domain holds the phase
-//     documents, which repeat the charter's gate / release / backfill sentences, so the
-//     charter states each of those once as a POINTER at its holder.
-//
-// `## Phase inventory` is the REGISTRATION face, never a third family: its P41 row carries
-// the same two domain narrowings as the phase spec (`Scope ③` measures prose,
+// `## Phase inventory` is the REGISTRATION face, never a family of its own: its P41 row
+// carries the same two domain narrowings as the phase spec (`Scope ③` measures prose,
 // `Acceptance ⑥` skips work items), so the registration states the criterion the
 // implementation writes. It is read where it is registered, not counted as a family.
 //
@@ -18,13 +15,13 @@
 // charter (`charterBody`), and `single-home`'s right domain is a fixture corpus delivered
 // through the judge context's filesystem seam (`MemoryFs`), so no arm reads the repository's
 // own document tree and a renamed or reworded document out there can never redden this file.
-// Every arm names the sentence it reads, and each carries its counter-arm: the original
-// wording reported (the measurement grammar) · a grammar-clean copy that keeps the
-// duplicated sentences still refused (single-home) · the pointers themselves passing · a
-// labelled restatement beside the pointer caught (the same home twice) · a copy that keeps
-// ONLY the backfill family named by its holders · a holder muted in the corpus dropping out
-// of that naming · an empty corpus reporting nothing, so the greenness is the fixture's and
-// never the tree's · an unplaceable heading reported as the face map's gap.
+// Every arm names the sentence it reads, and each carries its counter-arm: a copy that
+// keeps the duplicated sentences still refused (single-home) · the pointers themselves
+// passing · a labelled restatement beside the pointer caught (the same home twice) · a
+// copy that keeps ONLY the backfill family named by its holders · a holder muted in the
+// corpus dropping out of that naming · an empty corpus reporting nothing, so the
+// greenness is the fixture's and never the tree's · an unplaceable heading reported as the
+// face map's gap, by `line-coordinate` — the row that owns the gate's zero-candidate arm.
 
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -57,38 +54,6 @@ const OVERALL_HEAD = [
 const charterBody = (sections: readonly (readonly [string, readonly string[]])[]): string =>
   [OVERALL_HEAD, ...sections.flatMap(([heading, lines]) => [heading, "", ...lines, ""])].join("\n");
 
-/** The original sentences — the pre-repair charter's own wording, one carrier line per
- *  reported hit, so the counter-arm counts what the five sections used to say. The
- *  measurement carrier states its count in the closed measurement set: the Chinese
- *  quantifier the charter actually wrote left the grammar at P42 §8, and a verbatim
- *  carrier would stop reporting the family this arm exists to read. */
-const ORIGINAL_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
-  ["### Goal", ["② 写文档方案重设计（骨架生成 · 今日形面 `schema get --output skeleton`）"]],
-  [
-    "### Non-goals",
-    [
-      "- **引擎行为变化在册**：动词清单读 `face/declare.ts#CLI_COMMANDS`（今日八命令：implement · review · fix · base · schema · issue · board · init），运行时依赖读 `package.json#dependencies`（13 rows in that file：`commander` · `yaml`）",
-    ],
-  ],
-  [
-    "### Cross-cutting",
-    ["- **CLAUDE.md pin 修订先行**：例外面扩骨架生成面（今日落在 `schema get --output skeleton`）"],
-  ],
-  [
-    "## Boundary rules",
-    [
-      "- **模板结构保真**：骨架（今日形面 `schema get <type> --output skeleton <target>`）= declare.ts 派生",
-    ],
-  ],
-  [
-    "## Constraints",
-    [
-      "- **今日例外面按声明面读**（`face/declare.ts#CLI_COMMANDS`）：`schema get` · `issue render`",
-      "- P2 定案：骨架渲染落盘由编排器承担（注册期形面 `cdd schema gen phase-spec` · 今日形面 `cdd schema get phase-spec --output skeleton <target>`）",
-    ],
-  ],
-];
-
 /** The three duplicated criteria as the charter used to state them — verbatim copies of
  *  the sentences the phase documents hold. */
 const GATE_CRITERION =
@@ -108,7 +73,7 @@ const RELEASE_POINTER =
 const BACKFILL_POINTER =
   "- 回填纪律住 `specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`";
 
-/** The repaired five sections — the shape the charter carries. */
+/** The repaired sections — the shape the charter carries. */
 const REPAIRED_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
   [
     "### Goal",
@@ -214,28 +179,19 @@ const singleHomeOf = (body: string, fs: DocFs = corpusOf()) =>
   findingsOf(body, fs).filter((finding) => finding.kind === "single-home");
 
 describe("P41 T7 — the charter states conditions, not the tree as it stands", () => {
-  it("reports the original wording: one bare measurement", () => {
-    const kinds = kindsOf(charterBody(ORIGINAL_SECTIONS));
-    expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(1);
-  });
-
-  it("still reports a grammar-clean copy that keeps the three duplicated criteria (single-home)", () => {
+  it("still reports a copy that keeps the three duplicated criteria (single-home)", () => {
     const duplicated = REPAIRED_SECTIONS.map(([heading, lines]) =>
       heading === "### Cross-cutting"
         ? ([heading, [GATE_POINTER, GATE_CRITERION, RELEASE_CRITERION]] as const)
         : ([heading, lines] as const),
     );
     const kinds = kindsOf(charterBody([...duplicated, ["## Constraints", [BACKFILL_CRITERION]]]));
-    // The measurement grammar is silent on this copy — the refusal is the missing home,
-    // not a token shape.
-    expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
     expect(kinds.filter((kind) => kind === "single-home").length).toBeGreaterThanOrEqual(1);
   });
 
   it("passes the repaired pointers themselves", () => {
     const kinds = kindsOf(charterBody(REPAIRED_SECTIONS));
     expect(kinds.filter((kind) => kind === "single-home")).toHaveLength(0);
-    expect(kinds.filter((kind) => kind === "measure-literal")).toHaveLength(0);
   });
 
   it("catches a labelled restatement beside the pointer (the same home twice)", () => {
@@ -265,21 +221,19 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
         `the backfill family names its ${neighbour} holder`,
       ).toBe(true);
     }
-    // The measurement grammar stays silent — the refusal is the missing home, never a token.
-    expect(findings.filter((finding) => finding.kind === "measure-literal")).toHaveLength(0);
   });
 });
 
 describe("P41 T7 — the charter's gaps are measured on its fixture", () => {
-  // P42 T9 — the candidate reading of the `measure-literal` family: "zero findings" is
-  // true of a clean charter and of a face map that never ran, so the gap is measured on
-  // the same synthetic carrier the arms above read.
-  it("reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence", () => {
+  // P42 T9 — the gate's zero-candidate reading, carried by `line-coordinate` since the
+  // count row retired: "zero findings" is true of a clean charter and of a face map that
+  // never ran, so the gap is measured on the same synthetic carrier the arms above read.
+  it("reads the gap arm's candidate face — an unplaceable heading is a gap, not a silence", () => {
     const gapsOf = (body: string): readonly string[] =>
       findingsOf(body)
         .filter(
           (finding) =>
-            finding.kind === "measure-literal" && finding.message.includes("no declared face"),
+            finding.kind === "line-coordinate" && finding.message.includes("no declared face"),
         )
         .map((finding) => finding.field ?? "");
     /** The five repaired sections plus one registered decision face to move. */

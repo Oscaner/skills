@@ -12984,12 +12984,12 @@ describe("P41 T5 — the command boundary drops every per-root snapshot", () => 
       writeFileSync(charter, charterBody(true), "utf8");
       const argv = ["review", "--type", "phase-spec", "--spec", spec, "--dry-run"];
       expect(await command.runArgv(argv)).toBe(0);
-      expect(io.stderrText).toContain("measure-literal: skipped (closed document)");
+      expect(io.stderrText).toContain("line-coordinate: skipped (closed document)");
       writeFileSync(charter, charterBody(false), "utf8");
       io.stderrText = "";
       expect(await command.runArgv(argv)).toBe(0);
-      expect(io.stderrText).toContain("measure-literal: passed");
-      expect(io.stderrText).not.toContain("measure-literal: skipped (closed document)");
+      expect(io.stderrText).toContain("line-coordinate: passed");
+      expect(io.stderrText).not.toContain("line-coordinate: skipped (closed document)");
     } finally {
       cleanup();
     }

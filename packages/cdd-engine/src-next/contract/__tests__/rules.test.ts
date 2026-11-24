@@ -48,14 +48,6 @@ const HARDENED_RULE_IDS = [
 ] as const;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 35 rows: 33 doc-scope + 2 ledger-scope", () => {
-    const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
-    const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(35);
-    expect(doc).toHaveLength(33);
-    expect(ledger).toHaveLength(2);
-  });
-
   it("keeps the class comment's counts equal to the table's own lengths — computed, never grepped", () => {
     // The comment's spelling (`doc scope … rows + ledger scope … rows = …`) differs
     // from this file's title spelling, so no literal grep holds either tree; the
@@ -161,7 +153,6 @@ const SEATS: Readonly<Record<string, readonly string[]>> = {
   "dangling-task-ref": ["dispatch", "close"],
   "depends-on-cycle": ["dispatch", "close"],
   "phase-design-spec-is-phase-spec": ["dispatch", "close"],
-  "measure-literal": ["dispatch", "close"],
   "line-coordinate": ["dispatch", "close"],
   "live-arithmetic": ["dispatch", "close"],
   "single-home": ["dispatch", "close"],
@@ -173,8 +164,8 @@ const SEATS: Readonly<Record<string, readonly string[]>> = {
 describe("seat — the closed vocabulary of a row's judgment face (P42 §8)", () => {
   const SEAT_VOCABULARY = ["dispatch", "close", "ledger"] as const;
 
-  it("declares exactly 35 per-id seats — the same row set the registry carries", () => {
-    expect(Object.keys(SEATS)).toHaveLength(35);
+  it("declares one seat per row — the hand-written table against the registry's own length", () => {
+    expect(Object.keys(SEATS)).toHaveLength(RULE_REGISTRY.length);
     expect(Object.keys(SEATS).sort()).toEqual(RULE_REGISTRY.map((row) => row.id).sort());
   });
 

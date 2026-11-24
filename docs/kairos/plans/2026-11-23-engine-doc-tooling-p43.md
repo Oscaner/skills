@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.17
+version: v0.18
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -365,6 +365,8 @@ Task 6
 #### Objective
 把 `contract/__tests__/selector-coverage.test.ts` 的夹具从本仓文档换成按四种 doc-type 各一份的合成合规文档（住 `contract/__tests__/fixtures/`），判定与格题一字不改。合成文档必须过 doc-contract（与消费者文档同判，无豁免），字段名与结构由四种类型的骨架派生。判定的**右域**同批收进夹具：`single-home` 扫的邻域经判定上下文的 `fs` 缝注入本文件自持的内存语料（`__tests__/support/memory-fs.ts` 的 `MemoryFs`，其余三份载体按各自 doc-type 的 doc root 挂载、各带自己的 slug），于是「零 finding」是本文件写下的语料的性质，而不是本仓 `docs/kairos/**` 的性质。
 
+同一文件的**文件头**也在本任务的写集里：那句点明四张登记表总体规模的括注数目，读的正是 `declaredRegistries[type].elements.length` 的合计——与判定自己在两处断言里量的总体同源——而不是落笔那一刻抄下的旧读数。判定与格题仍一字不改，改的只是文件头对同一个总体的点名。
+
 #### Files
 - Create: `packages/cdd-engine/src-next/contract/__tests__/fixtures/phase-spec.md`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/fixtures/overall.md`
@@ -381,15 +383,17 @@ Task 6
 - 四份合成合规文档，各过 doc-contract 零 finding
 - `selector-coverage.test.ts` 读合成物料；三条成对臂成立（删一条 selector 即红 · 新增 selector 不给表达面即红 · 改错一份合成物料的字段名即红）
 - 判定的右域住本文件：`single-home` 的邻域是注入的内存语料（其余三份载体），全文件零处把判定指向 checkout；把一份载体的判据句写进语料里另一份 ⇒ 读那一格红，语料原样 ⇒ 零 finding
+- 文件头的总体数与判定同源：文件头那句 `the four registries (… rows)` 的括注数目等于四类 `declaredRegistries[type].elements.length` 的合计，与同文件断言正在量的总体是同一个数；把括注写成一个与合计不符的邻值 ⇒ 该臂红
 
 #### Steps
 - 生成四份合成物料并自证 — checkable: 对四份各跑一次 doc-contract，零 finding
 - 把 `selector-coverage` 的夹具指向它们 — checkable: 每表每 selector 在各自类型的物料上解析成功；把一份物料的字段名改错 ⇒ 该臂红
 - 把右域收进内存语料 — checkable: 该文件的全契约臂与 domain 臂都带 `fs` 注入（`root` 仍指仓库根，只作路径坐标），临时在 `docs/kairos/**` 下放一份写着某载体判据句的文档 ⇒ 该套件照旧全绿；把同一句写进注入的语料里另一份 ⇒ `single-home` 那一格红
+- 让文件头的总体数与判定同源 — checkable: 先按四类 `declaredRegistries[type].elements.length` 求出合计，再读文件头括注里的数目，两者相等；把括注里的数目写成一个与合计不符的邻值 ⇒ 该臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `test(p43):` 起头
 
 #### Acceptance
-selector 的解析证明不再依赖本仓文档，且物料自己在判据之下；删一条 selector 仍能红。
+selector 的解析证明不再依赖本仓文档，且物料自己在判据之下；文件头的总体数与判定自己量的合计同源；删一条 selector 仍能红。
 
 #### DependsOn
 Task 6
@@ -444,3 +448,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.15 | 2026-11-24 | **按 branch 评审轮二的 F1 裁定修正（Task 6 面，结构面未动）**：`charter-self-repair.test.ts` 里那条「只留回填家族」的 `single-home` 臂不再拿本仓 `docs/kairos/**` 当真语料——它的右域改由判定上下文的 `fs` 缝注入本文件自建的语料，`MemoryFs` 收成 `__tests__/support/memory-fs.ts` 一处实现（`single-home.test.ts` 的本地同类同批改用），臂的文件头与成对红同批落笔（改夹具一处句子 ⇒ 该家族少点名一位持有者 · 空语料 ⇒ 零 finding）；Task 6 的 Objective · 步骤一可判与 Files 同批对齐（新增 `Create:` 一行与 `single-home.test.ts` 的 `Modify:` 一行） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.16 | 2026-11-24 | **按 plan 评审轮十一的 F1 修正（Task 5 面，结构面未动）**：`contract/invariants.ts` 上 `MeasureLiteralInvariant` 的类段注随比较机器收口——那句「登记表供给 · `CensusGate` 比对」改读成经 `CensusGate.referencesOf` 读引用形状（`d22318b2` 的散文改写随之入账，此前 Task 4 已为它自己的散文半立过同一先例）；Task 5 的 `Modify:` 行就地署上它的写面，Objective · Produces 与 Acceptance 同批落笔，并新增一步按 `compared by` 与 `supplied by the census` 零命中判，成对为「段注写回 ⇒ 散文半红而符号半绿」与「登记表写回 ⇒ 符号半红而散文半绿」两向 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.17 | 2026-11-24 | **按 branch 评审轮三的 F1–F2 裁定修正（Task 9 与 Task 2 两任务面，结构面未动）**：Task 9 的右域收进夹具——`selector-coverage.test.ts` 的判定不再以 `root: REPO_ROOT` + 默认 `NodeFs` 扫本仓 `docs/kairos/**`，`single-home` 的邻域改经 `fs` 缝注入本文件自持的内存语料（`__tests__/support/memory-fs.ts` 的 `MemoryFs`，其余三份载体按各自 doc-type 的 doc root 挂载且各带自己的 slug——同 slug 的兄弟被该规则按设计跳过，停在骨架的 `:::fill slug` 上会什么也对比不到），Objective · Produces 与新增的一步同批落笔，成对为「语料里写进一份载体的判据句 ⇒ 那一格红」与「checkout 里临时放一份同句文档 ⇒ 套件照旧全绿」；Task 2 的 Produces 补上宪章 Phase inventory 行的栅栏读者一格（改读当时名为 `PinSpans` 的四个公开成员，与 spec §2.1 · Task 1 · v4.63 行同构） | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.18 | 2026-11-24 | **按 plan 评审轮十二的 F1 修正（Task 9 面，结构面未动）**：`selector-coverage.test.ts` 的文件头括注在 `7346cc12` 之后停在旧读数——同文件两处断言与其上那条 `all … elements` 的题目量的都是四类登记表的合计，文件头却不再与它同源，而计划里没有一行署这个括注；Task 9 的 Objective · Produces · Steps 与 Acceptance 同批落笔：括注的数目与 `declaredRegistries[type].elements.length` 的合计同源，成对判据为「括注写成一个与合计不符的邻值 ⇒ 该臂红」 | Oscaner M. · Claude（kairos:cdd-docs-fix） |

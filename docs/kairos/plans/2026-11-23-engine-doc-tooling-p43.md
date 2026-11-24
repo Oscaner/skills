@@ -493,7 +493,7 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 形状门只按 `RULE_REGISTRY` 里留下的形状行在册、各自可红，整门的零候选臂仍有一条且由 `line-coordinate` 承担（一份文档的脸读不出任何声明面时报一条 kind 为 `line-coordinate` 的缺口 finding，同一份正文放到已登记的小标题下则沉默）；`census:` 不再有任何读者，处置面上该 id 的读取为零，教学面四处与探针同句且不红在一条已不在树上的规则上；changeset 与 `selector-coverage.test.ts` 两处补写就位；`pnpm run validate` exit 0。
 
 #### DependsOn
-Task 4, Task 5
+Task 4, Task 5, Task 10
 
 ## Change history
 

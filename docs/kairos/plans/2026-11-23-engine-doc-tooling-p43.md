@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.18
+version: v0.19
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -427,6 +427,44 @@ Task 6
 #### DependsOn
 Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 
+### Task 11: `measure-literal` 整条退出
+
+#### Objective
+分支终评之后追加的工作项（用户裁定）：登记表随 `pin.*` 四行退役之后，`measure-literal` 要求的 `census:` 形态已无人比对——写一个荒唐的值也过——而实测里出错的一直是「数对不上指称物」那一类（数字改了枚举没改 · 文件头的种群计数过期 · 历史行的读数被当活引用），它一条都抓不到。要求形态而无值可核的规则与 pin 门同族，故整条退出：`contract/invariants.ts` 的 `MeasureLiteralInvariant` 与它的 token 文法、量词词表一并删除；`contract/rules.ts` 的规则行删除；`contract/census.ts` 整个模块随它唯一的读者消失；`contract/__tests__/census-grammar.test.ts` 删除。P41 的形状门从六条收成五条，其余五条一字不动。
+
+已闭合文档里的 `census:` 声明不做任何迁移：没有判据读它们，也就没有「与登记面不符」这回事。文档里的测量数字从此只剩写作纪律与评审，这是 spec §4.2 登记的代价。
+
+#### Files
+- Delete: `packages/cdd-engine/src-next/contract/census.ts`
+- Delete: `packages/cdd-engine/src-next/contract/__tests__/census-grammar.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/shape-rules.test.ts`
+
+#### Consumes
+- `contract/rules.ts#RULE_REGISTRY` 的 `measure-literal` 行（登记面的删除对象）
+- `contract/invariants.ts#MeasureLiteralInvariant` 与其 token 文法、量词词表（判据本体）
+- `contract/__tests__/shape-rules.test.ts` 的 `measure-literal` 臂与 `contract/__tests__/rules.test.ts` 的 id 字面表（两条夹具面）
+
+#### Produces
+- `contract/census.ts` 从树上消失；`contract/invariants.ts` 上 `CensusGate` 与 `measure-literal` 零命中
+- `RULE_REGISTRY` 的 doc 规则少一行，字面表与登记面同批收准
+- `shape-rules.test.ts` 只余五条形状规则的臂，且各自可红
+- 全树没有一条判据读 `census:` 形态
+
+#### Steps
+- 删规则行与判据本体 — checkable: `grep -rn "measure-literal" packages/cdd-engine/src-next` 零命中；`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- 删 `census.ts` 与文法夹具 — checkable: 两个路径不存在；全树 `CensusGate` 零命中（成对：把 `referencesOf` 的任何调用加回 ⇒ 该 grep 红，因为模块已不在）
+- 收准字面表与其余五臂 — checkable: `rules.test.ts` 的 id 表等于登记面的实际行数；`shape-rules.test.ts` 的五条臂各自可红（成对：删任一条臂的违规夹具 ⇒ 该条失去执行面，字面表的 drop 臂红）
+- 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
+
+#### Acceptance
+形状门在册五条、各自可红；`census:` 不再有任何读者；`pnpm run validate` exit 0。
+
+#### DependsOn
+Task 4, Task 5
+
 ## Change history
 
 | Version | date | summary | author |
@@ -449,3 +487,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.16 | 2026-11-24 | **按 plan 评审轮十一的 F1 修正（Task 5 面，结构面未动）**：`contract/invariants.ts` 上 `MeasureLiteralInvariant` 的类段注随比较机器收口——那句「登记表供给 · `CensusGate` 比对」改读成经 `CensusGate.referencesOf` 读引用形状（`d22318b2` 的散文改写随之入账，此前 Task 4 已为它自己的散文半立过同一先例）；Task 5 的 `Modify:` 行就地署上它的写面，Objective · Produces 与 Acceptance 同批落笔，并新增一步按 `compared by` 与 `supplied by the census` 零命中判，成对为「段注写回 ⇒ 散文半红而符号半绿」与「登记表写回 ⇒ 符号半红而散文半绿」两向 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.17 | 2026-11-24 | **按 branch 评审轮三的 F1–F2 裁定修正（Task 9 与 Task 2 两任务面，结构面未动）**：Task 9 的右域收进夹具——`selector-coverage.test.ts` 的判定不再以 `root: REPO_ROOT` + 默认 `NodeFs` 扫本仓 `docs/kairos/**`，`single-home` 的邻域改经 `fs` 缝注入本文件自持的内存语料（`__tests__/support/memory-fs.ts` 的 `MemoryFs`，其余三份载体按各自 doc-type 的 doc root 挂载且各带自己的 slug——同 slug 的兄弟被该规则按设计跳过，停在骨架的 `:::fill slug` 上会什么也对比不到），Objective · Produces 与新增的一步同批落笔，成对为「语料里写进一份载体的判据句 ⇒ 那一格红」与「checkout 里临时放一份同句文档 ⇒ 套件照旧全绿」；Task 2 的 Produces 补上宪章 Phase inventory 行的栅栏读者一格（改读当时名为 `PinSpans` 的四个公开成员，与 spec §2.1 · Task 1 · v4.63 行同构） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.18 | 2026-11-24 | **按 plan 评审轮十二的 F1 修正（Task 9 面，结构面未动）**：`selector-coverage.test.ts` 的文件头括注在 `7346cc12` 之后停在旧读数——同文件两处断言与其上那条 `all … elements` 的题目量的都是四类登记表的合计，文件头却不再与它同源，而计划里没有一行署这个括注；Task 9 的 Objective · Produces · Steps 与 Acceptance 同批落笔：括注的数目与 `declaredRegistries[type].elements.length` 的合计同源，成对判据为「括注写成一个与合计不符的邻值 ⇒ 该臂红」 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.19 | 2026-11-23 | **追加 Task 11（分支终评后用户裁定）**：`measure-literal` 整条退出——规则行 · 判据本体 · `census.ts` 整模块 · 文法夹具全批下线，P41 形状门收成五条；已闭合文档的 `census:` 声明不迁移（无读者）。`DependsOn` 只指向已闭合的 Task 4 / Task 5，引擎据此派生新波。 | Oscaner M. · Claude（kairos:cdd-dev） |

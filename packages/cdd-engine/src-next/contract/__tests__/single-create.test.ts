@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { DocFs } from "../invariants.ts";
 import { Contract } from "../judge.ts";
-import { PinVocabulary } from "../pins.ts";
+import { PathShape } from "../shape-rules.ts";
 import { PlanTaskBlocksReader, type TaskBlock } from "../task-blocks.ts";
 
 /** The repo root — the plan corpus this rule is acceptance-judged on. */
@@ -162,7 +162,7 @@ describe("P42 T4 — the `Files` row grammar and its dialect projection", () => 
 describe("P42 T4 — the path shape filter", () => {
   it("counts only path-shaped tokens — a placeholder, a bare word and a member claim nothing", () => {
     for (const token of ["<slug>", "someword", "session/ledger.ts#Round"]) {
-      expect(PinVocabulary.pathOf(token)).toBeNull();
+      expect(PathShape.pathOf(token)).toBeNull();
     }
     expect(
       singleCreateOf([

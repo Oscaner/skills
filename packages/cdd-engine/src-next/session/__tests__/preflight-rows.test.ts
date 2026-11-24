@@ -31,6 +31,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { CarrierLine } from "../../contract/carrier-line.ts";
+import { ClosedDocument } from "../../contract/closed-document.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import {
   type DocFs,
@@ -40,7 +41,6 @@ import {
   NodeFs,
 } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
-import { PinAudit } from "../../contract/pins.ts";
 import type { ArtifactSnapshot, ArtifactSnapshotRead } from "../../contract/preflight-rows.ts";
 import type { DocKey } from "../../contract/project.ts";
 import type { DocRuleDeclaration } from "../../contract/rules.ts";
@@ -57,6 +57,7 @@ import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
 import type { RepoPath } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TemplateAssembler } from "../../render/templates.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
@@ -957,9 +958,9 @@ describe("PreFlight — the shape tiers and the closed-document exemption (P41 T
         "docs/kairos/overalls/x-charter.md",
         charterOf("x-charter", doneCell("x-shape-design.md"), "[Pending]"),
       );
-      const audit = new PinAudit(fixture.repo);
+      const closed = new ClosedDocument(SlugIndex.build(fixture.repo));
       const verdict = await shapeSeamOf(shapeRegistryOf("warn"), (target) =>
-        audit.provenClosed(target),
+        closed.closed(target),
       ).vet(docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }));
       expect(verdict.ok).toBe(true);
       // The six shape rows never ran: `passed` would testify for a rule that judged
@@ -989,9 +990,9 @@ describe("PreFlight — the shape tiers and the closed-document exemption (P41 T
         "docs/kairos/overalls/x-charter.md",
         charterOf("x-charter", "[Pending]", doneCell("x-shape-design.md")),
       );
-      const audit = new PinAudit(fixture.repo);
+      const closed = new ClosedDocument(SlugIndex.build(fixture.repo));
       const verdict = await shapeSeamOf(shapeRegistryOf("warn"), (target) =>
-        audit.provenClosed(target),
+        closed.closed(target),
       ).vet(docFaceCtxOf(fixture, { type: "phase-spec", docKey: "phase-spec", rel }));
       expect(verdict.ok).toBe(false);
       expect(verdict.checked).toContain("open-block: failed");
@@ -1098,8 +1099,8 @@ describe("PreFlight — the shape tiers and the closed-document exemption (P41 T
         "docs/kairos/overalls/x-charter.md",
         charterOf("x-charter", doneCell("x-single.md"), doneCell("x-single.md")),
       );
-      const audit = new PinAudit(fixture.repo);
-      const closed = await shapeSeamOf(registry, (target) => audit.provenClosed(target)).vet(
+      const reader = new ClosedDocument(SlugIndex.build(fixture.repo));
+      const closed = await shapeSeamOf(registry, (target) => reader.closed(target)).vet(
         docFaceCtxOf(fixture, { type: "single-spec", docKey: "single-spec", rel }),
       );
       expect(closed.ok).toBe(true);

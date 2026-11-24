@@ -74,8 +74,11 @@ import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
-import { type ChainPhase, docTypeParsers, type OverallParsed } from "./doc.ts";
+import { ClosedDocument } from "./closed-document.ts";
+import { docTypeParsers, type OverallParsed } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
+import { ProseSpans } from "./markdown-spans.ts";
+import { PathShape } from "./shape-rules.ts";
 
 /** Which of the three pin shapes failed to resolve (§7.1). A member reference is
  *  reported as `symbol` — it is that shape written across two halves. */
@@ -92,13 +95,6 @@ export interface PinFinding {
   readonly source: string;
   /** The one-sentence summary the round injects — it names the dead pin and why. */
   readonly summary: string;
-}
-
-/** One path-shaped pin: the path plus the optional line / range it names. */
-export interface PinPath {
-  readonly path: string;
-  readonly firstLine?: number;
-  readonly lastLine?: number;
 }
 
 /** One test-title pin: the test file plus the title it must contain. */
@@ -162,32 +158,6 @@ interface DocHead {
   readonly body: string;
 }
 
-/** The ONE reading of a `✔ Done（`file` · date）` cell: the file name the cell writes,
- *  resolved by `path.basename` against the indexed documents. `absent` is no
- *  registration at all; `unique` is exactly one indexed document; `ambiguous` is zero
- *  or several. The two readers apply their own polarity to the raw reading — the pin
- *  face (`#closedBy`) counts `ambiguous` as closed, because a dead `✔ Done` row must
- *  not buy a silent pin skip; the shape gate (`provenClosed`) closes only on `unique`
- *  naming the judged document, so it never inherits that tolerance. */
-type CellResolution =
-  | { readonly kind: "absent" }
-  | { readonly kind: "unique"; readonly head: DocHead }
-  | { readonly kind: "ambiguous" };
-
-/** One Phase-inventory row's two named cells, read through that one grammar. The names
- *  are kept apart because the two readers surface different cells: the shape gate asks
- *  both (a spec and its plan are two faces of one registration), the pin face asks the
- *  plan cell alone. */
-interface NamedCells {
-  readonly design: CellResolution;
-  readonly plan: CellResolution;
-}
-
-/** The `✔ Done（`file` · date）` grammar — the registration form both named cells of a
- *  Phase-inventory row write, read here ONCE so a later change to the form moves one
- *  regex rather than two readers. */
-const DONE_CELL = /✔ Done（`(?<file>[^`]+)`/;
-
 /** The retired workspace name that no matrix row owns any more — vocabulary, never a
  *  coordinate (§7.1 exclusion ②). Every LIVE artifact name is answered by the matrix
  *  itself (`ArtifactRegistry.ownsName`), so this set stays a list of names the tree no
@@ -197,28 +167,6 @@ const RETIRED_PRODUCT_NAMES: ReadonlySet<string> = new Set(["liveness.json"]);
 /** The template vocabulary — excluded only when the token IS the entry (§7.1): a real
  *  `docs/kairos/specs/<slug>-overall.md` is still a judged path. */
 const TEMPLATE_WORDS: ReadonlySet<string> = new Set(["X.md", "-overall.md", "-design.md"]);
-
-/** The extensions a SEPARATOR-LESS token must carry to be a path — a dotted member name
- *  (`process.env` · `HOSTS.env`) is a symbol, not a file. A token carrying `/` is a path
- *  whatever its extension: the separator already says it names a location, so an asset
- *  coordinate (`docs/diagrams/src/architecture.png`) is judged rather than slipping into
- *  prose. */
-const FILE_EXTENSIONS: ReadonlySet<string> = new Set([
-  "ts",
-  "tsx",
-  "js",
-  "mjs",
-  "cjs",
-  "json",
-  "md",
-  "yml",
-  "yaml",
-  "sh",
-  "toml",
-  "txt",
-  "css",
-  "html",
-]);
 
 /** The directories a walk never descends into — build output, VCS internals and the
  *  machine-local workspace products name no pin (and reading them would let a local
@@ -289,56 +237,9 @@ export class PinVocabulary {
     return RETIRED_PRODUCT_NAMES.has(base) || ArtifactRegistry.ownsName(base);
   }
 
-  /** The placeholder metacharacters — a token carrying one is a PATTERN, and a pattern
-   *  is none of the three shapes: `*-overall.md` names a family, `<slug>-design.md`
-   *  names a rule for deriving a path. Neither is a coordinate a reader can follow. */
-  static isPattern(token: string): boolean {
-    return /[*<>{}|\s]/.test(token);
-  }
-
-  /** The path shape `path.ext[:line[-line]]`, or null when the token is not
-   *  path-shaped. An extension is required — `BLOCKED/TIMEOUT`, `--spec/--plan` and
-   *  `findings/artifacts/notes` are prose compounds, and `ReviewKey` is a symbol. The
-   *  extension VOCABULARY, however, only gates a token with no separator: behind a `/`,
-   *  "the asset I cite" is a judged claim whatever the asset's extension
-   *  (`docs/diagrams/src/architecture.png`), while `process.env` carries no separator
-   *  and needs its extension in the vocabulary to be a file at all. What still decides
-   *  is the SHAPE, not the vocabulary: `#` marks a member half
-   *  (`session/ledger.ts#Round.findingsPath`), a segment opening with `.` is a dotfile
-   *  name (`.kairos/.gitignore`), and an extension must look like one (lowercase, letter
-   *  first) — which leaves `@scope/pkg@1.3.0` and `REVIEWS.wave/branch.axesGuide` prose
-   *  where they belong. */
-  static pathOf(token: string): PinPath | null {
-    if (PinVocabulary.isPattern(token)) return null;
-    const match = /^(?<file>[^\s:]+)(?::(?<first>\d+)(?:-(?<last>\d+))?)?$/.exec(token);
-    const groups = match?.groups;
-    if (groups === undefined) return null;
-    const file = groups.file;
-    // A leading-dot or leading-dash token with no separator names a SUFFIX
-    // (`.rulings.json` · `.md` · `-overall.md`), which §7.1's second exclusion lists as
-    // vocabulary: it is a word about names, not a name. A prefixed PATH
-    // (`.github/workflows/x.yml`, `docs/kairos/specs/<slug>-overall.md`) still carries
-    // its separator and stays a coordinate.
-    if ((file.startsWith(".") || file.startsWith("-")) && !file.includes("/")) return null;
-    // `#` is a member separator, never a byte of a tree path: the member branch judges
-    // these, and reading one as a path would report a carrier/link as a missing file.
-    if (file.includes("#")) return null;
-    const extension = /\.([A-Za-z0-9]+)$/.exec(file)?.[1] ?? "";
-    // An extension is a lowercase name (`ts` · `md` · `png`), not a version tail
-    // (`@scope/pkg@1.3.0` → `0`) nor a dotted prose compound (`REVIEWS.wave/branch.axesGuide`).
-    if (!/^[a-z][a-z0-9]*$/.test(extension)) return null;
-    if (!FILE_EXTENSIONS.has(extension) && !file.includes("/")) return null;
-    // A final segment opening with `.` is a dotfile NAME (`.kairos/.gitignore`), a
-    // configuration word rather than a coordinate the migration can chase.
-    if ((file.split("/").pop() ?? file).startsWith(".")) return null;
-    const first = groups.first === undefined ? undefined : Number(groups.first);
-    const last = groups.last === undefined ? undefined : Number(groups.last);
-    return {
-      path: file,
-      ...(first === undefined ? {} : { firstLine: first }),
-      ...(last === undefined ? {} : { lastLine: last }),
-    };
-  }
+  // The placeholder judgment (`isPattern`) and the path shape (`pathOf`) moved to
+  // `contract/shape-rules.ts#PathShape` — the rule plane owns them now, and this module
+  // retires with the pin gate. Nothing is re-spelled here.
 
   /** The test-title shape `file.test.ts::title`, or null. The FILE half must be a
    *  coordinate (no placeholder metacharacter); the title half is prose and may carry
@@ -367,7 +268,7 @@ export class PinVocabulary {
     if (boundary <= 0) return null;
     const carrier = head.slice(0, boundary);
     const member = head.slice(boundary + 1);
-    if (PinVocabulary.pathOf(carrier) === null && !PinVocabulary.isSymbol(carrier)) return null;
+    if (PathShape.pathOf(carrier) === null && !PinVocabulary.isSymbol(carrier)) return null;
     if (!PinVocabulary.isSymbol(member)) return null;
     return { carrier, member };
   }
@@ -385,84 +286,9 @@ export class PinVocabulary {
   }
 }
 
-/**
- * PinSpans — the markdown reader. Only INLINE code spans are claims: a fenced block is
- * example code (its bytes are not a document's assertion), and the span's content is
- * the text between a backtick run and the next run of the same length.
- */
-// biome-ignore lint/complexity/noStaticOnlyClass: the markdown span reader is a declared static reader set — the repo's zero-bare-function discipline admits no standalone parser.
-export class PinSpans {
-  /** Every inline code span of one markdown body, in document order. */
-  static tokensOf(text: string): readonly string[] {
-    const tokens: string[] = [];
-    for (const line of PinSpans.proseOf(text)) {
-      for (const span of PinSpans.#spansIn(line)) tokens.push(span.text);
-    }
-    return tokens;
-  }
-
-  /** Every prose line of one markdown body, in document order, with its 1-based line
-   *  number — the lines OUTSIDE fenced blocks, fence delimiters dropped. The ONE
-   *  fence-aware line read: span extraction, the shape rules' prose-line splitting and
-   *  the sentence index all walk this, so a fence keeps a single judgment. */
-  static proseEntriesOf(text: string): readonly { readonly line: number; readonly text: string }[] {
-    const entries: { line: number; text: string }[] = [];
-    let fenced = false;
-    text.split("\n").forEach((line, index) => {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
-        return;
-      }
-      if (fenced) return;
-      entries.push({ line: index + 1, text: line });
-    });
-    return entries;
-  }
-
-  /** The prose line TEXTS of one markdown body — the string projection of the entry
-   *  face above, for a caller that needs the lone fence judgment and no coordinates:
-   *  span extraction (`tokensOf`) and the fence arm of the shape suite read it.
-   *  `ProseLines` reads the entries (it has to carry line numbers), and both arrive on
-   *  the ONE walk, so the shape rules and the sentence index hold no second reading. */
-  static proseOf(text: string): readonly string[] {
-    return PinSpans.proseEntriesOf(text).map((entry) => entry.text);
-  }
-
-  /** One line with every inline code span blanked to spaces of the same width — the
-   *  column-preserving read the recognized-form grammars judge, so a claim quoted in
-   *  a code span is a citation and never a violation. */
-  static blankedOf(line: string): string {
-    const out = line.split("");
-    for (const span of PinSpans.#spansIn(line)) {
-      for (let at = span.from; at < span.to; at += 1) out[at] = " ";
-    }
-    return out.join("");
-  }
-
-  /** The inline spans of one line, as skip-able ranges — a run of `n` backticks closed
-   *  by the next run of the same length; an unmatched run ends the line's scan (never
-   *  an invented span). The range INCLUDES both delimiters, so a blanked read hides the
-   *  code fully while preserving the column positions. */
-  static #spansIn(line: string): readonly { from: number; to: number; text: string }[] {
-    const spans: { from: number; to: number; text: string }[] = [];
-    let index = 0;
-    while (index < line.length) {
-      const open = line.indexOf("`", index);
-      if (open === -1) break;
-      let width = 0;
-      while (line[open + width] === "`") width += 1;
-      const closer = line.indexOf("`".repeat(width), open + width);
-      if (closer === -1) break;
-      spans.push({
-        from: open,
-        to: closer + width,
-        text: line.slice(open + width, closer),
-      });
-      index = closer + width;
-    }
-    return spans;
-  }
-}
+// The markdown reader moved to `contract/markdown-spans.ts#ProseSpans` — the fence and
+// span judgments live there once, and the shape rules, the sentence index and this
+// module's scan all read them from that one place.
 
 /**
  * PinSource — the declaration reader behind the symbol index (§7.1). A name resolves
@@ -937,7 +763,7 @@ export class PinIndex {
    *  copy, never `.changeset/README.md`), and tier ③ reports every candidate instead
    *  of silently choosing a first hit. */
   resolve(pinPath: string): PathResolution {
-    const normalized = PinIndex.normalize(pinPath);
+    const normalized = PathShape.normalize(pinPath);
     if (normalized.length === 0) return { kind: "absent" };
     const entries = this.entries();
     if (entries.includes(normalized)) return { kind: "resolved", entry: normalized };
@@ -945,12 +771,6 @@ export class PinIndex {
     if (candidates.length === 1) return { kind: "resolved", entry: candidates[0]! };
     if (candidates.length > 1) return { kind: "ambiguous", candidates };
     return { kind: "absent" };
-  }
-
-  /** The ONE spelling of a pin path's normalization — a leading `./` and trailing
-   *  slashes are prose, not coordinates. */
-  static normalize(pinPath: string): string {
-    return pinPath.replace(/^\.\//, "").replace(/\/+$/, "");
   }
 
   /** One entry's text, null when it cannot be read (a directory, a vanished file). */
@@ -1100,69 +920,10 @@ export class ForwardPaths {
    *  subject for condition ①, so the skip never holds there. */
   skips(pinPath: string, judged: string | null): boolean {
     if (judged === null) return false;
-    const normalized = PinIndex.normalize(pinPath);
+    const normalized = PathShape.normalize(pinPath);
     return this.#pendingOf(judged).some(
       (declared) => declared === normalized || declared.endsWith(`/${normalized}`),
     );
-  }
-
-  /** Whether the judged document is PROVEN closed by a phase inventory's named cells
-   *  (design spec §1.4) — the positive reading. The two cells that name a file
-   *  (`Design spec` · `Implementation plan`) are judged alike: a phase spec and its plan
-   *  are two faces of one closure registration, so reading only the plan cell would keep
-   *  every closed spec judged forever. `rel` is the judged document's repo-relative path
-   *  and the cell's file name is compared against `path.basename(rel)`; a cell whose name
-   *  resolves to zero or several indexed documents proves nothing, so it never closes.
-   *
-   *  This is deliberately the OPPOSITE polarity of the private `#closedBy` (whose zero /
-   *  several reading counts as closed, because a dead `✔ Done` row must not buy a silent
-   *  pin skip): the two names never collide, and the shape gate never inherits the pin
-   *  face's tolerance. Both read the cells through `#namedCellsOf`, so the registration
-   *  grammar is one spelling and only the polarity differs. */
-  provenClosed(rel: string): boolean {
-    const judged = PinIndex.normalize(rel);
-    for (const charter of this.#headsOf()) {
-      if (charter.head.docType !== "overall") continue;
-      const parsed = docTypeParsers.overall.parse(
-        charter.body.split("\n"),
-        charter.head,
-      ) as OverallParsed;
-      if (parsed.tables["Phase inventory"].headerRow === null) continue;
-      for (const phase of parsed.chain.phases) {
-        const cells = this.#namedCellsOf(phase);
-        if ([cells.design, cells.plan].some((cell) => ForwardPaths.#namesDoc(cell, judged))) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  /** The two NAMED cells of one Phase-inventory row, each read through the ONE
-   *  registration grammar: `Design spec` and `Implementation plan` both name the
-   *  document whose basename the `✔ Done（`file` · date）` cell writes, so a phase spec
-   *  and its plan answer the same way. Callers apply their own polarity on top — see
-   *  `CellResolution`. */
-  #namedCellsOf(phase: ChainPhase): NamedCells {
-    return { design: this.#resolveCell(phase.designCell), plan: this.#resolveCell(phase.planCell) };
-  }
-
-  /** One cell's name resolved to the indexed documents that carry it — the reading a
-   *  closure registration and a shape-gate exemption both stand on. */
-  #resolveCell(cell: string): CellResolution {
-    const named = DONE_CELL.exec(cell)?.groups?.file;
-    if (named === undefined) return { kind: "absent" };
-    const hits = this.#headsOf().filter((head) => path.basename(head.rel) === named);
-    const [head] = hits;
-    return hits.length === 1 && head !== undefined
-      ? { kind: "unique", head }
-      : { kind: "ambiguous" };
-  }
-
-  /** Whether one cell's reading names the judged document — the shape gate's positive
-   *  half: only a `unique` hit on the judged document itself closes. */
-  static #namesDoc(cell: CellResolution, judged: string): boolean {
-    return cell.kind === "unique" && cell.head.rel === judged;
   }
 
   /** The pending paths of one judged document — one table per identity, memoized, so a
@@ -1196,9 +957,10 @@ export class ForwardPaths {
    *  written `✔ Done（`file` · date）` and that FILE NAME resolves to exactly one
    *  indexed document whose `slug:` is the plan's. Zero or several hits read as CLOSED —
    *  a registration that no longer resolves cannot establish "not closed", so a dead
-   *  `✔ Done` row never buys a silent skip. The cell reading is `#namedCellsOf`'s; only
-   *  the polarity (`ambiguous` ⇒ closed) and the plan-cell-only surface are this
-   *  reader's own. */
+   *  `✔ Done` row never buys a silent skip. The cell GRAMMAR is `ClosedDocument.fileOf`'s
+   *  (one spelling of the form, shared with the shape gate's positive reading); only the
+   *  polarity (zero / several ⇒ closed) and the plan-cell-only surface are this reader's
+   *  own. */
   #closedBy(program: string, slug: string): boolean {
     const charter = this.#headsOf().find(
       (head) => head.head.slug === program && head.head.docType === "overall",
@@ -1210,9 +972,12 @@ export class ForwardPaths {
     ) as OverallParsed;
     if (parsed.tables["Phase inventory"].headerRow === null) return false;
     for (const phase of parsed.chain.phases) {
-      const cell = this.#namedCellsOf(phase).plan;
-      if (cell.kind === "ambiguous") return true;
-      if (cell.kind === "unique" && cell.head.head.slug === slug) return true;
+      const named = ClosedDocument.fileOf(phase.planCell);
+      if (named === null) continue;
+      const hits = this.#headsOf().filter((head) => path.basename(head.rel) === named);
+      const [only] = hits;
+      if (hits.length !== 1 || only === undefined) return true;
+      if (only.head.slug === slug) return true;
     }
     return false;
   }
@@ -1253,8 +1018,8 @@ export class ForwardPaths {
     const paths: string[] = [];
     for (const line of body.split("\n")) {
       if (!/^\s*[-*]\s+Create:/.test(line)) continue;
-      for (const token of PinSpans.tokensOf(line)) {
-        const form = PinVocabulary.pathOf(token);
+      for (const token of ProseSpans.tokensOf(line)) {
+        const form = PathShape.pathOf(token);
         if (form === null || paths.includes(form.path)) continue;
         paths.push(form.path);
       }
@@ -1311,15 +1076,6 @@ export class PinAudit {
     return this.#index.textOf(entry);
   }
 
-  /** The PROVEN-closure reading of the judged document (design spec §1.4) — the shape
-   *  gate's single port onto this audit's own `ForwardPaths` material. The audit is the
-   *  one construction point per dispatch, so the closure port and the lifecycle's
-   *  `contract.path` read-back judge the SAME index rather than scanning the doc roots
-   *  twice. */
-  provenClosed(rel: string): boolean {
-    return this.#forward.provenClosed(rel);
-  }
-
   /** The four census readings (§8.2) — one scan and one file listing, so `total` is
    *  that scan's length rather than a second count and `files` is the corpus volume.
    *  The roots are the caller's already-resolved corpus (`corpusOf(root)`); this class
@@ -1359,7 +1115,7 @@ export class PinAudit {
   /** Every dead pin of one document body — the document review's read-back corpus. */
   scanText(text: string, source: string): readonly PinFinding[] {
     const findings: PinFinding[] = [];
-    for (const token of PinSpans.tokensOf(text)) {
+    for (const token of ProseSpans.tokensOf(text)) {
       const finding = this.#judge(token, source, source);
       if (finding !== null) findings.push(finding);
     }
@@ -1380,7 +1136,7 @@ export class PinAudit {
    *  its own brief reads a dead pin for every such finding. */
   pathResolves(pinPath: string, judged: string | null): boolean {
     if (!PinVocabulary.isPin(pinPath)) return true;
-    const form = PinVocabulary.pathOf(pinPath);
+    const form = PathShape.pathOf(pinPath);
     const path = form?.path ?? pinPath;
     if (this.#index.resolve(path).kind === "resolved") return true;
     return this.#forward.skips(path, judged);
@@ -1413,7 +1169,7 @@ export class PinAudit {
         `\`${file.entry}\` carries no test titled \`${test.title}\``,
       );
     }
-    const form = PinVocabulary.pathOf(token);
+    const form = PathShape.pathOf(token);
     if (form !== null) {
       const resolution = this.#index.resolve(form.path);
       if (resolution.kind === "absent") {
@@ -1461,7 +1217,7 @@ export class PinAudit {
     // an ambiguous basename names EVERY candidate instead of resolving nowhere (tier ③
     // never picks one), exactly as the bare-path branch above reads it
     const carrierResolution =
-      PinVocabulary.pathOf(member.carrier) === null ? null : this.#index.resolve(member.carrier);
+      PathShape.pathOf(member.carrier) === null ? null : this.#index.resolve(member.carrier);
     if (carrierResolution?.kind === "ambiguous") {
       return PinAudit.#finding(
         token,

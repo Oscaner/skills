@@ -43,10 +43,11 @@ import type {
 import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 import type { LedgerFacts } from "./judge.ts";
+import { ProseSpans } from "./markdown-spans.ts";
 import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
-import { PinSpans, PinVocabulary } from "./pins.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 import type { LedgerRule } from "./rules.ts";
+import { PathShape } from "./shape-rules.ts";
 import { PlanTaskBlocksReader } from "./task-blocks.ts";
 import { RowSource, type Translator } from "./translate.ts";
 import { MAX_TASKS_PER_WAVE } from "./wave-width.ts";
@@ -123,6 +124,15 @@ export class NodeFs implements DocFs {
     }
   }
 }
+
+/** The rule plane's DEFAULT identity-index read — one `SlugIndex.build` over the caller's
+ *  fs seam (absent: node:fs). It is exported so a reader that needs an index WITHOUT a
+ *  `JudgeContext` — the closure reading's lazy fallback in `face/lifecycle.ts` — reaches
+ *  the same one construction site instead of opening a second `SlugIndex.build` literal
+ *  of its own (the P36 T3 guard pins exactly three production sites, and this file is
+ *  one of them). `Invariant#indexOf` delegates here, so the injected face and the
+ *  default face are one mechanism. */
+export const identityIndexOf = (root: string, fs?: DocFs): SlugIndex => SlugIndex.build(root, fs);
 
 /** One edge-validation issue as the caller injects it (P42 §3.2) — the graph's PUBLIC
  *  `validate()` output plus the ONE rendered detail line (`TaskGraph.detailLine`,
@@ -370,11 +380,11 @@ export abstract class Invariant extends MarkdownPrimitives {
   }
 
   /** The identity index every slug-keyed strategy looks up through — the caller's
-   *  injected index when present, else one scan over the SAME fs seam every other
-   *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
-   *  The ONE home of that fallback. */
+   *  injected index when present, else the rule plane's default read over the SAME fs
+   *  seam every other strategy reads (the judgment stays hermetic: no second,
+   *  real-filesystem scan). */
   protected indexOf(ctx: JudgeContext): SlugIndex {
-    return ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
+    return ctx.slugIndex ?? identityIndexOf(ctx.root, ctx.fs);
   }
 
   /** The three-table section heading anchors of the overall (registry-declared). */
@@ -1884,7 +1894,7 @@ export class SingleCreateInvariant extends Invariant {
     for (const block of ctx.tree.tasks()) {
       for (const declaration of reader.fileDeclarationsOf(block)) {
         if (declaration.claim === "none") continue;
-        if (PinVocabulary.pathOf(declaration.path) === null) continue;
+        if (PathShape.pathOf(declaration.path) === null) continue;
         const tasks = paths.get(declaration.path) ?? new Map<number, boolean>();
         tasks.set(block.id, (tasks.get(block.id) ?? false) || declaration.verb === "create");
         paths.set(declaration.path, tasks);
@@ -1989,7 +1999,7 @@ interface ProseLineRecord extends ProseLine {
 
 /**
  * ProseLines — the prose-line split of one document body (P41 §1.2): the lines a
- * shape grammar can judge. Fenced lines never arrive (the fence state is `PinSpans`'s
+ * shape grammar can judge. Fenced lines never arrive (the fence state is `ProseSpans`'s
  * one judgment — this class holds no second copy), and each returned line carries both
  * read faces: the verbatim text and the same line with its inline code spans stripped
  * to equal-width blanks, so the column positions survive. The heading-stack walk and
@@ -2000,10 +2010,10 @@ export class ProseLines {
   /** The prose lines of one body with both read faces — the ONE line read of the shape
    *  grammars and the sentence index. */
   static of(content: string): readonly ProseLine[] {
-    return PinSpans.proseEntriesOf(content).map((entry) => ({
+    return ProseSpans.proseEntriesOf(content).map((entry) => ({
       line: entry.line,
       raw: entry.text,
-      blanked: PinSpans.blankedOf(entry.text),
+      blanked: ProseSpans.blankedOf(entry.text),
     }));
   }
 
@@ -2236,7 +2246,7 @@ export class ChangeHistoryDateShapeInvariant extends Invariant {
  * SentenceIndex — the sentence split and comparison faces of `single-home` (P41 §3.1):
  * one normalized sentence per unit, the character 3-gram set of a sentence, and the
  * Jaccard similarity of two such sets. The split reads prose only: fenced lines never
- * arrive (`PinSpans`'s one fence judgment), a quoted line is exempt (`ProseLines`'s one
+ * arrive (`ProseSpans`'s one fence judgment), a quoted line is exempt (`ProseLines`'s one
  * quote-form judgment), and a work item yields no sentence at all (a plan's `- Modify:`
  * line names a location, never a criterion). A table row and a list item are each ONE
  * sentence — a cell is never its own claim.
@@ -2277,7 +2287,7 @@ export class SentenceIndex {
         if (text === "") continue;
         sentences.push({
           text,
-          prose: SentenceIndex.#normalize(PinSpans.blankedOf(unit)).length,
+          prose: SentenceIndex.#normalize(ProseSpans.blankedOf(unit)).length,
           line: entry.line + from,
         });
       }
@@ -2333,7 +2343,7 @@ export class SentenceIndex {
   static #unitsOf(line: string): readonly string[] {
     if (/^\s*\|/.test(line)) return [line];
     if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) return [line];
-    const blind = PinSpans.blankedOf(line);
+    const blind = ProseSpans.blankedOf(line);
     const units: string[] = [];
     let from = 0;
     for (let at = 0; at < blind.length; at += 1) {

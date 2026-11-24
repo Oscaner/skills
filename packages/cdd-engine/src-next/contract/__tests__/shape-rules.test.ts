@@ -18,7 +18,7 @@ import { FaceMap } from "../declare.ts";
 import type { DocFs } from "../invariants.ts";
 import { ProseLines } from "../invariants.ts";
 import { Contract } from "../judge.ts";
-import { PinSpans } from "../pins.ts";
+import { ProseSpans } from "../markdown-spans.ts";
 import type { DocKey } from "../project.ts";
 import { RULE_REGISTRY } from "../rules.ts";
 
@@ -205,7 +205,7 @@ describe("P41 T2 — ProseLines splits the prose face (the fence is one judgment
     const content = ["前言", "```", "见第 41 行", "```", "见第 41 行"].join("\n");
     // One fence judgment, two faces: the text read and the line read `ProseLines`
     // builds on it agree on which lines are prose.
-    const texts = PinSpans.proseOf(content);
+    const texts = ProseSpans.proseOf(content);
     expect(texts.filter((line) => line.includes("第 41 行"))).toHaveLength(1);
     expect(ProseLines.of(content).map((line) => line.raw)).toEqual(texts);
   });

@@ -41,7 +41,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { corpusOf, PinAudit, PinIndex, PinSpans } from "../pins.ts";
+import { ProseSpans } from "../markdown-spans.ts";
+import { corpusOf, PinAudit, PinIndex } from "../pins.ts";
 
 /** The repo root of THIS checkout — the guard's corpus basis. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
@@ -407,7 +408,7 @@ describe("P37 T6 — the pin definition's three exclusions, each with its pair",
     );
     const findings = f.audit.scan(["docs/kairos"]);
     expect(findings).toHaveLength(1);
-    expect(PinSpans.tokensOf("a `one` and ``two`` end")).toEqual(["one", "two"]);
+    expect(ProseSpans.tokensOf("a `one` and ``two`` end")).toEqual(["one", "two"]);
   });
 });
 

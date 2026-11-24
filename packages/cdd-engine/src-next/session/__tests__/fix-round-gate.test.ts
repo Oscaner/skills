@@ -23,15 +23,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { ClosedDocument } from "../../contract/closed-document.ts";
 import type { Finding } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
-import { PinAudit } from "../../contract/pins.ts";
 import type { CliOptions } from "../../face/cli.ts";
 import { Cli } from "../../face/cli.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../../face/lifecycle.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../../face/termination.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { type TargetType, targetFaces } from "../faces.ts";
@@ -201,7 +202,7 @@ const baselineOf = (f: Fixture, content = specDoc(["判据面正文。"])): read
       slugIndex: undefined,
       taskLayers: undefined,
     },
-    new PinAudit(f.repoRoot).provenClosed("docs/k/s.md"),
+    new ClosedDocument(SlugIndex.build(f.repoRoot)).closed("docs/k/s.md"),
   );
 
 /** The docs-fix frame of the fixture's spec line, carrying its baseline. */

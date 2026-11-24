@@ -19,8 +19,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import { ClosedDocument } from "../contract/closed-document.ts";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
-import type { Finding } from "../contract/invariants.ts";
+import { type Finding, identityIndexOf } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
 import { PinAudit } from "../contract/pins.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
@@ -284,8 +285,15 @@ export class CliLifecycle {
    *  use so the resolution index is walked once per dispatch, never once per read. */
   #pinIndex: PinAudit | null = null;
   /** The composition root's audit accessor, when supplied — the ONE construction point of
-   *  the dispatch's pin audit, shared with the pre-flight closure port. */
+   *  the dispatch's pin audit. The closure reading is no longer one of its askers: the
+   *  shape gate's closure argument comes from `#closedDocument()` below. */
   readonly #pinAuditFactory: (() => PinAudit) | null;
+  /** This dispatch's closure reading — built on first ask, so a round that judges no
+   *  document (a wave / branch face, the whole work plane) pays no doc scan. */
+  #closedDocumentMemo: ClosedDocument | null = null;
+  /** The composition root's closure accessor, when supplied — the ONE construction point
+   *  of the dispatch's closure reading, shared with the pre-flight closure port. */
+  readonly #closedDocumentFactory: (() => ClosedDocument) | null;
   /** The doc-contract coordinator this face's close-out leg runs (P42 §7) — the SAME
    *  instance the pre-dispatch gate judged with, handed in at the composition root.
    *  Required: a lifecycle that built its own would read a second registry, and the two
@@ -315,11 +323,16 @@ export class CliLifecycle {
     /** The host id the composition root probed ONCE — required, no default: a default
      *  would re-open the second detection path this seam retired (P40 T6). */
     host: HostId | "";
-    /** The dispatch's one pin audit accessor (design spec §1.4) — the composition root
-     *  hands its lazily constructed audit to BOTH this class and the pre-flight closure
-     *  port, so one dispatch scans the doc roots once. Absent → this class builds its
-     *  own memoized audit (the eleven construction sites that never supply one). */
+    /** The dispatch's one pin audit accessor — the composition root hands its lazily
+     *  constructed audit here, so one dispatch scans the doc roots once for the pin
+     *  read-back. Absent → this class builds its own memoized audit (the construction
+     *  sites that never supply one). */
     pinAudit?: () => PinAudit;
+    /** The dispatch's one closure reading (design spec §1.4) — the composition root
+     *  hands the SAME lazily constructed reader to this class and to the pre-flight
+     *  closure port, so one dispatch scans the doc roots once. Absent → this class builds
+     *  its own memoized reader over the rule plane's default index read. */
+    closedDocument?: () => ClosedDocument;
     /** The doc-contract coordinator the close-out leg judges with (P42 §7) — the
      *  composition root's ONE instance, the same object its pre-flight seam holds. */
     contract: Contract;
@@ -344,6 +357,7 @@ export class CliLifecycle {
     };
     this.#reviews = opts.reviews ?? null;
     this.#pinAuditFactory = opts.pinAudit ?? null;
+    this.#closedDocumentFactory = opts.closedDocument ?? null;
     this.#contract = opts.contract;
   }
 
@@ -750,7 +764,7 @@ export class CliLifecycle {
 
   /** The judged document's contract findings read at the round's CLOSE — the SAME
    *  `Contract.validate` construction the pre-dispatch gate runs (doc key · absolute
-   *  path · bytes · root, the closure fact from the one pin audit nothing else builds,
+   *  path · bytes · root, the closure fact from this dispatch's one closure reading,
    *  and the plan layers from the graph's own `batches()`), on the ONE `Contract`
    *  instance the composition root handed in. Unreadable / undeclared documents read
    *  zero findings: the gate already owns those faces, and this leg is a DELTA, not a
@@ -777,7 +791,7 @@ export class CliLifecycle {
     // contract plane is exactly the one mechanism the gate's explicit index also uses.
     return this.#contract.validate(
       { docKey, path: absolute, content, root: repoRoot, taskLayers },
-      this.#pinAudit().provenClosed(rel),
+      this.#closedDocument().closed(rel),
     );
   }
 
@@ -1508,6 +1522,19 @@ export class CliLifecycle {
   #pinAudit(): PinAudit {
     this.#pinIndex ??= this.#pinAuditFactory?.() ?? new PinAudit(this.#repoRootValue().absolute);
     return this.#pinIndex;
+  }
+
+  /** The one closure reading of this dispatch — the shape gate's `Contract.validate`
+   *  argument. When the composition root supplies its accessor, THAT instance is the
+   *  dispatch's one reader (the pre-flight closure port asks the same one); otherwise
+   *  this class builds its own on first use over the rule plane's default index read, so
+   *  a construction site that supplies no accessor owes no edit. The fallback is lazy:
+   *  a round that judges no document never pays the scan. */
+  #closedDocument(): ClosedDocument {
+    this.#closedDocumentMemo ??=
+      this.#closedDocumentFactory?.() ??
+      new ClosedDocument(identityIndexOf(this.#repoRootValue().absolute));
+    return this.#closedDocumentMemo;
   }
 
   /** The blocker-evidence refusal — the module-level composition below, read through

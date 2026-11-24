@@ -48,6 +48,7 @@ import { existsSync, readFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
+import { ClosedDocument } from "../contract/closed-document.ts";
 import { declaredRegistries } from "../contract/declare.ts";
 import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
@@ -369,6 +370,11 @@ export class Cli {
    *  branch dispatch never asks the closure port (no doc target) and a work-plane round
    *  never reads a pin, so those dispatches construct none. */
   readonly #audit = new RootMemo<PinAudit>();
+  /** The dispatch's ONE closure reading (design spec §1.4) — constructed on first use by
+   *  the accessor handed to BOTH the pre-flight closure port and the lifecycle's doc
+   *  gate, so one dispatch answers closure off one doc scan. A wave / branch dispatch
+   *  has no doc target and asks neither, so it constructs none. */
+  readonly #closed = new RootMemo<ClosedDocument>();
   /** The production pre-flight seam, memoized per repo root (the closure port's memo
    *  key) — built at the assembly point so its port names THIS invocation's audit. */
   readonly #preflight = new RootMemo<PreFlight>();
@@ -614,6 +620,15 @@ export class Cli {
     return this.#audit.read(repoRoot, (root) => new PinAudit(root));
   }
 
+  /** The dispatch's closure reading — constructed on first use, memoized per repo root.
+   *  The ONE construction point of that reading: the pre-flight closure port and the
+   *  lifecycle's `Contract.validate` both resolve through here, so a review dispatch
+   *  scans the doc roots once and a wave / branch dispatch (no doc target) reads them
+   *  zero times. The index is the command's own (`#indexOf`), never a second scan. */
+  #closedOf(repoRoot: string): ClosedDocument {
+    return this.#closed.read(repoRoot, (root) => new ClosedDocument(this.#indexOf(root)));
+  }
+
   /** The pre-flight seam of one dispatch — the caller's injected seam when there is one,
    *  otherwise the production seam built here so its closure port can name this
    *  invocation's audit. Memoized per repo root (the port's memo key). */
@@ -626,7 +641,7 @@ export class Cli {
           git: this.#git,
           contract: this.#contract,
           words: this.#words,
-          provenClosed: (rel) => this.#auditOf(root).provenClosed(rel),
+          provenClosed: (rel) => this.#closedOf(root).closed(rel),
         }),
     );
   }
@@ -1472,9 +1487,12 @@ export class Cli {
       values,
       // The host id the root probed ONCE — the spawn's table row (P40 T6).
       host,
-      // The dispatch's ONE pin audit — the same accessor the pre-flight closure port
-      // resolves, so the shape gate and the `contract.path` read-back share one scan.
+      // The dispatch's ONE pin audit — the accessor the `contract.path` read-back
+      // resolves (the pin scan), and the dispatch's ONE closure reading — the accessor
+      // the pre-flight closure port resolves, so the shape gate and the doc gate share
+      // one doc scan.
       pinAudit: () => this.#auditOf(scene.workspace.root.repoRoot),
+      closedDocument: () => this.#closedOf(scene.workspace.root.repoRoot),
     });
   }
 

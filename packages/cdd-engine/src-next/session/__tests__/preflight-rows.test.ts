@@ -736,7 +736,7 @@ const markerRow = (
   id,
   docKeys: "all",
   severity,
-  seat: ["dispatch", "close", "corpus"],
+  seat: ["dispatch", "close"],
   skipWhenClosed,
   create: () => new MarkerInvariant(id, marker),
 });

@@ -15,6 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 import { FaceMap } from "../declare.ts";
+import { docTypeParsers } from "../doc.ts";
 import type { DocFs } from "../invariants.ts";
 import { ProseLines } from "../invariants.ts";
 import { Contract } from "../judge.ts";
@@ -502,5 +503,18 @@ describe("P41 T3 — change-history-date-shape: the record face's date cell", ()
     // The row's width is its own rules' question, so the extra column is not silent:
     // this arm proves the date rule and the row-shape rule judge different facts.
     expect(findingsOf(content, "change-history-row-shape", "plan")).toHaveLength(1);
+  });
+
+  it("reads zero candidates off an absent table — the candidate face IS the parsed table", () => {
+    // With no `## Change history` section there is no date cell to judge, so the leg's
+    // silence here is an empty candidate set rather than a clean read — the state this
+    // arm keeps distinguishable from the pair below.
+    const withoutTable = planDoc("2026-11-20").split("## Change history")[0] ?? "";
+    const table = docTypeParsers.plan.parse(withoutTable.split("\n")).tables["Change history"];
+    expect(table.headerRow).toBeNull();
+    expect(table.rows).toEqual([]);
+    expect(findingsOf(withoutTable, "change-history-date-shape", "plan")).toEqual([]);
+    // the pair: the same plan carrying the table with a non-ISO cell reports once
+    expect(findingsOf(planDoc("xxx"), "change-history-date-shape", "plan")).toHaveLength(1);
   });
 });

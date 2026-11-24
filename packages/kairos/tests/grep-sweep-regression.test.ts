@@ -9,22 +9,14 @@ import { expect, test } from "vitest";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
 
-// The docs-root exclusion suffixes — the historical spec/plan records under
-// `docs/kairos/` legitimately carry the swept tokens (frozen history), so the sweeps
-// must exclude them. Single source: these grep sweeps are the only consumer (the old
-// scripts/lib/doc-root.ts helper died with the cutover — the values fold here).
-const DOC_ROOT_SEGMENTS = ["docs", "kairos"] as const;
-const DOC_ROOT_EXCLUDE_PATHS = ["overalls", "specs", "plans"].map(
-  (seg) => `${DOC_ROOT_SEGMENTS.join("/")}/${seg}/`,
-);
-
-// Exclusion suffixes derive from the segments, never hand-written in the chain.
-const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
-const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
+// The sweep's scan set is the PUBLISHED surface — `packages/`, the README family and
+// `marketplace/source.json`. The internal program records under `docs/` are not a scan
+// root: a retired token written there is a record of what was retired, never a live
+// residual, so the sweep neither reads nor excludes them.
 
 const grepCount = (pattern: string, extraArgs = "") => {
   try {
-    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
+    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "grep-sweep-regression.test.ts" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   } catch {
     return 0;
@@ -86,14 +78,14 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
 // the filter is dead (measured 0 hits either way) and would mask a future
 // re-appearance of the old path.
 test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
-  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
+  const cmd = `grep -rn "docs/cdd-reference" packages/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   expect(count, `"docs/cdd-reference" old path has ${count} hits`).toBe(0);
 });
 
 // Special token: subagent-driven-development (allowed in the vendor path only)
 test("grep sweep: subagent-driven-development in non-vendor code → 0 hits", () => {
-  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
+  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   expect(count, `subagent-driven-development has ${count} non-vendor hits`).toBe(0);
 });
@@ -104,9 +96,9 @@ test("grep sweep: subagent-driven-development in non-vendor code → 0 hits", ()
 // kairos skills + the README family, both languages) must carry zero residual. The
 // engine's own source face is pinned separately in its suite (cli.test.ts); this sweep
 // owns the shipped-prose surface, whose ownership is the kairos plane (the consumer
-// story lives here). The frozen history under docs/kairos/{specs,plans} is exempt (the
-// historical design/plan records legitimately name the retired forms) — those paths are
-// outside this scan set by construction.
+// story lives here). The internal program records under `docs/` are outside this scan
+// set by construction — they are the phase history, and a retired form named there is a
+// record of what was retired, never a live residual.
 test("grep sweep: the retired consumer-face lexicon in shipped prose → 0 hits", () => {
   // The consumer-prose scan set — the kairos skills + the README family (root + the two
   // packages, EN + zh), where a consumer reads the CLI contract. `--head` is pinned as

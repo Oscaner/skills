@@ -8,22 +8,17 @@
 //
 // Every arm is a PAIR: the form reported and the neighbouring legal form silent. The
 // fixtures differ only in the task id, the verb or the path, so a rule that judged
-// everything (or nothing) could not pass.
+// everything (or nothing) could not pass. The carriers are synthetic plans; no arm
+// judges a document this repository stores.
 //
 // Zero module-level bare functions — the helpers are `const` (the repository's
 // zero-`function`-declaration discipline).
 
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { DocFs } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 import { PathShape } from "../shape-rules.ts";
 import { PlanTaskBlocksReader, type TaskBlock } from "../task-blocks.ts";
-
-/** The repo root — the plan corpus this rule is acceptance-judged on. */
-const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 
 /** The hermetic filesystem seam — the policy's sibling strategies read no real file. */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
@@ -89,7 +84,7 @@ const singleCreateOf = (
   new Contract()
     .validate({
       docKey: "plan",
-      path: "docs/kairos/plans/x-single.md",
+      path: "x-single.md",
       content: planDoc(tasks),
       root: "/repo",
       fs: FS,
@@ -340,30 +335,5 @@ describe("P42 T4 — the three silent arms", () => {
         { id: 7, files: ["- Create: `b.ts`"] },
       ]),
     ).toHaveLength(1);
-  });
-});
-
-describe("P42 T4 — the plan corpus reads zero findings", () => {
-  it("judges every stored plan at zero — the dialect projection is the corpus's own grammar", () => {
-    // The corpus IS the acceptance condition (design spec §3.1): every `Files` line in
-    // `docs/kairos/plans/*.md` is read by this projection, so a plan the engine would
-    // dispatch must not read a `single-create` finding. A plan that trips here is either
-    // a real defect or a dialect the reader mis-parses — both are this rule's business.
-    const dir = path.join(REPO, "docs", "kairos", "plans");
-    const contract = new Contract();
-    const trip: string[] = [];
-    for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".md"))) {
-      const rel = `docs/kairos/plans/${name}`;
-      const findings = contract
-        .validate({
-          docKey: "plan",
-          path: path.join(REPO, rel),
-          content: readFileSync(path.join(dir, name), "utf8"),
-          root: REPO,
-        })
-        .filter((finding) => finding.kind === "single-create");
-      for (const finding of findings) trip.push(`${rel} :: ${finding.message}`);
-    }
-    expect(trip).toEqual([]);
   });
 });

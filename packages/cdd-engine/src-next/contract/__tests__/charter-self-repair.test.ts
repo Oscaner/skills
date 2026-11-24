@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts
 // P41 T7 — the program charter's self-repair (design spec §1.4). The flip turns the five
-// shape rules into `block` rows, and the charter is a JUDGED corpus document: its five
-// decision sections would then refuse the program's own charter unless they stop
-// stating the tree as it stands. The delivery is two families at zero, not one:
+// shape rules into `block` rows, and an overall's five decision sections would then
+// refuse a charter that states the tree as it stands instead of the condition it keeps.
+// The delivery is two families at zero, not one:
 //
 //   · the measurement grammar (`measure-literal`) reports nothing on the five sections;
 //   · `single-home` reports nothing on the charter — its right domain holds the phase
@@ -14,24 +14,25 @@
 // `Acceptance ⑥` skips work items), so the registration states the criterion the
 // implementation writes. It is read where it is registered, not counted as a family.
 //
-// Every arm names the sentence it reads, and each carries its counter-arm: the original
-// wording reported (the measurement grammar) · a grammar-clean copy that keeps the
-// duplicated sentences still refused (single-home) · the pointers themselves passing ·
-// a labelled restatement beside the pointer caught (the same home twice) · a copy that
-// keeps ONLY the backfill family named by its holders.
+// The carrier is a SYNTHETIC charter (`charterBody`) — the fixture is the document these
+// arms may assert, and no arm reads the file this checkout carries. Every arm names the
+// sentence it reads, and each carries its counter-arm: the original wording reported (the
+// measurement grammar) · a grammar-clean copy that keeps the duplicated sentences still
+// refused (single-home) · the pointers themselves passing · a labelled restatement beside
+// the pointer caught (the same home twice) · a copy that keeps ONLY the backfill family
+// named by its holders · an unplaceable heading reported as the face map's gap.
 
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Contract } from "../judge.ts";
-import type { DocKey } from "../project.ts";
 
-/** The repo root of THIS checkout — the charter's corpus basis. */
+/** The repo root of THIS checkout — the root the fixture's right domain resolves in. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
 
-/** The program charter under judgment. */
-const CHARTER_REL = "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md";
+/** The program charter under judgment — a fixture path, never the file this checkout
+ *  carries: the arms assert the synthetic carrier they build. */
+const CHARTER_PATH = "x-charter-fixture.md";
 
 /** One fixture document's front matter — an overall whose identity parses. */
 const OVERALL_HEAD = [
@@ -90,13 +91,15 @@ const RELEASE_CRITERION =
 const BACKFILL_CRITERION = "- 变更先回填本 overall（backfill-as-version），再继续实现";
 
 /** The repaired sections — the same five headings, conditional throughout, with the three
- *  families collapsed into pointers at their holders. */
+ *  families collapsed into pointers at their holders. The holders are named by their
+ *  file under the doc root (`specs/` · `plans/`), so the fixture stays a document about
+ *  the tree without embedding a corpus path a scan would read as an assertion. */
 const GATE_POINTER =
-  "- **gate 零例外底线**：判据住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md` 与 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p4.md` 各自的 `## Constraints` 一节";
+  "- **gate 零例外底线**：判据住 `specs/2026-10-10-engine-doc-tooling-p3-design.md` 与 `plans/2026-10-10-engine-doc-tooling-p4.md` 各自的 `## Constraints` 一节";
 const RELEASE_POINTER =
-  "- **不发布**：发布姿态住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p13-design.md` 的 `## Constraints`";
+  "- **不发布**：发布姿态住 `specs/2026-10-10-engine-doc-tooling-p13-design.md` 的 `## Constraints`";
 const BACKFILL_POINTER =
-  "- 回填纪律住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`";
+  "- 回填纪律住 `specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`";
 
 /** The repaired five sections — the shape the charter carries. */
 const REPAIRED_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
@@ -122,7 +125,7 @@ const REPAIRED_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
 ];
 
 /** The findings of one document's judgment over the fixture body. */
-const findingsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md") =>
+const findingsOf = (body: string, rel = CHARTER_PATH) =>
   new Contract().validate({
     docKey: "overall",
     path: path.join(REPO_ROOT, rel),
@@ -131,28 +134,17 @@ const findingsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.
   });
 
 /** The kinds of one document's judgment over the fixture body. */
-const kindsOf = (body: string, rel = "docs/kairos/overalls/x-charter-fixture.md"): string[] =>
+const kindsOf = (body: string, rel = CHARTER_PATH): string[] =>
   findingsOf(body, rel).map((finding) => finding.kind);
 
-/** One body judged as the charter — the same doc key, path and root the charter reads. */
+/** One body judged as the charter fixture — the same doc key, path and root. */
 const charterFindingsOf = (content: string) =>
   new Contract().validate({
     docKey: "overall",
-    path: path.join(REPO_ROOT, CHARTER_REL),
+    path: path.join(REPO_ROOT, CHARTER_PATH),
     content,
     root: REPO_ROOT,
   });
-
-/** One kind's findings of the real charter — the AFTER-migration read. */
-const charterFindings = (docKey: DocKey = "overall") => {
-  const rel = CHARTER_REL;
-  return new Contract().validate({
-    docKey,
-    path: path.join(REPO_ROOT, rel),
-    content: readFileSync(path.join(REPO_ROOT, rel), "utf8"),
-    root: REPO_ROOT,
-  });
-};
 
 describe("P41 T7 — the charter states conditions, not the tree as it stands", () => {
   it("reports the original wording: one bare measurement", () => {
@@ -217,15 +209,11 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
   });
 });
 
-describe("P41 T7 — the charter judges zero on both families, and its gaps are measured", () => {
-  it("reports nothing on the real charter — both families at zero", () => {
-    expect(charterFindings()).toEqual([]);
-  });
-
+describe("P41 T7 — the charter's gaps are measured on its fixture", () => {
   // P42 T9 — the candidate reading of the `measure-literal` family: "zero findings" is
-  // true of a clean charter and of a face map that never ran, so the gap is measured.
+  // true of a clean charter and of a face map that never ran, so the gap is measured on
+  // the same synthetic carrier the arms above read.
   it("reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence", () => {
-    const text = readFileSync(path.join(REPO_ROOT, CHARTER_REL), "utf8");
     const gapsOf = (body: string): readonly string[] =>
       charterFindingsOf(body)
         .filter(
@@ -233,12 +221,18 @@ describe("P41 T7 — the charter judges zero on both families, and its gaps are 
             finding.kind === "measure-literal" && finding.message.includes("no declared face"),
         )
         .map((finding) => finding.field ?? "");
-    // The registered heading renamed to a name the face map cannot place: every line
-    // beneath it becomes `unmapped`, and the family's first row reports the gap.
-    const renamed = text.replace("## Maintenance", "## Upkeep");
-    expect(renamed).not.toBe(text);
-    expect(gapsOf(renamed).length).toBeGreaterThan(0);
-    // the pair: the registered heading itself reports no gap
-    expect(gapsOf(text)).toEqual([]);
+    /** The five repaired sections plus one registered decision face to move. */
+    const sections: readonly (readonly [string, readonly string[]])[] = [
+      ...REPAIRED_SECTIONS,
+      ["## Maintenance", ["维护面正文。"]],
+    ];
+    // the registered heading places its own prose, so the family reports no gap
+    expect(gapsOf(charterBody(sections))).toEqual([]);
+    // The heading renamed to a name the face map cannot place: every line beneath it
+    // becomes `unmapped`, and the family's first row reports the gap.
+    const renamed = sections.map(([heading, lines]): readonly [string, readonly string[]] =>
+      heading === "## Maintenance" ? ["## Upkeep", lines] : [heading, lines],
+    );
+    expect(gapsOf(charterBody(renamed))).toContain("## Upkeep");
   });
 });

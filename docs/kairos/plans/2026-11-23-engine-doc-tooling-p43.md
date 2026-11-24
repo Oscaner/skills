@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -428,3 +428,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.9 | 2026-11-23 | **按 plan 评审轮七的 F1 用户裁定修正**：Task 7 的变更史豁免从一条 id 的措辞改成一条覆盖两个 id 的规则——可判仍只圈正文段，而 `census:pin` 引用与 `census:criteria.rows` 声明同在例外之内，例外的单位是行不是 id；`v0.13` 行被点名为本段存在的那个案例（它记的是当时把裸计数改写成声明的那次读数），Produces 与步骤二随之收成「表以外等于删除后的行数、表内原值保留」，两条 id 各一半的成对判据各自可红 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.10 | 2026-11-23 | **按 plan 评审轮八的 F1–F2 用户裁定修正（Task 4 与 Task 7 两任务面，结构面未动）**：Task 7 的声明步骤收成单一读法——按 `CRITERIA_ROWS` 的度量逐处核，并明写 Task 5 之后树上没有任何面能把它重判红，删掉与自家括注互斥的成对臂；豁免段的成对判据随之只留在引用那一半，声明那一半明写不配成对臂；Task 4 的写集、步骤一与 Acceptance 补上散文那半——`face/cli.ts` 的 `#audit` 段注、memo 清单、pre-flight 与 `#auditOf` 段注随符号收口，`review-criteria.test.ts` 文件头不再称 `test` 为 pin 门，成对判据是「散文写回 ⇒ 散文半红而符号半绿」与「符号写回 ⇒ 符号半红而散文半绿」两向，两半互不代偿 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.11 | 2026-11-24 | **记录 `0284f07d` 的 Task 4 与 Task 8 补写（本行追登）并应用 plan 评审轮九的 F1–F2 用户裁定**：该提交给 Task 4 的 Files 加了七行与 pin 退役散文面同批的写集（`session/preflight.ts` · `contract/markdown-spans.ts` 与它的测试 · 两份 `docs/diagrams/src/architecture.*.json` · 两份生成物 `architecture.*.html`），并给 Task 8 加了 `scripts/emit.ts` 一行，本行把两处入账；Task 4 的散文半补第三处——`contract/markdown-spans.ts` 的模块段注与 `contract/__tests__/markdown-spans.test.ts` 的文件头不再把这条行读说成 pin 扫描的共用者，Objective · 步骤一的可判与 Acceptance 同批收该处与它自己的成对臂 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.12 | 2026-11-24 | **Task 10 收口（implement 轮）**：本相位那份 changeset 补上第四处消费面变化——生成物一致的执行面收归 `emit:check`（引用多重集与其计数 · 源的修订钉对产物证据块 · 文案格 · 源的节点 `tag` · 退役拼写各一条断言，`DiagramTwin` 的产物读者随它仅有的调用者离场），两份架构产物随 `init` 块搬进 `face/cli.ts` 的重渲染同批入账；相位仍只一份 note、级别 minor，全量门 `pnpm run validate` exit 0（root 6 文件 / 41 例 · kairos 17 / 106 · engine 98 / 2254，零告警） | Oscaner M. · Claude（kairos:cdd-dev） |

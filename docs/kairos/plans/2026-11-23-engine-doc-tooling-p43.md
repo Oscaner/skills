@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -241,12 +241,14 @@ Task 1
 ### Task 6: 语料臂退役与夹具补位
 
 #### Objective
-撤掉「拿本仓 `docs/kairos/**` 跑一遍并断言零」的那一臂，判据本体与夹具留下：`doc-corpus.guard.test.ts` 与 `phase-inventory.guard.test.ts` 整文件退役；`charter-self-repair.test.ts` 的第二个 describe 里两臂都读真宪章，按各自断言的东西点名分别处置：`reports nothing on the real charter — both families at zero` 那一臂在真宪章上断言零 finding，整臂退役；`reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence` 那一臂只撤它的真宪章读取（`CHARTER_REL` 的 `readFileSync`，以及它对未改文本的 `gapsOf(text)` 零断言），量缺口的那一对重挂到邻臂已在用的 `charterBody([...])` 合成宪章上——两臂各自的真宪章读取都退役，留下的是合成宪章上的夹具；`measure-literal` 得保住那条把「干净的宪章」与「面从未跑过」分开的臂，缺口不随这次退役丢失，也不靠删臂消红；`single-create.test.ts` 撤读 `docs/kairos/plans` 的那一段；`packages/kairos/tests/grep-sweep-regression.test.ts` 的扫描根去掉 `docs/`。同批核对每条被撤臂的判据是否仍有违规/邻合/零候选三条臂，缺则本任务补：补位落在该规则臂的既有宿主文件；一条规则今天没有臂宿主时，本步骤点名要新建的夹具文件，并在同一次编辑里把它加进本任务的 Files——缺口不能以「未点宿主」被读成「无缺口」。
+撤掉「拿本仓 `docs/kairos/**` 跑一遍并断言零」的那一臂，判据本体与夹具留下：`doc-corpus.guard.test.ts` 与 `phase-inventory.guard.test.ts` 整文件退役；`charter-self-repair.test.ts` 的第二个 describe 里两臂都读真宪章，按各自断言的东西点名分别处置：`reports nothing on the real charter — both families at zero` 那一臂在真宪章上断言零 finding，整臂退役；`reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence` 那一臂只撤它的真宪章读取（`CHARTER_REL` 的 `readFileSync`，以及它对未改文本的 `gapsOf(text)` 零断言），量缺口的那一对重挂到邻臂已在用的 `charterBody([...])` 合成宪章上——两臂各自的真宪章读取都退役，留下的是合成宪章上的夹具；`measure-literal` 得保住那条把「干净的宪章」与「面从未跑过」分开的臂，缺口不随这次退役丢失，也不靠删臂消红；同一文件里 `single-home` 的右域同批收进夹具——那条「只留回填家族」的臂今天拿 `docs/kairos/**` 当真语料，它的绿就是在断言本仓四份文档仍写着回填句（它点名的那四位持有者只能来自真树），而它的绿恰好错在看起来像夹具：改为经判定上下文的 `fs` 缝注入本文件自建的语料（`__tests__/support/memory-fs.ts` 的 `MemoryFs`，与 `single-home.test.ts` 共用一处实现），臂保留「一次一个家族、按持有者点名」的可判，成对红补两条：改夹具里的一处句子 ⇒ 该家族少点名一位持有者；空语料 ⇒ 零 finding（绿来自夹具，不来自本仓文档树）；`single-create.test.ts` 撤读 `docs/kairos/plans` 的那一段；`packages/kairos/tests/grep-sweep-regression.test.ts` 的扫描根去掉 `docs/`。同批核对每条被撤臂的判据是否仍有违规/邻合/零候选三条臂，缺则本任务补：补位落在该规则臂的既有宿主文件；一条规则今天没有臂宿主时，本步骤点名要新建的夹具文件，并在同一次编辑里把它加进本任务的 Files——缺口不能以「未点宿主」被读成「无缺口」。
 
 #### Files
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/phase-inventory.guard.test.ts`
+- Create: `packages/cdd-engine/src-next/__tests__/support/memory-fs.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/single-home.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/single-create.test.ts`
 - Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`
@@ -267,7 +269,7 @@ Task 1
 - 缺口补位：任一被撤语料臂涉及的规则，若其夹具缺「违规必报 / 邻居沉默 / 零候选即红」中的一条，本任务补上，宿主文件随之进本任务的 Files
 
 #### Steps
-- 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 上 `docs/kairos` 零命中（含 `CHARTER_REL` 的取值与 `REPO_ROOT` 拼出的真宪章路径），而两文件仍整文件在树上、全绿，非语料臂逐条留在原位且可红（`charter-self-repair.test.ts` 的 `single-home` 与 `measure-literal` 夹具臂照旧报它读的那一句）；重挂后的缺口对成对可辨：把合成宪章的一处标题改成面图放不下的名字 ⇒ 那一臂报缺口，用它自己的合成体 ⇒ 零缺口
+- 删两个语料文件，收两份文件到夹具面 — checkable: 两路径不存在；`charter-self-repair.test.ts` 与 `single-create.test.ts` 上 `docs/kairos` 零命中（含 `CHARTER_REL` 的取值与 `REPO_ROOT` 拼出的真宪章路径），而两文件仍整文件在树上、全绿，非语料臂逐条留在原位且可红（`charter-self-repair.test.ts` 的 `single-home` 与 `measure-literal` 夹具臂照旧报它读的那一句，且 `single-home` 臂的绿只来自夹具：空语料 ⇒ 零 finding，改夹具一处句子 ⇒ 少点名一位持有者）；重挂后的缺口对成对可辨：把合成宪章的一处标题改成面图放不下的名字 ⇒ 那一臂报缺口，用它自己的合成体 ⇒ 零缺口
 - `grep-sweep` 去掉 `docs/` 根 — checkable: 该文件的扫描根上 `docs/` 零命中；成对：把一个已删 token 写进 `docs/` 下的文件 ⇒ 不红（扫面不含它），写进 `packages/` ⇒ 红
 - 把 `seat` 的 `corpus` 面从词表与每一行上拿掉 — checkable: `contract/rules.ts` 上 `corpus` 零命中；`contract/__tests__/rules.test.ts` 的字面表只余树上真实存在的两个面（成对：把 `corpus` 加回词表而不加行 ⇒ 词表臂红；把它加回某一行 ⇒ 行臂红）；两份以注入声明代行注册表的夹具（`rules-severity.test.ts` 的 `probeDeclaration` · `session/__tests__/preflight-rows.test.ts` 的 `markerRow`）同批改成两个面，`tsc` 于是仍是零错误
 - 逐规则核对三条臂并补缺 — checkable: 对每条被撤语料臂涉及的规则各跑一次「违规夹具必报 / 邻居夹具沉默 / 零候选即红」——doc-contract 各腿 · P41 的 doc 形状行（`measure-literal` · `line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape`）· `single-create`；缺的那条补在该规则臂的宿主文件里，宿主不在 Files 时同一次编辑把它加进去。本轮实测的缺口与补位：`change-history-row-shape` · `change-history-version-unique` · `change-history-latest-matches-front-matter` 三条腿的零候选读数随 `doc-corpus.guard` 的 `reads change-history-row-shape's candidate face off the section heading` 一并退役，补在 `judge.test.ts` 的合成 plan 上（无 `## Change history` 表 ⇒ 解析出的表为空且规则零 finding；成对各自那条缺陷 ⇒ 恰一条）；`change-history-date-shape` 的候选面同样补在 `shape-rules.test.ts`（无表 ⇒ 零候选；成对非 ISO 日期单元 ⇒ 恰一条）；`change-history-header-columns` 的零候选臂原在 `change-history-header.test.ts` `is silent on a document with no Change-history section`，留下；五条 P41 形状行的零候选读数原是面图的 gap 臂（`shape-rules.test.ts` 的 `falls to the gap verdict when the face read carries no heading stack`），已在；`single-create` 的零候选读数是 `counts only path-shaped tokens` 那一臂，已在。`change-history-header.test.ts` 头部指向已删的 `doc-corpus.guard.test.ts` 的那句同批收成 `judge.test.ts` 一处
@@ -432,3 +434,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.12 | 2026-11-24 | **Task 10 收口（implement 轮）**：本相位那份 changeset 补上第四处消费面变化——生成物一致的执行面收归 `emit:check`（引用多重集与其计数 · 源的修订钉对产物证据块 · 文案格 · 源的节点 `tag` · 退役拼写各一条断言，`DiagramTwin` 的产物读者随它仅有的调用者离场），两份架构产物随 `init` 块搬进 `face/cli.ts` 的重渲染同批入账；相位仍只一份 note、级别 minor，全量门 `pnpm run validate` exit 0（root 6 文件 / 41 例 · kairos 17 / 106 · engine 98 / 2254，零告警） | Oscaner M. · Claude（kairos:cdd-dev） |
 | v0.13 | 2026-11-24 | **记录 `2a2b1312` 的 Task 4 写集补写（本行追登）并应用 branch 评审轮一的 F1 裁定**：该提交删掉 `session/round-artifacts.ts` 上的 `ArtifactRegistry.ownsName`（−10 行）——它的唯一读者是 pin 门的 artifact 名排除，Task 4 一退役它就是死代码；文件本身不在任何任务的 `**Files:**` 里，本行给 Task 4 补上该 `Modify:` 行，使计划的写集与 `git diff origin/develop...HEAD` 的文件面重新一一对应（除本相位的 spec 外，该 diff 不再有不被计划署名的文件） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.14 | 2026-11-24 | **记录 `51e5ba5c` 的 Task 7 补写（本行追登）并应用 plan 评审轮十的 F1–F2 用户裁定（Task 7 与 Task 8 两任务面，结构面未动）**：Task 7 把 P37 spec §1.3 的构成句点名为声明那一半的第三类写面——声明坐在构成句里时数字改到删除后的行数，构成句改读成落笔时的表记，被撤的那一行就地标成已随 pin 门撤除（不删成员 · 不改结论），Objective · Produces · 两步同批落笔，成对读作「把 §1.3 的构成句原样留着 ⇒ 该处读成判据表仍带 pin-parseability」；`51e5ba5c`（`docs(p43): frame the P37 criteria census as its authoring-time table`）是本相位的 Task 7 交付，本行把它与那处构成句的写面一并入账；Task 8 的篡改臂补齐 spec 点名的生成物面——`.claude-plugin` 的派生 · `docs/diagrams/src/*.json` 的源 · ISSUE_TEMPLATE 的表单各一处，Acceptance 同批携带三面，与 Produces 已声明的生成物面一一对应 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
+| v0.15 | 2026-11-24 | **按 branch 评审轮二的 F1 裁定修正（Task 6 面，结构面未动）**：`charter-self-repair.test.ts` 里那条「只留回填家族」的 `single-home` 臂不再拿本仓 `docs/kairos/**` 当真语料——它的右域改由判定上下文的 `fs` 缝注入本文件自建的语料，`MemoryFs` 收成 `__tests__/support/memory-fs.ts` 一处实现（`single-home.test.ts` 的本地同类同批改用），臂的文件头与成对红同批落笔（改夹具一处句子 ⇒ 该家族少点名一位持有者 · 空语料 ⇒ 零 finding）；Task 6 的 Objective · 步骤一可判与 Files 同批对齐（新增 `Create:` 一行与 `single-home.test.ts` 的 `Modify:` 一行） | Oscaner M. · Claude（kairos:cdd-fix） |

@@ -14,23 +14,30 @@
 // `Acceptance ⑥` skips work items), so the registration states the criterion the
 // implementation writes. It is read where it is registered, not counted as a family.
 //
-// The carrier is a SYNTHETIC charter (`charterBody`) — the fixture is the document these
-// arms may assert, and no arm reads the file this checkout carries. Every arm names the
-// sentence it reads, and each carries its counter-arm: the original wording reported (the
-// measurement grammar) · a grammar-clean copy that keeps the duplicated sentences still
-// refused (single-home) · the pointers themselves passing · a labelled restatement beside
-// the pointer caught (the same home twice) · a copy that keeps ONLY the backfill family
-// named by its holders · an unplaceable heading reported as the face map's gap.
+// Both sides of every comparison are material THIS FILE writes: the carrier is a SYNTHETIC
+// charter (`charterBody`), and `single-home`'s right domain is a fixture corpus delivered
+// through the judge context's filesystem seam (`MemoryFs`), so no arm reads the repository's
+// own document tree and a renamed or reworded document out there can never redden this file.
+// Every arm names the sentence it reads, and each carries its counter-arm: the original
+// wording reported (the measurement grammar) · a grammar-clean copy that keeps the
+// duplicated sentences still refused (single-home) · the pointers themselves passing · a
+// labelled restatement beside the pointer caught (the same home twice) · a copy that keeps
+// ONLY the backfill family named by its holders · a holder muted in the corpus dropping out
+// of that naming · an empty corpus reporting nothing, so the greenness is the fixture's and
+// never the tree's · an unplaceable heading reported as the face map's gap.
 
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
+import { ENGINE_DOC_ROOTS } from "../../infra/doc-roots.ts";
+import type { DocFs } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 
-/** The repo root of THIS checkout — the root the fixture's right domain resolves in. */
-const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
+/** The fixture root — a path no checkout carries: every judgment below resolves inside
+ *  the memory filesystem the arms build, never against this working tree. */
+const FIXTURE_ROOT = "/x-fixture";
 
-/** The program charter under judgment — a fixture path, never the file this checkout
+/** The program charter under judgment — a fixture path, never a file this checkout
  *  carries: the arms assert the synthetic carrier they build. */
 const CHARTER_PATH = "x-charter-fixture.md";
 
@@ -124,27 +131,87 @@ const REPAIRED_SECTIONS: readonly (readonly [string, readonly string[]])[] = [
   ["## Constraints", [BACKFILL_POINTER, "- 面间派生单源：`next:` 派生恰住一处"]],
 ];
 
-/** The findings of one document's judgment over the fixture body. */
-const findingsOf = (body: string, rel = CHARTER_PATH) =>
+/** The four documents the backfill family's refusal names — the identity substrings the
+ *  arm reads in the finding messages. */
+const BACKFILL_HOLDERS = ["p9-design", "p10-design", "tooling-p1.md", "tooling-p2.md"];
+
+/** One corpus document: the doc root it lives under, its file name, and the criterion
+ *  sentences it holds in its `## Constraints` section. The names are the identities the
+ *  charter's pointers name, so the corpus stands in for the holders they point at. */
+const HOLDERS: readonly (readonly [string, string, readonly string[]])[] = [
+  [ENGINE_DOC_ROOTS.specs, "2026-10-10-engine-doc-tooling-p3-design.md", [GATE_CRITERION]],
+  [ENGINE_DOC_ROOTS.plans, "2026-10-10-engine-doc-tooling-p4.md", [GATE_CRITERION]],
+  [ENGINE_DOC_ROOTS.specs, "2026-10-10-engine-doc-tooling-p9-design.md", [BACKFILL_CRITERION]],
+  [ENGINE_DOC_ROOTS.specs, "2026-10-10-engine-doc-tooling-p10-design.md", [BACKFILL_CRITERION]],
+  [ENGINE_DOC_ROOTS.specs, "2026-10-10-engine-doc-tooling-p13-design.md", [RELEASE_CRITERION]],
+  [ENGINE_DOC_ROOTS.plans, "2026-10-10-engine-doc-tooling-p1.md", [BACKFILL_CRITERION]],
+  [ENGINE_DOC_ROOTS.plans, "2026-10-10-engine-doc-tooling-p2.md", [BACKFILL_CRITERION]],
+];
+
+/** A fixture file name's own identity — `2026-10-10-engine-doc-tooling-p9-design.md` reads
+ *  `x-p9-design`, distinct from the judged charter's slug so no neighbour is filtered as a
+ *  same-slug sibling. */
+const slugOf = (name: string): string =>
+  `x-${name.replace(/^\d{4}-\d{2}-\d{2}-engine-doc-tooling-/, "").replace(/\.md$/, "")}`;
+
+/** One fixture phase document — its identity head plus the criteria it holds. */
+const heldDoc = (dir: string, name: string, criteria: readonly string[]): string =>
+  [
+    "---",
+    `title: ${name}`,
+    `doc-type: ${dir === ENGINE_DOC_ROOTS.plans ? "plan" : "phase-spec"}`,
+    "version: v1.0",
+    "date: 2026-10-10",
+    `slug: ${slugOf(name)}`,
+    "---",
+    "",
+    "## Constraints",
+    "",
+    ...criteria,
+    "",
+  ].join("\n");
+
+/** The right domain these arms own — every holder document, in memory, under
+ *  `FIXTURE_ROOT`. `bodies` replaces one document's body by file name, so an arm can
+ *  mutate the corpus it owns and watch the judgment follow. */
+const corpusOf = (bodies: Readonly<Record<string, string>> = {}): DocFs =>
+  new MemoryFs(
+    Object.fromEntries(
+      HOLDERS.map(([dir, name, criteria]) => [
+        path.join(FIXTURE_ROOT, dir, name),
+        bodies[name] ?? heldDoc(dir, name, criteria),
+      ]),
+    ),
+  );
+
+/** The copy that keeps ONLY the backfill discipline — the gate and release families stay
+ *  pointers, so exactly one family can report and its holders are readable in the names. */
+const backfillOnlyBody = (): string => {
+  const sections = [
+    ...REPAIRED_SECTIONS.slice(0, 4),
+    ["## Constraints", [BACKFILL_CRITERION, "- 面间派生单源：`next:` 派生恰住一处"]] as const,
+  ];
+  return charterBody(sections as readonly (readonly [string, readonly string[]])[]);
+};
+
+/** The findings of one document's judgment over the fixture body — the right domain is the
+ *  arm's own corpus, so the judgment reads no document this checkout carries. */
+const findingsOf = (body: string, fs: DocFs = corpusOf(), rel = CHARTER_PATH) =>
   new Contract().validate({
     docKey: "overall",
-    path: path.join(REPO_ROOT, rel),
+    path: path.join(FIXTURE_ROOT, rel),
     content: body,
-    root: REPO_ROOT,
+    root: FIXTURE_ROOT,
+    fs,
   });
 
 /** The kinds of one document's judgment over the fixture body. */
-const kindsOf = (body: string, rel = CHARTER_PATH): string[] =>
-  findingsOf(body, rel).map((finding) => finding.kind);
+const kindsOf = (body: string, fs: DocFs = corpusOf(), rel = CHARTER_PATH): string[] =>
+  findingsOf(body, fs, rel).map((finding) => finding.kind);
 
-/** One body judged as the charter fixture — the same doc key, path and root. */
-const charterFindingsOf = (content: string) =>
-  new Contract().validate({
-    docKey: "overall",
-    path: path.join(REPO_ROOT, CHARTER_PATH),
-    content,
-    root: REPO_ROOT,
-  });
+/** The single-home findings of one body over one corpus. */
+const singleHomeOf = (body: string, fs: DocFs = corpusOf()) =>
+  findingsOf(body, fs).filter((finding) => finding.kind === "single-home");
 
 describe("P41 T7 — the charter states conditions, not the tree as it stands", () => {
   it("reports the original wording: one bare measurement", () => {
@@ -186,19 +253,13 @@ describe("P41 T7 — the charter states conditions, not the tree as it stands", 
   it("catches the copy that keeps ONLY the backfill family (one family, one arm)", () => {
     // The arm above restores all three families at once, so it stays green while any ONE
     // of them stops being read. This copy keeps the gate and release families as
-    // pointers and restates the backfill discipline alone: the four neighbours that hold
-    // that sentence are the refusal's own evidence, so a right domain that quietly
+    // pointers and restates the backfill discipline alone: the four corpus documents that
+    // hold that sentence are the refusal's own evidence, so a right domain that quietly
     // dropped the family would redden here by name.
-    const backfillOnly = [
-      ...REPAIRED_SECTIONS.slice(0, 4),
-      ["## Constraints", [BACKFILL_CRITERION, "- 面间派生单源：`next:` 派生恰住一处"]] as const,
-    ];
-    const findings = findingsOf(
-      charterBody(backfillOnly as readonly (readonly [string, readonly string[]])[]),
-    );
+    const findings = findingsOf(backfillOnlyBody());
     const singleHome = findings.filter((finding) => finding.kind === "single-home");
     expect(singleHome.length).toBeGreaterThanOrEqual(1);
-    for (const neighbour of ["p9-design", "p10-design", "tooling-p1.md", "tooling-p2.md"]) {
+    for (const neighbour of BACKFILL_HOLDERS) {
       expect(
         singleHome.some((finding) => finding.message.includes(neighbour)),
         `the backfill family names its ${neighbour} holder`,
@@ -215,7 +276,7 @@ describe("P41 T7 — the charter's gaps are measured on its fixture", () => {
   // the same synthetic carrier the arms above read.
   it("reads measure-literal's candidate face — an unplaceable heading is a gap, not a silence", () => {
     const gapsOf = (body: string): readonly string[] =>
-      charterFindingsOf(body)
+      findingsOf(body)
         .filter(
           (finding) =>
             finding.kind === "measure-literal" && finding.message.includes("no declared face"),
@@ -234,5 +295,29 @@ describe("P41 T7 — the charter's gaps are measured on its fixture", () => {
       heading === "## Maintenance" ? ["## Upkeep", lines] : [heading, lines],
     );
     expect(gapsOf(charterBody(renamed))).toContain("## Upkeep");
+  });
+});
+
+describe("P41 T7 — the right domain is the fixture corpus, never the tree", () => {
+  // The rule's other two arms: the neighbour falls silent once it stops copying, and the
+  // zero-candidate read goes red instead of passing for "nothing to compare".
+  it("drops a holder from the naming when its corpus document stops stating the sentence", () => {
+    const muted = corpusOf({
+      "2026-10-10-engine-doc-tooling-p1.md": heldDoc(
+        ENGINE_DOC_ROOTS.plans,
+        "2026-10-10-engine-doc-tooling-p1.md",
+        ["- **P1 的评审面**：干净树上先复审，再落实现；两件事不并作一轮，作者判定后由编排器登记"],
+      ),
+    });
+    const named = BACKFILL_HOLDERS.filter((holder) =>
+      singleHomeOf(backfillOnlyBody(), muted).some((finding) => finding.message.includes(holder)),
+    );
+    expect(named).toEqual(BACKFILL_HOLDERS.filter((holder) => holder !== "tooling-p1.md"));
+  });
+
+  it("reports nothing over an empty corpus — the greenness is the fixture's, not the tree's", () => {
+    // A right domain that quietly fell back to the checkout's own document tree would
+    // report here, because this copy restates a sentence four of our documents hold.
+    expect(singleHomeOf(backfillOnlyBody(), new MemoryFs({}))).toEqual([]);
   });
 });

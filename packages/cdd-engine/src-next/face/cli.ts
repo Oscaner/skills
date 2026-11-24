@@ -460,7 +460,7 @@ export class Cli {
   }
 
   /** The command boundary — the ONE invalidation point of every snapshot a command
-   *  may take and the next one must not inherit. One COMMAND, one snapshot: the four
+   *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
    *  per-root memos (`#index` · `#closed` · the production pre-flight, whose closure
    *  port closes over `#closed`) and the judgment instance's own right-domain
    *  corpus are dropped here, so the next invocation re-scans. A memo carried across

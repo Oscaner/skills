@@ -5,9 +5,9 @@
 //   · `ClosedDocument#closed`: a phase inventory's two NAMED cells (`Design spec` ·
 //     `Implementation plan`) each close a document, and the naming file name must
 //     resolve to EXACTLY one indexed document — zero hits and several hits prove
-//     nothing. The polarity is the opposite of the pin face's private `#closedBy`
-//     (whose dead rows read CLOSED), and the pairs below keep the two readings from
-//     collapsing into one. The document set comes from `SlugIndex` (the command
+//     nothing. The polarity was the pin face's private `#closedBy` reversed (its dead
+//     rows read CLOSED) — that face retired with the pin gate, and the pairs below keep
+//     this reading positive-only. The document set comes from `SlugIndex` (the command
 //     preamble's ONE identity scan), never from a second tree walk;
 //   · the composition root's closure accessor: ONE reader per dispatch, asked by the
 //     pre-flight closure port (the value `Contract.validate` receives) and — on a doc
@@ -143,7 +143,7 @@ describe("P41 T5 — `closed` reads the two named cells and demands exactly one 
     expect(ghost.closed(SPEC_REL)).toBe(false);
 
     // Several: two indexed documents share the base name, so the registration no longer
-    // identifies one document — the shape gate never inherits the pin face's tolerance.
+    // identifies one document — the shape gate never inherits the retired face's tolerance.
     const severalRoot = closureFixture(charterOf(doneCell("x-design.md"), "[Pending]"));
     write(severalRoot, "docs/kairos/plans/x-design.md", front("plan", "y"));
     const several = readerOf(severalRoot);
@@ -348,8 +348,9 @@ const specOf = (): string =>
     "| v1.0 | 2026-11-20 | init | [human] |",
   ].join("\n");
 
-/** A review draft whose one finding carries a `contract.path` (the read-back corpus's
- *  subject), so the pin read-back runs beside the closure reading. */
+/** A review draft whose one WARN finding carries the optional repair anchor
+ *  (`contract.path` · `anchor`) — a non-blocking, schema-valid judge carrier, so the
+ *  review read-backs below judge a REAL draft. */
 const reviewDraft = (): Record<string, unknown> => ({
   findings: [
     {

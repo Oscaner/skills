@@ -12951,7 +12951,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
 
 // ---------------------------------------------------------------------------
 // P41 T5 — one command, one snapshot. Every per-root seam of the composition
-// root (the identity index · the pin audit · the production pre-flight) and the
+// root (the identity index · the closure reading · the production pre-flight) and the
 // judgment instance's own right-domain corpus are dropped at the command
 // boundary, so a second `runArgv` on ONE `Cli` answers from the tree it reads
 // then — never from the snapshot the first command took.

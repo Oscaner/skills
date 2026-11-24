@@ -12,12 +12,12 @@
 // hits and several hits prove nothing, because a registration that no longer identifies
 // one document cannot establish that anything is closed.
 //
-// That polarity is deliberately the opposite of the pin face's `#closedBy` (whose zero /
-// several reading counts as CLOSED — a dead `✔ Done` row must not buy a silent pin skip).
-// The two names never collide, and the shape gate never inherits the pin face's
-// tolerance. The registration GRAMMAR is shared: `fileOf` is the one spelling of
-// `✔ Done（`file` · date）` in this tree, and the pin face reads its own cell set through
-// it until that module retires.
+// That polarity was the pin face's opposite: its `#closedBy` read zero / several hits as
+// CLOSED (a dead `✔ Done` row must not buy a silent pin skip). That face retired with the
+// pin gate, and this reading keeps the positive-only closure it outlived — the shape gate
+// never inherits the tolerance. The registration GRAMMAR survives: `fileOf` is the one
+// spelling of `✔ Done（`file` · date）` in this tree, and the closure reading above is its
+// one reader.
 //
 // The document set comes from `infra/slug-index.ts#SlugIndex` — the command preamble's
 // ONE identity scan — so this reader never walks the tree a second time and never
@@ -88,8 +88,8 @@ export class ClosedDocument {
 
   /** The file name one `✔ Done（`file` · date）` cell writes, or null when the cell is
    *  not a registration at all (`[Pending]`, a bare scope note). The ONE spelling of the
-   *  registration grammar: the closure reading above and the pin face's `#closedBy` both
-   *  ask it, so a change to the form moves one regex. */
+   *  registration grammar: the closure reading above is its reader, so a change to the
+   *  form moves one regex. */
   static fileOf(cell: string): string | null {
     return DONE_CELL.exec(cell)?.groups?.file ?? null;
   }

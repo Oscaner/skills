@@ -5872,6 +5872,61 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
+  it("board --notes folds the child-note bodies to their count, and the flag opens the same bytes", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      // The branch line's own review round, with its carrier on disk and one note: the
+      // default face prints the count alone, the flag appends the folded body.
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "prog-p1");
+      mkdirSync(workspace, { recursive: true });
+      const carrier = path.join(workspace, "branch-review-1.json");
+      const note = "the brief's Constraints mirror repeats the plan";
+      writeFileSync(
+        carrier,
+        `${JSON.stringify({ findings: [], notes: [note] }, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        JSON.stringify({
+          timeoutCount: 0,
+          waves: [
+            {
+              wave: "branch",
+              rounds: [
+                {
+                  op: "review",
+                  cycle: 1,
+                  attempt: 1,
+                  dispatchBase: null,
+                  carrierPath: carrier,
+                  verdict: { treeClean: true, targetAction: true },
+                  violations: [],
+                },
+              ],
+            },
+          ],
+        }),
+        "utf8",
+      );
+      // The folded default: the count is printed, no byte of the body is.
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      expect(io.stdoutText).toContain("notes +1");
+      expect(io.stdoutText).not.toContain(note);
+      io.stdoutText = "";
+      // The flag is declared + wired through every summaryCell call site: one token,
+      // the same count, and the body appended after it.
+      expect(await command.runArgv(["board", "--plan", PLAN, "--notes"])).toBe(0);
+      expect(io.stderrText).not.toContain("Usage");
+      expect(io.stdoutText).toContain(`notes +1; ${note}`);
+      expect(io.stdoutText.split("\n").filter((row) => row.includes("notes +1")).length).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an overall --spec path renders the program board", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

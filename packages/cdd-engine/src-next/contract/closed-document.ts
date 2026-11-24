@@ -30,6 +30,7 @@ import path from "node:path";
 import type { SlugIndex } from "../infra/slug-index.ts";
 import { type ChainPhase, docTypeParsers, type OverallParsed } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
+import { PathShape } from "./shape-rules.ts";
 
 /** The `✔ Done（`file` · date）` grammar — the registration form both named cells of a
  *  Phase-inventory row write, read here ONCE so a later change to the form moves one
@@ -62,7 +63,10 @@ export class ClosedDocument {
    *  against `path.basename` of the indexed documents, and a cell that resolves to zero
    *  or several documents proves nothing. */
   closed(rel: string): boolean {
-    const judged = path.normalize(rel).replace(/^\.\//, "");
+    // The one path normalization of the rule plane, not a second spelling of it: the
+    // judged path and every indexed entry (already normalized by `SlugIndex`) meet on
+    // the same form, so two writings of one location never read as two locations.
+    const judged = PathShape.normalize(rel);
     for (const charter of this.#chartersOf()) {
       for (const phase of charter.phases) {
         const cells = [phase.designCell, phase.planCell];

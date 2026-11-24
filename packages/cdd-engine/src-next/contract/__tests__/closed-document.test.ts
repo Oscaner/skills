@@ -125,6 +125,18 @@ describe("P41 T5 — `closed` reads the two named cells and demands exactly one 
     expect(both.closed(PLAN_REL)).toBe(true);
   });
 
+  it("normalizes the judged path through the rule plane's ONE spelling — `./` and a trailing slash still close", () => {
+    const root = closureFixture(charterOf(doneCell("x-design.md"), "[Pending]"));
+    const reader = readerOf(root);
+    // The judged path carries prose the indexed entries never do: a leading `./` and a
+    // trailing slash are writing, not coordinates. A second normalizer inside the
+    // closure chain would be a second home for that rule, so the same document written
+    // three ways has to answer the same reading.
+    expect(reader.closed(`./${SPEC_REL}`)).toBe(true);
+    expect(reader.closed(`${SPEC_REL}/`)).toBe(true);
+    expect(reader.closed(`./${SPEC_REL}/`)).toBe(true);
+  });
+
   it("proves nothing on zero hits or several hits", () => {
     // Zero: the cell names a document the tree does not hold.
     const ghost = readerOf(closureFixture(charterOf(doneCell("ghost-design.md"), "[Pending]")));

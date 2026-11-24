@@ -123,6 +123,7 @@ none
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
 - Modify: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`
+- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
 - Modify: `packages/cdd-engine/src-next/session/__tests__/notes-channel.test.ts`
 
 #### Consumes
@@ -135,16 +136,18 @@ none
 - `BoardView#summaryToken` 的折叠分支：`notes +M` 在，正文不在；`--notes` 打开时字节与改动前逐字相同
 - `board-view.test.ts` 的成对臂：默认无正文 · `--notes` 展开逐字节相等 · 段序不变 · 展开面仍是一行（` · ` 与换行都不出现）
 - `notes-channel.test.ts` 的 board token 断言改到折叠形态：默认臂只断言 `notes +M`（计数在、正文不在），展开臂逐字节断言原正文；brief 渲染组不在本任务的面内，一行不动
+- `cli.test.ts` 的 CLI 级成对臂（照 `board --artifacts` 的先例）：一颗带 note 的载体经 `runArgv(["board", "--plan", …])` 走默认面只印 `notes +M`，`--notes` 时同一 token 追加正文字节 —— 参数读取（`parsed.args.notes`）与 `display` 经 `BoardView.render` 的逐点透传因此端到端可红，而不只是 `summaryCell` 的单测
 
 #### Steps
 - 加 `--notes` 通道行并接到 board — checkable: `cdd board --help` 出现 `--notes`，且不写 `--notes` 时不把正文打进输出
 - 改 `#summaryToken` 的 notes 段为折叠/展开两支 — checkable: `board-view.test.ts` 三臂（默认零正文 · `--notes` 逐字节相等 · 段序逐字同序）各自可红：把展开支删掉 ⇒ 第二臂红；把计数挪出 token ⇒ 第三臂红
 - 展开面仍走 `displayReason` 的一行折叠 — checkable: 一条含换行与 ` · ` 的 note 在 `--notes` 下仍是一行（成对：改用裸 `join` ⇒ 该臂红）
 - 把 `session/__tests__/notes-channel.test.ts` 上按展开字节 pin 的 board token 断言改到折叠形态 — checkable: 该文件的默认臂只余 `notes +M`（正文零命中），`--notes` 臂逐字节等于改动前的原串；brief 渲染组断言未动且全绿；成对：把默认改回展开 ⇒ 默认臂红
+- 在 `cli.test.ts` 补 CLI 级成对臂 — checkable: 默认臂断言 `notes +M` 且正文字节零命中，`--notes` 臂断言同一 token 追加正文；成对：把 `display` 写成常量折叠（不读 `parsed.args.notes`）⇒ `--notes` 臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p43):` 起头
 
 #### Acceptance
-board 默认输出零 note 正文而计数在；`--notes` 展开的字节与改动前逐字相同；胶囊面零改动。
+board 默认输出零 note 正文而计数在；`--notes` 展开的字节与改动前逐字相同；胶囊面零改动；`--notes` 的读取与 `display` 的透传由 `cli.test.ts` 的一条 CLI 级臂端到端判红，单测只覆盖 `summaryCell` 的一层不算数。
 
 #### DependsOn
 none

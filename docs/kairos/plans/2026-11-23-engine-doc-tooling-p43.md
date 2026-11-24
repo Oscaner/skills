@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.15
+version: v0.16
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -212,11 +212,13 @@ Task 1, Task 5
 #### Objective
 `contract/census.ts` 只留 `CensusGate.referencesOf` 这一个静态文法面（收成单静态类，带一行 `biome-ignore` 与理由，按仓库既有做法——先例是 `packages/cdd-engine/src-next/bin.ts` 的静态面），`censusTableOf` · `CensusTable` · `CensusDeps` · `CensusGate#report` 与四行 `pin.*` 登记一并删除。`contract/__tests__/census.guard.test.ts` 按面拆：语料臂与登记机器臂退役，引用文法臂搬进 `contract/__tests__/census-grammar.test.ts` 继续断言（占位符读作散文 · 小数与带后缀值读作散文 · 只读右值）。
 
+散文那半与语料那半不同：`contract/invariants.ts` 的 `MeasureLiteralInvariant` 类段注把计数说成「由 census 登记表供给、由 `CensusGate` 比对」，而那两个构造物正是本任务退役的东西——段注同批改读成「这份读者经 `CensusGate.referencesOf` 读引用的形状」，判定语义、`evaluate` 的 gap 臂与 `#referenceSpans` 的跨度读一字不动，改的只是这段话说它自己怎么读。两半各判各的：符号零命中不代偿段注，反之亦然。
+
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/census.ts`
 - Delete: `packages/cdd-engine/src-next/contract/__tests__/census.guard.test.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/census-grammar.test.ts`
-- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`MeasureLiteralInvariant` 的类段注随比较机器收口，成对判法与写面见 Objective 与步骤；该类的调用点与判定语义不动）
 
 #### Consumes
 - `contract/census.ts#CensusGate.referencesOf`（留下的文法面，`MeasureLiteralInvariant` 的跨度读在用）
@@ -225,15 +227,17 @@ Task 1, Task 5
 #### Produces
 - `contract/census.ts` 只剩 `referencesOf`（单静态类 + `biome-ignore` 行）；登记表与比较机器不存在，`PinAudit` 的类型 import 随四行 `pin.*` 登记一并离开该文件
 - `contract/__tests__/census-grammar.test.ts`——三臂各自可红（占位符 · 小数与带后缀值 · 只读右值）
-- `invariants.ts#MeasureLiteralInvariant` 的调用点不动（仍只读文法）
+- `invariants.ts#MeasureLiteralInvariant` 的调用点 · 判定语义与跨度读都不动（仍只读文法）
+- `invariants.ts` 的 `MeasureLiteralInvariant` 类段注不再宣告登记表的供给与 `CensusGate` 的比对，改读成经 `CensusGate.referencesOf` 读引用形状；类里那条 finding 提示不在本任务的写集里——它讲的是那个值从哪来，不是这段被撤的断言
 
 #### Steps
 - 删登记表与比较机器，收 `CensusGate` 为单静态类 — checkable: `pnpm run biome` exit 0（单静态类落在 `biome-ignore` 之下）；`contract/census.ts` 上 `PinAudit` 零命中；成对：删掉那行 ignore ⇒ `biome check` 报出 `noStaticOnlyClass` 诊断（该规则在 recommended 预设下是 warning 级，退出码不变，故判据读诊断而不是退出码）
+- 收 `MeasureLiteralInvariant` 段注的散文半 — checkable: `packages/cdd-engine/src-next/contract/invariants.ts` 上 `compared by` 与 `supplied by the census` 零命中，而 `CensusGate.referencesOf` 仍在位（类段注里说它读的是引用文法，`#referenceSpans` 的段注里说跨度读骑的就是这道文法）；`MeasureLiteralInvariant` 的 `evaluate` 与 `#referenceSpans` 一字不动，`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0；两半各判各的——成对：把 `compared by` 那半写回段注（不碰任何符号）⇒ 散文半红而符号半照旧零命中；把登记表与比较机器写回 `contract/census.ts` 而段注不动 ⇒ 符号半红而散文半不红。判据读的是被撤的那句断言，不是 `census registry` 这两个词本身——该类段注之外，类的 finding 提示仍要说清那个值从哪来
 - 搬文法臂到新文件 — checkable: `census-grammar.test.ts` 三臂全绿；把 `REFERENCE` 的终止符规则去掉再跑 ⇒ `3.5` 那一臂红
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
-文法面仍在判、且能红；登记机器与语料臂消失；`biome` 与本任务 Files 涉及的套件全绿（`pins.guard` 的语料臂是 spec §8.4 的窗口红，由 Task 4 撤销）。
+文法面仍在判、且能红；登记机器与语料臂消失；`contract/invariants.ts` 的 `MeasureLiteralInvariant` 段注同批收口——它在 Files 里有主、在步骤里有判法，不再宣告登记表供给或 `CensusGate` 比对；`biome` 与本任务 Files 涉及的套件全绿（`pins.guard` 的语料臂是 spec §8.4 的窗口红，由 Task 4 撤销）。
 
 #### DependsOn
 Task 1
@@ -435,3 +439,4 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 | v0.13 | 2026-11-24 | **记录 `2a2b1312` 的 Task 4 写集补写（本行追登）并应用 branch 评审轮一的 F1 裁定**：该提交删掉 `session/round-artifacts.ts` 上的 `ArtifactRegistry.ownsName`（−10 行）——它的唯一读者是 pin 门的 artifact 名排除，Task 4 一退役它就是死代码；文件本身不在任何任务的 `**Files:**` 里，本行给 Task 4 补上该 `Modify:` 行，使计划的写集与 `git diff origin/develop...HEAD` 的文件面重新一一对应（除本相位的 spec 外，该 diff 不再有不被计划署名的文件） | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.14 | 2026-11-24 | **记录 `51e5ba5c` 的 Task 7 补写（本行追登）并应用 plan 评审轮十的 F1–F2 用户裁定（Task 7 与 Task 8 两任务面，结构面未动）**：Task 7 把 P37 spec §1.3 的构成句点名为声明那一半的第三类写面——声明坐在构成句里时数字改到删除后的行数，构成句改读成落笔时的表记，被撤的那一行就地标成已随 pin 门撤除（不删成员 · 不改结论），Objective · Produces · 两步同批落笔，成对读作「把 §1.3 的构成句原样留着 ⇒ 该处读成判据表仍带 pin-parseability」；`51e5ba5c`（`docs(p43): frame the P37 criteria census as its authoring-time table`）是本相位的 Task 7 交付，本行把它与那处构成句的写面一并入账；Task 8 的篡改臂补齐 spec 点名的生成物面——`.claude-plugin` 的派生 · `docs/diagrams/src/*.json` 的源 · ISSUE_TEMPLATE 的表单各一处，Acceptance 同批携带三面，与 Produces 已声明的生成物面一一对应 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.15 | 2026-11-24 | **按 branch 评审轮二的 F1 裁定修正（Task 6 面，结构面未动）**：`charter-self-repair.test.ts` 里那条「只留回填家族」的 `single-home` 臂不再拿本仓 `docs/kairos/**` 当真语料——它的右域改由判定上下文的 `fs` 缝注入本文件自建的语料，`MemoryFs` 收成 `__tests__/support/memory-fs.ts` 一处实现（`single-home.test.ts` 的本地同类同批改用），臂的文件头与成对红同批落笔（改夹具一处句子 ⇒ 该家族少点名一位持有者 · 空语料 ⇒ 零 finding）；Task 6 的 Objective · 步骤一可判与 Files 同批对齐（新增 `Create:` 一行与 `single-home.test.ts` 的 `Modify:` 一行） | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.16 | 2026-11-24 | **按 plan 评审轮十一的 F1 修正（Task 5 面，结构面未动）**：`contract/invariants.ts` 上 `MeasureLiteralInvariant` 的类段注随比较机器收口——那句「登记表供给 · `CensusGate` 比对」改读成经 `CensusGate.referencesOf` 读引用形状（`d22318b2` 的散文改写随之入账，此前 Task 4 已为它自己的散文半立过同一先例）；Task 5 的 `Modify:` 行就地署上它的写面，Objective · Produces 与 Acceptance 同批落笔，并新增一步按 `compared by` 与 `supplied by the census` 零命中判，成对为「段注写回 ⇒ 散文半红而符号半绿」与「登记表写回 ⇒ 符号半红而散文半绿」两向 | Oscaner M. · Claude（kairos:cdd-docs-fix） |

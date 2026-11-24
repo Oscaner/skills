@@ -174,6 +174,13 @@ Task 5 已先走：`contract/census.ts` 的 `PinAudit` 类型 import 与 `census
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/review-criteria.test.ts`
 - Modify: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 - Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（闭合端口段注里的 `audit accessor` 随符号收口改指闭合读数）
+- Modify: `packages/cdd-engine/src-next/contract/markdown-spans.ts`
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/markdown-spans.test.ts`
+- Modify: `docs/diagrams/src/architecture.en.json`
+- Modify: `docs/diagrams/src/architecture.zh-CN.json`
+- Modify: `docs/diagrams/architecture.en.html`
+- Modify: `docs/diagrams/architecture.zh-CN.html`
 
 #### Consumes
 - `contract/markdown-spans.ts#ProseSpans` · `contract/shape-rules.ts#PathShape` · `contract/closed-document.ts#ClosedDocument`（Task 1 已接走的三条腿）
@@ -321,6 +328,7 @@ Task 4, Task 5
 - Modify: `packages/cdd-engine/src-next/face/__tests__/diagram-twin.guard.test.ts`
 - Modify: `scripts/lib/diagrams.ts`
 - Modify: `scripts/run.ts`
+- Modify: `scripts/emit.ts`（`emitAll` 把本轮暂存对交回来，一条渲染喂写回与断言两处）
 - Modify: `scripts/__tests__/diagrams.test.ts`
 
 #### Consumes

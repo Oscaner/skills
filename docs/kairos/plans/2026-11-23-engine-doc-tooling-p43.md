@@ -1,7 +1,7 @@
 ---
 title: 'P43 · 引擎自证面退役：pin 按符号退、语料臂退、生成物归 emit:check、board 折叠'
 doc-type: plan
-version: v0.25
+version: v0.26
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 base: develop
@@ -454,7 +454,7 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/charter-self-repair.test.ts`（读该族的臂与 `single-home` 臂里断言该 id 的零读数删除，P41 的缺口 describe 留下换 kind，文件头注释改读；`single-home` 那条臂的载体措辞同批改读——标题 `still reports a grammar-clean copy that keeps the three duplicated criteria (single-home)` 把这份宪章称作 `grammar-clean`，而它下面两处行内注释（`The measurement grammar is silent on this copy …` 与 `The measurement grammar stays silent …`）各自长在被删的那条零读数上、随它一起离场，故标题不再以一条不在树上的文法面命名载体，`single-home` 的断言与它的成对红照旧）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（P41 T5 两格的载体换成 `line-coordinate`，断言面逐字同形）
 - Modify: `packages/cdd-engine/src-next/session/__tests__/fix-round-gate.test.ts`（`MEASURE` 与 `MEASURE_OTHER` 两份夹具改写成 `line-coordinate` 的违规并改名、措辞断言随新报文、手写 baseline 取同一条在册行；`P42 T10` 的 `NAMED` 表随写作约束同批收缩——从它去掉该 id（余 `line-coordinate` · `live-arithmetic`）、标题的点数词改读 `two`，排除对（两条 record 面规则）逐条不动；同一 describe 末尾那处 `work` 半——`modes.implement.shell` 上对已退 id 的负向断言——同批改指留下的 `line-coordinate`：它守的是「work 壳从不点名形状规则」，改指后既保住 docs-fix 臂的成对，也让处置面的零命中读在夹具面上成立（删它是次选：成对随之失去，而断言对一个已不在树上的名字恒真）；只收 shell 不收表 ⇒ 该臂以零对一红）
-- Modify: `packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts`（文件头括注的数目取四类 `declaredRegistries[type].elements.length` 的合计，并配成对臂；Task 9 的同一句由本任务接管）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts`（本任务署这一文件里断言树的人口读数的每一处，不止文件头一处：文件头括注与读它的 `keeps the module header's figure equal to the four registries' own lengths` 臂两处取四类 `declaredRegistries[type].elements.length` 的合计，两个 describe 体内各一条写死的 `expect(total).toBe(…)` 断言改成同一合计的派生读，两个标题 `declares a well-formed selector on all 112 elements` 与 `resolves all 112 elements on the conforming carrier of their own type` 去掉数目、改读成 `every declared element`；Task 9 的同一句由本任务接管）
 - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（`author-spec` 节点的 `count` 行按 spec §4.1 落定的那一句改写）
 - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（`author-plan` 节点的 `count` 行同批，与上一条逐字相同）
 - Modify: `packages/kairos/tests/claim-shapes.test.ts`（`RULE_IDS_BY_SHAPE.count` 收成空集——改读后的 `count` 行一句规则 id 也不点名，映射臂因此要求它点名零个，`pin` 与 `narrative` 各留一名；文件头把 `count` 记作两个 id 的那条映射注同批改读；合法形态臂反转为要求那句说出没有这样的登记表；成对：把 `census:<id> = <n>` 的形态写回 `count` 行 ⇒ 映射臂以它点名的在册 id 对空集红，而只把该 id 从映射里去掉、`live-arithmetic` 留下 ⇒ 同一臂以空集对那一项红）
@@ -468,7 +468,7 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 - `contract/__tests__/shape-rules.test.ts` 的该规则臂与 `contract/__tests__/rules.test.ts` 的 id 字面表（两条夹具面）
 - `render/templates.ts#docNarrativeAxes` 与 `#DOCS_FIX_SHAPE_RULES` · 两份 authoring 节点 · `packages/kairos/tests/claim-shapes.test.ts` 的三条探针（教学面与断言面）
 - spec §4.1 落定的那一句（教学面四处逐字同句的唯一依据）与 spec §4.2 的名册（不写数目的依据）
-- 树上已有的 `.changeset/p43-self-assertion-retirement.md`（Task 10 的交付，本任务改写的对象）与 `selector-coverage.test.ts` 的文件头（Task 9 的交付）
+- 树上已有的 `.changeset/p43-self-assertion-retirement.md`（Task 10 的交付，本任务改写的对象）与 `selector-coverage.test.ts` 的文件头（Task 9 的交付，随 Task 10 的依赖边在树上）
 
 #### Produces
 - `contract/census.ts` 从树上消失；`contract/invariants.ts` 上 `CensusGate` 与 `measure-literal` 零命中
@@ -476,7 +476,7 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 - `shape-rules.test.ts` 的形状行臂与 `RULE_REGISTRY` 里留下的形状行一一对应，且各自可红；`P41 T2` 那条指标臂（P42 §8 撤回该行的唯一证据）仍在树上，不随 `measure` 辅助离场
 - 形状门的零候选臂仍在：`ProseFace.gaps` 的读者是 `LineCoordinateInvariant.evaluate`，它落的 finding kind 是 `line-coordinate`
 - 教学面三处同句、写作约束只列留下的形状行；断言面不红在一条已不在树上的规则上——`claim-shapes.test.ts` 的映射臂要求 `count` 行点名零个规则 id（空集），文件头那条映射注与它同源
-- 本任务接过的两处交付面就位：changeset 不再声称 `contract/census.ts` 幸存、摘要点名 `count` 造句；`selector-coverage.test.ts` 的文件头括注与它自己量的合计同源
+- 本任务接过的两处交付面就位：changeset 不再声称 `contract/census.ts` 幸存、摘要点名 `count` 造句；`selector-coverage.test.ts` 那处人口读数只剩文件头一处书写面，与它同源的合计由头臂、两条派生断言与两个标题共用
 - 全树没有一条判据读 `census:` 形态
 - `AGENTS.md` 的「Conventions not enforced by the formatter」节按 spec §7.1 ③ 的英文原文在册，三条臂的措辞在那一文件零命中
 
@@ -485,12 +485,12 @@ Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7, Task 8, Task 9
 - 删 `census.ts` 与文法夹具 — checkable: 两个路径不存在；全树 `CensusGate` 零命中（成对：把 `referencesOf` 的任何调用加回 ⇒ 该 grep 红，因为模块已不在）
 - 收准字面表与留下的形状臂，读数从表自身取 — checkable: `rules.test.ts` 的 id 表与 `RULE_REGISTRY` 逐 id 对齐；那条按 scope 分组的读数臂整条删除，它原钉的总数与两条 scope 读数仍由 `keeps the class comment's counts equal to the table's own lengths` 那条臂对着表头字面比对供给（`scope` 是两值联合，改派生后那条臂只剩按构造恒真的一读，留着它只是让一个绿得没有主体的臂冒充守卫）；席位表那条 describe 的总数读成 `Object.keys(SEATS)` 对 `RULE_REGISTRY.length`，手写的席位表对着登记表的长度，故仍是跨源的一读（或并入它下一条臂已做的 id 集比对），夹具里不留写死的数目（成对：往 `RULE_REGISTRY` 加一行而夹具不动 ⇒ 表头比对臂与席位表臂各红；把表头里按 scope 计数的两处之一写错 ⇒ 表头比对臂红）；`shape-rules.test.ts` 的形状行臂与登记表里留下的形状行同集且各自可红（成对：删任一条臂的违规夹具 ⇒ 该条失去执行面，字面表的 drop 臂红）；改挂到 `line-coordinate` 的缺口臂按整门的读数计——不过滤 kind、只收 `message` 里带 `no declared face` 的那条，重挂后它的长度为一且 kind 为 `line-coordinate`（成对见第一步的写回方向：第二个产者出现时该读数为两条）；其中 `P41 T2 — a present-tense description is prose, not a shape violation` 的指标臂原样在树上（它不读 `measure`，故不配成对方向：删它不会让任何臂红，而删它本身就是把 P42 §8 撤回该行的证据退役）；`contract/rules.ts` 上的三处读数各有归属——按 scope 计数那处留作比对主体的拼写、读数随删行改准，形状门那两处（表头类段注的分句与形状行组上方的组注）删数改指名册（成对：把按 scope 计数那处改成与登记表长度不符的邻值 ⇒ 该臂红；把表头写成不带按 scope 计数的样子 ⇒ 主体守卫红；组注那一处不配成对臂——今天没有臂读它，删数是按交付后的读数核）
 - 改读教学面与它的探针 — checkable: 两个 authoring 节点的 `count` 行 · `#docNarrativeAxes` 的正文 · `VOLATILE_FACT_ANCHORS` 取的稳定片段逐字同句，且与 spec §4.1 落定的那一句一致；`#DOCS_FIX_SHAPE_RULES` 的清单是派生读——它今天点名的形状行去掉退役那一条，留下的按 `RULE_REGISTRY` 的在册形状行判（`single-home` 与 `change-history-date-shape` 是 record 面的规则，不在这条写作约束的行内），点数词随清单实际项数写、下笔时不写数目；P42 T10 的 docs-fix 臂以其排除集（同样是这两条 record 面规则）为这一读法作旁证，点错行即红，而该臂的 `NAMED` 表同批收缩——去该 id、余 `line-coordinate` 与 `live-arithmetic` 两条，标题的点数词改读 `two`，排除对逐条不动（成对：只改 shell 不改表 ⇒ 该臂以零对一红）；`claim-shapes.test.ts` 的 `RULE_IDS_BY_SHAPE.count` 收成空集（映射臂因此要求 `count` 行一句规则 id 也不点名，文件头那条把 `count` 记作两个 id 的映射注同批改读）、合法形态臂要求那句 `no census registry exists`（成对：把 `count` 行写回 `census:<id> = <n>` 的形态 ⇒ 映射臂与合法形态臂同时红；只把该 id 从映射里去掉、`live-arithmetic` 留下 ⇒ 映射臂以空集对那一项红）；处置面（夹具 · 模板 · 两个 skill 节点 · 登记行 · 各处头注释）上一次只圈这些路径的 `rg` 对该 id 零命中，两份 `CHANGELOG.md` 的发行史与 `docs/kairos/**` 的退役记录不在此列
-- 补齐两处已闭合任务的交付面 — checkable: changeset 里 `contract/census.ts` 那一段说的是它被删除、摘要点名 `count` 造句的退役；`selector-coverage.test.ts` 的括注等于四类 `declaredRegistries[type].elements.length` 的合计（成对：把括注写成一个与合计不符的邻值 ⇒ 该臂红）
+- 补齐两处已闭合任务的交付面 — checkable: changeset 里 `contract/census.ts` 那一段说的是它被删除、摘要点名 `count` 造句的退役；`selector-coverage.test.ts` 的括注等于四类 `declaredRegistries[type].elements.length` 的合计，两条 `expect(total).toBe(…)` 断言量的是同一个派生合计，两个标题一处读数也不带（成对两向：把括注写成一个与合计不符的邻值 ⇒ 头臂红；往任一声明登记表加一个元素 ⇒ 只有头臂红、两条派生断言与两个标题都不动，而把任一条断言改回写死的邻值 ⇒ 该条臂红）
 - `AGENTS.md` 的臂句按 spec §7.1 ③ 改读 — checkable: `grep -n "three arms" AGENTS.md` 零命中，且 §7.1 ③ 的那一句在「Conventions not enforced by the formatter」节逐字在册（成对：把三条臂的措辞写回 ⇒ 该 grep 红）；该节对名册只留一个指针、落在宪章 D101，文中不出现任何相位 spec 的节号（`grep -n "§4\.2" AGENTS.md` 零命中，成对：把名册的节号写回 ⇒ 该 grep 红）
 - 提交 — checkable: `git log -1 --format=%s` 以 `refactor(p43):` 起头
 
 #### Acceptance
-形状门只按 `RULE_REGISTRY` 里留下的形状行在册、各自可红，整门的零候选臂仍有一条且由 `line-coordinate` 承担（一份文档的脸读不出任何声明面时报一条 kind 为 `line-coordinate` 的缺口 finding，同一份正文放到已登记的小标题下则沉默）；`census:` 不再有任何读者，处置面上该 id 的读取为零，教学面四处与探针同句且不红在一条已不在树上的规则上；changeset 与 `selector-coverage.test.ts` 两处补写就位；`pnpm run validate` exit 0。
+形状门只按 `RULE_REGISTRY` 里留下的形状行在册、各自可红，整门的零候选臂仍有一条且由 `line-coordinate` 承担（一份文档的脸读不出任何声明面时报一条 kind 为 `line-coordinate` 的缺口 finding，同一份正文放到已登记的小标题下则沉默）；`census:` 不再有任何读者，处置面上该 id 的读取为零，教学面四处与探针同句且不红在一条已不在树上的规则上；changeset 与 `selector-coverage.test.ts` 两处补写就位（该文件只留文件头一处书写读数，断言与标题都是派生读或读数已离场）；`pnpm run validate` exit 0。
 
 #### DependsOn
 Task 4, Task 5, Task 10
@@ -524,3 +524,4 @@ Task 4, Task 5, Task 10
 | v0.23 | 2026-11-24 | **按 plan 评审轮十六的 F1–F5 修正（Task 11 与 Constraints 两面，结构面未动）**：F1 把 Constraints 的判据行对齐 spec 的同一条约束——`CensusGate.referencesOf` 从「一字不动」的名单里离场、例外只留 pin 门与 `measure-literal`，于是实现删除模块的那一轮读到的范围文字与它自己的删行不再冲突；F2 把 `claim-shapes.test.ts` 的 `RULE_IDS_BY_SHAPE.count` 收成空集（改读后的 `count` 行不点名任何规则 id，映射臂要求空集，文件头的映射注同批改读，成对为「把 `census:<id> = <n>` 形态写回即红」）；F3 把 `fix-round-gate.test.ts` 的 `work` 半（`modes.implement.shell` 对已退 id 的负向断言）改指留下的 `line-coordinate`，处置面的零命中读因此在夹具面上成立；F4 让 `rules.test.ts` 那条按 scope 分组的读数臂整条删除——改派生后它按构造恒真，总数与两条 scope 读数仍由表头字面比对钉住；F5 让改挂后的缺口臂按整门的 `no declared face` 读数计（长度一、kind 为 `line-coordinate`），于是「整门只有一个零候选产者」有了执行面 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.24 | 2026-11-24 | **按 plan 评审轮十七的 F1–F2 修正（Task 11 面，结构面未动）**：F1 把 `shape-rules.test.ts` 的删除对象点成题名——随 `measure-literal` 离场的只有 `P41 T2 — measure-literal: an independent integer beside a closed-set unit` 那组（present-tense 的 `measure` 半离场之后，读 `measure` 的只剩它），`P41 T2 — the three grammars judge the decision face alone` 留下、只重述标题里那个数，标题里带着门计数的两个 describe 逐个点名，`两条 describe 标题` 由此可解；F2 把散文面补到臂一级——`charter-self-repair.test.ts` 的 `single-home` 臂标题与两处行内注释同批改读（载体不再被称作 `grammar-clean`），`contract/invariants.ts` 的 `ProseFace.gaps` 方法注进写集，`three grammars` 那个数随名册离场 | Oscaner M. · Claude（kairos:cdd-docs-fix） |
 | v0.25 | 2026-11-24 | **按 wave 11 评审轮一的 F1–F2 修正（Task 11 与 Constraints 两面，结构面未动）**：F1 把 `@oscaner-skills/kairos` 的 minor 补进 changeset——本任务改的是两个 authoring 节点交付给消费者的 `count` 行，`.changeset/README.md` 的「被点名的包才发行」与完成判据③都要求它自己那条，故 front matter 两包并列、摘要点明 skill 字节的变化（D74 判据不变：方法论契约未动，两包皆 minor）；F2 把 `AGENTS.md` 的臂句指针从相位 spec 的节号移到宪章 D101 ②，按 spec §7.1 ③ 与验收格 ⑧ 的读法落笔——消费面不写节号，名册由那一行指回 spec §4.2，并给这一步配一条 `grep -n "§4\.2" AGENTS.md` 零命中的 checkable | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.26 | 2026-11-24 | **按 plan 评审轮十八的 F1–F2 修正（Task 11 面，结构面未动）**：F1 把 `selector-coverage.test.ts` 那处人口读数的接管从文件头一处扩到全文件——括注与读它的头臂取四类登记表的合计，两条写死的 `expect(total).toBe(…)` 断言改成同一合计的派生读，两个 describe 标题去掉读数、改读成 `every declared element`，成对两向写进步骤：「往登记表加一个元素 ⇒ 只有头臂红」与「把任一条断言改回写死的邻值 ⇒ 该条臂红」；F2 让 Consumes 的两处交付面各自落在声明的依赖边上——changeset 是 Task 10 自己的交付，`selector-coverage.test.ts` 的文件头（Task 9 的交付）随 Task 10 的依赖边在树上，`#### DependsOn` 的边集一字不动 | Oscaner M. · Claude（kairos:cdd-docs-fix） |

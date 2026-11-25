@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -51,7 +51,7 @@ none
 ### Task 2: 接手授权绑 in-flight 门
 
 #### Objective
-把 leg ①（`face/lifecycle.ts#CliLifecycle.foldAbort` 的 stale 记录接手）的授权从「整段结构门通过」收窄为**两条已读事实的合取**：`session/preflight.ts#PreFlightVerdict.checked` 里存在 `in-flight:` 行 ∧ `session/inflight.ts#InFlight.staleState()` 非 `null`。这行只证 **tree-clean 已过**：`session/preflight.ts#PreFlight.#inFlightRow` 在 `#inFlightRefusal` 之前就把行推进 `checked`，被 in-flight 门自己拒的判决照样带着它，所以「in-flight 门没有拒绝」由 `staleState() !== null` 那条合取项承担、不由这行证明。两条缺一不可：脏树被拒时 in-flight 行根本不进 `checked`，此时只读 `staleState()` 会在脏树上开始 fold abort。`PreFlightVerdict.holding` 不是判据——它只在 in-flight 门自己拒绝时填入，而 leg ① 成立的那条路径上门恰恰放过。legs ②③（supersede 戳 · `N+1` 派发）仍守 `structure === null`；`foldAbort` 的 abort 账零变。
+把 leg ①（`face/lifecycle.ts#CliLifecycle.foldAbort` 的 stale 记录接手）的授权从「整段结构门通过」收窄为**两条已读事实的合取**：`session/preflight.ts#PreFlightVerdict.checked` 里存在 `in-flight:` 行 ∧ `session/inflight.ts#InFlight.staleState()` 非 `null`。这行只证 **tree-clean 已过**：`session/preflight.ts#PreFlight.#inFlightRow` 在 `#inFlightRefusal` 之前就把行推进 `checked`，被 in-flight 门自己拒的判决照样带着它，所以「in-flight 门没有拒绝」由 `staleState() !== null` 那条合取项承担、不由这行证明。两条缺一不可：脏树被拒时 in-flight 行根本不进 `checked`，此时只读 `staleState()` 会在脏树上开始 fold abort。`PreFlightVerdict.holding` 不是判据——它只在 in-flight 门自己拒绝时填入，而 leg ① 成立的那条路径上门恰恰放过。legs ②③（supersede 戳 · `N+1` 派发）仍守 `structure === null`；`foldAbort` 的 abort 账零变。**结构门的拒绝不被接手判决夺走**：leg ① 一旦不再骑 `structure === null`，`--recover` 的树就会进到接手判定里，而 `structure !== null` 时 legs ②③ 被关掉、活 holder 的 `staleState()` 又是 `null`，于是两条腿都不落地——这条路径必须返回 `allowed` 让第一拒绝者保留它的判决（活 holder 拿到 in-flight 门自己的 held BLOCK），`blocked` / `RECOVER_NOTHING` 只属于 `structure === null` 且两腿皆未落地的树。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
@@ -63,19 +63,23 @@ none
 
 #### Produces
 - `#recoverRun` 的 leg ① 授权谓词：`checked` 含 `in-flight:` 行 ∧ `staleState() !== null`
+- `#recoverRun` 的 structure 事实：入参多一格「结构门仍有拒绝」的布尔（`face/cli.ts#Cli` 的调用处把 `structure` 在否传进来），`#reopenLeg` 的入参零变；该格为真 ∧ 两条腿皆未落地 ⇒ 返回 `allowed`
+- 行为 pin：活 holder（`alive === true`）∧ `--recover` 的端到端（stderr 只剩 in-flight 门的 held BLOCK——pid 与记录里的 command，无「nothing to take over」句 · 记录与锁零改动）
 - 行为 pin：`--recover` ∧ doc-contract 拒绝的端到端（记录被接手清除 · abort 账恰一条 `interrupted` · 随后同一命令不带 `--recover` 时被 doc-contract 拒绝而不是被 in-flight 拒绝）
 - 行为 pin：legs ②③ 在「文档门拒绝 ∧ 有漂移 ∧ 有 pending fix」的树上零 supersede 戳、零新 review 轮派发（同一棵树去掉文档违规后两者落地）
 
 #### Steps
 - 把 leg ① 的授权改成合取式 — checkable: 从 `structure === null` 改为「`checked` 行存在 ∧ `staleState()` 非 null」，`structure` 只留给 legs ②③
 - 脏树不 fold — checkable: tree-clean 拒绝 ∧ 树上有 stale 记录 ⇒ 记录零改动、`recordRound` 零调用
-- 活 holder 不位移 — checkable: `alive === true` ∧ 任一后续门拒绝 ⇒ 记录原样、零 abort 账
+- 活 holder 不位移 — checkable: `alive === true` ∧ 任一后续门拒绝 ⇒ 记录原样、零 abort 账；`staleState()` 对活记录返回 `null`，leg ① 的合取因此不成立
+- 非折分支不夺判决 — checkable: `structure !== null` ∧ leg ① 未折 ⇒ 接手判决返回 `allowed`，stderr 只留第一拒绝者那一句（活 holder 时是 held BLOCK，含 pid 与 command，不含「nothing to take over」）；`blocked` / `RECOVER_NOTHING` 只在 `structure === null` ∧ 两腿皆未落地时出现
+- 两条结构门的 CLI 臂 — checkable: `face/__tests__/cli.test.ts` 里用 `holdTree` 写下活 holder，跑一个非 `--dry-run` 的动作带 `--recover` ⇒ 退出 1、`io.stderrText` 含 held BLOCK 且不含「nothing to take over」，记录与锁零改动；另加脏树 ∧ stale 记录 ∧ `--recover` 臂 ⇒ `io.stderrText` 含 `tree-clean` 拒绝句，记录逐字节不变（既有那条结构门拒绝的记录断言因此不被早退的 `blocked` 抹掉）
 - abort 账一条 — checkable: 被接手的记录恰写一条 `interrupted`，op/cycle/attempt/`dispatchBase` 逐字来自记录
 - 文档门拒绝不写戳 — checkable: `review --type plan --recover` 在「文档门拒绝 ∧ 有漂移 ∧ 有 pending fix」的树上 ⇒ leg ① 折过（记录已清），但零 `supersededBy` 戳、零新 review 轮派发；同一棵树去掉文档违规 ⇒ 戳与下一轮都落地。`#reopenLeg` 不收结构事实（`structure` 只留在调用处），若把文档门的判决穿给它，新参数名与改动的文件写进这一步
 - 提交 — checkable: `git log -1 --format=%s` 以 `fix(p44):` 起头
 
 #### Acceptance
-六条行为 pin 全绿（脏树不 fold · 活 holder 不位移 · abort 账一条 · 文档门拒绝不写戳 · `--recover` 端到端 · legs ②③ 零戳零派发）；`foldAbort` 与 `session/ledger.ts#AbortFold.bookedOf` 零改动。
+行为 pin 全绿（脏树不 fold · 活 holder 不位移 · 非折分支不夺判决 · abort 账一条 · 文档门拒绝不写戳 · `--recover` 端到端 · legs ②③ 零戳零派发 · 活 holder 与脏树两条 CLI 臂）；`foldAbort` 与 `session/ledger.ts#AbortFold.bookedOf` 零改动。
 
 #### DependsOn
 1
@@ -83,7 +87,7 @@ none
 ### Task 3: 第四态的四个读者
 
 #### Objective
-新增 `face/words.ts#CAPSULE_WORDS.inFlight.targetGone` 一行：两个子句格分别命名「它主张的 plan 不在了」与「它的 workspace 目录不在了」（只渲读出不在的那几格），整行仍带 `--recover` 接管指令。`face/words.ts#InFlightWords` 那一组行形状随之多一行（接口只装行，方法在 `class Words` 上）。四个读者各就位：`session/preflight.ts#PreFlight.#inFlightRow` 对 `targetGone` 记录改读这一格（其 `checked.inFlight.stale` 保留「持有者已死、目标还在」一格）、`face/words.ts#Words.inFlightBlocked` 的阻断报文、`face/board-view.ts#BoardView.inFlightRows` 的 board 行、`face/preview.ts#Preview.heldBlock` 的 dry-run 接管提示（`--dry-run` 的 in-flight 分支在阻断报文之前返回，只有它打那一句）。`face/__tests__/words.guard.test.ts` 的接管提示是逐行手写的枚举，第四态行必须进那一列。
+新增 `face/words.ts#CAPSULE_WORDS.inFlight.targetGone` 一行：两个子句格分别命名「它主张的 plan 不在了」与「它的 workspace 目录不在了」（只渲读出不在的那几格），整行仍带 `--recover` 接管指令。`face/words.ts#InFlightWords` 那一组行形状随之多一行（接口只装行，方法在 `class Words` 上）。四个读者各就位：`session/preflight.ts#PreFlight.#inFlightRow` 对 `targetGone` 记录改读这一格（其 `checked.inFlight.stale` 保留「持有者已死、目标还在」一格）、`face/words.ts#Words.inFlightBlocked` 的阻断报文、`face/board-view.ts#BoardView.inFlightRows` 的 board 行、`face/preview.ts#Preview.heldBlock` 的 dry-run 接管提示（`--dry-run` 的 in-flight 分支在阻断报文之前返回，只有它打那一句）。四个读者都经同一个渲染器取整条裸行——读出不在的那几格子句加 `--recover` 接管句——没有一面把表里的原行推出去。`face/__tests__/words.guard.test.ts` 的接管提示是逐行手写的枚举，第四态行必须进那一列。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/words.ts`
@@ -103,15 +107,16 @@ none
 #### Produces
 - `CAPSULE_WORDS.inFlight.targetGone`（唯一 home 的行字）
 - `Words.inFlightBlocked(record, alive, targetGone?)`——第三参是 Task 1 的两格读数，可选；`alive === true` 时无论两格为何都仍渲 held 的字节，`face/cli.ts#Cli.#renderHeld` 的 acquire 竞争面因此保持两参调用、零字节改动
-- `Words.inFlightTargetGone(targetGone): string`——裸行的渲染面（兄弟渲染器）：返回读出不在的那几格子句、不带 held 前缀，`face/board-view.ts#BoardView.inFlightRows` 与 `face/preview.ts#Preview.heldBlock` 读它——今天这两处各自把 `inFlightWords().stealable` 模板原字节推出去，两子句条件渲的形态在那里没有入口；`Words.inFlightBlocked` 仍负责把这个裸行接在 `inFlightHeld` 之后
+- `Words.inFlightTargetGone(targetGone): string`——裸行的唯一渲染面（兄弟渲染器）：返回**整条裸行**（读出不在的那几格子句 + `--recover` 接管句），持有目标的那一格零输出，不带 held 前缀；四个读者都读它——`session/preflight.ts#PreFlight.#inFlightRow` · `face/words.ts#Words.inFlightBlocked` · `face/board-view.ts#BoardView.inFlightRows` · `face/preview.ts#Preview.heldBlock`——今天后两处各自把 `inFlightWords().stealable` 模板原字节推出去，两子句条件渲的形态在那里没有入口；`Words.inFlightBlocked` 仍负责把这个裸行接在 `inFlightHeld` 之后
 - 四个读者对读出不在的那几格的渲染；`checked.inFlight.stale` 与 `inFlight.stealable` 的活目标语义保
 
 #### Steps
 - 落行字 — checkable: `CAPSULE_WORDS.inFlight.targetGone` 存在，含两个子句占位与 `--recover` 接管指令；`InFlightWords` 的键集多该键
 - 子句格按读数渲 — checkable: 行的两个子句格各由 `targetGone.plan` 与 `targetGone.workspace` 的一格决定渲不渲（格为真才出句），记录没带的那条事实那一格恒不出句
-- `checked:` 行改读 — checkable: 折叠谓词为真的记录的 `in-flight:` 行读该行字；活目标 stale 记录仍读 `checked.inFlight.stale`。`session/__tests__/preflight.test.ts` 的 stale 臂（记录写 `plan: "docs/p.md"` 与 `slug: "other-slug"`，两者都不在夹具树上）随之改成第四态的字节，同一文件的活 holder 臂那条 `/^in-flight: held/` 断言原样保留
+- `checked:` 行改读 — checkable: 折叠谓词为真的记录的 `in-flight:` 行读该行字；活目标 stale 记录仍读 `checked.inFlight.stale`。`session/preflight.ts#PreFlight.#inFlightRow` 自己调 `Words.inFlightTargetGone(targetGone)` 取整条裸行，不把 `CAPSULE_WORDS.inFlight.targetGone` 原行推出去。`session/__tests__/preflight.test.ts` 的 stale 臂（记录写 `plan: "docs/p.md"` 与 `slug: "other-slug"`，两者都不在夹具树上）随之改成第四态的字节，同一文件的活 holder 臂那条 `/^in-flight: held/` 断言原样保留
 - 活口优先 — checkable: `alive === true` 的记录无论两格读数为何都读 held 的活口（`#inFlightRow` 先判 `state.alive`，第四态只在 `alive === false` 时进），三个提示面同臂
-- 三提示面读同一格 — checkable: 阻断报文 · board 行 · dry-run 提示对折叠谓词为真的记录输出同一句；`Words.inFlightBlocked` 取第三参（Task 1 的两格读数）渲子句，`face/cli.ts#Cli.#renderHeld` 的 acquire 竞争面保持两参、字节零变（活 holder 不渲第四态子句）；board 行与 dry-run 提示不自己拼模板，各读 `Words.inFlightTargetGone(targetGone)` 那一格（`BoardView.inFlightRows` 的死口后缀与 `Preview.heldBlock` 的接管提示行同源），同一格读数在两面字节一致
+- 四个读者读同一格 — checkable: `in-flight:` 行 · 阻断报文 · board 行 · dry-run 提示对折叠谓词为真的记录输出同一句；`Words.inFlightBlocked` 取第三参（Task 1 的两格读数）渲子句，`face/cli.ts#Cli.#renderHeld` 的 acquire 竞争面保持两参、字节零变（活 holder 不渲第四态子句）；四个读者都不自己拼模板，各读 `Words.inFlightTargetGone(targetGone)` 那一条裸行（`PreFlight.#inFlightRow` 的行、`BoardView.inFlightRows` 的死口后缀、`Preview.heldBlock` 的接管提示行与阻断报文同源），同一格读数在四面字节一致
+- 每面一条字节臂 — checkable: 同一条 `targetGone` 读数下，四个渲染面（`in-flight:` 行 · 阻断报文 · board 行 · dry-run 提示）的字节各含 `--recover`；镜像混合态（`plan` 路径不在树上 ∧ `<workspaceRoot>/<slug>` 目录在）上四面都不含 workspace 子句
 - 成对臂 — checkable: 目标还在的 stale 记录 ⇒ 三提示面仍 `stealable` 且 `checked:` 行仍 `stale`；两格都读出不在 ⇒ 四面换词（无一面复述 `stealable`）
 - 混合态 — checkable: 只带 workspace 事实且该目录不在 ⇒ 行只渲 workspace 那一格子句
 - 镜像混合态 — checkable: `plan` 路径不在树上 ∧ `<workspaceRoot>/<slug>` 目录在 ⇒ 折叠谓词为真，四个读者同读的那一格只渲 plan 子句、workspace 子句零输出（目标还在的那条事实不由这一行替它说话）
@@ -119,7 +124,7 @@ none
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p44):` 起头
 
 #### Acceptance
-四处渲染面各一条 pin + 成对两臂 + 混合态两条镜像臂（plan 不在而目录在 · 目录不在而 plan 在）+ 活口优先一条（`alive === true` ∧ 两格读出不在 ⇒ 四面仍读 held 的活口）+ 裸行渲染一条（board 行与 dry-run 提示对同一格读数取 `Words.inFlightTargetGone` 的字节，两处不再推 `stealable` 模板）；零新增 lens 标签与站名。
+四处渲染面各一条 pin（各含 `--recover`，镜像混合态上各不含持有格的子句）+ 成对两臂 + 混合态两条镜像臂（plan 不在而目录在 · 目录不在而 plan 在）+ 活口优先一条（`alive === true` ∧ 两格读出不在 ⇒ 四面仍读 held 的活口）+ 裸行渲染一条（四个读者对同一格读数取 `Words.inFlightTargetGone` 的整条裸行字节，无一面临推 `stealable` 或 `targetGone` 原行）；零新增 lens 标签与站名。
 
 #### DependsOn
 1
@@ -127,7 +132,7 @@ none
 ### Task 4: 提示面：评审问句与写权纪律
 
 #### Objective
-三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `#CLAUSES` 新增 `cl:own-document`：写面按模式点名，不挂在 `findings` 上——**implement** 轮 = 自己的目标文档 + wave brief 里 `### Task N:` 点名的任务文件（它的载体只有 `work` 面、没有 `findings`，`judge` 面由 review 轮写）；**fix** · **docs-fix** 轮 = 自己的目标文档 + finding 画面点名的代码文件（docs-fix 轮就是被判文档自己）；**review** 轮 = 自己的目标文档（只读）+ 它的 `findings` 载体，**零代码写面**——这半读的是同一提示里那句 `Read-only`（「never mutate tracked content, the index, HEAD, or branch state」），不是第四个写面。其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
+三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `CLAUSES` 新增 `cl:own-document`：写面按模式点名，不挂在 `findings` 上——**implement** 轮 = 自己的目标文档 + wave brief 里 `### Task N:` 点名的任务文件（它的载体只有 `work` 面、没有 `findings`，`judge` 面由 review 轮写）；**fix** · **docs-fix** 轮 = 自己的目标文档 + finding 画面点名的代码文件（docs-fix 轮就是被判文档自己）；**review** 轮 = 自己的目标文档（只读）+ 它的 `findings` 载体，**零代码写面**——这半读的是同一提示里那句 `Read-only`（「never mutate tracked content, the index, HEAD, or branch state」），不是第四个写面。其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`
@@ -301,3 +306,4 @@ none
 | v0.3 | 2026-11-25 | 首轮 plan 评审整改（F1–F10）：T4 的 `cl:own-document` 写面改为按模式点名（implement 取 brief 的 `### Task N:` 任务文件），成对臂换成三臂；T3 补镜像混合态臂（plan 不在而目录在）；T2 的 `in-flight:` 行只证 tree-clean 已过，并补 legs ②③ 的第五臂；T6 把登记面（P43 spec §4.2 与宪章 P44 行）改为编排器回填义务、补 `#beginCommand` 零重建与测试侧缝头两步、零残留 pin 落到 `contract/__tests__/rules.test.ts`、验收尾改成对写定句的字节比对 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.4 | 2026-11-25 | 二轮 plan 评审整改（F1–F7）：T1 的产出从单一布尔改成逐格读数（`targetGone.plan` · `targetGone.workspace`，折叠谓词由两格派生），T3 的渲法与两处混合态臂改读这两格；T3 的 `Words.inFlightBlocked` 定下第三参（可选·活口优先）与 `#renderHeld` 的两参零字节，并补「活口优先」臂；T3 与 T4 补上 stale 行 pin 与 `$version` pin 两个写面内的文件；T5 补三处测试模块头的改真；T6 的源码面四处 checkable 改按每处实际带的东西陈说；T4 的 S5 归回 spec §5.1 的原句，T3 的 `Consumes` 点名两条验收，T6 的登记面步骤只留负向半 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.5 | 2026-11-25 | 三轮 plan 评审整改（F1–F5）：T1 把 `face/__tests__/board-view.test.ts` 收进写面、把 `held` 字面量的补齐单写成一步（新成员必填，`tsc` 在 Wave 1 收口）；T4 的 `cl:own-document` 把 review 轮写成零代码写面（与同一提示的 `Read-only` 句同读），写面名回到 implement · fix · docs-fix 三个，成对臂补第 4 条 review 外壳臂；T6 的名册语句按处拆开（三个形状 id 只钉 `contract/invariants.ts` 的名册行，`contract/rules.ts` 的括注只掉 `single-home`、取负向断言）；T3 补 `Words.inFlightTargetGone` 裸行渲染器，board 行与 dry-run 提示改读它；T1 · T5 · T6 的提交类型改成 `feat` · `refactor` · `refactor` 加 `docs`（T6 拆两条提交）；另：T2 的验收从五条 pin 改成六条、T5 补注册表注释 scope 计数的改真一步 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
+| v0.6 | 2026-11-25 | 四轮 plan 评审整改（F1 · F2，另一条笔记）：T2 补「非折分支不夺判决」——`structure !== null` ∧ leg ① 未折即返回 `allowed`，`blocked` / `RECOVER_NOTHING` 只留结构门放过的树，`#recoverRun` 入参多一格结构事实，并补活 holder 与脏树两条 CLI 臂；T3 把 `Words.inFlightTargetGone` 的契约改成整条裸行（读出不在的那几格子句 + `--recover` 接管句，持有格零输出），四个读者一并点名（`PreFlight.#inFlightRow` 也走它），补每面一条字节臂与镜像混合态的零子句断言；T4 的 `#CLAUSES` 改回树上的 `CLAUSES` | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |

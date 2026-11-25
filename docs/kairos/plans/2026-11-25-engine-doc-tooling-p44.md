@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -309,3 +309,4 @@ none
 | v0.6 | 2026-11-25 | 四轮 plan 评审整改（F1 · F2，另一条笔记）：T2 补「非折分支不夺判决」——`structure !== null` ∧ leg ① 未折即返回 `allowed`，`blocked` / `RECOVER_NOTHING` 只留结构门放过的树，`#recoverRun` 入参多一格结构事实，并补活 holder 与脏树两条 CLI 臂；T3 把 `Words.inFlightTargetGone` 的契约改成整条裸行（读出不在的那几格子句 + `--recover` 接管句，持有格零输出），四个读者一并点名（`PreFlight.#inFlightRow` 也走它），补每面一条字节臂与镜像混合态的零子句断言；T4 的 `#CLAUSES` 改回树上的 `CLAUSES` | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.7 | 2026-11-25 | 分支评审整改（F2）：T4 的 `cl:own-document` review 半改成与 `Read-only` 句同一写集（prescribed 的 `OUTPUT_*` 载体、`findings` 载体在内）——旧句「只写它的 `findings` 载体」与 review 变体的 `OUTPUT_REPORT` 行相撞；`$version` 26 → 27 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.8 | 2026-11-25 | 五轮 plan 评审整改（F1）：T6 把零残留 pin 的机制按 spec §8.2 写对——散文用法住在扫描面之内，躲开判决靠图案的带词边界 kebab 形 `(?<![\w-])single-home(?![\w-])`，不是搬到面外；T6 的 Objective 与「零残留 pin」那一步各补上图案与红/绿成对两臂（命名该 id 的行读数为 1 · `Edge judgment is single-homed here` 的读数为 0） | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.9 | 2026-11-25 | **closeout（cdd-close · 分支终审 APPROVED）**：八任务四波全绿（W1 三提交 · W2 三提交 + 1 fix · W3 一提交零 finding · W4 一提交 + 1 fix）；依赖图与波宽门全程合法（四波 3/3/1/1）；`pnpm run validate` exit 0 | Oscaner M. · Claude（kairos:cdd-close） |

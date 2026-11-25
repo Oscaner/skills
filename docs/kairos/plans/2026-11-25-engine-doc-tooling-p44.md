@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -113,10 +113,10 @@ none
 #### DependsOn
 1
 
-### Task 4: 评审面的两条问句
+### Task 4: 提示面：评审问句与写权纪律
 
 #### Objective
-三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
+三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `#CLAUSES` 新增 `cl:own-document`：一轮只写它的 findings 点名的文档（自己的目标文档 + finding 画面内的代码文件），其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`
@@ -125,10 +125,11 @@ none
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 
 #### Consumes
-- spec §4.2（指称问句）· §5.1（S4 的缺口边界）· §5.2（只收判据、不收流程）
+- spec §4.2（指称问句）· §5.1（S4 的缺口边界）· §5.2（只收判据、不收流程）· §9.1 / §9.2（写权边界与两条子句的分工）
 
 #### Produces
 - `spec-consistency` 行的指称问句；`spec-lens` 行的 S4 问句；`CALIBRATION_TAIL` 的 S5 一句
+- `CLAUSES` 的 `cl:own-document`（四模式共享），与 `cl:plan-freeze` 的分工句；`TEMPLATE_PROMPT.$version` 递增
 - `REVIEWS.spec.lensEnum` 零新增标签；`LENS_QUESTION_ROWS` 行数与 `forReviewKind` 的投影行数零变
 
 #### Steps
@@ -136,10 +137,11 @@ none
 - 扩写共享 `spec-lens` 行 — checkable: 该行（`reviewKinds: ["wave","branch"]`）含「看着实现了、实现看着不对」一问，wave 与 branch 两个投影逐字同句
 - `CALIBRATION_TAIL` 加 S5 — checkable: 该常量含「多轴分别报 / 禁止跨轴重排」一句，且不出现在任何 per-key 副本里（一事实一处）
 - 零新增 — checkable: `REVIEWS` 的 `lensEnum` 键集与 `LENS_QUESTION_ROWS` 行数零变（两条断言）
+- 写权纪律 — checkable: `CLAUSES` 含 `cl:own-document` 且四个模式（implement · review · fix · docs-fix）的渲染各自含该句；`$version` 递增；成对：写本轮目标文档仍被允许，写父宪章零许可
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p44):` 起头
 
 #### Acceptance
-三句各一条 pin + 两条零变断言；`SEVERITY_RUBRIC` 的组装面零变。
+三句各一条 pin + 两条零变断言 + 写权子句的四模式成对断言；`SEVERITY_RUBRIC` 的组装面零变。
 
 #### DependsOn
 none
@@ -279,3 +281,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：八个任务四波（Wave 1 = T1 · T4 · T5 无依赖；Wave 2 = T2 · T3 · T6；Wave 3 = T7；Wave 4 = T8）· 每任务一条可判交付物 · 依赖图与 spec 的六项逐项对应；T7 串在 T6 之后（同批文档面改真按登记面先行），四波均不超三个任务 | Oscaner M. · Claude（kairos:cdd-plan） |
+| v0.2 | 2026-11-25 | 计划期 backfill（用户补入 ⑦）：`cl:own-document` 折进 T4（同一提示面 `render/templates.ts`），T4 改名为「提示面：评审问句与写权纪律」——单开一个任务会让第二波变四个，与 `wave-width-at-most-three` 相撞；任务数与四波形状零变 | Oscaner M. · Claude（kairos:cdd-plan 计划期回填） |

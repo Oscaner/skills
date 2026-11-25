@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -36,7 +36,7 @@ base: develop
 - spec §3.1（禁门与它的域）· §3.2（独立编译面 · 两条波次条件）
 
 #### Produces
-- `packages/cdd-engine/tsconfig.src.json`：`compilerOptions` 逐键照抄既有 `tsconfig.json`（含 `allowImportingTsExtensions` · `erasableSyntaxOnly` · `verbatimModuleSyntax` · `isolatedModules` · `noEmit` · `moduleResolution` —— 少写一个，`src/bin.ts` 的 dev 面就在 `node --experimental-strip-types` 下先红），只把 `include` 换成 `["src", "vitest.config.ts"]`；**不设 `rootDir` / `outDir`**：既有 `tsconfig.json` 没有这两个键，而 `rootDir: src` 会把 `vitest.config.ts` 甩在外面，`tsc --noEmit` 当场报 TS6059——正是本步要求 exit 0 的那一条；发布面仍由 `tsconfig.build.json` 承担，它的 `rootDir` / `include` 在翻面时随 T17 改指 `src`
+- `packages/cdd-engine/tsconfig.src.json`：`compilerOptions` 逐键照抄既有 `tsconfig.json`（含 `allowImportingTsExtensions` · `erasableSyntaxOnly` · `verbatimModuleSyntax` · `isolatedModules` · `noEmit` · `moduleResolution` —— 少写一个，`src/bin.ts` 的 dev 面就在 `node --experimental-strip-types` 下先红），只把 `include` 换成 `["src", "vitest.config.ts"]`；**不设 `rootDir` / `outDir`**：既有 `tsconfig.json` 没有这两个键，而 `rootDir: src` 会把 `vitest.config.ts` 甩在外面，`tsc --noEmit` 当场报 TS6059——正是本步要求 exit 0 的那一条；发布面仍由 `tsconfig.build.json` 承担，它的 `rootDir` / `include` 在翻面时随 T18 改指 `src`
 - 根 `package.json#scripts.typecheck` 追加 `tsc --noEmit -p packages/cdd-engine/tsconfig.src.json`
 - `packages/cdd-engine/vitest.config.ts#include` 追加 `src/**/__tests__/**/*.test.ts`（旧树的模式保留到翻面）
 - `src/__tests__/tree-separation.test.ts`：两条断言（`src/**` 非测试文件不 import `src-next/`；`src-next/**` 非测试文件不 import `src/`），读法是逐文件扫 import 说明符
@@ -80,7 +80,7 @@ none
 - `baseline/`：从 live 树录制一次得到的期望字节，按场景 × 格存
 - `fixtures/`：从旧测试提取的夹具树，七种树形态各一份（空树 · wave 进行中 · in-flight 持有 · refused 在树 · doc-drift · stale holder 且 target gone · branch 已闭合），外加三份非树夹具：`init` 的 PATH 替身 harness 与注入 step runner · `issue render` 的 stdin findings JSON · 骨架面的冻结日期常量
 - `baseline/` 的格清单就是 spec §2.2 的八面逐格：面 1 的 `init` 与 `issue render`、面 2 的 `--help` / usage / 错用退出码 2 都在册，没有一格留「随某任务补」的占位
-- **格 → 接线任务名册**（`packages/cdd-engine/tests/parity/GRID-WIRING.md`）：每格写明它在新树一侧的 producer 由哪个任务交付并接线——命令面与 `--help` / usage / 错用码 2 归 T15（壳与声明），其中 `init` 的步骤序列归 T8、`issue render` 的渲染与输入契约归 T14；骨架四族归 T9；prompt 两带 · 胶囊 · 板面两态 · 预览归 T14；阻断面（`CDD_BLOCKED` 报文 · 站名 · `checked:` 行集 · 让位条件）归 T13 与 T10。未接线的格读作**红**：`it.skip` / `test.todo` / include 里被 `--exclude` 掉，出现即视为缺格
+- **格 → 接线任务名册**（`packages/cdd-engine/tests/parity/GRID-WIRING.md`）：每格写明它在新树一侧的 producer 由哪个任务交付并接线——命令面与 `--help` / usage / 错用码 2 归 T16（壳与声明），其中 `init` 的步骤序列归 T8、`issue render` 的渲染与输入契约归 T15；骨架四族归 T9；prompt 两带 · 胶囊 · 板面两态 · 预览归 T15；阻断面（`CDD_BLOCKED` 报文 · 站名 · `checked:` 行集 · 让位条件）归 T14 与 T11。未接线的格读作**红**：`it.skip` / `test.todo` / include 里被 `--exclude` 掉，出现即视为缺格
 - `packages/cdd-engine/tests/parity/tsconfig.json` 挂进根 `typecheck` 链；`vitest.config.ts#include` 追加 `tests/parity/**/*.test.ts`
 - 执行命令：`pnpm -C packages/cdd-engine exec vitest run tests/parity`
 
@@ -200,7 +200,7 @@ none
 - Modify: `packages/cdd-engine/src/env/index.ts`
 
 #### Consumes
-- 旧树的 `infra/proc.ts#ProcessFacts` · `infra/runtime.ts#ENGINE_RUNTIME` · `infra/config.ts` · `infra/git.ts#GitClient` · `infra/plan-source.ts` · `face/host.ts#HOSTS` / `#DISPATCH` / `#REFS` / `#HostDetect`（宿主契约的数据面与它那一次探测）· `face/termination.ts#ChildRunner` / `#Terminator`（进程 seam：进程组 · 组杀 · 信号升级 · 父退出清理）· `face/artifacts.ts` 的 `#today()`（骨架面的 `date:` 行从它来）· `contract/liveness-signal.ts`（只读它声明的采样契约）；`session/inflight.ts#InFlight` 的锁持有面（只读行为，锁本身在 T11 随 in-flight 落地时迁入 `env/process/lock.ts` 的持有者）
+- 旧树的 `infra/proc.ts#ProcessFacts` · `infra/runtime.ts#ENGINE_RUNTIME` · `infra/config.ts` · `infra/git.ts#GitClient` · `infra/plan-source.ts` · `face/host.ts#HOSTS` / `#DISPATCH` / `#REFS` / `#HostDetect`（宿主契约的数据面与它那一次探测）· `face/termination.ts#ChildRunner` / `#Terminator`（进程 seam：进程组 · 组杀 · 信号升级 · 父退出清理）· `face/artifacts.ts` 的 `#today()`（骨架面的 `date:` 行从它来）· `contract/liveness-signal.ts`（只读它声明的采样契约）；`session/inflight.ts#InFlight` 的锁持有面（只读行为，锁本身在 T12 随 in-flight 落地时迁入 `env/process/lock.ts` 的持有者）
 
 #### Produces
 - `process`：`ProcessFacts`（进程组去重 · 存活判定）· 宿主契约（`HOSTS` 的每 harness 行 · `DISPATCH` 的派发槽 · `REFS` 的斜杠形 · `HostDetect` 的一次探测）——宿主标记环境键的闭集只有 detect 行这一份，通道闭合守卫从它派生白名单 · `Clock`（系统时钟的唯一持有者，下游只收注入的时钟；骨架面的 `date:` 行从这里来）· `ChildRunner` 的接口与它的生产实现（spawn · 组杀 · 信号升级 · 父退出清理 · 墙钟上限）：spec §4 说 `env/` 是唯一需要接口的边界，活性判官由派发面注入，这里只负责起进程与杀进程 · `Lock`（`proper-lockfile` 的唯一持有者）
@@ -227,7 +227,7 @@ none
 ### Task 6: `docs/` 的身份与登记表
 
 #### Objective
-把物料从「字符串」变成「有身份的文档」：DocType 与登记表、slug 与文档身份、目标类型、登记表的六面派生投影、四类 DocType 的解析面、词表驱动的识别面、`SKILL.md` 的解剖契约。**身份的那张表住 `identity/`**，因为它判的正是身份；判据的表与引擎在 T9 / T19 落地。**不变量（`docs/index.ts` 类注释）**：文档的形状由登记表判、判据只读文本；同一事实一个拼写。
+把物料从「字符串」变成「有身份的文档」：DocType 与登记表、slug 与文档身份、目标类型、登记表的六面派生投影、四类 DocType 的解析面、词表驱动的识别面、`SKILL.md` 的解剖契约。**身份的那张表住 `identity/`**，因为它判的正是身份；判据的表与引擎在 T9 / T10 落地。**不变量（`docs/index.ts` 类注释）**：文档的形状由登记表判、判据只读文本；同一事实一个拼写。
 
 #### Files
 - Create: `packages/cdd-engine/src/docs/identity/types.ts`
@@ -381,7 +381,7 @@ none
 #### DependsOn
 6
 
-### Task 19: `docs/` 的判据引擎
+### Task 10: `docs/` 的判据引擎
 
 #### Objective
 形状规则的注册表与它指向的策略族、判据协调器、选择器引擎、WARN 观测面。**登记表跟判据走**：注册表与它的策略类同住 `judging/`——一条规则一个类，表的每行 `create()` 指向族里的一个类，删一行即少一条判据。判据只读文本，读文本的路都经 `grammar` 与 `identity` 的既有读面。
@@ -418,7 +418,7 @@ none
 #### DependsOn
 9
 
-### Task 10: `run/` 的门
+### Task 11: `run/` 的门
 
 #### Objective
 立起判定层：门行集的闭集（结构腿与站名合起来是同一个行集）、拒绝事实的树级存放与两个到期触发点、接手授权三条 leg 各自的授权条件。**不变量**：拒绝是关于树的事实，不写轮次；任一时刻至多一条。
@@ -452,9 +452,9 @@ none
 六组 pin 齐（行集派生 · 拒绝不写轮次 · 至多一条 · 两个到期点 · 三 leg 授权 · 两处让位）；`run/gate` 只向下依赖 `run/ledger`；拒绝事实的路径由 `env.workspace` 的拼写矩阵给出。
 
 #### DependsOn
-7, 19
+7, 10
 
-### Task 11: `run/` 的派发
+### Task 12: `run/` 的派发
 
 #### Objective
 立起孩子这一层：派发输入契约、预帧值装配、手交契约与读回（含结论派生三路）、活性判官、预算与终止、in-flight 记录（含锁的持有）。**不变量**：孩子存在之前零记录，孩子收工后无残留。
@@ -478,7 +478,7 @@ none
 - `liveness`：活性判官（轮日志增长与进程组 CPU 两条腿，四态；每轮一个实例，不可读期保留上一次读数而不是清零）
 - `handoff`：手交契约（键集）与读回（失败分型：缺失 / 畸形 / 违约）· 结论派生三路——findings 里有 blocker ⇒ `CHANGES_REQUESTED`，只有 warn ⇒ `REVIEW_FIX`，findings 为空 ⇒ `APPROVED`
 - `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）
-- `__tests__/handoff-plane.guard.test.ts`：手交面守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T17 改指这一处）
+- `__tests__/handoff-plane.guard.test.ts`：手交面守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
 - 写「孩子前零记录、收工后无残留」的 pin — checkable: 注入一个立即失败的 spawn ⇒ 无 in-flight 残留；正常收工 ⇒ 记录建立后被释放
@@ -496,9 +496,9 @@ none
 pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 · 三档终止 · 拒绝不消费 attempt）；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
 
 #### DependsOn
-10
+11
 
-### Task 12: 改道 `run/` 的前沿
+### Task 13: 改道 `run/` 的前沿
 
 #### Objective
 立起推进层：管线前沿、波次前沿、行相位事实、目标类型表、单轮生命周期、闭合判定、`next:` 与 `reason:` 的六格装配。**不变量**：前沿是账本的投影，不是第二份判断；单轮生命周期只是一次派发的一步，目标类型的差异住在表里，不撒在分支里。
@@ -538,9 +538,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 五组 pin 齐（投影无缓存 · 六格 · drift 重开 · 波宽三档 · 闭合终态）· 目标类型表驱动与单轮一步各一条；`run/index.ts` 的五类成员集 pin 绿；`advance` 不 import `surface`。
 
 #### DependsOn
-10, 11
+11, 12
 
-### Task 13: `surface/` 的词表
+### Task 14: `surface/` 的词表
 
 #### Objective
 立起唯一词表：阻断措辞、拒绝站名、在飞四态的词行、capsule 槽、板面 token。**一条事实一张词表，一处渲染**——词表是数据的家，渲染器只连接它。
@@ -557,7 +557,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 #### Produces
 - `WORDS`：拒绝站名闭集（就是 `RowStation` 的那四个值：`no-host` · `carrier` · `dispatch-input` · `artifact`——它是门行集 `PreFlightGateName` 的成员集，不是与之并列的第二集）· 拒绝理由闭集 `PreFlightReason` 的各行 · 阻断前缀 · `checked.inFlight` 五行 · capsule 两槽 · 板面 token · `GUARD_BAN_WORDS`（退役词表，单份——kairos 的 `words.test.ts` 消费它）
 - `surface/index.ts` 的 `Cli` 门面骨架（本任务只露词表）
-- `__tests__/words.guard.test.ts`：引擎字面量守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T17 改指这一处）
+- `__tests__/words.guard.test.ts`：引擎字面量守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
 - 写站名闭集的 pin — checkable: 站名集就是 `RowStation` 的四个值，且每个站名都在门行集 `PreFlightGateName` 里（断言包含，不断言两集相等）；理由集 `PreFlightReason` 的每行可读
@@ -571,9 +571,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 四条 pin 齐（站名是门行集的成员 · in-flight 五行 · capsule 两槽 · 措辞单份）；`surface/words` 对 `run/` 只经类型读，不调 `Run` 的方法。
 
 #### DependsOn
-6, 10
+6, 11
 
-### Task 14: `surface/` 的渲染
+### Task 15: `surface/` 的渲染
 
 #### Objective
 把事实渲染成消费者字节：prompt 模板（两带）、胶囊、板面两态、预览块、图、issue body、brief。**不变量**：消费者拿到的字节就是契约。
@@ -605,7 +605,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - 写板面两态 — checkable: 默认零 notes 正文且带 `notes +M`；`--notes` 展开后正文全量、token 段序不重排
 - 写预览块 — checkable: 五类行（`step:` / `reads:` / `would write:` / `would record:` / `child:`）齐且零 `next:` 行
 - 写 issue 输入契约的 pin — checkable: 合法 JSON ⇒ 字节与旧树相同；缺键 / 多键 / 类型错三类各一条报文且退出码为错用码
-- 写措辞单份的复审 — checkable: `surface/render` 里不出现词表外的散文措辞（沿用 T13 的扫法）
+- 写措辞单份的复审 — checkable: `surface/render` 里不出现词表外的散文措辞（沿用 T14 的扫法）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
@@ -613,9 +613,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 六组 pin 齐（两带名册 · 字节等价 · 胶囊 · 板面两态 · 预览五类行 · 措辞单份）· issue 输入契约一条；prompt / 胶囊 / 板面 / 预览四类格在对账器里逐字节比。
 
 #### DependsOn
-9, 13
+9, 14
 
-### Task 15: `surface/` 的八条薄壳
+### Task 16: `surface/` 的八条薄壳
 
 #### Objective
 八条命令的薄壳与 CLI 声明。**每条壳只做三件事**：取参 · 调 `run/` 或 `docs/` 的一个入口 · 原样输出；零判定、零文件 IO、零字符串拼装。超过约四十行（含类声明与 import）说明判定漏进了壳里——这是诊断，不是判据：判据是三件事本身，行数不进套件。
@@ -642,9 +642,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - `declare`：`CliVerb` 八值 · 旗标与值域声明（单源）· `ARGV_CHANNEL`
 - `projection`：命令树装配——`declare` 的单一表面在构造期一次装配成 commander 树（描述 · 嵌套叶 · 绑定规则 · 值域校验 · 帮助注入 · `REQUIRED_GROUPS` 钩子），`program` 是唯一出口
 - 八条壳：每条一个类，方法体只取参、调一个入口、输出
-- 三条纯命令的产物面无新落点：`base` 的读与写走 `env/workspace/base-artifact.ts`（T3，`BASE_ARTIFACT_FIELDS` 从那里导出）· `issue render` 的渲染与输入契约走 `surface/render/issue.ts`（T14）· 骨架走 `docs/skeleton/assembler.ts`（T9）· 系统时钟走 `env/process/clock.ts`（T5）；壳只取参、调它们、原样输出
+- 三条纯命令的产物面无新落点：`base` 的读与写走 `env/workspace/base-artifact.ts`（T3，`BASE_ARTIFACT_FIELDS` 从那里导出）· `issue render` 的渲染与输入契约走 `surface/render/issue.ts`（T15）· 骨架走 `docs/skeleton/assembler.ts`（T9）· 系统时钟走 `env/process/clock.ts`（T5）；壳只取参、调它们、原样输出
 - `Cli#run(argv)`（`surface/index.ts`）
-- `__tests__/channel-closure.guard.test.ts`：通道闭合守卫（读 `declare` 的 `CLI_COMMANDS` / `ARGV_CHANNEL` 与 `env/process/host.ts` 的 `HOSTS` / `DISPATCH` / `REFS`；守卫读产品面的单源，不另立白名单。`precommit` 今天指向旧树的同名文件，翻面时随 T17 改指这一处）
+- `__tests__/channel-closure.guard.test.ts`：通道闭合守卫（读 `declare` 的 `CLI_COMMANDS` / `ARGV_CHANNEL` 与 `env/process/host.ts` 的 `HOSTS` / `DISPATCH` / `REFS`；守卫读产品面的单源，不另立白名单。`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
 - 写动词集与值域的 pin — checkable: 八值齐；每个旗标的取值形状在声明面；`--type` 的六值
@@ -659,9 +659,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用面单入口 · 四个退出码 · help/usage 字节）；八条壳全部只经 `surface/index.ts` 的 `Cli` 对外。
 
 #### DependsOn
-11, 12, 14
+12, 13, 15
 
-### Task 16: 组合根与对账首绿
+### Task 17: 组合根与对账首绿
 
 #### Objective
 把四片接成一棵树：`src/bin.ts` 成为唯一组合根，具体类在此 new，其余全部经构造参数收协作对象。本任务的终判是**对账器第一次全绿**——那就是「复刻成立」的证据。
@@ -690,9 +690,9 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 `node`（或 `tsx`）能跑通八条命令且退出码与旧树一致；组合根唯一性 pin 绿；对账器全绿（八面逐字节）；两棵树各自的套件同时绿。
 
 #### DependsOn
-8, 15
+8, 16
 
-### Task 17: 翻面
+### Task 18: 翻面
 
 #### Objective
 一波之内的原子翻面：入口与构建指向 `src/`，旧树整棵删除。顺序固定（spec §3.3），任何一步漏掉都会留一根脐带。
@@ -713,13 +713,13 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 
 #### Consumes
 - spec §3.3（十一序）· §3.4（零残留的范围与「已是生成物还是手维护」的分界）
-- 旧树的 `precommit` 三条守卫路径（`face/__tests__/channel-closure.guard.test.ts` · `face/__tests__/words.guard.test.ts` · `session/__tests__/handoff-plane.guard.test.ts`）与它们在新树的三个同名落点（T15 · T13 · T11）
+- 旧树的 `precommit` 三条守卫路径（`face/__tests__/channel-closure.guard.test.ts` · `face/__tests__/words.guard.test.ts` · `session/__tests__/handoff-plane.guard.test.ts`）与它们在新树的三个同名落点（T16 · T14 · T12）
 
 #### Produces
 - 编译面 / 测试 include / smoke 脚本 / 零裸函数扫描根全部指向 `src/`
 - `tests/parity` 的 include 与它的 tsconfig 工程同批删除；对账器与基线随之销毁
 - 树外测试面与五份手维护文档改指新入口；六份图源改真
-- 三条守卫改指新落点（不是删掉三条路径）：`precommit` 的 `src/surface/commands/__tests__/channel-closure.guard.test.ts`（T15）· `src/surface/words/__tests__/words.guard.test.ts`（T13）· `src/run/dispatch/__tests__/handoff-plane.guard.test.ts`（T11）
+- 三条守卫改指新落点（不是删掉三条路径）：`precommit` 的 `src/surface/commands/__tests__/channel-closure.guard.test.ts`（T16）· `src/surface/words/__tests__/words.guard.test.ts`（T14）· `src/run/dispatch/__tests__/handoff-plane.guard.test.ts`（T12）
 - 树外消费的符号改指清单（每一个都有新落点，没有一个是「删掉 import 即可」）：`SKILL_ANATOMY` → `docs/identity/skill-anatomy.ts` · `HOSTS` / `REFS` / `DISPATCH` / `HostDetect` / `ENGINE_RUNTIME` → `env/process/host.ts` · `BASE_ARTIFACT_FIELDS` → `env/workspace/base-artifact.ts` · `Translator` → `docs/identity/translate.ts` · `GUARD_BAN_WORDS` / `CAPSULE_WORDS` → `surface/words/words.ts` · `CLI_COMMANDS` / `ARGV_CHANNEL` → `surface/commands/declare.ts` · `IssueBodyRenderer` → `surface/render/issue.ts` · `MAX_TASKS_PER_WAVE` → `docs/judging/wave-width.ts` · `REVIEW_CYCLE_CAP` → `run/advance/next.ts` · `CliLifecycle` → `Run` 的 `advance` 面（`run/advance/lifecycle.ts`）
 - `tests/parity/` 整个目录删除（不是只删 include）：它 import 旧树，留着就撞本任务自己的零残留验收
 
@@ -739,16 +739,16 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 spec §3.3 的十一序逐步可核；旧树路径在代码 / 配置 / 脚本 / 图源 / 五份手维护文档里零命中；`packages/cdd-engine/tests/parity/` 不存在；`pnpm run validate` exit 0；`check:dist-smoke` 绿；`emit:check` fresh；`pnpm -C packages/kairos test` 与根套件绿。
 
 #### DependsOn
-16
+17
 
-### Task 18: 相位收口
+### Task 19: 相位收口
 
 #### Objective
 翻面之后把相位的账结清：changeset、切片不变量与入口的可核化、以及「翻面后无字节判者」这一事实的承接口。
 
 #### Files
 - Create: `.changeset/p39-rebuild-in-src.md`
-- Modify: `AGENTS.md`（切片表与验证命令，若 T17 未覆盖）
+- Modify: `AGENTS.md`（切片表与验证命令，若 T18 未覆盖）
 - Create: `packages/cdd-engine/src/__tests__/slice-invariants.test.ts`
 
 #### Consumes
@@ -757,7 +757,7 @@ spec §3.3 的十一序逐步可核；旧树路径在代码 / 配置 / 脚本 / 
 #### Produces
 - changeset：`@oscaner-skills/cdd-engine` **patch**（D74：方法论契约未变，重建不改消费者字节）
 - `slice-invariants.test.ts`：四个一级切片的入口类注释第一行存在且非空；`run/` 四段各一句；每片对外成员数 < 该片实现文件数（深度判据的可核形态）
-- `AGENTS.md` 的切片表（若与 T17 的改指分开落地）
+- `AGENTS.md` 的切片表（若与 T18 的改指分开落地）
 
 #### Steps
 - 写 changeset — checkable: `pnpm exec changeset status` 认到 `cdd-engine: patch`，且 `packages/kairos` 无条目
@@ -772,12 +772,13 @@ spec §3.3 的十一序逐步可核；旧树路径在代码 / 配置 / 脚本 / 
 changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；深度判据可红；可删除性三处各一行注册（删一个单元只缺那一行）；`AGENTS.md` 的目录表与树上四切片一致；`pnpm run validate` exit 0。
 
 #### DependsOn
-17
+18
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：18 个任务 / 11 波（宽 1·3·2·3·1·2·2·1·1·1·1）。W1 立编译面 / 测试面 / 双向禁门；W2 立对账器与 `env/paths+workspace` 与 `docs/grammar`；W3 `env/process+vcs` 与 `docs/identity+judging`；W4 `run/ledger` 与 `env/provision` 与 `docs/skeleton`；W5 `run/gate`；W6 `run/dispatch` 与 `surface/words`（词表的站名闭集与门行集同源，故依赖门）；W7 `run/advance` 与 `surface/render`；W8 `surface/commands`；W9 组合根与对账首绿；W10 翻面（十一序 · 旧树整棵删除）；W11 收口（changeset · 可删除性 · 不变量与深度的可核形态） | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-25） |
-| v0.2 | 2026-11-25 | 评审轮一（F1–F11）落地：旧树未被任何任务消费的模块逐一定归属——判据族 / 协调器 / 解析面 / 投影 / 识别面 / lint 归 T6，载体行与产物读归 T7，预帧值 / 活性判官归 T11，单轮生命周期 / 目标类型表 / 行相位归 T12，命令树装配归 T15，宿主契约 / 时钟 / 子进程 seam 归 T5，基产物读写归 T3；T2 的基线改成 spec §2.2 八面逐格并带「格 → 接线任务」名册（未接线即红，禁止 skip）；T15 的三条纯命令产物面写出落点（基产物 → `env/workspace`、issue → `surface/render`、骨架 → `docs/skeleton`、时钟 → `env/process`）；T1 的编译面改为逐键照抄既有 `tsconfig.json` 只换 include（不设 `rootDir`，否则 TS6059），并去掉用例数快照；T17 补 `precommit` 三条守卫的改指与 `tests/parity/` 整目录删除，并列出树外符号的改指清单；T11 补结论派生三路；T13 与 T10 把站名闭集改成「`RowStation` 是 `PreFlightGateName` 的成员」（包含，不是相等）；T15 的薄壳判据回到结构性三件事，行数只作诊断 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
-| v0.3 | 2026-11-25 | **编排者的结构变更（任务 id 集与 `DependsOn` 集是编排者写权，不经 fix 轮）**：fix 轮一（F1）把 20 个模块 8,484 行全部分发到位，但把 `contract/invariants.ts`（2,298 行）· `judge` · `doc` · `project` · `lint` · `translate` · 判据表全部堆进 T6——那不是「自带测试周期的最小单元」，一个 implement 轮吃不下、review 也审不动。拆法按「注册表跟它指向的策略类同住」这条判据：**T6 只留身份与登记表**（`identity/` 六件 · 判据零）· **T9 接判据的表与骨架**（`criteria` · `completion` · `wave-width` · `skeleton`）· **新增 T19 收判据引擎**（`rules` 注册表与它 `create()` 指向的 `invariants` 策略族 · `judge` 协调器 · `lint` · `selectors`）。T10 的门读 `Documents.judge`，故其依赖加 T19。重算：19 任务 / 12 波（宽 1·3·2·3·1·1·2·2·1·1·1·1）· 无悬挂边 · 无环 | Oscaner M. · Claude（kairos:cdd-plan 编排者 · 2026-11-25） |
+| v0.2 | 2026-11-25 | 评审轮一（F1–F11）落地：旧树未被任何任务消费的模块逐一定归属——判据族 / 协调器 / 解析面 / 投影 / 识别面 / lint 归 T6，载体行与产物读归 T7，预帧值 / 活性判官归 T12，单轮生命周期 / 目标类型表 / 行相位归 T13，命令树装配归 T16，宿主契约 / 时钟 / 子进程 seam 归 T5，基产物读写归 T3；T2 的基线改成 spec §2.2 八面逐格并带「格 → 接线任务」名册（未接线即红，禁止 skip）；T16 的三条纯命令产物面写出落点（基产物 → `env/workspace`、issue → `surface/render`、骨架 → `docs/skeleton`、时钟 → `env/process`）；T1 的编译面改为逐键照抄既有 `tsconfig.json` 只换 include（不设 `rootDir`，否则 TS6059），并去掉用例数快照；T18 补 `precommit` 三条守卫的改指与 `tests/parity/` 整目录删除，并列出树外符号的改指清单；T12 补结论派生三路；T14 与 T11 把站名闭集改成「`RowStation` 是 `PreFlightGateName` 的成员」（包含，不是相等）；T16 的薄壳判据回到结构性三件事，行数只作诊断 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.3 | 2026-11-25 | **编排者的结构变更（任务 id 集与 `DependsOn` 集是编排者写权，不经 fix 轮）**：fix 轮一（F1）把 20 个模块 8,484 行全部分发到位，但把 `contract/invariants.ts`（2,298 行）· `judge` · `doc` · `project` · `lint` · `translate` · 判据表全部堆进 T6——那不是「自带测试周期的最小单元」，一个 implement 轮吃不下、review 也审不动。拆法按「注册表跟它指向的策略类同住」这条判据：**T6 只留身份与登记表**（`identity/` 六件 · 判据零）· **T9 接判据的表与骨架**（`criteria` · `completion` · `wave-width` · `skeleton`）· **新增 T10 收判据引擎**（`rules` 注册表与它 `create()` 指向的 `invariants` 策略族 · `judge` 协调器 · `lint` · `selectors`）。T11 的门读 `Documents.judge`，故其依赖加 T10。重算：19 任务 / 12 波（宽 1·3·2·3·1·1·2·2·1·1·1·1）· 无悬挂边 · 无环 | Oscaner M. · Claude（kairos:cdd-plan 编排者 · 2026-11-25） |
+| v0.4 | 2026-11-25 | **重编号（doc-contract `continuity` 不是规矩变更，是编号形态）**：v0.3 把新任务挂成 T19 放在文档第 10 位，`continuity` 要求编号按文档顺序自 1 连续，计划因此被 `CDD_BLOCKED: doc-contract` 拒一次。本轮按文档顺序全量重编号——判据引擎成为 T10，原 T10–T18 顺延为 T11–T19，`DependsOn` 与正文交叉引用同批重映射（一次性占位映射，避免二次改写）。结构零变：19 任务 / 12 波 / 宽 1·3·2·3·1·1·2·2·1·1·1·1，无环、无悬挂边 | Oscaner M. · Claude（kairos:cdd-plan 编排者 · 2026-11-25） |

@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -131,7 +131,7 @@ none
 #### Produces
 - `Env`（`env/index.ts`）：构造一次，成员为四段的只读门面；本任务交付 `paths` 与 `workspace` 两段
 - `paths`：`RepoRoot.of(cwd)`（不可推算即抛）· `docRootsOf(root)` · `SlugIndex`（同 slug 多份 ⇒ `invalid`）
-- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写）/ `#writeText(target, text)`（文本落盘：与 `#writeJson` 同源、同一条原子路径）/ `#readText(target)`（文本读：与 `#writeJson` 同一条路径拼写，读不到即抛、不返回空串）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写——`#writeText` 是 `src/**` 里唯一的文本落盘入口（`schema get --output skeleton` 的落盘就经它，T9 的装配器注入调用；第二处 `writeFileSync` 即缺陷），`#readText` 是物料读盘的那一个入口（T4 的 `Documents` 经注入调用它，`docs/**` 里因此零 `node:fs`）；**两处外部事实由构造参数进来，不在本模块里取**：`now: () => number`（时间戳来源，T5 的 `env/process/clock.ts` 落地后由组合根传入唯一实现）与 `baseName: string`（基产物的文件名，由 T7 的产物矩阵派生）。两个参数都是**必填无默认值**，缺即抛；本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`）的非测试文件里零 `Date.now` / 零无参 `new Date(` / 零文件名拼接字面——`env/process/clock.ts` 是 `env/` 内唯一的读时钟处（T5 交付，`now()` 与 `isoOf(epoch)` 两件能力都在那里读）
+- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写，基准是**工作区**：`WorkspaceRoot` 下 `<slug>/<name>`）/ `#writeText(target, text)`（文本落盘，基准是**仓库根**：绝对路径由 `paths` 交付的 `RepoRoot` 从工作区根携带的仓库基准取，`RepoRoot#resolve` 是唯一拼法）/ `#readText(target)`（文本读，与 `#writeText` 同一条仓库根拼写，读不到即抛、不返回空串）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写——**文本一对与 JSON 一对不共用拼写**：JSON 面住工作区里，而文本面两个唯一消费者都在工作区外（骨架的 `target` 与物料读面的 `file` 都是仓库根相对的 `RepoPath`），把文本拼到工作区下会让每次物料读都抛、骨架落盘写进 `.kairos/<slug>/` 而回显一个没被写的路径；`#writeText` 是 `src/**` 里唯一的文本落盘入口（`schema get --output skeleton` 的落盘就经它，T9 的装配器注入调用；第二处 `writeFileSync` 即缺陷），`#readText` 是物料读盘的那一个入口（T4 的 `Documents` 经注入调用它，`docs/**` 里因此零 `node:fs`）；**两处外部事实由构造参数进来，不在本模块里取**：`now: () => number`（时间戳来源，T5 的 `env/process/clock.ts` 落地后由组合根传入唯一实现）与 `baseName: string`（基产物的文件名，由 T7 的产物矩阵派生）。两个参数都是**必填无默认值**，缺即抛；本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`）的非测试文件里零 `Date.now` / 零无参 `new Date(` / 零文件名拼接字面——`env/process/clock.ts` 是 `env/` 内唯一的读时钟处（T5 交付，`now()` · `isoOf(epoch)` · `dayOf(epoch)` 三件能力都在那里读）
 - 四类路径判据的往返 pin：写入—读回—拼写不变量
 
 #### Steps
@@ -140,14 +140,14 @@ none
 - 写基产物的 pin — checkable: 首次写入后读回同一对象；字段集与 `BASE_ARTIFACT_FIELDS` 的元组逐值相等（断言从元组派生，不手写字段名）；畸形 JSON 读作 `null` 而不抛
 - 写注入参数的 pin — checkable: 不传 `now` 或 `baseName` ⇒ 构造即抛（无默认值）；传一个固定 `now` 两次 ⇒ `recordedAt` 相同；传一个改过的 `baseName` ⇒ 落地文件名随之变（名字不是本模块的字面）
 - 写 workspace 的原子写 pin — checkable: 写入过程中被注入的失败不留半截 JSON（读回旧值）
-- 写文本读写的 pin — checkable: `#writeText` 落地的字节逐字节读回、`#readText` 读同一路径得回同一串（比字节，不比行数）；写中途注入失败不留半截（读回旧值）；`src/**` 非测试文件里出现第二处 `writeFileSync` 即红（扫调用面——`env/workspace/workspace.ts` 是唯一落盘处）
+- 写文本读写的 pin — checkable: `#writeText` 落地的字节逐字节读回、`#readText` 读同一路径得回同一串（比字节，不比行数）；**基准是仓库根**：在临时仓里立一份 `docs/**` 文档，用真的 `RepoRoot` 与真的 workspace 读它得回它的字节，再往另一份 `docs/**` 目标落一次文本后该目标非空且字节相等（同一 slug 的工作区里不出现同名路径）；写中途注入失败不留半截（读回旧值）；`src/**` 非测试文件里出现第二处 `writeFileSync` 即红（扫调用面——`env/workspace/workspace.ts` 是唯一落盘处）
 - 写 `.kairos/.gitignore` 的 keep-out pin — checkable: `ensure` 之后 `.kairos/cdd/` 在被忽略面内，且它不建任何以 slug 命名的目录
 - 写 `Env` 的门面 — checkable: `Env` 对外只露 `paths` 与 `workspace` 两段（成员集 pin），构造函数参数不超过四个
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/env` 绿；`pnpm run typecheck` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-`env/index.ts` 的类注释第一行是不变量原句；`paths` 与 `workspace` 两段各至少三条 pin（可推算 / 不可推算即抛 · slug 单建与多份 invalid · 原子写不留半截 · keep-out 不建 slug 目录 · 文本读写各一处入口）；文本落盘全树只有一个入口（`Workspace#writeText`），物料读盘也只有一个入口（`Workspace#readText`，`docs/**` 里零 `node:fs`）；零时钟面只盖本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`），`env/` 内的唯一读时钟处是 `env/process/clock.ts`（T5）；`Env` 的成员集只有这两段；基产物的字段集从 `BASE_ARTIFACT_FIELDS` 派生；测试与源码同片。
+`env/index.ts` 的类注释第一行是不变量原句；`paths` 与 `workspace` 两段各至少三条 pin（可推算 / 不可推算即抛 · slug 单建与多份 invalid · 原子写不留半截 · keep-out 不建 slug 目录 · 文本读写各一处入口）；文本落盘全树只有一个入口（`Workspace#writeText`），物料读盘也只有一个入口（`Workspace#readText`，`docs/**` 里零 `node:fs`），两者都从仓库基准拼路径而不是工作区基准（真 `RepoRoot` + 真 workspace 的读写各一条 pin）；零时钟面只盖本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`），`env/` 内的唯一读时钟处是 `env/process/clock.ts`（T5）；`Env` 的成员集只有这两段；基产物的字段集从 `BASE_ARTIFACT_FIELDS` 派生；测试与源码同片。
 
 #### DependsOn
 1
@@ -171,7 +171,7 @@ none
 - 旧树的 `contract/markdown-tree.ts` · `contract/markdown-tree-types.ts`（`Walk` / `When` / `Selector` 的类型面，跟着树走）· `contract/markdown-document.ts`（mdast 解出的文档索引：行 · 标题 · front-matter 键 · 表格 · 行内代码跨度）· `contract/markdown-spans.ts` · `contract/doc-body.ts` · `contract/frontmatter.ts` · `contract/home-extractors.ts` · `contract/task-block-grammar.ts` · `contract/task-blocks.ts`（读行为；闭包读不在这一片——它判的是闭包而不是正文文法，落 T10）
 
 #### Produces
-- `Documents`（`docs/index.ts`）门面骨架，本任务只露 `parse`；构造入参含文本读面 `readText: (target) => string`（组合根传 `env.workspace#readText`，T3）——`parse` 从注入的读面取文本，不从磁盘取；落盘能力（`textWriter`）与当天日期（`today`）本任务不收，它们在 T9 装配器构造处一并进来
+- `Documents`（`docs/index.ts`）门面骨架，本任务只露 `parse`；构造入参含文本读面 `readText: (target) => string`（组合根传 `env.workspace#readText`，T3；它按仓库根基准拼路径，故 `docs/**` 的目标读得到）——`parse` 从注入的读面取文本，不从磁盘取；落盘能力（`textWriter`）与当天日期（`today`）本任务不收，它们在 T9 装配器构造处一并进来
 - `grammar`：`MarkdownTree`（标题树 + 围栏感知）· `MarkdownDocument`（不可变的文档索引：一次 mdast 解析，标题 / 表格 / front-matter 键 / 行内代码全是它的只读面）· `docBodyOf`（正文段与记录面的分界）· `frontmatterOf`（真 YAML 解析，失败即带位抛）· `HomeExtractor`（登记表 home 驱动）· `TaskBlocks`（任务块与 `DependsOn` 行）
 - 树节点与跨度都是不可变值类型
 
@@ -213,7 +213,7 @@ none
 - 旧树的 `infra/proc.ts#ProcessFacts` · `infra/runtime.ts#ENGINE_RUNTIME` · `infra/config.ts` · `infra/git.ts#GitClient` · `infra/plan-source.ts` · `face/host.ts#HOSTS` / `#DISPATCH` / `#REFS` / `#HostDetect`（宿主契约的数据面与它那一次探测）· `face/termination.ts#ChildRunner` / `#Terminator`（进程 seam：进程组 · 组杀 · 信号升级 · 父退出清理）· `face/artifacts.ts` 的 `#today()`（骨架面的 `date:` 行从它来）· `contract/liveness-signal.ts`（只读它声明的采样契约）；`session/inflight.ts#InFlight` 的锁持有面（只读行为；锁的持有者在**本任务**就落到 `env/process/lock.ts`，T12 的 in-flight 只经它取锁）
 
 #### Produces
-- `process`：`ProcessFacts`（进程组去重 · 存活判定）· 宿主契约（`HOSTS` 的每 harness 行 · `DISPATCH` 的派发槽 · `REFS` 的斜杠形 · `HostDetect` 的一次探测）——宿主标记环境键的闭集只有 detect 行这一份，通道闭合守卫从它派生白名单 · `Clock`（系统时钟的唯一持有者，两件能力：当前时刻 `now()` 与 epoch → ISO 格式化 `isoOf(epoch)`；下游只收注入的时钟——骨架面的 `date:` 行与 `Words` 的 `{startedAt}` / `{uptime}` 行都从这里来）· `ChildRunner` 的接口与它的生产实现（spawn · 组杀 · 信号升级 · 父退出清理 · 墙钟上限）：spec §4 说 `env/` 是唯一需要接口的边界，活性判官由派发面注入，这里只负责起进程与杀进程 · `Lock`（`proper-lockfile` 的唯一持有者）
+- `process`：`ProcessFacts`（进程组去重 · 存活判定）· 宿主契约（`HOST_IDS` 词表 · 从它派生的 `HostId` · `HOSTS` 的每 harness 行 · `DISPATCH` 的派发槽 · `REFS` 的斜杠形 · `HostDetect` 的一次探测）——宿主标记环境键的闭集只有 detect 行这一份，通道闭合守卫从它派生白名单；`HOST_IDS` 与 `HostId` 同住 `env/process/host.ts`，树外测试面 `packages/kairos/tests/presentation-surface.test.ts` 用类型谓词把契约键窄化成宿主词表，故这个类型必须有落点（T18 的改指清单）· `Clock`（系统时钟的唯一持有者，三件能力：当前时刻 `now()` · epoch → UTC ISO 形 `isoOf(epoch)`（`toISOString` 的字节保真面，`Words` 的 `{startedAt}` 靠它）· epoch → 本地日 `dayOf(epoch)`（`YYYY-MM-DD`，旧树的本地 getter 形，骨架面的 `date:` 行由它来；在 UTC 偏移非零的本地日界，UTC 切片与本地日相差一天，故两者各是一件能力、不互相切片派生）；下游只收注入的时钟——骨架面的 `date:` 行与 `Words` 的 `{startedAt}` / `{uptime}` 行都从这里来）· `ChildRunner` 的接口与它的生产实现（spawn · 组杀 · 信号升级 · 父退出清理 · 墙钟上限）：spec §4 说 `env/` 是唯一需要接口的边界，活性判官由派发面注入，这里只负责起进程与杀进程 · `Lock`（`proper-lockfile` 的唯一持有者）
 - `vcs`：`GitClient`（只读：顶层、状态、提交）· `planSourceOf`
 - `Env` 成员扩到四段：`paths` · `workspace` · `process` · `vcs`
 
@@ -221,7 +221,7 @@ none
 - 写进程事实的 pin — checkable: `npm exec` 包装内的子进程不重复计数（一组进程一条事实）；已退出进程读作不在
 - 写宿主探测「只探一次」的 pin — checkable: 同一 `Env` 上连续两次取宿主事实，底层探针只被调用一次（注入计数探针）
 - 写锁的 pin — checkable: 持有期间第二次获取被拒且报文点名持有者；释放后可获取
-- 写宿主契约与时钟的 pin — checkable: `HOSTS` 的 detect 行是宿主标记环境键的唯一一份（守卫从它派生，不另立表）；`REFS` 的每 harness 形可派生；`Clock` 是 `src/**` 非测试文件里唯一读时钟的地方（扫无参 `new Date()` 与 `Date.now()` 的调用面；带时间戳的 `new Date(epoch).toISOString()` 是格式化、不算读时钟，它走 `Clock` 的 ISO 面），注入固定时钟 ⇒ 下游读到的日期稳定
+- 写宿主契约与时钟的 pin — checkable: `HOSTS` 的 detect 行是宿主标记环境键的唯一一份（守卫从它派生，不另立表）；`REFS` 的每 harness 形可派生；`Clock` 是 `src/**` 非测试文件里唯一读时钟的地方（扫无参 `new Date()` 与 `Date.now()` 的调用面；带时间戳的 `new Date(epoch).toISOString()` 是格式化、不算读时钟，它走 `Clock` 的 ISO 面），注入固定时钟 ⇒ 下游读到的日期稳定；注入一个固定 epoch ⇒ `dayOf(epoch)` 就是那一天的本地日、`isoOf(epoch)` 是它的 UTC ISO 形，两者各一条断言（同一个 epoch 在 UTC 偏移非零的本地日界读出不同的日期，故 `date:` 行不能由 `isoOf` 切日派生）
 - 写子进程 seam 的 pin — checkable: 何时动手只由注入的采样判官决定，seam 自己不判活性；组杀之后无存活子进程（伪造子进程表）；`src/run/dispatch/**` 里不出现 signal 常量（扫调用面）
 - 写 git 读的 pin — checkable: 顶层、状态、提交三项各一条；状态读在脏树/净树两种输入下各一条
 - `Env` 成员扩到四段 — checkable: 成员集 pin 更新且不超过四段；构造参数仍不超过四个
@@ -380,8 +380,8 @@ none
 - `criteria`：评审判据体（按 kind 的判据文本）与 `LENS_QUESTION_ROWS`；`Documents.criteriaOf(kind)` 与 `lensQuestionsOf(kind)`
 - `CompletionCriteria`（按 verb 分档）· `MAX_TASKS_PER_WAVE`
 - `TaskGraph`（`docs/judging/task-graph.ts`）：从 `TaskBlocks` 的 `DependsOn` 行构造，`#validate()` 四类边失败（缺边 · 缺 id · 自环 · 成环）· `#batches()` 的拓扑波分解 · `#frontier(done)` · `detailLine()`（一条失败的一行拼写）。两条 pin 跟它同住：**波宽只此一处派生**（波宽判的正是 `#batches()` 的每一批，另立一份波分解即缺陷）· **表与族同住**（边读与它的校验同在这一个类，不另开一份边表）。它落在本任务而不是 `run/` 或 `run/advance`：波宽判据是它的直接消费面，而 `run/gate` 的 `graph` 腿（T11）与 `run/advance` 的波次前沿（T13）都经依赖边读它，不自己持一份
-- `SkeletonAssembler`：构造入参含 `today`（必填无默认值，不传即抛）与注入的文本落盘能力 `textWriter: (target, text) => void`（`env/workspace/workspace.ts#writeText`，T3）；`compose(type, target)` 对四族穷举、只出字节；`assembleAt(type, target)` 一次完成「渲染 → 经 `textWriter` 落盘 → 回工作区相对路径」；本类不碰 `node:fs`，写盘只有 `textWriter` 一条路
-- `Documents`（`docs/index.ts`）的构造入参含 `today`（当天；由组合根从 `env.process.clock` 取一次传进来，本类不自己读时钟）与 `textWriter`，由它在 `docs/index.ts` 构造唯一一份装配器；`Documents.skeletonOf(type)` 出字节，`Documents.skeletonAt(type, target)` 是落盘面（`schema get --output skeleton` 的壳只调这一个入口，渲染与写盘都不在壳里，也不在组合根里另拼一处）
+- `SkeletonAssembler`：构造入参含 `today`（必填无默认值，不传即抛）与注入的文本落盘能力 `textWriter: (target, text) => void`（`env/workspace/workspace.ts#writeText`，T3）；`compose(type, target)` 对四族穷举、只出字节（旧树 `SkeletonAssembler#render()` 的字节面，**不带尾随换行**）；`assembleAt(type, target)` 一次完成「渲染 → 补且只补一个尾随 `\n` → 经 `textWriter` 落盘 → 回仓库根相对路径」；本类不碰 `node:fs`，写盘只有 `textWriter` 一条路
+- `Documents`（`docs/index.ts`）的构造入参含 `today`（当天；由组合根从 `env.process.clock#dayOf` 取一次传进来——本地日，不是 `isoOf` 的 UTC 切片，本类不自己读时钟）与 `textWriter`，由它在 `docs/index.ts` 构造唯一一份装配器；`Documents.skeletonOf(type)` 出 `compose` 的字节（无尾随换行），`Documents.skeletonAt(type, target)` 是落盘面——落地的字节是 `skeletonOf(type)` 加那一个 `\n`（`schema get --output skeleton` 的壳只调这一个入口，渲染与写盘都不在壳里，也不在组合根里另拼一处）
 
 #### Steps
 - 写 lens 问句表的 pin — checkable: 每 kind 的问句非空且无重复标签；`spec-consistency` 行携带指称问句（把它的问句字面抄到别处即红）
@@ -390,7 +390,7 @@ none
 - 写图的 pin — checkable: 一份 `DependsOn` 自环的 plan ⇒ `#validate()` 报 `self-loop` 且 `detailLine()` 点名该任务；成环 ⇒ 报 `cycle` 并列出环上的任务；缺 id ⇒ 报 `missing-id`；`#batches()` 的每一批内无依赖边（拓扑性），`#frontier(done)` 随 `done` 变化
 - 写波宽单点派生的 pin — checkable: 换一份边集给 `task-graph.ts` ⇒ `wave-width` 判据的输入随之变；`wave-width.ts` 不持有自己的波分解
 - 写四族骨架的 pin — checkable: 四类 DocType 各一条；类型集与 `compose` 的 switch 分支集一致（类型集从同一常量派生，测试断言「每个值都有分支」）
-- 写骨架落盘的 pin — checkable: `Documents.skeletonAt(type, target)` 落地的字节与 `skeletonOf(type)` 的渲染逐字节相等（比字节，不比行数）；注入一个记数的 `textWriter` ⇒ 落盘调用只有一次、目标与回显的相对路径是同一个；`docs/skeleton/**` 与 `docs/index.ts` 里零 `node:fs`（import 面断言；`env/` 仍是唯一 import `node:fs` 的片）
+- 写骨架落盘的 pin — checkable: `Documents.skeletonAt(type, target)` 落地的字节与 `skeletonOf(type)` 加一个尾随 `\n` 逐字节相等（比字节，不比行数；落地文档以且仅以一个 `\n` 结尾，多一个或少一个都红）；注入一个记数的 `textWriter` ⇒ 落盘调用只有一次、目标与回显的相对路径是同一个；`docs/skeleton/**` 与 `docs/index.ts` 里零 `node:fs`（import 面断言；`env/` 仍是唯一 import `node:fs` 的片）
 - 写日期注入的 pin — checkable: 同传一个冻结日期两次 ⇒ 字节相同；不传日期时构造即抛（无默认取系统时钟）
 - 写骨架字节的格接入 — checkable: 对账器的骨架格用装配器入口在进程内驱动两棵树，同一 `frozenDate`
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs tests/parity` 绿（对账器按 T2 的 GAP 口径：已接线的格零差异、未接线的格计入 GAP，不判红）
@@ -554,7 +554,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 #### Produces
 - `frame`：`Frame#of(request)`——argv 侧输入（命令字 · 旗标 · 路径字面）装配成一帧：slug 判定（经 `env.paths` 的 `SlugIndex`）· 计划读（经 `Documents`）· 身份文档声明的 `doc-type:` / `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router；路径只经 `env.paths` 拼、markdown 只经 `Documents` 读——本段零 `node:fs`、零 yaml 解析、零 slug 猜测
 - `advance`：`frontierOf(slug)` · `nextOf(frontier)` → 六格 `NextHop` · `reasonOf(hop)` · 波次 frontier（读 T9 `TaskGraph#batches()` 与 `#frontier(done)`，不另建）
-- `wave`：`WaveGate#vet(requested, verb)`——判定成五行、**行序即判据**（命中靠前的行就报那一行的成因，不落到靠后的行）：`mixed-batch`（请求命中一个跨已闭合与未闭合任务的静态批——批是一个整体，计划修订不得把半执行批的剩余成员放成自己那一波）· `wave-too-wide`（派生波宽超 `MAX_TASKS_PER_WAVE`，判在精确读之前，故宽 frontier 永不被误报成 `split`）· `too-many-tasks`（请求集本身超上限，不截断、不默默对半）· `split`（请求集不等于派生波，报错时带波板提示）· `wrong-phase`（该波的相位 ≠ 本次动词）；成因 token 只取 `DISPATCH_REASON` 的 line 腿（经由 `WAVE_GATE_REASON` 的类型视），本片不另立拼写；那张表与它的两个视图都住在 `run/advance/next.ts`——`DISPATCH_REASON`（structure · line · station 三腿的 `{token, leg}` 表：structure 腿复用门行 id、line 腿是波门五行与 doc / branch 拒绝、station 腿是 hop 的 `reason:` 词）· `WAVE_GATE_REASON`（line 腿的波门五个值）· hop 的 `reason:` 视图 · `REVIEW_CYCLE_CAP`（评审软上限：hop 的 `soft-cap` 那一格的连续 blocker 计数门槛，与 `soft-cap` 行同住一处，软上限值在 `src/**` 里只有这一份字面——树外消费者 `scripts/__tests__/next-loop-twin.test.ts` 读的正是它，见 T18 的改指清单），`wave.ts` 与它之外的一片都不持第二份拼写；裁决带回派生波与各任务相位两件读值
+- `wave`：`WaveGate#vet(requested, verb)`——判定成五行、**行序即判据**（命中靠前的行就报那一行的成因，不落到靠后的行）：`mixed-batch`（请求命中一个跨已闭合与未闭合任务的静态批——批是一个整体，计划修订不得把半执行批的剩余成员放成自己那一波）· `wave-too-wide`（派生波宽超 `MAX_TASKS_PER_WAVE`，判在精确读之前，故宽 frontier 永不被误报成 `split`）· `too-many-tasks`（请求集本身超上限，不截断、不默默对半）· `split`（请求集不等于派生波，报错时带波板提示）· `wrong-phase`（该波的相位 ≠ 本次动词）；成因 token 只取 `DISPATCH_REASON` 的 line 腿（经由 `WAVE_GATE_REASON` 的类型视），本片不另立拼写；那张表与它的两个视图都住在 `run/advance/next.ts`——`DISPATCH_REASON`（structure · line · station 三腿的 `{token, leg}` 表：structure 腿复用门行 id、line 腿是波门五行与 doc / branch 拒绝、station 腿是 hop 的 `reason:` 词）· `WAVE_GATE_REASON`（line 腿的波门五个值）· hop 的 `reason:` 视图 · `REVIEW_CYCLE_CAP`（评审软上限：hop 的 `soft-cap` 那一格的连续 blocker 计数门槛，与 `soft-cap` 行同住一处，软上限值在 `src/**` 里只有这一份字面）与它的两处可核面——`DISPATCH_REASON` 的 `softCap` station 行、评审闭合的 `done` 决策词：旧树那两个私有成员（连续 blocker 计数与闭合那一支）按 spec §4 重新推导后不以旧私有拼写存在，树外消费者 `scripts/__tests__/next-loop-twin.test.ts` 的源码文本臂因此改指这三处（见 T18 的改指清单与那一步的处置），`wave.ts` 与它之外的一片都不持第二份拼写；裁决带回派生波与各任务相位两件读值
 - `line-phase`：行相位与行身份事实（从 `run/gate` 的授权面派生），**零措辞**——拒绝措辞由 `surface/render/route.ts` 按 hop 拼出，`run/advance` 不 import `surface`
 - `target-faces`：每个目标类型一行（审计目标 · 产物面 · next 消费语义）——新类型是表行，不是生命周期的分支
 - `lifecycle`：`Lifecycle#advance(frame)`——一次派发一步（前沿 → 派发 → 结果 → 记账 → 改道），帧由 `frame` 段装配，目标类型差异只经 `target-faces` 的表行
@@ -726,7 +726,7 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 
 #### Produces
 - `src/bin.ts`：唯一组合根，构造 `Env` → `Documents` → `Run` → `Cli` 并接线；导出的 `main` 写成箭头常量（`export const main = …`，不是裸 `function`——后者会撞 `check:no-bare-functions`），可被 `node src/bin.ts` 直接跑（tsx 或编译后）
-- `Documents` 的三件构造入参在组合根一次给齐：`today`（当天，从 `env.process.clock` 取一次传进去——`Documents` 只收下、不自己读时钟，骨架的 `date:` 行由此而来）、`readText`（`env.workspace#readText`）与 `textWriter`（`env.workspace#writeText`）；骨架装配器由 `Documents` 构造一处，组合根不 new 它（`skeletonAt` 的落盘因此只经那一个入口）
+- `Documents` 的三件构造入参在组合根一次给齐：`today`（当天，从 `env.process.clock#dayOf` 取一次传进去——`Documents` 只收下、不自己读时钟，骨架的 `date:` 行由此而来）、`readText`（`env.workspace#readText`）与 `textWriter`（`env.workspace#writeText`）；骨架装配器由 `Documents` 构造一处，组合根不 new 它（`skeletonAt` 的落盘因此只经那一个入口）
 - `composition.test.ts`：组合根是唯一 new 四片入口处（扫 `src/**` 的非测试文件，`new Env` / `new Documents` / `new Run` / `new Cli` 只在此出现——四片各一个类名，扫描名单与切片集逐值对应），且 `Provisioner` 与基产物读写只在 `env/index.ts` 的 `Env` 构造处实例化——组合根与 `surface/**` 都不 new 它们（一份能力一条实例路径）
 - `smoke.integration.test.ts`：与旧脚本同形的一条集成测试——起 `src/bin.ts` 的真子进程，断言 `--help` 面与 `--dry-run` 的五类行，零仓内写入。它占住 `packages/cdd-engine/package.json#scripts.smoke` 在翻面后要指向的靶子（T18 只改指向，不删行）
 
@@ -757,7 +757,7 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 - Modify: `packages/cdd-engine/package.json`
 - Modify: `package.json`（`scripts.typecheck` 去掉旧树工程 · `scripts.check:no-bare-functions` 的扫描根 · `scripts.precommit` 三条守卫路径改指 `src/`）
 - Modify: `packages/kairos/tests/`（8 个文件的 import · 用到的导出 · 注释里指向旧树的路径举例）
-- Modify: `scripts/__tests__/next-loop-twin.test.ts`、`scripts/__tests__/journey-twin.test.ts` 及其路径常量
+- Modify: `scripts/__tests__/next-loop-twin.test.ts`、`scripts/__tests__/journey-twin.test.ts` 及其路径常量与源码文本臂（前者那三处符号断言改指新树的落点面，见本任务 Steps 的处置）
 - Modify: `scripts/lib/scan.ts`（注释里那条举例的旧树路径）
 - Modify: `README.md`、`README.zh-CN.md`、`packages/cdd-engine/README.md`、`packages/cdd-engine/README.zh-CN.md`、`AGENTS.md`
 - Modify: `docs/diagrams/src/*.json`（六份）
@@ -773,12 +773,12 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 - `tests/parity` 的 include 与它的 tsconfig 工程同批删除；对账器与基线随之销毁
 - 树外测试面与五份手维护文档改指新入口；六份图源改真
 - 三条守卫改指新落点（不是删掉三条路径）：`precommit` 的 `src/surface/commands/__tests__/channel-closure.guard.test.ts`（T16）· `src/surface/words/__tests__/words.guard.test.ts`（T14）· `src/run/dispatch/__tests__/handoff-plane.guard.test.ts`（T12）
-- 树外消费的符号改指清单（每一个都有新落点，没有一个是「删掉 import 即可」）：`SKILL_ANATOMY` → `docs/identity/skill-anatomy.ts` · `HOSTS` / `REFS` / `DISPATCH` / `HostDetect` / `ENGINE_RUNTIME` → `env/process/host.ts` · `BASE_ARTIFACT_FIELDS` → `env/workspace/base-artifact.ts` · `Translator` → `docs/identity/translate.ts` · `GUARD_BAN_WORDS` / `CAPSULE_WORDS` / `ISSUE_TYPES` / `Words` → `surface/words/words.ts` · `CLI_COMMANDS` / `ARGV_CHANNEL` → `surface/commands/declare.ts` · `IssueBodyRenderer` → `surface/render/issue.ts` · `MAX_TASKS_PER_WAVE` → `docs/judging/wave-width.ts` · `REVIEW_CYCLE_CAP` → `run/advance/next.ts`（与 hop 的 `soft-cap` 行同住，T13 的 Produces 认领；`scripts/__tests__/next-loop-twin.test.ts` 读的正是这一处） · `CliLifecycle.LOGS_DIR` → `env/workspace/round-log.ts` 的 `LOGS_DIR`（工作区相对日志目录名的单源；树外消费者 `scripts/__tests__/journey-twin.test.ts` 读的是这个静态常量、不是任何方法，它两处路径归一化都取它）
+- 树外消费的符号改指清单（每一个都有新落点，没有一个是「删掉 import 即可」）：`SKILL_ANATOMY` → `docs/identity/skill-anatomy.ts` · `HOSTS` / `HostId` / `HOST_IDS` / `REFS` / `DISPATCH` / `HostDetect` / `ENGINE_RUNTIME` → `env/process/host.ts` · `BASE_ARTIFACT_FIELDS` → `env/workspace/base-artifact.ts` · `Translator` → `docs/identity/translate.ts` · `GUARD_BAN_WORDS` / `CAPSULE_WORDS` / `ISSUE_TYPES` / `Words` → `surface/words/words.ts` · `CLI_COMMANDS` / `ARGV_CHANNEL` → `surface/commands/declare.ts` · `IssueBodyRenderer` → `surface/render/issue.ts` · `MAX_TASKS_PER_WAVE` → `docs/judging/wave-width.ts` · `REVIEW_CYCLE_CAP` → `run/advance/next.ts`（与 hop 的 `soft-cap` 行同住，T13 的 Produces 认领；`scripts/__tests__/next-loop-twin.test.ts` 读的正是这一处） · `CliLifecycle.LOGS_DIR` → `env/workspace/round-log.ts` 的 `LOGS_DIR`（工作区相对日志目录名的单源；树外消费者 `scripts/__tests__/journey-twin.test.ts` 读的是这个静态常量、不是任何方法，它两处路径归一化都取它）
 - `tests/parity/` 整个目录删除（不是只删 include）：它 import 旧树，留着就撞本任务自己的零残留验收
 
 #### Steps
 - 改编译面与测试面 — checkable: `pnpm run typecheck` 绿（四个工程里旧树位置换成 `src`）、`pnpm -C packages/cdd-engine exec vitest run` 收集到 `src/**` 与不再收集 `src-next/**`；`tsconfig.build.json` 的 `rootDir` / `include` / `exclude` 三键同批改指（`exclude` 成 `src/**/__tests__/**`），且 `pnpm -C packages/cdd-engine build` 之后 `dist/` 下没有 `__tests__`
-- 改树外测试面 — checkable: `pnpm -C packages/kairos test` 绿（8 个文件里的 import 与它们用到的导出逐条改指，含 `ISSUE_TYPES` 与 `Words`）；同批去掉这些文件注释里指向旧树的路径举例（与 `scripts/lib/scan.ts` 那条同一口径——验收把注释也算在内）；`grep -rn 'src-next' packages/kairos/tests` 零命中（注释也算）；`pnpm exec vitest run` 绿（两个孪生与路径常量已改）
+- 改树外测试面 — checkable: `pnpm -C packages/kairos test` 绿（8 个文件里的 import 与它们用到的导出逐条改指，含 `ISSUE_TYPES` 与 `Words`）；同批去掉这些文件注释里指向旧树的路径举例（与 `scripts/lib/scan.ts` 那条同一口径——验收把注释也算在内）；`grep -rn 'src-next' packages/kairos/tests` 零命中（注释也算）；`pnpm exec vitest run` 绿（两个孪生与路径常量已改）——`next-loop-twin.test.ts` 那条源码文本臂的三处符号断言改成新树的落点面：`export const REVIEW_CYCLE_CAP` 原样保留，两个私有成员换成 `run/advance/next.ts` 的 `DISPATCH_REASON` 的 `softCap` station 行与评审闭合的 `done` 决策词（T13 的 Produces 认领这三处）；**不把旧私有拼写搬进新树**（spec §4 的再推导规则，且这两个名字在任何 Produces 里都没有主人）
 - 改 `precommit` 的三条守卫 — checkable: `pnpm run precommit` 绿，且三个守卫文件都在新树上（改指到一个不存在的路径，precommit 会当场红）
 - 改 smoke 指向 — checkable: `pnpm -C packages/cdd-engine run smoke` 收集到 `src/__tests__/smoke.integration.test.ts` 且 exit 0
 - 改零裸函数扫描根 — checkable: `pnpm run check:no-bare-functions` 的扫描根不含旧树路径且零命中
@@ -846,3 +846,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | v0.11 | 2026-11-25 | docs-fix 轮六（F1–F6 全部落地，未放宽判据）：T2 的失败路接线任务改成 T16 的壳一个（与拒绝路同形），终止因取 T12 的 `DispatchOutcome`、报文取 T15 的渲染面作读值来源——一格的三条流都由命令面产出，名册不再让只在第七波落地的终止因独自认领一族格；场景装配有了 owner：T13 新增 `run/advance/frame.ts` 的 `Frame#of(request)`（argv 侧输入 → 一帧：slug 判定 · 计划读 · 身份声明的 `doc-type:` 与 `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router，经注入的 `Documents` 与 `Env` 取值），`Run.advance` 与 `Run.boardOf` 改收 argv 侧输入、T16 的 Consumes 改指这一处，附「同一 argv 两次装配字节相同」的 pin；`DISPATCH_REASON` 与 `WAVE_GATE_REASON` 及 hop 的 `reason:` 视图点名住 `run/advance/next.ts`，token 单源 pin 改判「表在 `next.ts`、`wave.ts` 里写一个成因字面即红」；`Clock` 补到两个后续读点——T11 的拒绝事实 `at` 与 T12 的 in-flight 起跑时刻（进程表答不出时回落注入时钟），各附一条零 `Date.now()` 的 pin；T18 的验收从「十一序」改成「spec §3.3 的固定序逐项可核」，Steps 前十条按那一序重排（图源在文档之前、smoke 与扫描根在树外测试面之后）；T17 的组合根唯一性 pin 的扫描名单补上 `new Documents`（四片四个类名）。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.12 | 2026-11-25 | **编排者的结构收口（用户裁定 A：停在评审七轮未收敛处，改结构而不是再叠 fix）**：四笔。① **T1 步序**——回填时我把「退役 `zero-dep` 的 `src` 腿」插在末尾，而第 4 步已接收集面、`src/` 一在包根那条 pin 就必红，于是第 6 步的「回到全绿」不可达；退役步骤提到第一步。② **T3 的两处外部事实改为构造入参**——`now: () => number` 与 `baseName: string`，必填无默认值，缺即抛：这样 T3 不再需要 T5 的 `Clock` 与 T7 的产物矩阵，**步序不可行从根上消失，且零加边、零移文件**（比原计划的「把两个叶子提到第一波」更省）。③ **对账器文件的归属**——T8 · T9 · T15 · T16 各补 `tests/parity/GRID-WIRING.md` 与 `parity.test.ts` 两条 `Modify`，接线格的写点不再没有落点。④ 去掉一条字面计数（`reviews` 改按 `TargetType` 类型派生）。波次零变：19 任务 / 13 波 / 宽 1·3·2·3·1·1·2·1·1·1·1·1·1 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-25） |
 | v0.13 | 2026-11-25 | docs-fix 轮七（F1–F6 全部落地，未放宽判据）：**骨架落盘有了具名主人**——T3 的 `Workspace` 加 `#writeText` / `#readText` 一对文本读写入口（与 `#writeJson` 同源、同一条路径拼写，`src/**` 里各只一处），T9 的装配器收注入的 `textWriter` 并由 `Documents` 构造一处，壳只调 `Documents.skeletonAt(type, target)` 一个入口（渲染 · 落盘 · 回显三件都在里面，壳零 `node:fs`），T2 的名册加「骨架落盘」一格（接线任务 T16、判落盘事实），于是「路径回显了、文件没写」在八面里有格会红；T3 的零时钟面收窄到本任务交付的三段，并点名 `env/process/clock.ts` 是 `env/` 内唯一读时钟处（T5）；**骨架日期有了合法载体**——`Documents` 的构造入参含 `today`，组合根从 `env.process.clock` 取一次传进去，T16 那句「系统时钟走 `env/process/clock.ts`」删去；T13 的 Produces 认领 `REVIEW_CYCLE_CAP`（与 hop 的 `soft-cap` 行同住 `next.ts`，树外消费者读这一处），T18 的改指清单把 `CliLifecycle` 那一行改成实际被消费的静态常量与落点 `env/workspace/round-log.ts#LOGS_DIR`；T4 的读取面改成「文本进、索引出」，读盘经注入的 `env.workspace#readText`；T3 的 Consumes 与 T11 的 Acceptance 把产物矩阵的家改指 T7 的 `run/ledger/artifacts.ts#ArtifactIdentity`。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.14 | 2026-11-25 | docs-fix 轮八（F1–F5 全部落地，未放宽判据）：**文本读写换了基准**——`Workspace#writeText` / `#readText` 与 `#writeJson` 不再共用一条拼写：JSON 面住工作区里，文本面从 `paths` 交付的 `RepoRoot`（工作区根携带的仓库基准）拼绝对路径，两个唯一消费者（骨架的 `target` · 物料读面的 `file`）本来都是仓库根相对的 `RepoPath`；旧写法把物料读拼成 `.kairos/<slug>/docs/…`（每次读都抛）、把骨架落盘撇进 `.kairos/<slug>/`（目标一个字未写而 stdout 回显一个没被写的路径）；T3 补一条「真 `RepoRoot` + 真 workspace 读一份 `docs/**` 得回字节、往另一份 `docs/**` 落一次文本后非空」的 pin；**骨架当天有了生产者**——`Clock` 补第三件能力 `dayOf(epoch)`（本地日 `YYYY-MM-DD`，旧树 `#getFullYear` 那一条老路），`isoOf(epoch)` 保留 UTC `toISOString` 形（`{startedAt}` 的字节靠它，两者不在日界互相切片派生），T5 的 Produces 与 pin 同批补，T9 / T17 的 `today` 改指它；**骨架尾随换行有了主人**——`compose` 出 `render()` 的无换行字节，`assembleAt` 补且只补一个 `\n`，T9 的落盘 pin 改成「与 `skeletonOf(type)` 加一个 `\n` 逐字节相等」；**孪生源码文本臂有了处置**——`next-loop-twin.test.ts` 那三处符号断言改指新树落点面（`export const REVIEW_CYCLE_CAP` 保留，两个私有成员换成 `DISPATCH_REASON` 的 `softCap` station 行与闭合的 `done` 决策词），T13 的 Produces 认领这三处、T18 的 Files 从「路径常量」扩到「路径常量与源码文本臂」，不把旧私有拼写搬进新树；**`HostId` 有了落点**——T5 的 Produces 点名 `HOST_IDS` 与从它派生的 `HostId`（住 `env/process/host.ts`），T18 的改指清单补齐。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

@@ -9,6 +9,11 @@
 // green-lights it, and a call site with no injected layers yields zero findings. The
 // final pin keeps the rule plane free of session imports — the width fact arrives
 // through `JudgeContext.taskLayers`, never a second `batches()` derivation.
+//
+// P44 T6's two roster restatements are pinned here too (spec §8.2): the invariant
+// family's module-header roster line enumerates the shape gate's three ids verbatim,
+// and the composition root constructs the contract exactly once — never again at the
+// command boundary. Both are source-form pins: the fact is the bytes, not a behavior.
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -42,6 +47,14 @@ const RULES_SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
  *  directory this suite lives in, and its sibling `face/`. */
 const CONTRACT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FACE_DIR = path.resolve(CONTRACT_DIR, "..", "face");
+
+/** The invariant family's own module header — the ONE source restatement that names
+ *  the shape gate's ids verbatim (§8.2's first roster line). */
+const INVARIANTS_SOURCE = path.resolve(CONTRACT_DIR, "invariants.ts");
+
+/** The composition root — the pin that it constructs the contract once, and never
+ *  again inside `#beginCommand` (§8.2's retired-rebuild clause). */
+const CLI_SOURCE = path.resolve(FACE_DIR, "cli.ts");
 
 /** The P30/P31 change-history hardening ids — the row-shape, header-newest and
  *  header-column-set legs the lineage family gained (the ledger count above follows
@@ -390,5 +403,63 @@ describe("`single-home`'s zero residue on the source plane", () => {
       `The shape rows (the variable classes · ${RETIRED_RULE_ID}) are P41's additions`,
     );
     expect(planted).toContain(RETIRED_RULE_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the roster restatements — the two source forms Task 6 holds (P44 §8.2)
+// ---------------------------------------------------------------------------
+
+/** The shape gate's three ids — the roster line that must carry them verbatim and
+ *  nothing else. Typed here as the pin's SUBJECT, exactly like `PUBLIC_RULE_IDS`
+ *  above: a roster line is a content face, so the expectation is the declaration,
+ *  while the "exactly" half is derived from the table below. */
+const SHAPE_GATE_IDS = ["line-coordinate", "live-arithmetic", "change-history-date-shape"] as const;
+
+/** The shape gate's roster clause read as ids: from `the shape gate (P41)` to the
+ *  clause's terminating `;`, with the comment's line prefixes stripped (the wrap
+ *  carries no meaning). An absent label reads as an empty list — the subject guard. */
+const shapeRosterOf = (source: string): readonly string[] => {
+  const start = source.indexOf("the shape gate (P41)");
+  if (start < 0) return [];
+  const end = source.indexOf(";", start);
+  const clause = source.slice(start, end < 0 ? undefined : end).replace(/\s*\/\/\s*/g, " ");
+  const [, ids = ""] = clause.split("—");
+  return ids
+    .split("·")
+    .map((id) => id.trim())
+    .filter((id) => id !== "");
+};
+
+/** The contract's construct count in one source text — the ONE reading of the
+ *  "the command boundary never rebuilds it" pin. */
+const contractConstructCountOf = (source: string): number =>
+  (source.match(/new Contract\(\)/g) ?? []).length;
+
+describe("the roster restatements — the two source forms Task 6 holds (P44 §8.2)", () => {
+  it("keeps the invariant family's roster line carrying exactly the shape gate's ids", () => {
+    const roster = shapeRosterOf(readFileSync(INVARIANTS_SOURCE, "utf8"));
+    // the subject guard: a roster line deleted outright leaves this comparison nothing
+    // to read, so the empty arm is named rather than silently green
+    expect(roster, "the shape gate (P41) roster clause is gone").not.toEqual([]);
+    expect(roster).toEqual([...SHAPE_GATE_IDS]);
+    // The "exactly" half is DERIVED: no other row of the declared table may ride that
+    // line, so a roster that keeps the three and appends a fourth is red here.
+    const others = RULE_REGISTRY.map((row) => row.id).filter(
+      (id) => !SHAPE_GATE_IDS.includes(id as (typeof SHAPE_GATE_IDS)[number]),
+    );
+    for (const id of others) expect(roster, id).not.toContain(id);
+  });
+
+  it("constructs the contract exactly once — the field initializer, never the command boundary", () => {
+    const source = readFileSync(CLI_SOURCE, "utf8");
+    expect(contractConstructCountOf(source)).toBe(1);
+    // …and the one construct IS the composition root's field initializer, so the pin
+    // cannot be satisfied by a construct that moved elsewhere.
+    expect(source).toMatch(/this\.#contract = new Contract\(\);/);
+    // The pair: a `#beginCommand` that rebuilt the contract is exactly the second
+    // construct this reading refuses — the planted body is red, the delivered tree is not.
+    const planted = `${source}\n  #beginCommand(): void {\n    this.#contract = new Contract();\n  }`;
+    expect(contractConstructCountOf(planted)).toBe(2);
   });
 });

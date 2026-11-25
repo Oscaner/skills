@@ -875,6 +875,40 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
     }
   });
 
+  it("prints the plan cell alone when only the record's plan is gone — the workspace directory still stands", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // The mirror of the arm above: the record's plan path is not on this tree while
+      // its slug's workspace directory stands, so only the plan cell may speak — the
+      // held fact renders nothing, never a placeholder sentence.
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "p3"), { recursive: true });
+      writeRecord(repoRoot, { pid: 999_999, startedAt: 1, plan: "docs/kairos/plans/gone.md" });
+      const recordBytes = readFileSync(recordPath(repoRoot), "utf8");
+
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--recover",
+          "--dry-run",
+        ]),
+      ).toBe(1);
+      const planOnly =
+        "the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over";
+      expect(io.stdoutText).toContain(planOnly);
+      expect(io.stdoutText).toContain(`in-flight: ${planOnly}`);
+      expect(io.stdoutText).not.toContain("the record's workspace directory is not on this tree");
+      expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("lists an orphan handoff draft on the `reads:` row and leaves the workspace untouched", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

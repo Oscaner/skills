@@ -985,6 +985,12 @@ describe("PreFlight — the plan-ledger gate", () => {
 const TARGET_GONE_LINE =
   "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over";
 
+/** The same line's MIRROR shape: the record's plan path is not on this tree while its
+ *  slug's workspace directory still stands, so only the plan cell speaks — the held
+ *  fact emits nothing at all, never a placeholder sentence. */
+const PLAN_GONE_ONLY_LINE =
+  "the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over";
+
 describe("PreFlight — the in-flight gate", () => {
   it("refuses a live holder before the structural gates, names it, and writes nothing", async () => {
     const { repoRoot, cleanup } = gitRepo();
@@ -1058,6 +1064,31 @@ describe("PreFlight — the in-flight gate", () => {
       // has no cell that can render it, so the row reads the `inFlight` row instead.
       expect(takeover.checked).toContain(`in-flight: ${TARGET_GONE_LINE}`);
       expect(takeover.checked.some((row) => row.includes("stale holder"))).toBe(false);
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("names the plan cell alone when only the plan is gone — the workspace directory still stands", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      writeRecord(repoRoot, recordOf());
+      // The mirror of the arm above: `<workspaceRoot>/<slug>` exists for the record's
+      // OWN slug, so the workspace cell reads held and the plan cell may not speak for it.
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "other-slug"), { recursive: true });
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, false) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      expect(refused.message).toContain(PLAN_GONE_ONLY_LINE);
+      // The held fact is an ABSENCE: it renders no clause at all, never a placeholder.
+      expect(refused.message).not.toContain("the record's workspace directory is not on this tree");
+      // The checked row reads the same bytes — the blocking report and the row are one
+      // renderer, so neither face can select its cells on its own.
+      expect(refused.checked).toContain(`in-flight: ${PLAN_GONE_ONLY_LINE}`);
       expect(inFlightSnapshot(repoRoot)).toBe(before);
     } finally {
       cleanup();

@@ -10271,6 +10271,7 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
       io.stderrText = "";
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED: in-flight");
       expect(io.stderrText).not.toContain("a dispatch is already in flight");
       // The repaired document dispatches the same round.
       writeFileSync(plan, clean, "utf8");

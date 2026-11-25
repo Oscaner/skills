@@ -1,7 +1,7 @@
 ---
 title: '引擎接手面收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.8
+version: v0.9
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 program: 2026-10-10-engine-doc-tooling
@@ -152,6 +152,20 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - **本 spec 的验收尾**：现为绕门而改写的版本；退役落地后**改回统一措辞**（它是这条规则的自证现场，退役后无需豁免）。计划面把这一步记成一次显式的文档编辑，别让它掉在「收尾顺手改」里。
 
 
+### 9. 轮次的写权边界：只写自己的文档
+
+#### 9.1 缺陷：越界写没有纪律
+
+`render/templates.ts#CLAUSES` 的 `cl:plan-freeze` 管的是**目标文档的冻结与授权**（超出本轮声明的 `capability: may.amend` 范围就不许就地改），但它不说**哪些文档属于本轮**。于是「改自己的文档以外的东西」在提示里没有一条禁止句：一个 fix 轮读到评审找出的宪章缺陷（名册算术 · 决策行粘行 · changeset 包数），完全可以“顺手”把宪章也改了——而宪章的写权是编排器的（登记面），不是内容面的。
+
+本会话的实测：fix 轮的做法是把这一条写成计划项（「宪章的 P44 行同一批跟着改」），而不是自己动手——**这是对的，但它是运气，不是纪律**。
+
+#### 9.2 落地：一条共享子句
+
+`render/templates.ts#CLAUSES` 新增 `cl:own-document`：一轮只写它的 findings 点名的文档——它自己的目标文档，加上 finding 画面里的代码文件；其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外，经编排器的回填落地，绝不由轮次自己改。四个模式共享该子句（implement · review · fix · docs-fix），`TEMPLATE_PROMPT.$version` 随提示字节递增。
+
+与 `cl:plan-freeze` 的分工写在同一处：`plan-freeze` 管**目标文档内**的许可（能不能改这一份），`own-document` 管**文档集**的边界（能改哪几份）。两条都被违反时，先报的仍是 `plan-freeze`（它判的是本轮自己声明的那份）。
+
 ### Acceptance criteria
 
 - `--recover` ∧ doc-contract 拒绝的端到端：记录被接手清除，abort 账恰一条 `interrupted`；随后同一命令不带 `--recover` 时第一个拒绝者是 `doc-contract` 而不是 `in-flight`（记录已不在树上，这一臂才分得出「折了」与「还在」），而修好文档后同一命令派发成功。
@@ -168,6 +182,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - `single-home` 零残座：`contract/rules.ts` 规则行 · `contract/invariants.ts#SingleHomeInvariant` 与 `SentenceIndex` 整组删除 · `contract/__tests__/single-home.test.ts` 随规则离树 · `SHAPE_RULE_IDS` 与席位表各少该行 · `charter-self-repair` 该族的臂与 `fix-round-gate` 的负向对同批收口 · 零残留 grep pin（扫描面与图案按 §8.2 取）· `cdd review` 不再产出 `single-home@*` finding。
 - 形状门的名册只剩 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`：P43 spec §4.2 的名册句已改真，宪章的 P44 行同批跟上（它的形状门读数与名册同数，不再自写一条算术）；源码面的转述同批改真——`contract/invariants.ts` 的模块头名册行、`contract/rules.ts` 的注册表注释、`face/cli.ts#Cli.#contract` 的字段注释与 `#beginCommand` 的两处注释，`session/graph.ts` 的散文用法按 §8.2 明示豁免；`#beginCommand` 不再重建 `#contract`；`single-home` 在名册里零命中。
 - `spec-consistency` 的 lens 问句保留（重复判据的危害由它判）；`AGENTS.md` 的「One home per rule」写作约定不动；本 spec 的验收尾改回统一措辞。
+- `CLAUSES` 携带 `cl:own-document` 一句（四个模式共享），`TEMPLATE_PROMPT.$version` 递增；越界写父宪章的轮次在提示面零许可（成对：写本轮目标文档仍被允许）。
 - 引擎套件全绿 · `pnpm run validate` exit 0 · `packages/cdd-engine` 一包 changeset 取 **minor**（本相位在 `packages/kairos/` 上零字节改动，不开第二个包）。
 
 ## Constraints
@@ -178,6 +193,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - **机械面只许判派生**（D101 · D102）：本相位新增的判据只有两条存在性读取与一次派生改真。
 - **零新增 token**：不新增门名、不新增 lens 标签、不新增分级档、不新增语料臂测试。
 - **代理型判据零新增**（D102 · D103）：判据只许建立在有唯一来源的事实上；相似度代理不算判据。
+- **写权按文档集分**：轮次只写自己的目标文档与 finding 画面内的代码文件；登记面（宪章 · 兄弟 spec · 计划）归编排器的回填，不归轮次。
 - **不发布**：changeset 归并落 pending，`packages/cdd-engine` 一包 minor（D74）——本相位在 `packages/kairos/` 上没有可命名的字节改动。
 
 ## Change history
@@ -192,3 +208,4 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 | v0.6 | 2026-11-25 | 二轮 phase-spec 评审整改（F1 · F2 · F5 · F6；F3 · F4 与笔记② 的宪章面另在同批落地）：§3.2 的观测面由三改四——补 `face/preview.ts#Preview.heldBlock` 这第四个读者（`--dry-run` 在阻断报文之前返回，只有它打那一句提示），并写死记录只带 workspace 一条事实时行只渲 workspace 子句；§3.1 的两条事实读数改成单一极性（目标还在 / 目标已不在），不再让「成立」在相邻两句里翻向；§7.1 的 dry-run 描述改成预览真打出的两处（`in-flight:` 行与 `heldBlock` 的提示行），阻断报文那条面移出；§6.1 点名 `words.guard.test.ts` 的接管提示枚举，第四态行同批进枚举；验收格补「第二个拒绝者是 `doc-contract`」、补只带一条事实的臂、把 `stealable` 的成对两臂扩到四面 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.7 | 2026-11-25 | 三轮 phase-spec 评审整改（F1–F4）：§3.1 把 `targetGone` 的判据写成「任一记录所带事实读出目标已不在」并点名混合配对（一条不在也判，与 §7.1 的误报面同读）；§3.2 的子句格渲法改成「只渲读出不在的那几格」，四面同字限定到第四态，并把「持有者已死、目标还在」的三提示面 + checked 面不同词写成两张表的唯一分歧，dry-run 早返回臂钉到 `face/cli.ts#Cli.#runWork`；§7.1 的 `recover` 单一派生值同样钉到 `#runWork`；§8.2 补源码面四处名册转述并判 `#beginCommand` 的 `#contract` 重建随语料退役；验收格把 `stealable` 的成对两臂按面切开、补三种配对形状的臂与注释面收口 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.8 | 2026-11-25 | 四轮 phase-spec 评审整改（F1–F5，另三条笔记同批）：§3.1 的收尾句改成「与真残骸共用 `targetGone` 同一句、四个观测面不借 `stealable`」，与 §3.2 的 `stealable` 边界同向；§3.2 的第四态行补上接管指令——两个子句格只说目标事实，整行仍带 `--recover` 的接管句，`words.guard.test.ts` 的两条断言随行形状成立；变更史的 v0.4 行算术改成树上的行数（与 §8.2 及宪章的 P44 行同数）；§8.2 补零残留 pin 的扫描面与图案、`session/graph.ts` 的明示豁免与测试面收口，验收格同步；§8.1 与开篇把那个 spec 计数换成按构造重复的条件（读数与指称物脆钩这一类，本条自己先退出）；验收格把「活 holder 两条路径」拆开（活记录到不了后续门）、三条配对臂补上镜像方向，「两张表唯一的分歧」改成这一态上的分歧 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.9 | 2026-11-25 | 需求面回填 ⑦（用户补入 · 计划期 backfill-design）：新增 §9「轮次的写权边界」——`render/templates.ts#CLAUSES` 加 `cl:own-document`（一轮只写 findings 点名的文档），与 `cl:plan-freeze` 的分工写在同一处；验收格与约束格各增一条，`$version` 随提示字节递增 | Oscaner M. · Claude（kairos:cdd-plan 计划期回填） |

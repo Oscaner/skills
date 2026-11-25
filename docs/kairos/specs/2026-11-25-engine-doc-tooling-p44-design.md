@@ -1,7 +1,7 @@
 ---
 title: '引擎接手面收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.6
+version: v0.7
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 program: 2026-10-10-engine-doc-tooling
@@ -48,15 +48,17 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 
 #### 3.1 判据：记录自带的两条存在性事实
 
-记录自带两条不需要读进程就能判的事实：`session/inflight.ts#InFlightRecord.plan`（repoRoot 相对路径，可判存在性）与 `InFlightRecord.slug`（其 workspace 目录可判存在性）。记录**带哪条事实才判哪条**：`plan` 为 null 只出现在由 `--spec` 派发的文档面（`phase-spec` / `single-spec` / `overall`）；plan 与 branch 面一律带 `--plan`，记录必写该路径。判据因此是「记录里有没有这条事实」，不是「这是哪个面」。两条读数只写一个极性——**目标还在 / 目标已不在**：缺 plan 事实时（`plan` 为 null 的文档面记录）这项读只落在 workspace 目录上；两条事实都带时，两条都说「目标还在」即不是残骸，两条都说「目标已不在」时这条记录**确定**是残骸，报文却与「进程刚死、目标还在」共用一句。
+记录自带两条不需要读进程就能判的事实：`session/inflight.ts#InFlightRecord.plan`（repoRoot 相对路径，可判存在性）与 `InFlightRecord.slug`（其 workspace 目录可判存在性）。记录**带哪条事实才判哪条**：`plan` 为 null 只出现在由 `--spec` 派发的文档面（`phase-spec` / `single-spec` / `overall`）；plan 与 branch 面一律带 `--plan`，记录必写该路径。判据因此是「记录里有没有这条事实」，不是「这是哪个面」。两条读数只写一个极性——**目标还在 / 目标已不在**，而 `targetGone` 的判据是**任一记录所带事实读出「目标已不在」**，不是「两条都不在」：缺 plan 事实时（`plan` 为 null 的文档面记录）这项读只落在 workspace 目录上；两条事实都带时，两条都读出「目标还在」即不是残骸，**一条**读出不在（plan 被重命名走、slug 的目录仍在，或反过来）与**两条**都读出不在都判 `targetGone`——这正是 §7.1 收下的误报面，报文与「进程刚死、目标还在」共用一句。
 
 `session/inflight.ts#InFlight.inspect` 的 `held` 分支因此新增一个 `targetGone` 事实（由上述两条存在性读取得出），`InFlightState` 的语汇不变——它仍是 `held`，因为形态学（谁是接手候选项）不该分叉：stale 记录的接手路径只有一条。
 
 #### 3.2 四面同词表
 
-新行只住一处：`face/words.ts#CAPSULE_WORDS.inFlight.targetGone`（`face/words.ts#InFlightWords` 那一组行形状随之多一行；形状接口只装行，方法在 `class Words` 上）。行带两个子句格，分别命名「它主张的 plan 不在了」与「它的 workspace 目录不在了」，两条事实都在时由同一句一并写出，**一个事实一种拼写**。记录只带 workspace 一条事实时（`plan` 为 null 的文档面记录），行只渲 workspace 子句，plan 格不出句——空槽不是一种拼写，记录没有的事实不许由一个占位词替它说话。
+新行只住一处：`face/words.ts#CAPSULE_WORDS.inFlight.targetGone`（`face/words.ts#InFlightWords` 那一组行形状随之多一行；形状接口只装行，方法在 `class Words` 上）。行带两个子句格，分别命名「它主张的 plan 不在了」与「它的 workspace 目录不在了」；**渲哪几格由读数决定**——两条都读出不在时两格由同一句一并写出，只有一条读出不在时只渲那一格，另一格不出句（目标还在的那条事实不由这一行替它说话），**一个事实一种拼写**。记录只带 workspace 一条事实时（`plan` 为 null 的文档面记录），行只渲 workspace 子句，plan 格不出句——空槽不是一种拼写，记录没有的事实同样不许由一个占位词替它说话。
 
-四个观测面读同一行字：`session/preflight.ts#PreFlight.#inFlightRow` 的 `in-flight:` 行、`face/words.ts#Words.inFlightBlocked` 的阻断报文、`face/board-view.ts#BoardView.inFlightRows` 的 board 行、`face/preview.ts#Preview.heldBlock` 的 `--dry-run` 接管提示行。第四面不是复述：dry-run 的 in-flight 分支在渲染阻断报文之前就返回了，它打出来的是 `lock:` 行之后那一句提示，所以 `Words.inFlightBlocked` 盖不到它——两个句子同站一条 stdout，第四态若只在报文那面改真，预览就会把「目标还在」的提示摆在第四态那一行旁边。`stealable` 仍是「持有者已死、目标还在」的句子，四个观测面对一条目标已消失的记录无一处复用它。
+第四态的一行字四个观测面同读：`session/preflight.ts#PreFlight.#inFlightRow` 的 `in-flight:` 行、`face/words.ts#Words.inFlightBlocked` 的阻断报文、`face/board-view.ts#BoardView.inFlightRows` 的 board 行、`face/preview.ts#Preview.heldBlock` 的 `--dry-run` 接管提示行。第四面不是复述：dry-run 的 in-flight 分支（`face/cli.ts#Cli.#runWork` 的 `parsed.dryRun && preflight.gate === "in-flight"` 臂）在 `#renderPreflightBlocked` 之前就返回了，它打出来的是 `lock:` 行之后那一句提示，所以 `Words.inFlightBlocked` 盖不到它——两个句子同站一条 stdout，第四态若只在报文那面改真，预览就会把「目标还在」的提示摆在第四态那一行旁边。`stealable` 仍是「持有者已死、目标还在」的句子，四个观测面对一条目标已消失的记录无一处复用它。
+
+「持有者已死、目标还在」这一态四面不同词，且这是两张表唯一的分歧：三个提示面（阻断报文 · board 行 · `--dry-run` 提示行）读 `CAPSULE_WORDS.inFlight.stealable`，checked 面的 `in-flight:` 行读 `CAPSULE_WORDS.checked.inFlight.stale`（「持有者已死、目标还在」那一格，带 `{pid}`）。第四态的改动因此不是「把一个面改真」，而是**把 checked 行从 `checked.inFlight` 表换到 `inFlight` 表**：`checked.inFlight` 里没有能渲第四态的字，换过去它才与另外三面同字。
 
 `#inFlightRow` 读的本来是另一张表，本相位把这条读法定死：它现读 `CAPSULE_WORDS.checked.inFlight`（`free` / `held` / `stale` / 两张 corrupt 行），其中 `checked.inFlight.stale` 保留「持有者已死、目标还在」一格；一条 `targetGone` 记录的 `in-flight:` 行改读 `CAPSULE_WORDS.inFlight.targetGone` 同一句。两张表因此各有唯一归属，新句子只有一处字节。
 
@@ -114,7 +116,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 
 **第四态可能误报**：`plan` 暂时不在树上（跨 worktree、中途重命名）会让一条**活着**的记录读到 `targetGone`。接受，因为 liveness 仍是 `alive` 优先的判定（`alive === true` 时报文走 `held` 的活口），且处置不变，误报只影响措辞而不影响任何放行。
 
-**`--dry-run` 的语义不变**：预览面把 `--recover` 归空（`recover` 是组合根的单一派生值），因此预览永不接手；它打在 stdout 上的第四态有两处，且是同一句字——checked 面的 `in-flight:` 行，与 `Preview.heldBlock` 在 `lock:` 行之后的那一句接管提示；阻断报文那条面预览不打印（dry-run 的 in-flight 分支在渲染阻断报文之前返回）。退出 1，零写入。
+**`--dry-run` 的语义不变**：预览面把 `--recover` 归空——`face/cli.ts#Cli.#runWork` 里 `const recover = !parsed.dryRun && parsed.args.recover === "true"` 是唯一派生值，seam 的 `recover` 输入、恢复腿、派发 seam 的 fold 与预览各读同一值，因此预览永不接手；它打在 stdout 上的第四态有两处，且是同一句字——checked 面的 `in-flight:` 行，与 `Preview.heldBlock` 在 `lock:` 行之后的那一句接管提示；阻断报文那条面预览不打印（`#runWork` 的 `parsed.dryRun && preflight.gate === "in-flight"` 臂在 `#renderPreflightBlocked` 之前返回）。退出 1，零写入。
 
 #### 7.2 不做
 
@@ -140,7 +142,9 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 
 - **删**：`contract/rules.ts` 的 `single-home` 规则行；`contract/invariants.ts#SingleHomeInvariant` 与 `SentenceIndex` 整组（含 `MIN_LENGTH` / `THRESHOLD` / `isWorkItem` / 3-gram 比较面）；它自己的夹具文件 `contract/__tests__/single-home.test.ts`。
 - **删（测试面同批）**：`contract/__tests__/shape-rules.test.ts` 的 `SHAPE_RULE_IDS` 去掉该 id；`contract/__tests__/rules.test.ts` 的席位表删该行（表长读 `RULE_REGISTRY` 自身，不加字数）；`contract/__tests__/charter-self-repair.test.ts` 该族的臂随规则退出、不重挂；`session/__tests__/fix-round-gate.test.ts` 的「docs-fix 外壳不点名」负向对只剩 `change-history-date-shape` 一条；`contract/__tests__/selector-coverage.test.ts` 的邻域种植臂改指 `contract/invariants.ts#CrossDocChainInvariant` 的 `specChain`——它经 `#parentLineage` 用 `ctx.fs` 缝读 `program:` 指向的那份 overall，臂要保的「邻域读走缝、不走 checkout」一条不减。
-- **名册改真**：形状门的行册只写在 P43 spec §4.2（`docs/kairos/specs/2026-11-23-engine-doc-tooling-p43-design.md`），该句去掉 `single-home`，只留 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`；宪章的 P44 行同一批跟着改。
+- **名册改真**：形状门的行册主份写在 P43 spec §4.2（`docs/kairos/specs/2026-11-23-engine-doc-tooling-p43-design.md`），该句去掉 `single-home`，只留 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`；宪章的 P44 行同一批跟着改。
+- **源码注释同批改真**（名册在源码面的四处转述，漏一处就留一条死指称）：`contract/invariants.ts` 的模块头名册行（`the shape gate (P41)` 那一行）去该 id；`contract/rules.ts` 的注册表注释（`the variable classes · single-home · the record face's date shape`）去该 id；`face/cli.ts#Cli.#contract` 的字段注释与 `face/cli.ts#Cli.#beginCommand` 的注释各改写一句——后者现以「strategies hold their own state (the `single-home` corpus per root)」为由重建 `#contract`。
+- **`#contract` 的重建随语料退役**：`SingleHomeInvariant.#domains` 是这一族唯一的按命令状态；退役后 `Contract` 的每个字段都是构造期从声明表派生的只读值（`#strategies` · `#registry` · `#projector` · `#translator` · `#rowSource`），重建与不重建得到同一个判断面。`#beginCommand` 因此不再重建 `#contract`，字段注释改成「命令边界不重建」的那一句——保留下来的重建只剩一条为已删语料写的理由。
 - **留**：`spec-consistency` 的 lens 问句行留下，本 spec §4.2 那一句扩写是它唯一的改动——重复判据的**危害是漂移**，那条问句直接判漂移（"Do two places state the same fact differently…"），比判「文本像不像」更贴。
 - **约定**：`AGENTS.md` 的「One home per rule」保持为写作约定（从第二处链接过去），不设门。
 - **本 spec 的验收尾**：现为绕门而改写的版本；退役落地后**改回统一措辞**（它是这条规则的自证现场，退役后无需豁免）。计划面把这一步记成一次显式的文档编辑，别让它掉在「收尾顺手改」里。
@@ -152,14 +156,15 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - 活 holder（`alive === true`）在任一后续门拒绝下仍不被位移：`--recover` 不越过活口，行为 pin 覆盖「in-flight 门放过 ∧ doc-contract 拒绝」与「in-flight 门拒绝」两条路径。
 - legs ②③ 仍守 `structure === null`：文档门拒绝时不写 supersede 戳、不派 `N+1`。
 - `--dry-run` ∧ stale 记录：零写入（`git status --porcelain` 前后为空），`in-flight:` 行显示第四态，退出 1。
-- 第四态的判据与拼写：`plan` 不在树上、workspace 目录不存在两条事实各自可判，两条同时成立时一句话写出，记录只带 workspace 一条事实时那一行只渲 workspace 子句（两臂之外再一条臂钉住这条单独成句的字节）；`in-flight:` 行、阻断报文、`cdd board` 行、`--dry-run` 的接管提示行四个观测面读同一行字，且成对两臂——目标还在的 stale 记录四个面都说 `stealable`，两条目标事实都不在的记录四个面无一处复用它。
+- 第四态的判据与拼写：`plan` 不在树上、workspace 目录不存在两条事实各自可判；一条读出不在时只渲那一格的子句，两条都读出不在时一句话写出，记录只带 workspace 一条事实时那一行只渲 workspace 子句（每条臂各自钉住它的字节）。三种配对形状各一条臂：两条事实都读出「目标还在」→ 不是第四态；一条读出不在（plan 被重命名走、目录仍在）→ 第四态，且只渲 plan 子句；两条都读出不在 → 第四态，两子句同句。
+- 第四态的四个观测面：`in-flight:` 行、阻断报文、`cdd board` 行、`--dry-run` 的接管提示行对一条 `targetGone` 记录读同一行字。成对两臂按面切开——目标还在的 stale 记录，三个提示面（阻断报文 · board 行 · `--dry-run` 提示行）说 `stealable`，checked 面的 `in-flight:` 行说 `checked.inFlight.stale`（带 `{pid}`）；`targetGone` 记录四个面无一处复用 `stealable`，checked 面也不再读 `checked.inFlight.stale`。
 - `face/__tests__/words.guard.test.ts` 的接管提示枚举含第四态那一行，「含 `--recover` · 不含 `--steal-stale`」两条断言对它成立。
 - `LENS_QUESTION_ROWS` 的 `spec-consistency` 行携带读数指称问句；`REVIEWS.spec.lensEnum` 零新增标签；`LENS_QUESTIONS.forReviewKind("spec")` 行数不变。
 - `CALIBRATION_TAIL` 携带「多轴分别报、禁止跨轴重排」一句；`REVIEWS.wave` 与 `REVIEWS.branch` 的共享 `spec-lens` 行携带 S4 问句。
 - `--steal-stale` 在 `docs/diagrams/src/` 零命中；`pnpm run emit` 后 `emit:check` fresh。
 - 决策表 D102 与 D103 在册；charter 的 Phase inventory 表头不再引用已退役的 `phase-inventory.guard.test.ts`。
 - `single-home` 零残座：`contract/rules.ts` 规则行 · `contract/invariants.ts#SingleHomeInvariant` 与 `SentenceIndex` 整组删除 · `contract/__tests__/single-home.test.ts` 随规则离树 · `SHAPE_RULE_IDS` 与席位表各少该行 · `charter-self-repair` 该族的臂与 `fix-round-gate` 的负向对同批收口 · 零残留 grep pin · `cdd review` 不再产出 `single-home@*` finding。
-- 形状门的名册只剩 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`：P43 spec §4.2 的名册句已改真，宪章的 P44 行同批跟上（它的形状门读数与名册同数，不再自写一条算术），`single-home` 在名册里零命中。
+- 形状门的名册只剩 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`：P43 spec §4.2 的名册句已改真，宪章的 P44 行同批跟上（它的形状门读数与名册同数，不再自写一条算术）；源码面的四处转述同批改真——`contract/invariants.ts` 的模块头名册行、`contract/rules.ts` 的注册表注释、`face/cli.ts#Cli.#contract` 与 `#beginCommand` 的注释；`#beginCommand` 不再重建 `#contract`；`single-home` 在名册里零命中。
 - `spec-consistency` 的 lens 问句保留（重复判据的危害由它判）；`AGENTS.md` 的「One home per rule」写作约定不动；本 spec 的验收尾改回统一措辞。
 - 引擎套件全绿 · `pnpm run validate` exit 0 · `packages/cdd-engine` 一包 changeset 取 **minor**（本相位在 `packages/kairos/` 上零字节改动，不开第二个包）。
 
@@ -183,3 +188,4 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 | v0.4 | 2026-11-25 | ⑥ 改判（用户裁定 · 退役而非收窄）：§8 重写为「代理不是派生」——`single-home` 整条退役，形状门五→四；v0.3 的声明片段方案作废（它只是为让代理不误报而存在）。退役理由入 D103；验收格与约束格同步，§3.1 / ①–⑤ 零动 | Oscaner M. · Claude（kairos:cdd-design 改判） |
 | v0.5 | 2026-11-25 | 首轮 phase-spec 评审整改（F1–F7）：§3.2 把第四态的行钉到 `CAPSULE_WORDS.inFlight`、阻断报文钉到 `Words.inFlightBlocked`，并把 `PreFlight.#inFlightRow` 现读的 `checked.inFlight` 那张表的读法定死（`targetGone` 记录改读同一行字）；§2.1 的授权改成「`checked` 里存在 `in-flight:` 行 ∧ `InFlight.staleState()` 非 null」，§2.3 的 abort 账钉到 `session/ledger.ts#AbortFold.bookedOf` 与 `CliLifecycle.#bookAbort`；§3.1 改成数据驱动的「记录带哪条事实才判哪条」（`plan` 为 null 只属于 `--spec` 派发的文档面）；§8.2 写成留下的名册、补上测试面同批清单与 P43 spec §4.2 名册句的改真；§4.2 与 §8.2 对 `spec-consistency` 行说同一件事；§1.1 的报文时序、§5.1 的 S4 缺口按实况改写；验收格把 `stealable` 的边界写成成对两臂、补名册与测试面、changeset 收成一包 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.6 | 2026-11-25 | 二轮 phase-spec 评审整改（F1 · F2 · F5 · F6；F3 · F4 与笔记② 的宪章面另在同批落地）：§3.2 的观测面由三改四——补 `face/preview.ts#Preview.heldBlock` 这第四个读者（`--dry-run` 在阻断报文之前返回，只有它打那一句提示），并写死记录只带 workspace 一条事实时行只渲 workspace 子句；§3.1 的两条事实读数改成单一极性（目标还在 / 目标已不在），不再让「成立」在相邻两句里翻向；§7.1 的 dry-run 描述改成预览真打出的两处（`in-flight:` 行与 `heldBlock` 的提示行），阻断报文那条面移出；§6.1 点名 `words.guard.test.ts` 的接管提示枚举，第四态行同批进枚举；验收格补「第二个拒绝者是 `doc-contract`」、补只带一条事实的臂、把 `stealable` 的成对两臂扩到四面 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.7 | 2026-11-25 | 三轮 phase-spec 评审整改（F1–F4）：§3.1 把 `targetGone` 的判据写成「任一记录所带事实读出目标已不在」并点名混合配对（一条不在也判，与 §7.1 的误报面同读）；§3.2 的子句格渲法改成「只渲读出不在的那几格」，四面同字限定到第四态，并把「持有者已死、目标还在」的三提示面 + checked 面不同词写成两张表的唯一分歧，dry-run 早返回臂钉到 `face/cli.ts#Cli.#runWork`；§7.1 的 `recover` 单一派生值同样钉到 `#runWork`；§8.2 补源码面四处名册转述并判 `#beginCommand` 的 `#contract` 重建随语料退役；验收格把 `stealable` 的成对两臂按面切开、补三种配对形状的臂与注释面收口 | Oscaner M. · Claude（kairos:cdd-fix） |

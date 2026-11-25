@@ -34,15 +34,17 @@ length floor, the Jaccard threshold, the work-item exemption, the 3-gram compari
 fixture leave the rule plane, so the shape gate's roster is `line-coordinate` ·
 `live-arithmetic` · `change-history-date-shape` and the registry reads 31 doc-scope rows + 2
 ledger-scope rows. A word-boundary scan of the `contract/` and `face/` source planes keeps the
-retired id and its prose spellings at zero, and the selector-coverage neighbourhood plant
-moves to `CrossDocChainInvariant#specChain` (a carrier whose `program:` names a planted
-overall outside its `parent-version` lineage) rather than a second sweep.
+retired id at zero — the pattern is the kebab spelling, so the ordinary-English prose forms
+(`single-homed`, "one home") live on those same planes without matching it, and they stay off
+the scan's verdict by virtue of the pattern, not by living elsewhere. The selector-coverage
+neighbourhood plant moves to `CrossDocChainInvariant#specChain` (a carrier whose `program:`
+names a planted overall outside its `parent-version` lineage) rather than a second sweep.
 
-Two prompt-plane bytes ride along, both renderings of text already ruled: the
-`spec-consistency` lens row asks a reading **which items it counts and whether those items are
-still on the tree** (the reading/referent drift is that question's answer, never a new
-criterion), the shared `spec-lens` row gains S4 ("looks implemented, the implementation looks
-wrong"), the calibration tail gains S5 (report every axis separately, never one "most severe"
-finding), and the new `cl:own-document` discipline clause bounds a round's write authority to
-its own document set — `TEMPLATE_PROMPT.$version` 26 is their one mechanical signal. Zero new
-lens labels, zero new tiers, zero new gate names: the lens row and cell counts are untouched.
+Four prompt-plane bytes ride along. Two render text already ruled: the shared `spec-lens` row
+gains S4 ("looks implemented, the implementation looks wrong") and the calibration tail gains
+S5 (report every axis separately, never one "most severe" finding). Two carry a new reading:
+the `spec-consistency` lens row asks a reading **which items it counts and whether those items
+are still on the tree** (the reading/referent drift is that question's answer, never a new
+criterion), and the `cl:own-document` discipline clause bounds a round's write authority to its
+own document set. `TEMPLATE_PROMPT.$version` 26 is their one mechanical signal. Zero new lens
+labels, zero new tiers, zero new gate names: the lens row and cell counts are untouched.

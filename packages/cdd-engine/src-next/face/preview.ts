@@ -81,10 +81,16 @@ export class Preview {
   /** The read-only held block — the in-flight gate REFUSED this dispatch: the preview
    *  renders the gate's own holder facts as a `lock:` row (the dead holder carries the
    *  takeover hint), exits 1 at the caller, and touches nothing: no acquire, no steal,
-   *  no release. The `--recover` flag has no write channel here. */
+   *  no release. The `--recover` flag has no write channel here. The hint is the SAME
+   *  choice the gate's blocking report and the board row take
+   *  (`Words.inFlightTakeoverHint`): `stealable` for a dead holder whose target still
+   *  stands, the fourth state's line when the record's own target facts read out
+   *  missing — the `lock:` row above it names the holder, never the target, so a
+   *  preview that kept printing `stealable` would claim a target fact nobody read. */
   heldBlock(verb: CliVerb, state: InFlightState): readonly string[] {
     const lines = [`cdd ${verb}: preview (no repo changes)`, `  lock: ${this.#lockValueOf(state)}`];
-    if (state.kind === "held" && !state.alive) lines.push(this.#words.inFlightWords().stealable);
+    if (state.kind === "held" && !state.alive)
+      lines.push(this.#words.inFlightTakeoverHint(state.targetGone));
     if (state.kind === "corrupt" && state.locked)
       lines.push(this.#words.inFlightWords().corruptLocked);
     return lines;

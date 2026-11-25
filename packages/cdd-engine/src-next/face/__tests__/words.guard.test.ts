@@ -113,6 +113,10 @@ describe("the takeover flag's hard cut — `--recover` replaced `--steal-stale`,
       words.inFlightWords().corruptLocked,
       words.inFlightWords().corruptUnlocked,
       words.checkedWords().inFlight.stale,
+      // P44 §3.2 — the fourth state's row rides the same enumeration: its two clause
+      // cells name the target facts, and the takeover sentence is part of the row, so
+      // the two assertions below hold for it by the row's own shape.
+      words.inFlightTargetGone({ plan: true, workspace: true }),
     ];
     for (const row of rows) {
       expect(row).toContain("--recover");
@@ -125,5 +129,32 @@ describe("the takeover flag's hard cut — `--recover` replaced `--steal-stale`,
     // live faces may not, so the scan drops the test plane's own negative pins.
     const hits = scanHits("--steal-stale").filter((hit) => !hit.includes("__tests__/"));
     expect(hits, "the source face still carries the retired takeover lexeme").toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P44 §3.2 — the fourth state's row has ONE renderer
+// ---------------------------------------------------------------------------
+
+describe("the fourth state's row — one renderer, four readers", () => {
+  /** The word table's own file — the row's legitimate home. */
+  const WORDS_FILE = path.join(FACE_ROOT, "face", "words.ts");
+
+  it("keeps the row's rendering in `Words` — no source face pushes the table row out", () => {
+    const files: string[] = [];
+    collectTsFiles(FACE_ROOT, files);
+    // The row's cells are reachable by name (`inFlightWords().targetGone`), so a face
+    // that rendered them itself would spell the sentence a second time. The four
+    // readers ask `Words.inFlightTargetGone` / `Words.inFlightTakeoverHint` instead.
+    const offenders = files
+      .filter((file) => file !== WORDS_FILE)
+      // The test plane may NAME the spelling to assert it is not pushed out raw — a
+      // pin's normal shape (the same release the source-plane scan below takes).
+      .filter((file) => !file.includes(`${path.sep}__tests__${path.sep}`))
+      .filter((file) => readFileSync(file, "utf8").includes("inFlightWords().targetGone"));
+    expect(offenders, "a face reads the row's cells instead of its renderer").toEqual([]);
+    // The pair: the table row IS reachable under that spelling, so the scan above is
+    // not vacuous — the renderer's own home is the one place it may appear.
+    expect(readFileSync(WORDS_FILE, "utf8")).toContain("inFlightWords().targetGone");
   });
 });

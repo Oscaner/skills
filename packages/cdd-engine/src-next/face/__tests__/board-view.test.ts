@@ -1687,6 +1687,40 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(dead.join("\n")).toContain(words.inFlightWords().stealable);
   });
 
+  it("reads the fourth state's line for a dead holder whose target is gone — never `stealable`", () => {
+    // Both target facts read out missing: the row speaks both clauses, and `stealable`
+    // ("the holder is gone, the target still stands") is not borrowed for it.
+    const both = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: true, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(both).toContain(
+      "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over",
+    );
+    expect(both).not.toContain(words.inFlightWords().stealable);
+    // The mirror shape: only the workspace fact read out missing, so only that cell
+    // renders — the plan the record still holds gets no sentence.
+    const mirror = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: false, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(mirror).toContain("the record's workspace directory is not on this tree");
+    expect(mirror).not.toContain("the plan the record names");
+    expect(mirror).not.toContain(words.inFlightWords().stealable);
+  });
+
   it("(f) the held row names the holder's IDENTITY only — never the dispatch narrative", () => {
     const rows = BoardView.inFlightRows(
       {

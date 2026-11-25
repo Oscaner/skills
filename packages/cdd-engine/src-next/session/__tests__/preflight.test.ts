@@ -979,6 +979,12 @@ describe("PreFlight — the plan-ledger gate", () => {
 // P21 T6 — the in-flight gate (the tree's dispatch fact, §2.2 / §6.4)
 // ---------------------------------------------------------------------------
 
+/** The fourth state's naked line, pinned as BYTES (never through the renderer): the
+ *  dead-holder fixture's record carries both facts, and both read out missing — its
+ *  plan path is not on this tree and its slug's workspace directory does not exist. */
+const TARGET_GONE_LINE =
+  "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over";
+
 describe("PreFlight — the in-flight gate", () => {
   it("refuses a live holder before the structural gates, names it, and writes nothing", async () => {
     const { repoRoot, cleanup } = gitRepo();
@@ -1023,7 +1029,7 @@ describe("PreFlight — the in-flight gate", () => {
     }
   });
 
-  it("refuses a dead holder with the takeover hint, and only the explicit flag lets the gate pass", async () => {
+  it("refuses a dead holder with the fourth state's line, and only the explicit flag lets the gate pass", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       writeRecord(repoRoot, recordOf());
@@ -1034,7 +1040,10 @@ describe("PreFlight — the in-flight gate", () => {
       expect(refused.ok).toBe(false);
       expect(refused.gate).toBe("in-flight");
       expect(refused.reason).toBe("held");
-      expect(refused.message).toContain("--recover");
+      // The blocking report keeps the holder's identity and ends with the fourth
+      // state's line — `stealable` keeps its own meaning ("the target still stands").
+      expect(refused.message).toContain(TARGET_GONE_LINE);
+      expect(refused.message).not.toContain("the holding process is gone");
       expect(inFlightSnapshot(repoRoot)).toBe(before);
 
       // the flag only lets the GATE pass; the takeover itself is the real
@@ -1045,9 +1054,10 @@ describe("PreFlight — the in-flight gate", () => {
         recover: true,
       });
       expect(takeover.ok).toBe(true);
-      expect(takeover.checked).toContain(
-        "in-flight: stale holder — pid 4242 (re-run with --recover to take over)",
-      );
+      // The checked face swaps its TABLE for the fourth state: `checked.inFlight`
+      // has no cell that can render it, so the row reads the `inFlight` row instead.
+      expect(takeover.checked).toContain(`in-flight: ${TARGET_GONE_LINE}`);
+      expect(takeover.checked.some((row) => row.includes("stale holder"))).toBe(false);
       expect(inFlightSnapshot(repoRoot)).toBe(before);
     } finally {
       cleanup();

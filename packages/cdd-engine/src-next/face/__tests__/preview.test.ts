@@ -729,10 +729,12 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
 const recordPath = (repoRoot: string): string =>
   path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
 
-/** Write a standing in-flight record (the tree-level path). */
+/** Write a standing in-flight record (the tree-level path). `plan` / `slug` override the
+ *  two facts the fourth state reads (the fixture's own plan path + workspace slug by
+ *  default, so both target facts stand unless a case moves one away). */
 const writeRecord = (
   repoRoot: string,
-  record: { pid: number; startedAt: number; dead?: boolean },
+  record: { pid: number; startedAt: number; dead?: boolean; plan?: string; slug?: string },
 ): void => {
   mkdirSync(path.join(repoRoot, ".kairos", "cdd"), { recursive: true });
   writeFileSync(
@@ -741,12 +743,12 @@ const writeRecord = (
       {
         pid: record.pid,
         command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
-        slug: "p3",
+        slug: record.slug ?? "p3",
         startedAt: record.startedAt,
         wave: "1",
         phase: "implement",
         briefHash: null,
-        plan: "docs/kairos/plans/p3.md",
+        plan: record.plan ?? "docs/kairos/plans/p3.md",
         sampledAt: null,
         verdict: null,
       },
@@ -801,6 +803,10 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      // Both of the record's own target facts stand: its plan is on the tree and the
+      // slug's workspace directory exists — so the hint is the ordinary `stealable`
+      // sentence, not the fourth state.
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "p3"), { recursive: true });
       writeRecord(repoRoot, { pid: 999_999, startedAt: 1 });
       const recordBytes = readFileSync(recordPath(repoRoot), "utf8");
 
@@ -816,14 +822,54 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
         ]),
       ).toBe(1);
       expect(io.stdoutText).toContain("lock: held by pid 999999");
-      expect(io.stdoutText).toContain("--recover");
+      expect(io.stdoutText).toContain("the holding process is gone — re-run the same command");
       // the same checked face as the other dry-run shapes
-      expect(io.stdoutText).toContain("checked:");
       expect(io.stdoutText).toContain("in-flight: stale holder — pid 999999");
       // no takeover, no deletion, no lock: the flag has no write channel here
       expect(existsSync(recordPath(repoRoot))).toBe(true);
       expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
       expect(existsSync(`${recordPath(repoRoot)}.lock`)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("prints the fourth state's line when the record's own target is gone — the dry-run face too", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // The record names a plan that is not on the tree and a slug whose workspace
+      // directory does not exist: both cells read out missing.
+      writeRecord(repoRoot, {
+        pid: 999_999,
+        startedAt: 1,
+        plan: "docs/kairos/plans/gone.md",
+        slug: "gone-slug",
+      });
+      const recordBytes = readFileSync(recordPath(repoRoot), "utf8");
+
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--recover",
+          "--dry-run",
+        ]),
+      ).toBe(1);
+      expect(io.stdoutText).toContain("lock: held by pid 999999");
+      // The dry-run hint and the checked row are ONE sentence: the preview's in-flight
+      // branch returns before the blocking report, so this line is the only face it
+      // owns — and it must not sit beside a "the target still stands" claim.
+      const fourth =
+        "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over";
+      expect(io.stdoutText).toContain(fourth);
+      expect(io.stdoutText).toContain(`in-flight: ${fourth}`);
+      expect(io.stdoutText).not.toContain("the holding process is gone");
+      expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
     } finally {
       cleanup();
     }

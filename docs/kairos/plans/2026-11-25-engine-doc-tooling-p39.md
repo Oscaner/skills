@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -224,10 +224,10 @@ none
 #### DependsOn
 3
 
-### Task 6: `docs/` 的身份与判据
+### Task 6: `docs/` 的身份与登记表
 
 #### Objective
-把物料从「字符串」变成「有身份的文档」：DocType 与登记表、slug 与文档身份、目标类型、登记表的派生投影、四类 DocType 的解析面、词表驱动的识别面、判据族与它的表、选择器、形状规则、完成判据、波宽、评审判据与 lens 问句。**登记表跟判据走（它不是一个目录）**：形状规则与它读的路径文法同住 `judging/`，评审判据与它的问句表同住 `judging/`；文档身份的那张表（`DocType` · `ElementRegistry` · `DocFace`）住 `identity/`，因为它判的正是身份。**不变量（`docs/index.ts` 类注释）**：文档的形状由登记表判、判据只读文本；同一事实一个拼写。
+把物料从「字符串」变成「有身份的文档」：DocType 与登记表、slug 与文档身份、目标类型、登记表的六面派生投影、四类 DocType 的解析面、词表驱动的识别面、`SKILL.md` 的解剖契约。**身份的那张表住 `identity/`**，因为它判的正是身份；判据的表与引擎在 T9 / T19 落地。**不变量（`docs/index.ts` 类注释）**：文档的形状由登记表判、判据只读文本；同一事实一个拼写。
 
 #### Files
 - Create: `packages/cdd-engine/src/docs/identity/types.ts`
@@ -236,40 +236,28 @@ none
 - Create: `packages/cdd-engine/src/docs/identity/doc-parse.ts`
 - Create: `packages/cdd-engine/src/docs/identity/translate.ts`
 - Create: `packages/cdd-engine/src/docs/identity/skill-anatomy.ts`
-- Create: `packages/cdd-engine/src/docs/judging/invariants.ts`
-- Create: `packages/cdd-engine/src/docs/judging/judge.ts`
-- Create: `packages/cdd-engine/src/docs/judging/lint.ts`
-- Create: `packages/cdd-engine/src/docs/judging/rules.ts`
-- Create: `packages/cdd-engine/src/docs/judging/criteria.ts`
-- Create: `packages/cdd-engine/src/docs/judging/selectors.ts`
-- Create: `packages/cdd-engine/src/docs/judging/completion.ts`
-- Create: `packages/cdd-engine/src/docs/judging/wave-width.ts`
-- Create: `packages/cdd-engine/src/docs/judging/__tests__/judging.test.ts`
 - Create: `packages/cdd-engine/src/docs/identity/__tests__/identity.test.ts`
 - Modify: `packages/cdd-engine/src/docs/index.ts`
 
 #### Consumes
-- 旧树的 `contract/declare.ts#DocType` / `#ElementRegistry` / `#DocFace` · `contract/target-type.ts` · `contract/rules.ts#RULE_REGISTRY` · `contract/shape-rules.ts#PathShape` · `contract/selector-engine.ts#SelectorEngine` · `contract/selector-spec.ts` · `contract/completion-criterion.ts#CompletionCriteria` · `contract/wave-width.ts#MAX_TASKS_PER_WAVE` · `contract/review-criteria.ts`（含 `LENS_QUESTION_ROWS`）· `contract/project.ts#Projector`（登记表的六个派生面）· `contract/doc.ts#docTypeParsers` / `#DocSyntaxError`（四类 DocType 的解析面）· `contract/invariants.ts`（判据族的每一个策略类——`RULE_REGISTRY` 的每行 `create()` 指的类就在这里）· `contract/judge.ts#Contract`（判据协调器）· `contract/lint.ts`（WARN 观测面）· `contract/translate.ts#Translator` / `#RowSource`（识别与本地化两张表）· `contract/skill-anatomy.ts`（`SKILL.md` 的解剖契约常量）
+- 旧树的 `contract/declare.ts#DocType` / `#ElementRegistry` / `#DocFace` · `contract/target-type.ts` · `contract/project.ts#Projector`（登记表的六个派生面）· `contract/doc.ts#docTypeParsers` / `#DocSyntaxError`（四类 DocType 的解析面）· `contract/translate.ts#Translator` / `#RowSource`（识别与本地化两张表）· `contract/skill-anatomy.ts`（`SKILL.md` 的解剖契约常量）
 
 #### Produces
 - `identity`：`DocType`（四值）· `TargetType` · `ElementRegistry` 与 `DocFace`（登记表本体）· slug 值域 · `Projector`（登记表派生的六个面：shape · schema · slices · tokens · reference · skeleton）· 四类 DocType 的解析面（按登记表与投影走，零判定）· `Translator`（词表驱动的识别面：`canonicalize` 与 `localize`，两张表是注入的数据，零 switch）· `SKILL_ANATOMY`（`SKILL.md` 解剖契约的常量面：kairos 与 scripts 的守卫消费它，翻面时改指这一处）
-- `judging`：`RULE_REGISTRY`（形状规则即它的行，`PathShape` 是它读的路径文法，跟着表走）· 判据族 `Invariant`（一个策略类一条规则，`RULE_REGISTRY` 每行解析到的类就在这一族里）· 判据协调器（`Documents.judge` 背后：装配每 doc-key 的策略集、按序跑、汇总 findings）· `lint`（WARN 观测面，派发门口跑，不进判定）· `SelectorEngine`（含覆盖判据）· `CompletionCriteria`（按 verb 分档）· `MAX_TASKS_PER_WAVE` · 评审判据体与 `LENS_QUESTION_ROWS`
-- `Documents` 门面扩出 `judge(doc)`；`criteriaOf(kind)` 与 `lensQuestionsOf(kind)` 两个读面
+- `Documents` 门面扩出 `registryOf(type)` 与 `projectOf(type)` 两个读面
 
 #### Steps
 - 写身份的 pin — checkable: 四类 DocType 各一条；未知 type 即抛；slug 值域的正负例各一条
 - 写登记表与 doc-face 的 pin — checkable: 每类的 face 集可读；一处 face 声明与正文实际 section 集不符即红
-- 写形状规则的 pin — checkable: 从 `RULE_REGISTRY` 删一行即少一条判据（行数随表走，不在散文里计数）；每条规则有违规必报与邻居沉默一对夹具
-- 写判据族与登记表对齐的 pin — checkable: `RULE_REGISTRY` 的每一行都解析到判据族里的一个策略类；把任一类改名 ⇒ 该行解析失败并点名规则 id（族的大小随表走，不在散文里计数）
-- 写解析面无判定的 pin — checkable: 解析面对 `judging/` 零 import；`Documents.judge` 只经解析面与 `Projector` 取文本
-- 写选择器覆盖的 pin — checkable: 合成文档上全绿；删一条 selector 即红
-- 写完成判据与波宽的 pin — checkable: implement 零提交判违约一条、review 空 findings 判 APPROVED 一条；依赖层四个任务 ⇒ `wave-width-at-most-three` 红并点名该层
-- 写 lens 问句表的 pin — checkable: 每 kind 的问句非空且无重复标签；`spec-consistency` 行携带指称问句
+- 写投影的 pin — checkable: 六个派生面各一条；改登记表的一格即改对应投影（投影不是第二份真源）
+- 写解析面零判定的 pin — checkable: `identity/` 对 `judging/` 零 import；解析面只按登记表与投影走
+- 写识别面零 switch 的 pin — checkable: `Translator` 的两张表是构造入参；换一份改写过的表 ⇒ 识别结果随之变（零硬编码分支）
+- 写解剖契约的 pin — checkable: `SKILL_ANATOMY` 的章节集可读，且与 kairos 侧守卫消费的常量同源（同一份导出）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs` 绿；`pnpm run typecheck` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-pin 齐（身份四类 + 值域 · 登记表与 face · 规则逐条成对夹具 · 判据族与登记表逐行对齐 · 解析面对 `judging/` 零 import · 选择器覆盖可红 · 完成判据两档 + 波宽 · lens 问句表）；`judging/` 里没有任何「登记表目录」式的二级箱（规则与它的表同住）；`Documents.judge` 只经解析面与 `Projector` 取文本。
+六组 pin 齐（身份四类与值域 · 登记表与 face · 六面投影 · 解析面对 `judging/` 零 import · 识别面零 switch · 解剖契约同源）；`identity/` 里没有判据、没有注册表的策略类。
 
 #### DependsOn
 4
@@ -353,37 +341,82 @@ pin 齐（身份四类 + 值域 · 登记表与 face · 规则逐条成对夹具
 #### DependsOn
 3, 5
 
-### Task 9: `docs/` 的骨架
+### Task 9: `docs/` 的判据表与骨架
 
 #### Objective
-四族骨架的生成，日期只从构造入参进来。**名册取自穷举 switch 的分支集**，不在散文里计数。
+判据的**表**与骨架的生成：评审判据体与 lens 问句表、完成判据、波宽，以及四族骨架。**名册取自表的键集或穷举 switch 的分支集**，不在散文里写计数；骨架的日期只从构造入参进来。
 
 #### Files
+- Create: `packages/cdd-engine/src/docs/judging/criteria.ts`
+- Create: `packages/cdd-engine/src/docs/judging/completion.ts`
+- Create: `packages/cdd-engine/src/docs/judging/wave-width.ts`
 - Create: `packages/cdd-engine/src/docs/skeleton/assembler.ts`
+- Create: `packages/cdd-engine/src/docs/judging/__tests__/criteria.test.ts`
 - Create: `packages/cdd-engine/src/docs/skeleton/__tests__/skeleton.test.ts`
 - Modify: `packages/cdd-engine/src/docs/index.ts`
 
 #### Consumes
-- 旧树的 `render/skeleton.ts#SkeletonAssembler#compose`（读行为与四族的分支集）
+- 旧树的 `contract/review-criteria.ts`（含 `LENS_QUESTION_ROWS`）· `contract/completion-criterion.ts#CompletionCriteria` · `contract/wave-width.ts#MAX_TASKS_PER_WAVE` · `render/skeleton.ts#SkeletonAssembler#compose`（读行为与四族的分支集）
 - `identity/project.ts` 的 `skeleton()` 投影（T6 交付：骨架的槽位与 front-matter 发射表都从登记表派生）
 - spec §2.3 的骨架日期钉法（日期只从构造入参进来）
 
 #### Produces
-- `SkeletonAssembler`：构造入参含 `today`；`compose(type, target)` 对四族穷举
-- `Documents.skeletonOf(type)`
+- `criteria`：评审判据体（按 kind 的判据文本）与 `LENS_QUESTION_ROWS`；`Documents.criteriaOf(kind)` 与 `lensQuestionsOf(kind)`
+- `CompletionCriteria`（按 verb 分档）· `MAX_TASKS_PER_WAVE`
+- `SkeletonAssembler`：构造入参含 `today`；`compose(type, target)` 对四族穷举；`Documents.skeletonOf(type)`
 
 #### Steps
-- 写四族全覆盖的 pin — checkable: 四类 DocType 各一条；类型集与 `compose` 的 switch 分支集一致（把类型集写成从同一常量派生的数组，测试断言「每个值都有分支」）
+- 写 lens 问句表的 pin — checkable: 每 kind 的问句非空且无重复标签；`spec-consistency` 行携带指称问句（把它的问句字面抄到别处即红）
+- 写完成判据的 pin — checkable: implement 零提交判违约一条、review 空 findings 判 APPROVED 一条
+- 写波宽的 pin — checkable: 依赖层四个任务 ⇒ `wave-width-at-most-three` 红并点名该层
+- 写四族骨架的 pin — checkable: 四类 DocType 各一条；类型集与 `compose` 的 switch 分支集一致（类型集从同一常量派生，测试断言「每个值都有分支」）
 - 写日期注入的 pin — checkable: 同传一个冻结日期两次 ⇒ 字节相同；不传日期时构造即抛（无默认取系统时钟）
 - 写骨架字节的格接入 — checkable: 对账器的骨架格用装配器入口在进程内驱动两棵树，同一 `frozenDate`
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs tests/parity` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-四族各一条 pin + 日期注入两条（同值稳定 · 无默认时钟）；骨架格进对账器并在冻结日期下逐字节比；散文里不出现骨架族数。
+五组 pin 齐（lens 问句表与指称问句 · 完成判据两档 · 波宽可红 · 四族骨架全覆盖 · 日期注入两条）；骨架格进对账器并在冻结日期下逐字节比；散文里不出现族数或判据条数。
 
 #### DependsOn
 6
+
+### Task 19: `docs/` 的判据引擎
+
+#### Objective
+形状规则的注册表与它指向的策略族、判据协调器、选择器引擎、WARN 观测面。**登记表跟判据走**：注册表与它的策略类同住 `judging/`——一条规则一个类，表的每行 `create()` 指向族里的一个类，删一行即少一条判据。判据只读文本，读文本的路都经 `grammar` 与 `identity` 的既有读面。
+
+#### Files
+- Create: `packages/cdd-engine/src/docs/judging/rules.ts`
+- Create: `packages/cdd-engine/src/docs/judging/invariants.ts`
+- Create: `packages/cdd-engine/src/docs/judging/judge.ts`
+- Create: `packages/cdd-engine/src/docs/judging/lint.ts`
+- Create: `packages/cdd-engine/src/docs/judging/selectors.ts`
+- Create: `packages/cdd-engine/src/docs/judging/__tests__/judging.test.ts`
+- Modify: `packages/cdd-engine/src/docs/index.ts`
+
+#### Consumes
+- 旧树的 `contract/rules.ts#RULE_REGISTRY` · `contract/shape-rules.ts#PathShape`（注册表读的路径文法，跟着表走）· `contract/invariants.ts`（判据族的每一个策略类——注册表每行 `create()` 指的类就在这里）· `contract/judge.ts#Contract`（协调器）· `contract/lint.ts`（WARN 观测面）· `contract/selector-engine.ts#SelectorEngine` · `contract/selector-spec.ts`
+
+#### Produces
+- `RULE_REGISTRY`（形状规则即它的行）与判据族 `Invariant`（一策略类一规则）
+- 判据协调器：`Documents.judge(doc)` 背后装配每 doc-key 的策略集、按序跑、汇总 findings
+- `lint`（WARN 观测面，派发门口跑，不进判定）· `SelectorEngine`（含覆盖判据）
+
+#### Steps
+- 写规则表与策略族逐行对齐的 pin — checkable: 表的每一行都解析到族里的一个类；把任一类改名 ⇒ 该行解析失败并点名规则 id（族的大小随表走，不在散文里计数）
+- 写每条规则成对夹具 — checkable: 每条规则一条违规必报 + 一条邻居沉默（同位置换成一个合规构造 ⇒ 不报）
+- 写协调器的 pin — checkable: 装配的每 doc-key 策略集非空；两条规则按序跑时 findings 顺序稳定；一条规则抛错不吞掉其余规则的 findings
+- 写选择器覆盖的 pin — checkable: 合成文档上全绿；删一条 selector 即红
+- 写 lint 不进判定的 pin — checkable: 强制一条 lint 命中 ⇒ `judge` 的 findings 计数不变
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+五组 pin 齐（表与族逐行对齐 · 每规则成对夹具 · 协调器装配与容错 · 选择器覆盖 · lint 不进判定）；`judging/` 里注册表与它的策略类同住，无「登记表目录」式的二级箱；判据只经 `grammar` / `identity` 的读面取文本。
+
+#### DependsOn
+9
 
 ### Task 10: `run/` 的门
 
@@ -419,7 +452,7 @@ pin 齐（身份四类 + 值域 · 登记表与 face · 规则逐条成对夹具
 六组 pin 齐（行集派生 · 拒绝不写轮次 · 至多一条 · 两个到期点 · 三 leg 授权 · 两处让位）；`run/gate` 只向下依赖 `run/ledger`；拒绝事实的路径由 `env.workspace` 的拼写矩阵给出。
 
 #### DependsOn
-7
+7, 19
 
 ### Task 11: `run/` 的派发
 
@@ -747,3 +780,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：18 个任务 / 11 波（宽 1·3·2·3·1·2·2·1·1·1·1）。W1 立编译面 / 测试面 / 双向禁门；W2 立对账器与 `env/paths+workspace` 与 `docs/grammar`；W3 `env/process+vcs` 与 `docs/identity+judging`；W4 `run/ledger` 与 `env/provision` 与 `docs/skeleton`；W5 `run/gate`；W6 `run/dispatch` 与 `surface/words`（词表的站名闭集与门行集同源，故依赖门）；W7 `run/advance` 与 `surface/render`；W8 `surface/commands`；W9 组合根与对账首绿；W10 翻面（十一序 · 旧树整棵删除）；W11 收口（changeset · 可删除性 · 不变量与深度的可核形态） | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-25） |
 | v0.2 | 2026-11-25 | 评审轮一（F1–F11）落地：旧树未被任何任务消费的模块逐一定归属——判据族 / 协调器 / 解析面 / 投影 / 识别面 / lint 归 T6，载体行与产物读归 T7，预帧值 / 活性判官归 T11，单轮生命周期 / 目标类型表 / 行相位归 T12，命令树装配归 T15，宿主契约 / 时钟 / 子进程 seam 归 T5，基产物读写归 T3；T2 的基线改成 spec §2.2 八面逐格并带「格 → 接线任务」名册（未接线即红，禁止 skip）；T15 的三条纯命令产物面写出落点（基产物 → `env/workspace`、issue → `surface/render`、骨架 → `docs/skeleton`、时钟 → `env/process`）；T1 的编译面改为逐键照抄既有 `tsconfig.json` 只换 include（不设 `rootDir`，否则 TS6059），并去掉用例数快照；T17 补 `precommit` 三条守卫的改指与 `tests/parity/` 整目录删除，并列出树外符号的改指清单；T11 补结论派生三路；T13 与 T10 把站名闭集改成「`RowStation` 是 `PreFlightGateName` 的成员」（包含，不是相等）；T15 的薄壳判据回到结构性三件事，行数只作诊断 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.3 | 2026-11-25 | **编排者的结构变更（任务 id 集与 `DependsOn` 集是编排者写权，不经 fix 轮）**：fix 轮一（F1）把 20 个模块 8,484 行全部分发到位，但把 `contract/invariants.ts`（2,298 行）· `judge` · `doc` · `project` · `lint` · `translate` · 判据表全部堆进 T6——那不是「自带测试周期的最小单元」，一个 implement 轮吃不下、review 也审不动。拆法按「注册表跟它指向的策略类同住」这条判据：**T6 只留身份与登记表**（`identity/` 六件 · 判据零）· **T9 接判据的表与骨架**（`criteria` · `completion` · `wave-width` · `skeleton`）· **新增 T19 收判据引擎**（`rules` 注册表与它 `create()` 指向的 `invariants` 策略族 · `judge` 协调器 · `lint` · `selectors`）。T10 的门读 `Documents.judge`，故其依赖加 T19。重算：19 任务 / 12 波（宽 1·3·2·3·1·1·2·2·1·1·1·1）· 无悬挂边 · 无环 | Oscaner M. · Claude（kairos:cdd-plan 编排者 · 2026-11-25） |

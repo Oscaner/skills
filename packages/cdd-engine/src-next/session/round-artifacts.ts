@@ -765,16 +765,6 @@ export class ArtifactRegistry {
     return null;
   }
 
-  /** Whether one FILE NAME is a name this matrix owns — the product vocabulary's ONE
-   *  answer, WITHOUT an instance (the pin gate's "not a coordinate" exclusion reads it:
-   *  an artifact name is vocabulary, never a path a reader can follow). It answers from
-   *  the same domain instances the constructor's default does, so no caller grows a
-   *  second naming table. */
-  static ownsName(name: string): boolean {
-    if (name === "") return false;
-    return DEFAULT_DOMAINS.some((domain) => domain.attribute(name) !== null);
-  }
-
   /** The workspace name rule WITHOUT an instance — the module-level entry to the SAME
    *  render the workspace rows carry (`renderWorkspace`), for the read faces that hold
    *  a workspace-relative name and no registry (a static constant, the naming face).

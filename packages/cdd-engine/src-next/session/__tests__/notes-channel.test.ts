@@ -59,14 +59,25 @@ const record = (over: Partial<RoundRecord> = {}): RoundRecord => ({
 });
 
 /** The board token of one line's records, with each record's carrier path supplied out
- *  of band — exactly the shape the ledger accessor answers in production. */
-const token = (records: readonly RoundRecord[], paths: readonly string[]): string => {
+ *  of band — exactly the shape the ledger accessor answers in production. `notes` is the
+ *  PRINTING face: absent (the default, the shipped board) the token stops at the
+ *  `notes +M` count, and `--notes` appends the same folded rows at the same position. */
+const token = (
+  records: readonly RoundRecord[],
+  paths: readonly string[],
+  notes = false,
+): string => {
   const byRecord = new Map(records.map((one, index) => [one, paths[index] ?? ""]));
   return BoardView.summaryCell(
     records,
     LineCarriers.of(records, (one) => byRecord.get(one) ?? ""),
+    { notes },
   );
 };
+
+/** The same token with `--notes` open — the troubleshooting face's bytes. */
+const expanded = (records: readonly RoundRecord[], paths: readonly string[]): string =>
+  token(records, paths, true);
 
 const ENGINE_DECORATIVE =
   "dropped decorative draft field(s) outside their declared shape: dispositions — never written";
@@ -96,7 +107,11 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       findings: [],
       notes: ["the brief's Constraints mirror repeats the plan"],
     });
-    expect(token([record()], [carrier])).toBe(
+    // the shipped board prints the COUNT alone — the body is one flag away
+    const folded = token([record()], [carrier]);
+    expect(folded).toBe("review 1 ✓ notes +1");
+    expect(folded).not.toContain("Constraints");
+    expect(expanded([record()], [carrier])).toBe(
       "review 1 ✓ notes +1; the brief's Constraints mirror repeats the plan",
     );
     const bare = writeCarrier(path.join(scratch(), "tasks-1-review-1.json"), { findings: [] });
@@ -112,14 +127,16 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       status: "APPROVED",
       notes: ["the doc's §3 row was left alone"],
     });
-    expect(token([record({ op: "fix" })], [fix])).toBe(
+    expect(token([record({ op: "fix" })], [fix])).toBe("fix 1 ✓ notes +1");
+    expect(expanded([record({ op: "fix" })], [fix])).toBe(
       "fix 1 ✓ notes +1; the doc's §3 row was left alone",
     );
     const review = writeCarrier(path.join(scratch(), "tasks-1-review-1.json"), {
       findings: [],
       notes: ["the doc's §3 row was left alone"],
     });
-    expect(token([record()], [review])).toBe(
+    expect(token([record()], [review])).toBe("review 1 ✓ notes +1");
+    expect(expanded([record()], [review])).toBe(
       "review 1 ✓ notes +1; the doc's §3 row was left alone",
     );
   });
@@ -134,7 +151,8 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       notes: ["fix-side observation"],
     });
     const line = [record(), record({ op: "fix" })];
-    expect(token(line, [reviewCarrier, fixCarrier])).toBe(
+    expect(token(line, [reviewCarrier, fixCarrier])).toBe("review 1 ✓ notes +1 · fix 1 ✓ notes +1");
+    expect(expanded(line, [reviewCarrier, fixCarrier])).toBe(
       "review 1 ✓ notes +1; review-side observation · fix 1 ✓ notes +1; fix-side observation",
     );
     // the pair: both notes on ONE carrier count on that carrier's token alone
@@ -142,7 +160,8 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       findings: [],
       notes: ["review-side observation", "fix-side observation"],
     });
-    expect(token([record()], [merged])).toBe(
+    expect(token([record()], [merged])).toBe("review 1 ✓ notes +2");
+    expect(expanded([record()], [merged])).toBe(
       "review 1 ✓ notes +2; review-side observation; fix-side observation",
     );
   });
@@ -157,7 +176,8 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       notes: ["two", "three"],
     });
     // the success face merges into ONE token whose `run` is both records
-    expect(token([record(), record({ cycle: 2 })], [first, second])).toBe(
+    expect(token([record(), record({ cycle: 2 })], [first, second])).toBe("review 2 ✓ notes +3");
+    expect(expanded([record(), record({ cycle: 2 })], [first, second])).toBe(
       "review 2 ✓ notes +3; one; two; three",
     );
   });
@@ -177,7 +197,12 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       findings: [{ severity: "warn", lens: "spec", summary: "same defect" }],
       notes: ["a child observation"],
     });
+    // the segment ORDER is the folded token's too: the downgrade note and `+N` sit
+    // where they always sat, and the notes segment still closes the token
     expect(token([record(), record({ cycle: 2 })], [prior, current])).toBe(
+      "review 2 ✓+2 downgraded without a regrade reason notes +1",
+    );
+    expect(expanded([record(), record({ cycle: 2 })], [prior, current])).toBe(
       "review 2 ✓+2 downgraded without a regrade reason notes +1; a child observation",
     );
   });
@@ -188,8 +213,10 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       findings: [],
       notes: [raw],
     });
-    const cell = token([record()], [carrier]);
+    const cell = expanded([record()], [carrier]);
     expect(cell).toBe("review 1 ✓ notes +1; first line second; third fourth");
+    // the pair: the folded default never prints the body at all
+    expect(token([record()], [carrier])).toBe("review 1 ✓ notes +1");
     // one line, one token, one segment — the fold is the display face's alone
     expect(cell).not.toContain("\n");
     const stored = JSON.parse(readFileSync(carrier, "utf8")) as { notes: string[] };
@@ -209,7 +236,8 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
         "third child note",
       ],
     });
-    expect(token([record()], [carrier])).toBe(
+    expect(token([record()], [carrier])).toBe("review 1 ✓ notes +3");
+    expect(expanded([record()], [carrier])).toBe(
       "review 1 ✓ notes +3; the child's own observation; second child note; third child note",
     );
     // the two decorative families are the same judgment — a carrier holding both and
@@ -226,7 +254,8 @@ describe("P42 §2.1 — the carrier's notes projection", () => {
       findings: [],
       notes: ["the engine wrote: dropped non-declared draft field(s): findings"],
     });
-    expect(token([record()], [carrier])).toBe(
+    expect(token([record()], [carrier])).toBe("review 1 ✓ notes +1");
+    expect(expanded([record()], [carrier])).toBe(
       "review 1 ✓ notes +1; the engine wrote: dropped non-declared draft field(s): findings",
     );
   });

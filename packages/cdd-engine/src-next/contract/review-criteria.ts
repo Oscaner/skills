@@ -19,10 +19,9 @@
 //     or a tier with no row at all, throws out of `renderRubric()`.
 //
 // `face` declares the extra execution surface a row is wired to (design spec §6.2):
-// `numbered` rows appear in the rendered rubric itself, a `gate` row's `id` is the
-// word its mechanical gate prints, and a `test` row's `id` is named by a test title.
-// The face is a declaration about wiring; the three prose cells reach the rubric
-// bytes for EVERY row regardless of face.
+// `numbered` rows appear in the rendered rubric itself, and a `gate` row's `id` is the
+// word its mechanical gate prints. The face is a declaration about wiring; the three
+// prose cells reach the rubric bytes for EVERY row regardless of face.
 //
 // Display wording is NOT a rubric cell. The downgrade mark (design spec §5.2) is a
 // token the board and the capsule print, not a sentence a grader calibrates against:
@@ -55,7 +54,7 @@ export type CriteriaTier = "blocker" | "warn";
 export const TIER_ORDER: readonly CriteriaTier[] = ["blocker", "warn"];
 
 /** The extra execution surface a row is wired to (design spec §6.2). */
-export type CriteriaFace = "gate" | "test" | "numbered";
+export type CriteriaFace = "gate" | "numbered";
 
 /** One grading criterion row — the unit the rubric is assembled from. */
 export interface CriteriaRow {
@@ -115,8 +114,8 @@ export const regradeNote = (owing: number, reasons: readonly string[]): string |
 /**
  * The declared criteria table. Every tier owes at least one row. The `blocker` tier
  * carries the functional impact boundary and the reproduction gate of §2.2; the `warn`
- * tier carries the debt, the pin parseability gate of §7.4, the expression boundary and
- * the downgrade mark of §5.2 — every boundary name of the two-tier write vocabulary.
+ * tier carries the debt, the expression boundary and the downgrade mark of §5.2 —
+ * every boundary name of the two-tier write vocabulary.
  * The one remaining tier below `blocker` is `warn`: a downgraded finding travels one
  * step (`blocker` → `warn`) and no further.
  */
@@ -147,15 +146,6 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
     counterExample:
       "Dead code that nothing calls today and no output depends on is a warn: it changes what the next reader believes, which is the warn boundary itself.",
     face: "numbered",
-  },
-  {
-    id: "pin-parseability",
-    tier: "warn",
-    body: "A pin that resolves nowhere is a warn: an unresolvable path, symbol or test title leaves a claim nobody can re-check, while the bytes a consumer receives stay unchanged.",
-    duty: "A pin finding owes the consequence: the next reader either trusts the claim blindly or drops it, and either way the document loses a coordinate.",
-    counterExample:
-      "P28 withdrew the old docs-validation gate as too heavy and left legality to the dispatch gate, which judges document structure and never pin coordinates; this gate returns in its narrow form, so a pin is judged on its own three shapes (a path segment, a symbol, a test title) only — never document structure, never semantics, never the whole docs corpus — and a `contract.path` belongs to the handoff read-back corpus, which `PinAudit` never carries.",
-    face: "test",
   },
   {
     id: "expression-only",

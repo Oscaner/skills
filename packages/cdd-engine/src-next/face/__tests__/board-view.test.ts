@@ -4359,3 +4359,111 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P43 — the notes token FOLDS by default (`notes +M`) and expands under `--notes`
+// ---------------------------------------------------------------------------
+
+describe("P43 — the notes segment folds to its count unless `--notes` opens it", () => {
+  /** One record fixture — the identity + verdict the aggregation reads. */
+  const record = (over: Partial<RoundRecord> = {}): RoundRecord => ({
+    op: "review",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+    ...over,
+  });
+
+  const dirs: string[] = [];
+
+  /** One REAL carrier on disk — `LineCarriers` reads the bytes, never a stub. */
+  const carrierOf = (payload: Readonly<Record<string, unknown>>): string => {
+    const dir = mkdtempSync(path.join(tmpdir(), "board-notes-"));
+    dirs.push(dir);
+    const at = path.join(dir, "tasks-1-review-1.json");
+    writeFileSync(at, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    return at;
+  };
+
+  /** One line's token, folded by default — the shipped board's bytes. */
+  const cell = (records: readonly RoundRecord[], carriers: readonly string[]): string => {
+    const byRecord = new Map(records.map((one, index) => [one, carriers[index] ?? ""]));
+    return BoardView.summaryCell(
+      records,
+      LineCarriers.of(records, (one) => byRecord.get(one) ?? ""),
+    );
+  };
+
+  /** The same token under `--notes`. */
+  const opened = (records: readonly RoundRecord[], carriers: readonly string[]): string => {
+    const byRecord = new Map(records.map((one, index) => [one, carriers[index] ?? ""]));
+    return BoardView.summaryCell(
+      records,
+      LineCarriers.of(records, (one) => byRecord.get(one) ?? ""),
+      { notes: true },
+    );
+  };
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("prints the count and no body by default, and the SAME bytes plus the body under `--notes`", () => {
+    const carrier = carrierOf({
+      findings: [],
+      notes: ["the brief's Constraints mirror repeats the plan"],
+    });
+    const folded = cell([record()], [carrier]);
+    expect(folded).toBe("review 1 ✓ notes +1");
+    // the body is absent, not blanked: its words do not occur at all
+    expect(folded).not.toContain("Constraints");
+    const expanded = opened([record()], [carrier]);
+    // the expanded token is the folded token plus one appended segment — never a re-order
+    expect(expanded).toBe(`${folded}; the brief's Constraints mirror repeats the plan`);
+    expect(expanded.startsWith(folded)).toBe(true);
+  });
+
+  it("keeps the segment order — `verb · body · mark · +N · regrade note · notes +M`", () => {
+    const prior = carrierOf({
+      findings: [
+        {
+          severity: "blocker",
+          lens: "spec",
+          summary: "same defect",
+          impact: { scenario: "a legal input → a wrong result → expected the contract" },
+        },
+      ],
+    });
+    const current = carrierOf({
+      findings: [{ severity: "warn", lens: "spec", summary: "same defect" }],
+      notes: ["a child observation"],
+    });
+    const records = [record(), record({ cycle: 2 })];
+    const tokens = [prior, current];
+    // the `+N` and the downgrade note sit where they sat; the notes segment still closes
+    expect(cell(records, tokens)).toBe("review 2 ✓+2 downgraded without a regrade reason notes +1");
+    expect(opened(records, tokens)).toBe(
+      "review 2 ✓+2 downgraded without a regrade reason notes +1; a child observation",
+    );
+  });
+
+  it("keeps the expanded face on ONE line — a break and the board's ` · ` are folded away", () => {
+    const carrier = carrierOf({ findings: [], notes: ["first line\nsecond · third    fourth"] });
+    const expanded = opened([record()], [carrier]);
+    expect(expanded).toBe("review 1 ✓ notes +1; first line second; third fourth");
+    expect(expanded).not.toContain("\n");
+    expect(expanded).not.toContain(" · third");
+    // the pair: the count alone is what the default prints, and it carries neither
+    const folded = cell([record()], [carrier]);
+    expect(folded).toBe("review 1 ✓ notes +1");
+    expect(folded).not.toContain("\n");
+  });
+
+  it("prints no notes segment at all when the run carries none", () => {
+    const empty = carrierOf({ findings: [] });
+    expect(cell([record()], [empty])).toBe("review 1 ✓");
+    expect(opened([record()], [empty])).toBe("review 1 ✓");
+  });
+});

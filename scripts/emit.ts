@@ -21,6 +21,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
+import type { DiagramRendering } from "./lib/diagrams.ts";
 import { DiagramProducts } from "./lib/diagrams.ts";
 import type { OscanerFields, PluginSource } from "./lib/first-party.ts";
 import { FirstParty } from "./lib/first-party.ts";
@@ -289,7 +290,10 @@ export class EmitService {
    * The full emit product set into `outRoot`: per-plugin manifests, the repo-root
    * marketplace documents, the issue-template forms and the derived source.json.
    */
-  emitAll(outRoot: string, { generatedPaths }: { generatedPaths: string[] }): void {
+  emitAll(
+    outRoot: string,
+    { generatedPaths }: { generatedPaths: string[] },
+  ): readonly DiagramRendering[] {
     const source = this.deriveSourceDoc();
     for (const plugin of source.plugins) {
       for (const { rel, doc } of this.pluginManifests(plugin)) {
@@ -304,7 +308,9 @@ export class EmitService {
       generatedPaths,
     );
     this.writeIssueTemplates(outRoot, generatedPaths);
-    this.diagrams.emit(outRoot, generatedPaths);
+    // The staged pairs come back with the write: the twin assertions judge exactly the
+    // artifact this pass wrote, never a committed product.
+    return this.diagrams.emit(outRoot, generatedPaths);
   }
 
   /** The .github/ISSUE_TEMPLATE forms — rendered from the canonical issue-body.json

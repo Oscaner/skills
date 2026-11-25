@@ -131,12 +131,6 @@ export interface TemplatePrompt {
 export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
-  /** The lens an engine-AUTHORED row carries on this face (design spec §7.2) — the
-   *  pin rows the read-back injects. Declared beside `lensEnum` so the two surfaces
-   *  that must agree are written in one place, and cross-checked by `pinLensOf`
-   *  before any row is written: the engine never carries a label the same round's
-   *  prompt declares impossible. */
-  pinLens: string;
   /** The axes/URC guide prose — the criteria body (the task/branch four axes +
    *  verification-evidence duty; the document shapes' URC rows). */
   axesGuide: string;
@@ -243,14 +237,14 @@ const IMPLEMENT_SHELL: readonly string[] = [
 const RULINGS_READING =
   "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten. `INPUT_RULINGS` is a path, or the literal `none` when this round has no ruling sidecar.";
 
-/** The docs-fix shell's OWN write constraints (P42 §7) — the three shape rules the
- *  dispatch gate judges, named where the round that WRITES a document reads them. The
- *  round's close-out leg re-reads the document and refuses the advance on any violation
- *  the round did not already carry, so the rules are the fix's own discipline, not the
- *  author's. One row, three names, no per-rule sentence: the criteria table carries the
- *  wording and the names here are the identifiers a report prints. */
+/** The docs-fix shell's OWN write constraints (P42 §7) — the two variable-class shape
+ *  rules the dispatch gate judges, named where the round that WRITES a document reads
+ *  them. The round's close-out leg re-reads the document and refuses the advance on any
+ *  violation the round did not already carry, so the rules are the fix's own discipline,
+ *  not the author's. One row, two names, no per-rule sentence: the criteria table carries
+ *  the wording and the names here are the identifiers a report prints. */
 const DOCS_FIX_SHAPE_RULES =
-  "**Written shape:** the edit obeys the three shape rules the gate judges — `measure-literal` (state no bare count in prose), `line-coordinate` (cite a module path and symbol, never a line number), `live-arithmetic` (state no arithmetic over counts) — because the round's close re-reads the document and blocks the advance on every violation this round adds.";
+  "**Written shape:** the edit obeys the two shape rules the gate judges — `line-coordinate` (cite a module path and symbol, never a line number), `live-arithmetic` (state no arithmetic over counts) — because the round's close re-reads the document and blocks the advance on every violation this round adds.";
 
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_TYPED_INSTRUCTIONS: readonly string[] = [
@@ -669,15 +663,16 @@ export const CLOSED_WAVE_DISCIPLINE =
  *  + its program-conformance clause, the ONE body both spec-shaped target rows
  *  select (the filled rubric is what differs per row). The charter's own criteria
  *  body is `docCharterAxes` — never a second narrative copy alongside this one.
- *  The `Claimed→pin` clause names the three claim SHAPES a spec may state (a symbol, a
- *  census form, a condition that must hold) instead of accepting whatever shape today's
- *  tree happens to have: a line number is not a pin, a prose count has no legal shape at
- *  all (the census form is the count's home), and a present-tense description of the tree
- *  as it stands is refused on a decision face whichever document carries it — the plan's
- *  snapshot-shaped artifact is the delivery citation, not a prose description. Nothing
- *  gates the writing moment — the review is where a violation surfaces. */
+ *  The `Claimed→pin` clause names the claim SHAPES a spec may state (a symbol, a count,
+ *  a condition that must hold) instead of accepting whatever shape today's tree happens
+ *  to have: a line number is not a pin, a count carries no mechanical face — a bare
+ *  integer beside a count unit is the writing convention, not a refusal — and a
+ *  present-tense description of the tree as it stands is refused on a decision face
+ *  whichever document carries it — the plan's snapshot-shaped artifact is the delivery
+ *  citation, not a prose description. Nothing gates the writing moment — the review is
+ *  where a violation surfaces. */
 const docNarrativeAxes = (guide: string): string =>
-  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin by module path + symbol name — a line number is not a pin; a count is stated only as \`census:<id> = <n>\`, the id taken from the census registry; naming the guard that maintains the value is the reason for the reference, not its form; a present-tense description of the tree as it stands is refused in a spec and in a plan alike — what belongs to the plan is the work item (\`- Modify: <path>\`), never a prose \`path:line\`, while the condition that must hold belongs to the spec; restate such a description as that condition — and in a design spec a measurement input is a lens-tagged finding unless it is restated as a condition that must hold — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance (phase-spec only — a single-spec carries no \`program:\` and no \`INPUT_OVERALL\`, and is not a phase) — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${CLOSED_WAVE_DISCIPLINE} ${guide}`;
+  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin by module path + symbol name — a line number is not a pin; a count carries no mechanical face — no census registry exists and no gate compares the value; a bare integer plus a count unit in prose is the writing convention, not a refusal — while an arithmetic over live counts still is; naming the guard that maintains the value is the reason for the reference, not its form; a present-tense description of the tree as it stands is refused in a spec and in a plan alike — what belongs to the plan is the work item (\`- Modify: <path>\`), never a prose \`path:line\`, while the condition that must hold belongs to the spec; restate such a description as that condition — and in a design spec a measurement input is a lens-tagged finding unless it is restated as a condition that must hold — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance (phase-spec only — a single-spec carries no \`program:\` and no \`INPUT_OVERALL\`, and is not a phase) — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${CLOSED_WAVE_DISCIPLINE} ${guide}`;
 
 /** The charter's criteria body — the six things a program charter owns, and only
  *  those. It carries none of the implementation-face evidence duty the narrative
@@ -694,41 +689,30 @@ const docCharterAxes = (guide: string): string =>
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability", "scope"],
-    pinLens: "standards",
     axesGuide: `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding. The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}
 
 ${lensQuestionBlock("wave")}`,
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability", "scope"],
-    pinLens: "standards",
     axesGuide: `Same four axes as the wave review (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding, normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.
 
 ${lensQuestionBlock("branch")}`,
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    // §7.2's own word for this corpus: two statements of one fact — the document's
-    // claim and the tree — disagree.
-    pinLens: "consistency",
     axesGuide: `${docNarrativeAxes(reviewGuideOf("spec"))}
 
 ${lensQuestionBlock("spec")}`,
   },
   overall: {
     lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"],
-    // The charter's criterion 6 is this row's home: the inventory and the tree
-    // disagree, so a pin that resolves nowhere reads as a ledger drift.
-    pinLens: "inventory",
     axesGuide: `${docCharterAxes(reviewGuideOf("overall"))}
 
 ${lensQuestionBlock("overall")}`,
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    // A step naming a coordinate the tree does not have is a step that cannot be
-    // executed against the tree as it stands.
-    pinLens: "buildability",
     axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}
 
 ${lensQuestionBlock("plan")}`,
@@ -741,25 +725,6 @@ ${lensQuestionBlock("plan")}`,
  *  means a target cannot silently drift onto another target's criteria. */
 export const reviewBodyOf = (type: TargetType): ReviewKey =>
   type === "phase-spec" || type === "single-spec" ? "spec" : type;
-
-/** The lens an engine-authored pin row carries on one target's face (design spec
- *  §7.2) — the ONE derivation the read-back's injection point reads. The value is
- *  the face's declared `pinLens`, and it is cross-checked against that face's own
- *  `lensEnum` here: the menu and the injected row are written for different readers
- *  (the child's prompt vs the carrier), so a drifted pair must throw at its first
- *  dispatch instead of reaching a carrier as a label the same round's prompt calls
- *  impossible. `guides` is the declared table, injectable so the gate itself is
- *  pinnable. */
-export const pinLensOf = (type: TargetType, guides: ReviewGuides = REVIEWS): string => {
-  const key = reviewBodyOf(type);
-  const row = guides[key];
-  if (!row.lensEnum.includes(row.pinLens)) {
-    throw new Error(
-      `the pin lens "${row.pinLens}" is not declared by the ${key} lens menu (${row.lensEnum.join(" | ")})`,
-    );
-  }
-  return row.pinLens;
-};
 
 /** The six target types every review variant renders — the review row's `serves`
  *  set (§1.1): one criteria body per type, one shared dynamic tail. */

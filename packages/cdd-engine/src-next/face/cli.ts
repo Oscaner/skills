@@ -48,10 +48,10 @@ import { existsSync, readFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
+import { ClosedDocument } from "../contract/closed-document.ts";
 import { declaredRegistries } from "../contract/declare.ts";
 import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
-import { PinAudit } from "../contract/pins.ts";
 import type { ArtifactSnapshot } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -98,7 +98,7 @@ import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
+import { type ArtifactProjection, type BoardDisplay, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import {
@@ -244,7 +244,7 @@ const RECOVER_NOTHING =
   | { readonly kind: "blocked"; readonly message: string };
 
 /** One memo keyed by repo root — the ONE memo shape every `Cli` seam over the doc
- *  corpus shares (`#index` · `#audit` · the production pre-flight). A `Cli` may serve
+ *  corpus shares (`#index` · the production pre-flight). A `Cli` may serve
  *  several commands and a fixture several repos, so the key is the root: a read for the
  *  root that built the value answers it, and a read for any other root rebuilds. The
  *  invalidation therefore lives HERE, not in a `#...Root` companion every seam has to
@@ -363,14 +363,14 @@ export class Cli {
   /** The command's ONE identity index — built once per repo root at `#indexOf`, so no
    *  two read faces of a command scan the doc roots twice. */
   readonly #index = new RootMemo<SlugIndex>();
-  /** The dispatch's ONE pin audit (design spec §1.4) — constructed on first use by the
-   *  accessor handed to BOTH the pre-flight closure port and the lifecycle's
-   *  `contract.path` read-back, so one dispatch scans the doc roots once. A wave /
-   *  branch dispatch never asks the closure port (no doc target) and a work-plane round
-   *  never reads a pin, so those dispatches construct none. */
-  readonly #audit = new RootMemo<PinAudit>();
+  /** The dispatch's ONE closure reading (design spec §1.4) — constructed on first use by
+   *  the accessor handed to BOTH the pre-flight closure port and the lifecycle's doc
+   *  gate, so one dispatch answers closure off one doc scan. A wave / branch dispatch
+   *  has no doc target and asks neither, so it constructs none. */
+  readonly #closed = new RootMemo<ClosedDocument>();
   /** The production pre-flight seam, memoized per repo root (the closure port's memo
-   *  key) — built at the assembly point so its port names THIS invocation's audit. */
+   *  key) — built at the assembly point so its port names THIS invocation's closure
+   *  reading. */
   readonly #preflight = new RootMemo<PreFlight>();
   /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
    *  install/update sequence face. */
@@ -403,9 +403,9 @@ export class Cli {
     this.#graphView = new GraphView();
     this.#contract = new Contract();
     // The pre-flight seam is built at the dispatch, not here (design spec §1.4): its
-    // closure port must name THIS invocation's pin audit, and the repo root is known
-    // only once the command preamble resolves it. A caller's injected seam (tests) is
-    // kept as-is; the production one is memoized by `#preflightOf`.
+    // closure port must name THIS invocation's closure reading, and the repo root is
+    // known only once the command preamble resolves it. A caller's injected seam (tests)
+    // is kept as-is; the production one is memoized by `#preflightOf`.
     this.#preflightInjected = opts.preflight ?? null;
     this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
@@ -461,18 +461,18 @@ export class Cli {
 
   /** The command boundary — the ONE invalidation point of every snapshot a command
    *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
-   *  per-root memos (`#index` · `#audit` · the production pre-flight, whose closure port
-   *  closes over the audit) and the judgment instance's own right-domain corpus are
-   *  dropped here, so the next invocation re-scans. A memo carried across commands
-   *  would answer from a snapshot taken before the documents this command writes or
-   *  observes — the `✔ Done` cell of the judged document included.
+   *  per-root memos (`#index` · `#closed` · the production pre-flight, whose closure
+   *  port closes over `#closed`) and the judgment instance's own right-domain
+   *  corpus are dropped here, so the next invocation re-scans. A memo carried across
+   *  commands would answer from a snapshot taken before the documents this command
+   *  writes or observes — the `✔ Done` cell of the judged document included.
    *
    *  The memos stay keyed on the repo root (one `Cli` may serve several fixtures), and
    *  the invalidation lives here rather than in a `#...Root` companion every seam has
    *  to remember to pair. */
   #beginCommand(): void {
     this.#index.reset();
-    this.#audit.reset();
+    this.#closed.reset();
     this.#preflight.reset();
     // The strategies hold their own state (the `single-home` corpus per root); a fresh
     // judgment instance is the whole reset, and its construction reads no file.
@@ -605,18 +605,18 @@ export class Cli {
     });
   }
 
-  /** The invocation's pin audit — constructed on first use, memoized per repo root. The
-   *  ONE construction point of that material (design spec §1.4): the pre-flight closure
-   *  port and the lifecycle's `contract.path` read-back both resolve through here, so a
-   *  review dispatch reads the doc roots once, and a wave / branch dispatch (no doc
-   *  target, no pin read) reads them zero times. */
-  #auditOf(repoRoot: string): PinAudit {
-    return this.#audit.read(repoRoot, (root) => new PinAudit(root));
+  /** The dispatch's closure reading — constructed on first use, memoized per repo root.
+   *  The ONE construction point of that reading: the pre-flight closure port and the
+   *  lifecycle's `Contract.validate` both resolve through here, so a review dispatch
+   *  scans the doc roots once and a wave / branch dispatch (no doc target) reads them
+   *  zero times. The index is the command's own (`#indexOf`), never a second scan. */
+  #closedOf(repoRoot: string): ClosedDocument {
+    return this.#closed.read(repoRoot, (root) => new ClosedDocument(this.#indexOf(root)));
   }
 
   /** The pre-flight seam of one dispatch — the caller's injected seam when there is one,
    *  otherwise the production seam built here so its closure port can name this
-   *  invocation's audit. Memoized per repo root (the port's memo key). */
+   *  invocation's closure reading. Memoized per repo root (the port's memo key). */
   #preflightOf(repoRoot: string): PreFlight {
     if (this.#preflightInjected !== null) return this.#preflightInjected;
     return this.#preflight.read(
@@ -626,7 +626,7 @@ export class Cli {
           git: this.#git,
           contract: this.#contract,
           words: this.#words,
-          provenClosed: (rel) => this.#auditOf(root).provenClosed(rel),
+          provenClosed: (rel) => this.#closedOf(root).closed(rel),
         }),
     );
   }
@@ -746,6 +746,10 @@ export class Cli {
       registry: artifacts,
       showAll: parsed.args.artifacts === "true",
     };
+    // The board's PRINTING face — `--notes` opens the child-note bodies the folded
+    // default keeps as a count. It changes no judgment and no token order: the same
+    // `notes +M` segment either stops at the count or appends its rows.
+    const display: BoardDisplay = { notes: parsed.args.notes === "true" };
     const next = BoardNext.of(read, planSource, index, entry, root, projection);
     // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
     // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
@@ -768,6 +772,7 @@ export class Cli {
       await inflight.inspect(),
       next,
       projection,
+      display,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
@@ -1472,9 +1477,10 @@ export class Cli {
       values,
       // The host id the root probed ONCE — the spawn's table row (P40 T6).
       host,
-      // The dispatch's ONE pin audit — the same accessor the pre-flight closure port
-      // resolves, so the shape gate and the `contract.path` read-back share one scan.
-      pinAudit: () => this.#auditOf(scene.workspace.root.repoRoot),
+      // The dispatch's ONE closure reading — the accessor the pre-flight closure port and
+      // the lifecycle's doc gate resolve, so the shape gate and the doc gate share one
+      // doc scan.
+      closedDocument: () => this.#closedOf(scene.workspace.root.repoRoot),
     });
   }
 

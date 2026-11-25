@@ -14,8 +14,8 @@
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
-//                 the shape gate (P41) — measure-literal · line-coordinate ·
-//                  live-arithmetic · single-home · change-history-date-shape;
+//                 the shape gate (P41) — line-coordinate · live-arithmetic ·
+//                  single-home · change-history-date-shape;
 //   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
 //                  tasks (a `LedgerRule`, judged with the ledger fact bundle).
 // Each doc strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; each
@@ -29,7 +29,6 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
-import { CensusGate } from "./census.ts";
 import { type DocFace, type ElementRegistry, FaceMap, type RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
@@ -43,10 +42,11 @@ import type {
 import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 import type { LedgerFacts } from "./judge.ts";
+import { ProseSpans } from "./markdown-spans.ts";
 import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
-import { PinSpans, PinVocabulary } from "./pins.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 import type { LedgerRule } from "./rules.ts";
+import { PathShape } from "./shape-rules.ts";
 import { PlanTaskBlocksReader } from "./task-blocks.ts";
 import { RowSource, type Translator } from "./translate.ts";
 import { MAX_TASKS_PER_WAVE } from "./wave-width.ts";
@@ -123,6 +123,15 @@ export class NodeFs implements DocFs {
     }
   }
 }
+
+/** The rule plane's DEFAULT identity-index read — one `SlugIndex.build` over the caller's
+ *  fs seam (absent: node:fs). It is exported so a reader that needs an index WITHOUT a
+ *  `JudgeContext` — the closure reading's lazy fallback in `face/lifecycle.ts` — reaches
+ *  the same one construction site instead of opening a second `SlugIndex.build` literal
+ *  of its own (the P36 T3 guard pins exactly three production sites, and this file is
+ *  one of them). `Invariant#indexOf` delegates here, so the injected face and the
+ *  default face are one mechanism. */
+export const identityIndexOf = (root: string, fs?: DocFs): SlugIndex => SlugIndex.build(root, fs);
 
 /** One edge-validation issue as the caller injects it (P42 §3.2) — the graph's PUBLIC
  *  `validate()` output plus the ONE rendered detail line (`TaskGraph.detailLine`,
@@ -370,11 +379,11 @@ export abstract class Invariant extends MarkdownPrimitives {
   }
 
   /** The identity index every slug-keyed strategy looks up through — the caller's
-   *  injected index when present, else one scan over the SAME fs seam every other
-   *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
-   *  The ONE home of that fallback. */
+   *  injected index when present, else the rule plane's default read over the SAME fs
+   *  seam every other strategy reads (the judgment stays hermetic: no second,
+   *  real-filesystem scan). */
   protected indexOf(ctx: JudgeContext): SlugIndex {
-    return ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
+    return ctx.slugIndex ?? identityIndexOf(ctx.root, ctx.fs);
   }
 
   /** The three-table section heading anchors of the overall (registry-declared). */
@@ -1884,7 +1893,7 @@ export class SingleCreateInvariant extends Invariant {
     for (const block of ctx.tree.tasks()) {
       for (const declaration of reader.fileDeclarationsOf(block)) {
         if (declaration.claim === "none") continue;
-        if (PinVocabulary.pathOf(declaration.path) === null) continue;
+        if (PathShape.pathOf(declaration.path) === null) continue;
         const tasks = paths.get(declaration.path) ?? new Map<number, boolean>();
         tasks.set(block.id, (tasks.get(block.id) ?? false) || declaration.verb === "create");
         paths.set(declaration.path, tasks);
@@ -1934,23 +1943,6 @@ export class SingleCreateInvariant extends Invariant {
 // the shape-gate family (P41 §1.2 · §1.5 · §3.1)
 // ---------------------------------------------------------------------------
 
-/** The closed measurement-unit set of the `measure-literal` grammar (§1.2). A count
- *  unit is a WORD: a bare integer beside one of these states a measurement in prose.
- *  The closed set IS the grammar — a unit outside it is not a judgment. It holds the
- *  tree's own measurement words only: a Chinese quantifier counts prose spans rather
- *  than the tree, so it is outside the judgment and `第 N 行` stays the coordinate row's
- *  shape alone. */
-const MEASURE_UNITS = ["passed", "failed", "tests", "files", "rows"] as const;
-
-/** The `measure-literal` token grammar — an independent decimal integer, one space,
- *  one word of the closed unit set. "Independent" is the two lookarounds: a decimal's
- *  fractional part and the number inside a dotted id are not integers; "one word" is
- *  the right lookahead, which also refuses a unit embedded in a longer compound. */
-const MEASURE_LITERAL = new RegExp(
-  `(?<![\\w.])\\d+ (?:${MEASURE_UNITS.join("|")})(?![\\w\\u4e00-\\u9fff])`,
-  "g",
-);
-
 /** The three `line-coordinate` shapes (§1.2): `第 N 行` · `line N` · a path followed
  *  by `:N`. The third shape requires at least one LETTER before its colon: a file name
  *  carries one, a decimal ratio (`4.5:1`) does not — the colon alone does not make a
@@ -1989,7 +1981,7 @@ interface ProseLineRecord extends ProseLine {
 
 /**
  * ProseLines — the prose-line split of one document body (P41 §1.2): the lines a
- * shape grammar can judge. Fenced lines never arrive (the fence state is `PinSpans`'s
+ * shape grammar can judge. Fenced lines never arrive (the fence state is `ProseSpans`'s
  * one judgment — this class holds no second copy), and each returned line carries both
  * read faces: the verbatim text and the same line with its inline code spans stripped
  * to equal-width blanks, so the column positions survive. The heading-stack walk and
@@ -2000,10 +1992,10 @@ export class ProseLines {
   /** The prose lines of one body with both read faces — the ONE line read of the shape
    *  grammars and the sentence index. */
   static of(content: string): readonly ProseLine[] {
-    return PinSpans.proseEntriesOf(content).map((entry) => ({
+    return ProseSpans.proseEntriesOf(content).map((entry) => ({
       line: entry.line,
       raw: entry.text,
-      blanked: PinSpans.blankedOf(entry.text),
+      blanked: ProseSpans.blankedOf(entry.text),
     }));
   }
 
@@ -2018,8 +2010,7 @@ export class ProseLines {
 // biome-ignore lint/complexity/noStaticOnlyClass: the heading-stack prose walk is a declared static reader set — the repo's zero-bare-function discipline admits no standalone walker.
 class ProseWalk {
   /** Every non-blank prose line of the judged body with its face role — the ONE
-   *  heading-stack advance behind the three shape grammars and the shared sentence
-   *  read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
+   *  heading-stack advance behind the shape grammars and the shared sentence read. The stack keeps headings outermost-first; `FaceMap.roleOf` receives it
    *  innermost-first, so a `#### 7.5.1` item inherits the role of the `### 7.` group
    *  above it. */
   static of(ctx: JudgeContext): readonly ProseLineRecord[] {
@@ -2054,7 +2045,7 @@ class ProseWalk {
 
 // biome-ignore lint/complexity/noStaticOnlyClass: the shared shape-rule frame is a declared static walk frame — the repo's zero-bare-function discipline admits no standalone frame.
 class ProseFace {
-  /** The shared evaluation frame of the three shape grammars: only a DECISION-face
+  /** The shared evaluation frame of the shape grammars: only a DECISION-face
    *  line is judged. A line whose heading the map cannot place is not a token question — it
    *  is the map's own gap, reported once by `gaps()`. */
   static judge(
@@ -2071,10 +2062,10 @@ class ProseFace {
 
   /** The gap verdict — ONE finding per heading the map cannot place (the `unmapped`
    *  face cannot be judged for a token, so the gap itself is the verdict, never a
-   *  silence). It is produced by the family's first row alone: the gap is a property of
-   *  the face, so the same gap under three grammars must not report three times, and the
-   *  reporting row has to be a declared one — a kind no declaration owns would leave the
-   *  `checked:` face with a finding no row accounts for. */
+   *  silence). It is produced by ONE row of the shape gate: the gap is a property of
+   *  the face, so the same gap under every grammar must not report once per grammar,
+   *  and the reporting row has to be a declared one — a kind no declaration owns would
+   *  leave the `checked:` face with a finding no row accounts for. */
   static gaps(ctx: JudgeContext, kind: string): FindingDraft[] {
     const findings: FindingDraft[] = [];
     const reported = new Set<string>();
@@ -2100,66 +2091,19 @@ class ProseFace {
   }
 }
 
-/** measure-literal — the decision face states no bare count (P41 §1.2). A count is
- *  legal in exactly one form: a `census:<id> = <n>` reference, supplied by the census
- *  registry and compared by `CensusGate`. The grammar is a token shape, never a
- *  semantic class: the gate has no classifier for "is this claim about the live
- *  tree", so the shape itself is the judgment. */
-export class MeasureLiteralInvariant extends Invariant {
-  readonly name = "measure-literal";
-
-  evaluate(ctx: JudgeContext): FindingDraft[] {
-    // The family's first row owns the map's gap verdict (one gap, one finding — see
-    // `ProseFace.gaps`), so the other three grammars judge the decision face alone.
-    return [
-      ...ProseFace.gaps(ctx, this.name),
-      ...ProseFace.judge(ctx, (record) => this.#literalsOf(ctx, record)),
-    ];
-  }
-
-  /** The bare literals of one decision-face line — a `census` reference's own number
-   *  is the reference, not a bare count (the span read rides `CensusGate`'s grammar). */
-  #literalsOf(ctx: JudgeContext, record: ProseLineRecord): FindingDraft[] {
-    const findings: FindingDraft[] = [];
-    const references = MeasureLiteralInvariant.#referenceSpans(record.blanked, ctx.path);
-    for (const match of record.blanked.matchAll(MEASURE_LITERAL)) {
-      const at = match.index ?? 0;
-      // The integer's POSITION is the read: a unit written right after a census
-      // reference's number still belongs to that reference.
-      if (references.some((span) => at >= span.from && at < span.to)) continue;
-      findings.push(
-        this.finding(
-          ctx,
-          ProseFace.fieldOf(record),
-          `the decision face states a bare measurement: ${match[0]}`,
-          "state the count as census:<id> = <n> (the census registry supplies the value) or drop the number",
-        ),
-      );
-    }
-    return findings;
-  }
-
-  /** The `census:<id> = <n>` spans of one line — read through the gate's own reference
-   *  grammar, so an illegal form is prose about the form and carries no span. */
-  static #referenceSpans(line: string, source: string): readonly { from: number; to: number }[] {
-    const spans: { from: number; to: number }[] = [];
-    let cursor = 0;
-    for (const reference of CensusGate.referencesOf(line, source)) {
-      const at = line.indexOf(reference.text, cursor);
-      if (at === -1) continue;
-      spans.push({ from: at, to: at + reference.text.length });
-      cursor = at + reference.text.length;
-    }
-    return spans;
-  }
-}
-
 /** line-coordinate — the decision face cites no line number (P41 §1.2). A claim
- *  cites a module path plus a symbol name; a line coordinate is not a pin. */
+ *  cites a module path plus a symbol name; a line coordinate is not a pin. The row
+ *  also carries the shape gate's ONE zero-candidate arm: a document whose face map
+ *  places nothing is reported as the gap, never read as a clean document. */
 export class LineCoordinateInvariant extends Invariant {
   readonly name = "line-coordinate";
 
   evaluate(ctx: JudgeContext): FindingDraft[] {
+    return [...ProseFace.gaps(ctx, this.name), ...this.#coordinatesOf(ctx)];
+  }
+
+  /** The line coordinates of every decision-face line. */
+  #coordinatesOf(ctx: JudgeContext): FindingDraft[] {
     return ProseFace.judge(ctx, (record) => {
       const findings: FindingDraft[] = [];
       for (const pattern of LINE_COORDINATES) {
@@ -2236,7 +2180,7 @@ export class ChangeHistoryDateShapeInvariant extends Invariant {
  * SentenceIndex — the sentence split and comparison faces of `single-home` (P41 §3.1):
  * one normalized sentence per unit, the character 3-gram set of a sentence, and the
  * Jaccard similarity of two such sets. The split reads prose only: fenced lines never
- * arrive (`PinSpans`'s one fence judgment), a quoted line is exempt (`ProseLines`'s one
+ * arrive (`ProseSpans`'s one fence judgment), a quoted line is exempt (`ProseLines`'s one
  * quote-form judgment), and a work item yields no sentence at all (a plan's `- Modify:`
  * line names a location, never a criterion). A table row and a list item are each ONE
  * sentence — a cell is never its own claim.
@@ -2277,7 +2221,7 @@ export class SentenceIndex {
         if (text === "") continue;
         sentences.push({
           text,
-          prose: SentenceIndex.#normalize(PinSpans.blankedOf(unit)).length,
+          prose: SentenceIndex.#normalize(ProseSpans.blankedOf(unit)).length,
           line: entry.line + from,
         });
       }
@@ -2333,7 +2277,7 @@ export class SentenceIndex {
   static #unitsOf(line: string): readonly string[] {
     if (/^\s*\|/.test(line)) return [line];
     if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) return [line];
-    const blind = PinSpans.blankedOf(line);
+    const blind = ProseSpans.blankedOf(line);
     const units: string[] = [];
     let from = 0;
     for (let at = 0; at < blind.length; at += 1) {

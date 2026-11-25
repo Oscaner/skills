@@ -83,7 +83,7 @@ none
 - `contract/review-criteria.ts#CRITERIA_ROWS` 的表注释与 `CriteriaRegistry` 类的文档注释 · `renderRubric` 的文档注释——按档数行的三处散文
 
 #### Produces
-- `CriteriaTier` 与 `TIER_ORDER` 收两档；`CRITERIA_ROWS` 行数不变（`census:criteria.rows = 6`）
+- `CriteriaTier` 与 `TIER_ORDER` 收两档；`CRITERIA_ROWS` 行数不变（`census:criteria.rows = 5`）
 - 五格的替换字节落地；`regrade-mark` 的三格一个字节不动
 - `renderRubric` 对表外档抛错（新守卫，不是既有行为）
 - `expression-only` 的 `duty` 点名「欠一个 fix 轮，且不对它复评」

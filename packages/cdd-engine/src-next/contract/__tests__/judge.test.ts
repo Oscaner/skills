@@ -1630,6 +1630,60 @@ describe("P42 T9 — change-history-newest-last reads monotonicity, never direct
   });
 });
 
+// ---------------------------------------------------------------------------
+// P43 T6 — the three lineage legs' candidate face. "Zero findings" is true of a
+// conforming table and of a face that never ran; with no `## Change history` table the
+// candidate set is empty, so the arm names that emptiness and pairs it with the same
+// defect the leg exists for.
+// ---------------------------------------------------------------------------
+describe("P43 T6 — the lineage legs read their candidate face, never a silence", () => {
+  /** A plan whose `## Change history` section is absent — the lineage table is not on
+   *  the document at all. */
+  const withoutTable = (headerVersion: string): string =>
+    planLineage(headerVersion, []).split("## Change history")[0] ?? "";
+
+  /** The findings of one lineage leg on one plan. */
+  const ofKind = (content: string, kind: string): readonly Finding[] =>
+    judge("plan", content).filter((finding) => finding.kind === kind);
+
+  /** Whether the document carries no lineage table — the candidate face's own reading. */
+  const tableIsAbsent = (content: string): boolean => {
+    const table = docTypeParsers.plan.parse(content.split("\n")).tables["Change history"];
+    return table.headerRow === null && table.rows.length === 0;
+  };
+
+  it("reads zero candidates for change-history-row-shape — no table, no row to shape", () => {
+    const content = withoutTable("v1.0");
+    expect(tableIsAbsent(content)).toBe(true);
+    expect(ofKind(content, "change-history-row-shape")).toEqual([]);
+    // the pair: a ragged row under the declared heading is reported once
+    const ragged = planLineage("v1.0", [
+      ROW_100,
+      "| v1.0 | 2026-10-10 | a summary that hard-wraps |",
+    ]);
+    expect(ofKind(ragged, "change-history-row-shape")).toHaveLength(1);
+  });
+
+  it("reads zero candidates for change-history-version-unique — no row, no version to repeat", () => {
+    const content = withoutTable("v1.0");
+    expect(tableIsAbsent(content)).toBe(true);
+    expect(ofKind(content, "change-history-version-unique")).toEqual([]);
+    // the pair: the same version written twice is one finding
+    expect(
+      ofKind(planLineage("v1.0", [ROW_100, ROW_100]), "change-history-version-unique"),
+    ).toHaveLength(1);
+  });
+
+  it("reads zero candidates for change-history-latest-matches-front-matter — no lineage, no comparison", () => {
+    const content = withoutTable("v1.0");
+    expect(tableIsAbsent(content)).toBe(true);
+    expect(ofKind(content, "change-history-latest-matches-front-matter")).toEqual([]);
+    // the pair: the same header with a newest row running ahead of it is one finding
+    const ahead = planLineage("v1.0", [ROW_100, "| v1.1 | 2026-10-09 | merged | [human] |"]);
+    expect(ofKind(ahead, "change-history-latest-matches-front-matter")).toHaveLength(1);
+  });
+});
+
 describe("P21 T2 — change-history-row-not-in-other-table", () => {
   it("reports a version-led row parked in another table, naming the fix", () => {
     const stray = "| v0.9 | 2026-10-27 | stray lineage row |";

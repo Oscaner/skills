@@ -1,22 +1,23 @@
-// packages/cdd-engine/src-next/contract/__tests__/pins-guard-closure.test.ts
-// P41 T5 — the PROVEN-closure reading and its ONE construction point (design spec
-// §1.4). Two faces, both pinned here:
+// packages/cdd-engine/src-next/contract/__tests__/closed-document.test.ts
+// The PROVEN-closure reading and its ONE construction point (design spec §1.4). Two
+// faces, both pinned here:
 //
-//   · `ForwardPaths#provenClosed` (through `PinAudit#provenClosed`): a phase
-//     inventory's two NAMED cells (`Design spec` · `Implementation plan`) each close a
-//     document, and the naming file name must resolve to EXACTLY one indexed document
-//     — zero hits and several hits prove nothing. The polarity is the opposite of the
-//     pin face's private `#closedBy` (whose dead rows read CLOSED), and the pairs below
-//     keep the two readings from collapsing into one;
-//   · the composition root's audit accessor: ONE audit per dispatch, asked by the
-//     shape gate's closure port AND the lifecycle's `contract.path` read-back, and
-//     never constructed on a dispatch that asks neither. The counting arms drive the
-//     real CLI — the accessor is not injectable, and a hand-composed seam would prove
-//     only that the test can memoize.
+//   · `ClosedDocument#closed`: a phase inventory's two NAMED cells (`Design spec` ·
+//     `Implementation plan`) each close a document, and the naming file name must
+//     resolve to EXACTLY one indexed document — zero hits and several hits prove
+//     nothing. The polarity was the pin face's private `#closedBy` reversed (its dead
+//     rows read CLOSED) — that face retired with the pin gate, and the pairs below keep
+//     this reading positive-only. The document set comes from `SlugIndex` (the command
+//     preamble's ONE identity scan), never from a second tree walk;
+//   · the composition root's closure accessor: ONE reader per dispatch, asked by the
+//     pre-flight closure port (the value `Contract.validate` receives) and — on a doc
+//     fix round — by the lifecycle's own doc gate, and never constructed on a dispatch
+//     that asks neither. The counting arms drive the real CLI — the accessor is not
+//     injectable, and a hand-composed seam would prove only that the test can memoize.
 //
-// The `PinAudit` mock records every construction and the two ask points while keeping
-// the production behavior (a subclass of the real gate), so the counts below observe
-// the wiring itself, not a re-implementation of it.
+// A lifecycle built WITHOUT the accessor owes no edit: its doc gate constructs the
+// reader over the rule plane's default index read, and the last arm pins that this
+// fallback expression answers the same closure as the injected one.
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -28,36 +29,33 @@ import { Cli } from "../../face/cli.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../../face/termination.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { ArtifactRegistry } from "../../session/round-artifacts.ts";
-import { PinAudit } from "../pins.ts";
+import { ClosedDocument } from "../closed-document.ts";
+import { identityIndexOf } from "../invariants.ts";
 
-/** The audit observations the mocked gate records — constructions and the two ask
- *  points (`provenClosed` is the closure port, `pathResolves` the read-back). */
-const auditLog = vi.hoisted(() => ({
-  builds: [] as string[],
-  provenClosed: [] as string[],
-  pathResolves: [] as string[],
+/** The closure observations the mocked reader records — constructions and the one ask
+ *  point (`closed` is the reading the shape gate's `Contract.validate` receives). */
+const closureLog = vi.hoisted(() => ({
+  builds: 0,
+  closed: [] as string[],
 }));
 
-vi.mock("../pins.ts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../pins.ts")>();
-  class RecordingAudit extends actual.PinAudit {
-    constructor(root: string) {
-      super(root);
-      auditLog.builds.push(root);
+vi.mock("../closed-document.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../closed-document.ts")>();
+  class RecordingClosedDocument extends actual.ClosedDocument {
+    constructor(index: ConstructorParameters<typeof actual.ClosedDocument>[0]) {
+      super(index);
+      closureLog.builds += 1;
     }
-    override provenClosed(rel: string): boolean {
-      auditLog.provenClosed.push(rel);
-      return super.provenClosed(rel);
-    }
-    override pathResolves(pinPath: string, judged: string | null): boolean {
-      auditLog.pathResolves.push(pinPath);
-      return super.pathResolves(pinPath, judged);
+    override closed(rel: string): boolean {
+      closureLog.closed.push(rel);
+      return super.closed(rel);
     }
   }
-  return { ...actual, PinAudit: RecordingAudit };
+  return { ...actual, ClosedDocument: RecordingClosedDocument };
 });
 
 /** One scratch repo — every fixture directory is removed after the file's cases. */
@@ -103,40 +101,64 @@ const closureFixture = (charter: string | null, planSlug = "x"): string => {
   return root;
 };
 
-describe("P41 T5 — `provenClosed` reads the two named cells and demands exactly one hit", () => {
+/** One reader over a fixture's own identity scan — the same construction the command
+ *  preamble makes. */
+const readerOf = (root: string): ClosedDocument => new ClosedDocument(SlugIndex.build(root));
+
+describe("P41 T5 — `closed` reads the two named cells and demands exactly one hit", () => {
   it("closes through EITHER named cell — the design cell alone, the plan cell alone", () => {
     // The design cell names the spec; the plan cell stays pending.
-    const designOnly = new PinAudit(
-      closureFixture(charterOf(doneCell("x-design.md"), "[Pending]")),
-    );
-    expect(designOnly.provenClosed(SPEC_REL)).toBe(true);
-    expect(designOnly.provenClosed(PLAN_REL)).toBe(false);
+    const designOnly = readerOf(closureFixture(charterOf(doneCell("x-design.md"), "[Pending]")));
+    expect(designOnly.closed(SPEC_REL)).toBe(true);
+    expect(designOnly.closed(PLAN_REL)).toBe(false);
 
     // The plan cell names the plan; the design cell stays pending — the opposite face of
     // the same registration, so a reading that only watched one cell would go red here.
-    const planOnly = new PinAudit(closureFixture(charterOf("[Pending]", doneCell("x.md"))));
-    expect(planOnly.provenClosed(PLAN_REL)).toBe(true);
-    expect(planOnly.provenClosed(SPEC_REL)).toBe(false);
+    const planOnly = readerOf(closureFixture(charterOf("[Pending]", doneCell("x.md"))));
+    expect(planOnly.closed(PLAN_REL)).toBe(true);
+    expect(planOnly.closed(SPEC_REL)).toBe(false);
   });
 
   it("closes both faces at once when both cells name their file", () => {
-    const both = new PinAudit(closureFixture(charterOf(doneCell("x-design.md"), doneCell("x.md"))));
-    expect(both.provenClosed(SPEC_REL)).toBe(true);
-    expect(both.provenClosed(PLAN_REL)).toBe(true);
+    const both = readerOf(closureFixture(charterOf(doneCell("x-design.md"), doneCell("x.md"))));
+    expect(both.closed(SPEC_REL)).toBe(true);
+    expect(both.closed(PLAN_REL)).toBe(true);
+  });
+
+  it("normalizes the judged path through the rule plane's ONE spelling — `./` and a trailing slash still close", () => {
+    const root = closureFixture(charterOf(doneCell("x-design.md"), "[Pending]"));
+    const reader = readerOf(root);
+    // The judged path carries prose the indexed entries never do: a leading `./` and a
+    // trailing slash are writing, not coordinates. A second normalizer inside the
+    // closure chain would be a second home for that rule, so the same document written
+    // three ways has to answer the same reading.
+    expect(reader.closed(`./${SPEC_REL}`)).toBe(true);
+    expect(reader.closed(`${SPEC_REL}/`)).toBe(true);
+    expect(reader.closed(`./${SPEC_REL}/`)).toBe(true);
   });
 
   it("proves nothing on zero hits or several hits", () => {
     // Zero: the cell names a document the tree does not hold.
-    const ghost = new PinAudit(closureFixture(charterOf(doneCell("ghost-design.md"), "[Pending]")));
-    expect(ghost.provenClosed(SPEC_REL)).toBe(false);
+    const ghost = readerOf(closureFixture(charterOf(doneCell("ghost-design.md"), "[Pending]")));
+    expect(ghost.closed(SPEC_REL)).toBe(false);
 
     // Several: two indexed documents share the base name, so the registration no longer
-    // identifies one document — the shape gate never inherits the pin face's tolerance.
+    // identifies one document — the shape gate never inherits the retired face's tolerance.
     const severalRoot = closureFixture(charterOf(doneCell("x-design.md"), "[Pending]"));
     write(severalRoot, "docs/kairos/plans/x-design.md", front("plan", "y"));
-    const several = new PinAudit(severalRoot);
-    expect(several.provenClosed(SPEC_REL)).toBe(false);
-    expect(several.provenClosed("docs/kairos/plans/x-design.md")).toBe(false);
+    const several = readerOf(severalRoot);
+    expect(several.closed(SPEC_REL)).toBe(false);
+    expect(several.closed("docs/kairos/plans/x-design.md")).toBe(false);
+  });
+
+  it("answers the same closure through the fallback index read — the un-injected construction", () => {
+    const root = closureFixture(charterOf(doneCell("x-design.md"), "[Pending]"));
+    // The lifecycle's fallback builds exactly this: the rule plane's default index read,
+    // no `JudgeContext` and no second `SlugIndex.build` literal of its own.
+    const fallback = new ClosedDocument(identityIndexOf(root));
+    expect(fallback.closed(SPEC_REL)).toBe(true);
+    // the pair: the same reader says the same thing about the unregistered face
+    expect(fallback.closed(PLAN_REL)).toBe(false);
   });
 });
 
@@ -146,7 +168,8 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// the ONE audit per dispatch — the composition root's accessor, driven by the real CLI
+// the ONE closure reading per dispatch — the composition root's accessor, driven by
+// the real CLI
 // ---------------------------------------------------------------------------
 
 /** The captured io of a CLI fixture. */
@@ -325,8 +348,9 @@ const specOf = (): string =>
     "| v1.0 | 2026-11-20 | init | [human] |",
   ].join("\n");
 
-/** A review draft whose one finding carries a `contract.path` (the read-back corpus's
- *  subject), so the audit's second ask point is exercised. */
+/** A review draft whose one WARN finding carries the optional repair anchor
+ *  (`contract.path` · `anchor`) — a non-blocking, schema-valid judge carrier, so the
+ *  review read-backs below judge a REAL draft. */
 const reviewDraft = (): Record<string, unknown> => ({
   findings: [
     {
@@ -341,8 +365,8 @@ const reviewDraft = (): Record<string, unknown> => ({
 /** The implement draft — a work carrier's declared status. */
 const implementDraft = (): Record<string, unknown> => ({ status: "APPROVED", artifacts: {} });
 
-describe("P41 T5 — one audit per dispatch, asked by the shape gate and the read-back", () => {
-  it("constructs no audit on a wave implement dispatch (work plane)", async () => {
+describe("P41 T5 — one closure reading per dispatch, asked by the shape gate", () => {
+  it("constructs no reader on a wave implement dispatch (work plane)", async () => {
     const runner = new DraftRunner();
     const fixture = cliFixture(runner);
     process.env.CLAUDE_CODE_SESSION_ID = "closure-fixture";
@@ -351,20 +375,20 @@ describe("P41 T5 — one audit per dispatch, asked by the shape gate and the rea
       write(fixture.repo, "docs/kairos/plans/p3.md", planOf());
       write(fixture.repo, "docs/kairos/specs/p3-design.md", front("phase-spec", "p3"));
       write(fixture.repo, "docs/kairos/specs/p3-overall.md", front("overall", "p3-overall"));
-      const before = auditLog.builds.length;
-      const closedBefore = auditLog.provenClosed.length;
+      const before = closureLog.builds;
+      const closedBefore = closureLog.closed.length;
       expect(await fixture.command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
-      // A work-plane round reads no pin and the wave face has no doc target: the
-      // closure port is never called, so no corpus scan is paid.
-      expect(auditLog.builds.length - before).toBe(0);
-      expect(auditLog.provenClosed.length - closedBefore).toBe(0);
+      // A work-plane round has no doc target: the closure port is never asked, so no
+      // doc scan is paid.
+      expect(closureLog.builds - before).toBe(0);
+      expect(closureLog.closed.length - closedBefore).toBe(0);
     } finally {
       delete process.env.CLAUDE_CODE_SESSION_ID;
       fixture.cleanup();
     }
   });
 
-  it("constructs exactly ONE audit on a review dispatch, whichever face asks", async () => {
+  it("constructs exactly ONE reader on a review dispatch, and that reading IS the contract argument", async () => {
     const runner = new DraftRunner();
     const fixture = cliFixture(runner);
     process.env.CLAUDE_CODE_SESSION_ID = "closure-fixture";
@@ -374,25 +398,23 @@ describe("P41 T5 — one audit per dispatch, asked by the shape gate and the rea
       // The spec's declared parent charter — a registered overall, so closure is
       // UNPROVEN here (not unprovable): the port is asked and answers false.
       write(fixture.repo, "docs/kairos/specs/x-overall.md", front("overall", "x-overall"));
-      const buildsBefore = auditLog.builds.length;
-      const closedBefore = auditLog.provenClosed.length;
-      const resolvesBefore = auditLog.pathResolves.length;
+      const buildsBefore = closureLog.builds;
+      const closedBefore = closureLog.closed.length;
       expect(
         await fixture.command.runArgv(["review", "--type", "phase-spec", "--spec", spec]),
       ).toBe(0);
-      // The doc gate asked the closure port and the read-back asked the resolution
-      // index — two askers, ONE construction: the composition root's accessor.
-      expect(auditLog.builds.length - buildsBefore).toBe(1);
-      expect(auditLog.provenClosed.length - closedBefore).toBe(1);
-      expect(auditLog.provenClosed.at(-1)).toBe("docs/kairos/specs/s1-design.md");
-      expect(auditLog.pathResolves.length - resolvesBefore).toBeGreaterThanOrEqual(1);
+      // ONE construction, ONE reading — the value the shape gate handed `Contract.validate`
+      // is the one this reader answered, on the judged document itself.
+      expect(closureLog.builds - buildsBefore).toBe(1);
+      expect(closureLog.closed.length - closedBefore).toBe(1);
+      expect(closureLog.closed.at(-1)).toBe("docs/kairos/specs/s1-design.md");
     } finally {
       delete process.env.CLAUDE_CODE_SESSION_ID;
       fixture.cleanup();
     }
   });
 
-  it("never asks the closure port on a wave review dispatch, and still takes the read-back audit once", async () => {
+  it("never asks the closure port on a wave review dispatch", async () => {
     const runner = new DraftRunner();
     const fixture = cliFixture(runner);
     process.env.CLAUDE_CODE_SESSION_ID = "closure-fixture";
@@ -415,15 +437,15 @@ describe("P41 T5 — one audit per dispatch, asked by the shape gate and the rea
         ]),
       ).toBe(0);
       expect(await fixture.command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
-      const buildsBefore = auditLog.builds.length;
-      const closedBefore = auditLog.provenClosed.length;
+      const buildsBefore = closureLog.builds;
+      const closedBefore = closureLog.closed.length;
       expect(
         await fixture.command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
-      // The judge plane always takes the read-back audit; the wave face has no doc
-      // target, so the closure port stays silent on the SAME dispatch.
-      expect(auditLog.builds.length - buildsBefore).toBe(1);
-      expect(auditLog.provenClosed.length - closedBefore).toBe(0);
+      // The wave face has no doc target, so neither the pre-flight closure port nor the
+      // lifecycle's doc gate asks: the reader is never constructed.
+      expect(closureLog.builds - buildsBefore).toBe(0);
+      expect(closureLog.closed.length - closedBefore).toBe(0);
     } finally {
       delete process.env.CLAUDE_CODE_SESSION_ID;
       fixture.cleanup();

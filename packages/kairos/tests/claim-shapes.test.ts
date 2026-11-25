@@ -15,7 +15,7 @@
 //   · twin — the two nodes' bullets are byte-identical (list indent included), so a
 //     reworded bullet in ONE node is red while rewording both is green;
 //   · mapping — a shape prefix resolves to a fixed rule-id set (`pin` → one, `count` →
-//     two, `narrative` → one), and that set is exactly what the line names.
+//     none, `narrative` → one), and that set is exactly what the line names.
 //
 // Zero module-level bare functions — the walkers are `const` arrows (the repository's
 // zero-`function`-declaration discipline).
@@ -42,10 +42,12 @@ const SHAPE_PREFIXES = ["pin", "count", "narrative"] as const;
 type ShapePrefix = (typeof SHAPE_PREFIXES)[number];
 
 /** shape → the rule ids its line MUST name, and the only ones it may name: `narrative`
- *  resolves to `line-coordinate` alone (the third shape row retired at P42 §8). */
+ *  resolves to `line-coordinate` alone (the third shape row retired at P42 §8), and
+ *  `count` resolves to none — the count row states a writing convention no gate judges,
+ *  so a rule id there would name a criterion the tree no longer carries. */
 const RULE_IDS_BY_SHAPE: Readonly<Record<ShapePrefix, readonly string[]>> = {
   pin: ["line-coordinate"],
-  count: ["measure-literal", "live-arithmetic"],
+  count: [],
   narrative: ["line-coordinate"],
 };
 
@@ -82,8 +84,8 @@ const shapesOf = (segment: string): readonly { shape: ShapePrefix; line: string 
   });
 
 /** The rule ids a line names — every backticked kebab-case token is a rule id (the
- *  vocabulary writes a row id that way), while the legal `census:<id> = <n>` form and a
- *  `path:line` / `- Modify: <path>` example are not. */
+ *  vocabulary writes a row id that way), while a `path:line` / `- Modify: <path>` example
+ *  is not. */
 const ruleIdsOf = (line: string): readonly string[] => {
   const ids = [...line.matchAll(/`([a-z]+(?:-[a-z]+)+)`/g)].map((match) => match[1] ?? "");
   return [...new Set(ids)];
@@ -124,11 +126,10 @@ test("each shape names exactly the rule ids its prefix maps to (the mapping arm)
   }
 });
 
-test("the count shape still states the legal form, not only its refusals", () => {
+test("the count shape states that no census registry exists", () => {
   const countLine = shapesOf(nodeText(SPEC_WRITER_SKILL, "author-spec")).find(
     (entry) => entry.shape === "count",
   )?.line;
   expect(countLine).toBeDefined();
-  expect(countLine).toContain("`census:<id> = <n>`");
-  expect(countLine).toContain("census registry");
+  expect(countLine).toContain("no census registry exists");
 });

@@ -122,6 +122,11 @@ export const ARGV_CHANNEL = {
     type: "bool",
     help: "expand the board's artifact inventory — one row per observed review round (a troubleshooting view, off by default)",
   },
+  notes: {
+    flag: "--notes",
+    type: "bool",
+    help: "expand the board's child-note bodies — the default prints the `notes +M` count alone (a troubleshooting view, off by default)",
+  },
   output: {
     flag: "--output",
     type: "enum",
@@ -319,7 +324,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     description:
       "render the progress board from a --plan or --spec entry (overall/phase-spec/single-spec/plan/wave/branch)",
     example: "cdd board --plan <path>",
-    keys: [{ key: "plan" }, { key: "spec" }, { key: "artifacts" }],
+    keys: [{ key: "plan" }, { key: "spec" }, { key: "artifacts" }, { key: "notes" }],
   },
   {
     name: "init",

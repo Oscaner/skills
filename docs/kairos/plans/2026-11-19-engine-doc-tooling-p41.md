@@ -15,7 +15,7 @@ base: develop
 - **消费面守恒**：退出码表 · `CDD_BLOCKED` 通道 · 既有拒绝报文的前缀与字段分隔符 · `next:` 字面逐字节不变；新增形态只有三种——`<rule id>: warned — <n> warning(s)` · `skipped (closed document)` · 一条 `details` 行。
 - **扫描面只读散文**：行内代码段与围栏块豁免；表格单元格照扫；引用块按行首 `>` 判定（不是树节点）。围栏跳过这一处定义住 `contract/pins.ts#PinSpans`，形状规则的散文行切分复用它，不起第二份判法。
 - 本文件的正文按它自己要落的规则书写：无行号坐标、无裸测量字面（计数写成中文数词或 `census:<id> = <n>`）、无挂符号的时序指示词。
-- **实现前窗口的预期红**：本 plan 是语料的一行，两处读数在实现面落地之前读红，且不随文档修正自愈——其一，`pins.guard.test.ts` 的零命中臂：指向尚未落地符号的 pin 由 `PinAudit` 照数（审计的跳过只覆盖 `Create:` 声明的**路径**，不覆盖符号名），最后一个声明符号随 Task 5 落地——窗口也在那一处闭合，因为未解析的四个 pin 名字（`skippedClosedDocument` · `provenClosed` · `PinAudit#provenClosed` · `ForwardPaths#provenClosed`）全由 Task 5 的 Files 声明，Task 5 之后读到这条红就只能是回归；其二，闭集 P37 对里 `census:pin.total` 的声明值随同一批符号（Task 5）落地，那几处 `= 0` 声明不属任何任务的改动面。两者是实现前的预期红，不是回归，各任务的 checkable 与 Acceptance 因此不把这两处纳进判据，两处之外的读数照判。
+- **实现前窗口的预期红**：本 plan 是语料的一行，一处读数在实现面落地之前读红，且不随文档修正自愈——`pins.guard.test.ts` 的零命中臂：指向尚未落地符号的 pin 由 `PinAudit` 照数（审计的跳过只覆盖 `Create:` 声明的**路径**，不覆盖符号名），最后一个声明符号随 Task 5 落地——窗口也在那一处闭合，因为未解析的四个 pin 名字（`skippedClosedDocument` · `provenClosed` · `PinAudit#provenClosed` · `ForwardPaths#provenClosed`）全由 Task 5 的 Files 声明，Task 5 之后读到这条红就只能是回归。这一处是实现前的预期红，不是回归，各任务的 checkable 与 Acceptance 因此不把它纳进判据，这一处之外的读数照判。
 - **窗口内不写测量值**：`census:criteria.rows` 的新值属判据行落地之后的形状，落地之前只以 `census:<id> = <n>` 的占位形态出现，本文件不写它的目标值。语料规模常量不在此列——它是判断，属同批义务，由 Task 1 复位的步骤持有。
 
 ### Task 1: 面图与严重度基座
@@ -463,7 +463,7 @@ expect(RULE_REGISTRY.filter((row) => row.severity === "warn")).toHaveLength(0);
 - 重锚登记：章程 `## Phase inventory` 的 P28 行验收格里那三条子串，第二条从 `pinned by the named guard` 换成新措辞里的 `census registry`，并写明该条由本相位重锚；另两条子串与既有三个 pin 一字不动；章程的 `## Change history` 记一行，front-matter 的 `version:` 随之 bump — checkable: 章程的 P28 行含 `census registry` 且不含 `pinned by the named guard`，另两条子串与 `typecheck` / `test command` / `Claimed→pin` 零 diff；章程历史表最新一行的版本号等于 front-matter 的 `version:`；`cdd review --type overall --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 判章程零拒绝
 - 写 changeset：两个包键各记 **minor**——`@oscaner-skills/cdd-engine` 与 `@oscaner-skills/kairos`：后者是本次交付的 kairos 一半（两个 skill 节点都在 `packages/kairos/` 下，`.changeset/README.md` 对那一侧的改动同样要求 changeset，只改 skill 散文的先例也是 kairos minor）；条目列出六条规则行 · 五档渲染词 · 一条 `details` 行 · `evidence` 键 · 侧车两键 · 拒绝报文一种 — checkable: `pnpm exec changeset status` exit 0——点错成工作区外的包名时它照红，而 `pnpm run version-sync` 只审包版本收敛、读不到 `.changeset/` 下的文件，故不作本步的判据（版本收敛由本任务的全量门覆盖，`validate` 内含 `version-sync`）；changeset 文件的最外层带这两个键，档位同为 `minor`，无 YAML 误写
 - 六条规则行的 `severity` 翻成 `"block"`，`skipWhenClosed: true` 不动；`rules-severity.test.ts` 的档位夹具与 Task 5 的五条渲染臂都建在经 `contract` 项注入的测试注册表上——判定盖章与渲染读的是同一条清单，故翻位不改这两条腿；同一批要改的是 `shape-rules.test.ts` 里那条档位断言、`it` 标题里的档位字面与 `describe` 标题（按改口后断言的事重写，文件头那句 `at landing` 按历史保留），并把终态断言写进 `rules-severity.test.ts`（两文件都已在 Files 列），两处的 `skipWhenClosed` 一臂一字不动 — checkable: `rules-severity.test.ts` 的终态断言为真（它是本步落地的——Task 1 建的文件里只有三条腿，无这一条）；`shape-rules.test.ts` 的 `describe` 标题含 `block` 与 `skip a closed document` 而不含 `land as`，`it` 标题读 `severity: block`，文件头那句 `all warn at landing` 零 diff；本步的 diff 只落 `rules.ts` 的六处档位、`shape-rules.test.ts` 的那三处字面与 `rules-severity.test.ts` 新增的那一条断言，`skill-anatomy.test.ts` 零 diff
-- 全量门 — checkable: `pnpm run validate` exit 0（两处预期红在窗口内各自转绿：语料规模常量在 Task 1 复位，pin 面的符号指针与 `census:pin.total` 随 Task 5 的最后一个声明符号落地；本任务只做翻位与消费面收口，不声明任何符号）
+- 全量门 — checkable: `pnpm run validate` exit 0（一处预期红在窗口内转绿：语料规模常量在 Task 1 复位；本任务只做翻位与消费面收口，不声明任何符号）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p41):` 起头
 
 #### Acceptance

@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -10,7 +10,7 @@ base: develop
 ## Constraints
 
 - 读 spec `2026-11-25-engine-doc-tooling-p39-design` v0.5 为唯一设计输入；本计划不重述它的判据，只落实施序。冲突时以 spec 为准并回填本计划。
-- 新树只写 `packages/cdd-engine/src/**`。旧树 `packages/cdd-engine/src-next/**` 在本相位**零改动**——除 §3.3 翻面那一波整棵删除之外，任何一步动它即为缺陷。
+- 新树只写 `packages/cdd-engine/src/**`。旧树 `packages/cdd-engine/src-next/**` 在本相位**零改动**——两个例外，除此之外任何一步动它即为缺陷：§3.3 翻面那一波整棵删除；以及 T1 退役 `zero-dep.test.ts` 的 `src` 腿（pin 的前提被 D104 取代，spec §Constraints 点名）。
 - 每波结束时两棵树各自的套件都绿，且 `src/` 侧的任务必须让测试随源码同片落地（`src/**/__tests__/**`）。只加源码不加测试的波不算一波。
 - 零裸函数（`check:no-bare-functions` 的扫描根在翻面时才换，但新树从第一波起就守它）；方法参数不超过四个，更多收成参数对象；类行数越限按 rule zero 在类头写一行理由。
 - 一类一句不变量，写在类注释第一行；四个一级切片与 `run/` 四段的入口类，把该片（段）的不变量原句放在那里（spec §1 · 验收 #5）。
@@ -29,6 +29,7 @@ base: develop
 - Create: `packages/cdd-engine/tsconfig.src.json`
 - Create: `packages/cdd-engine/src/bin.ts`
 - Create: `packages/cdd-engine/src/__tests__/tree-separation.test.ts`
+- Modify: `packages/cdd-engine/src-next/__tests__/zero-dep.test.ts`（仅退役 `RETIRED_PLANES` 的 `src` 腿）
 - Modify: `packages/cdd-engine/vitest.config.ts`
 - Modify: `package.json`
 
@@ -52,10 +53,11 @@ base: develop
 - 撤回 — checkable: 回到全绿，且这一次收集到的用例清单与埋断言之前那一次相等（两头各存一份清单比对；不把当天的读数字面写进判据，D103）
 - 写两条禁门断言 — checkable: 在 `src/` 的某个非测试文件里写一行 `import "../src-next/bin.ts"` 即红；反向（在 `src-next/` 非测试文件里 import `src/`）另造一次即红；两次撤回后绿
 - 把 `src` 加进零裸函数扫描根 — checkable: 在 `src/` 的非测试文件里写一行 `export function f() {}` ⇒ `pnpm run check:no-bare-functions` 红并点名该文件；撤回后绿
+- 退役 `src` 那一条腿 — checkable: 从 `RETIRED_PLANES` 移除 `"src"` 且保留 `"config"`；随后人为建一个包根的 `config` 目录 ⇒ 该 pin 仍红（证明 `config` 腿还活着），删掉即绿；同一文件里「`src-next` 内零说明符指向退役平面」那条断言不受影响（`pnpm -C packages/cdd-engine exec vitest run src-next/__tests__/zero-dep.test.ts` 绿）
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
-四条波次条件可红可回：编译面红一次、测试面红一次、禁门两向各红一次；撤回后 `pnpm run typecheck` 与 `pnpm -C packages/cdd-engine exec vitest run` 均绿且收集到的用例清单与埋断言之前相等；`src/bin.ts` 与 `tsconfig.src.json` 在树上；禁门的域是产品文件（`src/**` 与 `src-next/**` 各自去掉 `__tests__`），测试面不被这两个断言扫；零裸函数的扫描根已含 `src/`（在 `src/` 写一行裸函数即红，不等翻面）。
+四条波次条件可红可回（含 `zero-dep.test.ts` 的 `src` 腿退役后整棵引擎套件绿）：编译面红一次、测试面红一次、禁门两向各红一次；撤回后 `pnpm run typecheck` 与 `pnpm -C packages/cdd-engine exec vitest run` 均绿且收集到的用例清单与埋断言之前相等；`src/bin.ts` 与 `tsconfig.src.json` 在树上；禁门的域是产品文件（`src/**` 与 `src-next/**` 各自去掉 `__tests__`），测试面不被这两个断言扫；零裸函数的扫描根已含 `src/`（在 `src/` 写一行裸函数即红，不等翻面）。
 
 #### DependsOn
 none
@@ -813,3 +815,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | v0.5 | 2026-11-25 | docs-fix 轮二（F1–F7）落地：`TaskGraph`（旧 `session/graph.ts` 的四类边校验 · `batches()` · `frontier(done)`）落 T9 的 `docs/judging/task-graph.ts`，带「波宽只此一处派生」与「表与族同住」两条 pin——T11 的 `graph` 腿经注入的 plan read 读它的失败集，T13 的波次前沿改读它的 `batches()` 与 `frontier(done)`（T7 与 T9 同波且无边，新增任务属编排者写权，故落 T9）；对账器改三态口径 GAP · 差异 · 缺格，逐波只断言已接线格零差异与 GAP 集合同名册一致，「GAP 集合为空」归 T17，T9 / T15 / T16 的 `tests/parity` 命令随之同口径；T17 补 `src/__tests__/smoke.integration.test.ts`（真子进程 · `--help` 与 `--dry-run` 五类行），T18 的 `scripts.smoke` 改为改指并以「收集到且 exit 0」为判据；T15 补 `surface/render/route.ts` 作为 `next:` 的唯一拼装点并加单点拼装 pin；T1 把 `src` 加进零裸函数扫描根并加可红判据，T18 只去掉旧树那一段；T14 补 `ISSUE_TYPES` 与 `Words` 两个导出，T18 的改指清单与 kairos 测试面措辞同批补齐；T2 的 `GRID-WIRING.md` 进 Files，阻断面按格拆成一格一个接线任务；T18 补六份图源一步与 `scripts/lib/scan.ts` 注释一处 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.6 | 2026-11-25 | **编排者的结构变更（`DependsOn` 集归编排者）**：计划评审轮三（F3）指出 T15 的 `next:` 单点拼装以 T13 的 `NextHop` 为输入，而两者被声明为互不依赖——`run/advance` 又不许 import `surface`，hop 类型只能来自 T13，故这条边真实存在、只是漏了。补 `T13 → T15` 后重算：19 任务 / 13 波（宽 1·3·2·3·1·1·2·1·1·1·1·1·1），无环、无悬挂边。其余四条（`ClosedDocument` / `PathShape` 无落点 · T9 的波宽 pin 指到 T10 的表 · `tsconfig.build.json` 的 `exclude` · 四处注释里的旧树字面）是内容面，交 fix 轮 | Oscaner M. · Claude（kairos:cdd-plan 编排者 · 2026-11-25） |
 | v0.7 | 2026-11-25 | docs-fix 轮三（F1 · F2 · F4 · F5；F3 已由编排者在 v0.6 补边）：`ClosedDocument` 与 `PathShape` 各得一条 Files 行并落 `docs/judging/`（`closure.ts` · `shape-rules.ts`）——闭包读是 `judge` 的闭包入参、`checked:` 面让位行（T11）与派发那一次读（T12）的唯一算处，T4 的 Consumes 遂删去它；T2 名册「站名与让位条件」那一格仍只挂 T11 一个接线任务并点名读值来源；T9 的波宽 pin 改成「`TaskGraph#batches()` 的批宽超 `MAX_TASKS_PER_WAVE` ⇒ 该批被点名」，规则 id 的成对夹具归 T10；T18 的编译面补齐 `tsconfig.build.json#exclude`（含 `dist/` 无 `__tests__` 的 checkable），树外测试面补注释清理与 `grep` 零命中判据，Files 里重复的 `package.json` 并成一行；T5 / T12 的锁持有者措辞与 T5 的 Produces 对齐。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.8 | 2026-11-25 | 开发期漂移回填（第一波 implement 撞出 · 编排者落地）：旧树 `src-next/__tests__/zero-dep.test.ts` 的 cutover 终态 pin 要求 `src` 平面不在包根，与本相位在 `src/` 重建正面冲突，导致第一波无法让引擎套件转绿（那套件里唯一红点）。Constraints 的「旧树零改动」补第二个例外，T1 的 Files 收下该文件、Steps 补一条只退役 `src` 腿的可红步骤（`config` 腿留活），Acceptance 收口到整棵引擎套件绿 | Oscaner M. · Claude（kairos:cdd-dev 编排器回填 · 2026-11-25） |

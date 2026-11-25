@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -183,6 +183,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 - 文档里写条件不写快照：不写行号坐标，不把今天的读数字面当判据（D103：代理型判据不设）。
 - 测试与源码同片；旧测试随旧树删除，不搬运、不押「一字不改」。
 - `packages/kairos/` 的发布面（`skills/**` 与生成物）本相位零字节改动；引擎 import 的测试文件（`packages/kairos/tests/` 的 8 个文件）随翻面改指 `src/`，因此 changeset 仍只有 `cdd-engine` 一包。
+- 旧树的测试面有一处 pin 与本相位的前提正面冲突，必须动它：`src-next/__tests__/zero-dep.test.ts` 的 cutover 终态 pin 断言退役平面 `RETIRED_PLANES`（`src` 与 `config`）都不在包根——那是上一个 cutover 留下的终态，而本相位按 D104 正是要在 `src/` 重建。**作废只及 `src` 那一条腿**：`config` 腿保留，该文件里「`src-next` 内零模块说明符指向退役平面」那条断言也保留。这是本相位唯一被允许动旧树的地方，与第一波同批落地并在计划里点名。它不是「为了消红改测试」：pin 的前提被设计取代，处置形态同 D101 对 pin 门整条退役的那一判。
 - 轮次的写权边界：一轮只写它的 findings 点名的文档（自己的目标文档 + finding 画面内的代码文件），父宪章与兄弟文档由编排器回填（既有 `cl:own-document` 条款）。
 - 每波结束时两棵树各自的套件都绿，且 `src/` 侧的波次必须让它的测试随片落地——空波（只加代码不加测试）不算一波。
 
@@ -195,3 +196,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.3 | 2026-11-25 | 评审轮二（F1–F6）落地：四 mode 名册改锚 `render/templates.ts#WORK_MODES`，prompt 分 `TEMPLATE_PROMPT.modes` 与 `TEMPLATE_PROMPT.reviews` 两带 · review prompt 面改按 `render/templates.ts#REVIEW_VARIANTS` 的每 `TargetType` 一行，`ReviewKind` 只留作 criteria body 词表 · 在飞一族改述为记录侧三种判定 kind 与 `checked:` 面词行两个口径 · 对账器的执行面落地（引擎 vitest include 加 `tests/parity`、独立 tsconfig 工程挂进根 `typecheck`，翻面同批删除）· 能力清单 #6 / #7 / #8 逐项补 pin · D95 注册日与 2026-11-18 重测读数分开写 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.4 | 2026-11-25 | 评审轮三（F1–F4）落地：翻面的手维护文档清单补齐 `README.zh-CN.md` 与 `packages/cdd-engine/README.zh-CN.md` 两份镜像（§3.3 · §3.4 · Acceptance #4）· 语料面写实为旧测试的整个夹具面，非树输入（`init` 的 PATH 替身与注入 runner、`issue render` 的 stdin JSON、骨架的注入日期）一并点名，§5 的禁令限定为「不超过旧测试已带的臂」· 形状规则改 pin `contract/rules.ts#RULE_REGISTRY`，路径文法作它消费的对象（§1.2 · §2.1 #6）· `src/` 测试 include 的家与波次写实，编译臂配一条测试臂（§3.2） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.5 | 2026-11-25 | 评审轮四（F1）落地：§2.3 补上骨架 `date:` 行的钉法——日期只从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面取自系统时钟且无旗标 / 环境变量 / 夹具缝可达，故四族骨架按装配器入口在进程内同传一个冻结日期驱动两棵树，`date:` 行逐字节比而不屏蔽，需真起进程的格产出的字节不含日期 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.6 | 2026-11-25 | 开发期漂移回填（第一波 implement 撞出）：旧树的 cutover 终态 pin `src-next/__tests__/zero-dep.test.ts` 断言退役平面 `src` 与 `config` 不在包根，而本相位按 D104 在 `src/` 重建。Constraints 补一条把作废面收窄到 `src` 那一条腿（`config` 腿与零说明符断言保留），并声明它是本相位唯一被允许的旧树改动、与第一波同批落地 | Oscaner M. · Claude（kairos:cdd-dev 编排器回填 · 2026-11-25） |

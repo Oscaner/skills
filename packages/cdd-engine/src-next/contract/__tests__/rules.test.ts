@@ -155,7 +155,6 @@ const SEATS: Readonly<Record<string, readonly string[]>> = {
   "phase-design-spec-is-phase-spec": ["dispatch", "close"],
   "line-coordinate": ["dispatch", "close"],
   "live-arithmetic": ["dispatch", "close"],
-  "single-home": ["dispatch", "close"],
   "change-history-date-shape": ["dispatch", "close"],
   "closed-wave-fits-depends-on-layers": ["ledger"],
   "planned-tasks-vs-recorded-tasks": ["ledger"],

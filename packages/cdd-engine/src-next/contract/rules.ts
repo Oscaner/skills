@@ -60,7 +60,6 @@ import {
   SectionScopedDomainInvariant,
   SiblingScanInvariant,
   SingleCreateInvariant,
-  SingleHomeInvariant,
   SlugRefInvariant,
   TaskIdUniqueInvariant,
   WaveWidthInvariant,
@@ -118,11 +117,11 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): FindingDraft[];
 }
 
-/** The rule registry — doc scope 32 rows + ledger scope 2 rows = 34. The shape rows
- *  (the variable classes · single-home · the record face's date shape) are P41's
- *  additions; they land at `block` beside the pre-existing block rows, the flip from
- *  their transitional `warn` being the phase's own last action. The roster of shape
- *  rows, and which row carries which arm, lives in the phase spec's §4.2 — never here.
+/** The rule registry — doc scope 31 rows + ledger scope 2 rows = 33. The shape rows
+ *  (the variable classes · the record face's date shape) are P41's additions; they
+ *  land at `block` beside the pre-existing block rows, the flip from their
+ *  transitional `warn` being the phase's own last action. The roster of shape rows,
+ *  and which row carries which arm, lives in the phase spec's §4.2 — never here.
  *  P42 adds four: `single-create` (the declaration set), the two task-graph judgments
  *  (`dangling-task-ref` · `depends-on-cycle`) and the Change-history order row
  *  (`change-history-newest-last`) — all four at `warn` until the phase's own flip.
@@ -412,15 +411,6 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     seat: ["dispatch", "close"],
     skipWhenClosed: true,
     create: () => new LiveArithmeticInvariant(),
-  },
-  {
-    scope: "doc",
-    id: "single-home",
-    docKeys: "all",
-    severity: "block",
-    seat: ["dispatch", "close"],
-    skipWhenClosed: true,
-    create: () => new SingleHomeInvariant(),
   },
   {
     scope: "doc",

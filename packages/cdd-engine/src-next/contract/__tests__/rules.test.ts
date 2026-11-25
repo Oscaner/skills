@@ -10,7 +10,7 @@
 // final pin keeps the rule plane free of session imports — the width fact arrives
 // through `JudgeContext.taskLayers`, never a second `batches()` derivation.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -37,6 +37,11 @@ const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  *  path to red by construction, so its counts are pinned by a COMPUTED comparison
  *  against the table's own lengths rather than a literal grep (P42 §3.2). */
 const RULES_SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "rules.ts");
+
+/** The two source planes the retired-rule scan reads (spec P44 §8.2) — the `contract/`
+ *  directory this suite lives in, and its sibling `face/`. */
+const CONTRACT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const FACE_DIR = path.resolve(CONTRACT_DIR, "..", "face");
 
 /** The P30/P31 change-history hardening ids — the row-shape, header-newest and
  *  header-column-set legs the lineage family gained (the ledger count above follows
@@ -310,5 +315,80 @@ describe("the contract rule plane", () => {
         /from "\.\.\/session\//,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the retired rule's zero residue — `single-home` on the source plane
+// ---------------------------------------------------------------------------
+
+/** The retired rule's id — the kebab spelling only. The prose uses (`single-homed`,
+ *  "one home") are ordinary English and stay outside the pattern, as they are outside
+ *  the rule set. */
+const RETIRED_RULE_ID = "single-home";
+
+/** The pattern's hit count in one text — the pin's ONE reading. A word-boundary match:
+ *  the retired id is the kebab spelling, while `single-homed` / "one home" are ordinary
+ *  English (spec P44 §8.2 keeps them outside the pattern). */
+const hitCountOf = (text: string): number =>
+  (text.match(/(?<![\w-])single-home(?![\w-])/g) ?? []).length;
+
+/** Every non-test `.ts` file of one source plane (bounded: the explicit directory).
+ *  `__tests__` is skipped — a test names the id to assert its ABSENCE, which is a
+ *  pin's normal shape, never a residue. */
+const sourceFilesOf = (dir: string): string[] => {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "__tests__") continue;
+      out.push(...sourceFilesOf(full));
+      continue;
+    }
+    if (entry.name.endsWith(".ts")) out.push(full);
+  }
+  return out;
+};
+
+describe("`single-home`'s zero residue on the source plane", () => {
+  /** The scan surface (spec P44 §8.2): the two planes a roster restatement could live
+   *  in. The docs are the orchestrator's registration face, never this scan's. */
+  const SURFACE = [...sourceFilesOf(CONTRACT_DIR), ...sourceFilesOf(FACE_DIR)];
+
+  it("carries the retired rule id nowhere on the contract and face source planes", () => {
+    const hits = SURFACE.filter((file) => hitCountOf(readFileSync(file, "utf8")) > 0);
+    expect(hits, "the retired rule id is restated on the source plane").toEqual([]);
+    // The pair: the same reading over a row that NAMES the id is red, so the empty
+    // list above is a fact about the tree rather than a vacuous scan. Writing the id
+    // back into any declaration row is exactly what this pin refuses.
+    expect(hitCountOf(`    id: "${RETIRED_RULE_ID}",`)).toBe(1);
+    // …and the prose uses stay outside the pattern: they are English, not the rule.
+    expect(hitCountOf("Edge judgment is single-homed here")).toBe(0);
+  });
+
+  it("keeps the id out of the registry — the rule set is read from the table, never a second list", () => {
+    expect(RULE_REGISTRY.map((row) => row.id)).not.toContain(RETIRED_RULE_ID);
+  });
+
+  /** The registry comment's shape-roster parenthetical — its prose roster of the shape
+   *  rows' families. The roster is named in ONE place (the P43 spec §4.2 sentence), and
+   *  this comment describes the families in prose; a rule ID written back into it would
+   *  be a second roster. */
+  const rosterParentheticalOf = (source: string): string | null =>
+    /the shape rows[\s*]*\(([^)]*)\)/i.exec(source)?.[1] ?? null;
+
+  it("keeps the registry comment's roster parenthetical free of rule ids", () => {
+    const roster = rosterParentheticalOf(readFileSync(RULES_SOURCE, "utf8"));
+    expect(roster).not.toBeNull();
+    // The ids come from the table, never from a second hand-written list.
+    for (const row of RULE_REGISTRY) {
+      expect(roster, row.id).not.toContain(row.id);
+    }
+    // The pair: a roster parenthetical that NAMES a row is red — the reading above is
+    // a fact about the comment's bytes, not a scan that cannot fire.
+    const planted = rosterParentheticalOf(
+      `The shape rows (the variable classes · ${RETIRED_RULE_ID}) are P41's additions`,
+    );
+    expect(planted).toContain(RETIRED_RULE_ID);
   });
 });

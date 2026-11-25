@@ -335,11 +335,10 @@ export class Cli {
   /** The contract coordinator — the doc-contract judgment face the pre-flight's
    *  doc gate reads (the single interpreter entry; spec §12 · D34 retired the
    *  filename→type derivation — the doc type is now the declared header fact read
-   *  through BoardView.readDocType). Its instance carries the judgment strategies' own
-   *  state (the `single-home` right-domain corpus, per workspace root), so the command
-   *  boundary REBUILDS it: a corpus list carried across commands would answer from a
-   *  snapshot taken before this command's writes. */
-  #contract: Contract;
+   *  through BoardView.readDocType). Every field it holds is derived from the declared
+   *  rule table at CONSTRUCTION time and read-only afterwards, so the command boundary
+   *  does NOT rebuild it: a fresh instance would judge the same table the same way. */
+  readonly #contract: Contract;
   /** The commander command tree — the declaration projection (CommandTreeBuilder,
    *  face/projection.ts): the domain-run error face's usage byte is the command
    *  node's commander-native helpInformation() first line (the self-built usage
@@ -462,10 +461,14 @@ export class Cli {
   /** The command boundary — the ONE invalidation point of every snapshot a command
    *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
    *  per-root memos (`#index` · `#closed` · the production pre-flight, whose closure
-   *  port closes over `#closed`) and the judgment instance's own right-domain
-   *  corpus are dropped here, so the next invocation re-scans. A memo carried across
-   *  commands would answer from a snapshot taken before the documents this command
-   *  writes or observes — the `✔ Done` cell of the judged document included.
+   *  port closes over `#closed`) are dropped here, so the next invocation re-scans. A
+   *  memo carried across commands would answer from a snapshot taken before the
+   *  documents this command writes or observes — the `✔ Done` cell of the judged
+   *  document included.
+   *
+   *  The contract coordinator is NOT rebuilt here: every field it holds is derived from
+   *  the declared rule table at construction time and read-only afterwards, so a fresh
+   *  instance would judge the same table the same way.
    *
    *  The memos stay keyed on the repo root (one `Cli` may serve several fixtures), and
    *  the invalidation lives here rather than in a `#...Root` companion every seam has
@@ -474,9 +477,6 @@ export class Cli {
     this.#index.reset();
     this.#closed.reset();
     this.#preflight.reset();
-    // The strategies hold their own state (the `single-home` corpus per root); a fresh
-    // judgment instance is the whole reset, and its construction reads no file.
-    this.#contract = new Contract();
   }
 
   /** The exit-code discriminator — the CommanderError surface (§3.1): the explicit

@@ -1,10 +1,9 @@
 // packages/cdd-engine/src-next/__tests__/support/memory-fs.ts
 // The test-side `DocFs` — an in-memory corpus the caller owns, keyed by absolute path.
-// Three contract fixtures need a right domain the test itself writes (P41 T4's
-// single-home pairs, P41 T7's charter fixture, P43 T9's selector matrix): each injects
-// this seam, so no judgment reads `docs/kairos/**` on disk. One implementation, one
-// home — a second hand-written double would drift from this one on the `list` contract
-// below.
+// Two contract fixtures need a right domain the test itself writes (P41 T7's charter
+// fixture, P43 T9's selector matrix): each injects this seam, so no judgment reads
+// `docs/kairos/**` on disk. One implementation, one home — a second hand-written double
+// would drift from this one on the `list` contract below.
 //
 // `list` answers the immediate child NAMES under a directory (never paths), the shape
 // `DocFs.list` promises, and only the files the corpus actually carries.

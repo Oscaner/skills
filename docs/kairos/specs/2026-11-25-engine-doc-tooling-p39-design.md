@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -10,7 +10,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 ## Design
 
-病在对象划分，不在文件位置。相位开场当日的读数是这句判断的证据：跨面 import 202 条，其中 **8 对面序双向成环**（`face⇄session` 57/3 · `face⇄infra` 30/2 · `face⇄contract` 29/1 · `session⇄infra` 23/2 · `session⇄contract` 17/3 · `face⇄render` 9/3 · `contract⇄infra` 8/6 · `session⇄render` 1/1）；49 个文件超 200 行，20 个超 500 行；全树 35,125 行分在 84 个非测试文件里（口径：`src-next/**` 非测试 `.ts` 的相对路径 import 逐条计 + `wc -l`；这是相位开场当日的快照，不是判据）。注册当日（D95，2026-11-18）的读数是 177 条 / 44 个 / 21 个——跨面边与超 200 行的文件数继续增长，而搬文件从未发生。
+病在对象划分，不在文件位置。相位开场当日的读数是这句判断的证据：跨面 import 202 条，其中 **8 对面序双向成环**（`face⇄session` 57/3 · `face⇄infra` 30/2 · `face⇄contract` 29/1 · `session⇄infra` 23/2 · `session⇄contract` 17/3 · `face⇄render` 9/3 · `contract⇄infra` 8/6 · `session⇄render` 1/1）；49 个文件超 200 行，20 个超 500 行；全树 35,125 行分在 84 个非测试文件里（口径：`src-next/**` 非测试 `.ts` 的相对路径 import 逐条计 + `wc -l`；这是相位开场当日的快照，不是判据）。D95 注册于 2026-11-16，177 条 / 44 个 / 21 个是 2026-11-18 的重测读数（宪章 D95 行口径：与注册当日读数并列时以重测日期为准）——跨面边与超 200 行的文件数继续增长，而搬文件从未发生。
 
 环不是路径造成的：`face` 与 `session` 各有 57 与 3 条边互指，是因为两边都在判「这一轮是什么状态」；`contract` 与 `infra` 互指，是因为拼写矩阵一头是判据一头是路径。把文件按层级挪一遍，这两处仍然互指——只是从两个目录互指变成两个子目录互指。所以本相位**不搬文件**：在新 `src/` 里按对象重新推导地复刻一遍，能力与消费者字节保真，对象与测试全部重新推导。
 
@@ -59,7 +59,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 三段：
 
 - `commands/` — 八条命令薄壳 + CLI 声明（动词 · 旗标 · 值域）。**薄壳判据不是行数是三件事**：取参 · 调 `run/` 或 `docs/` 的一个入口 · 原样输出；零判定、零文件 IO、零字符串拼装。超过约四十行（含类声明与 import）说明判定漏进了壳里。
-- `words/` — 唯一词表：阻断措辞 · 拒绝站名 · in-flight 四态 · capsule 槽 · 板面 token。第二份拷贝是漂移，不是并存实现。
+- `words/` — 唯一词表：阻断措辞 · 拒绝站名 · 在飞状态词 · capsule 槽 · 板面 token。在飞这一族有两个口径，别读成一个：记录侧是 `session/inflight.ts#InFlightState` 的三种判定 kind（absent · held · corrupt），`checked:` 面印出的是 `face/words.ts#CAPSULE_WORDS` 的 `checked.inFlight` 行集，corrupt 在有锁与无锁下各一行。第二份拷贝是漂移，不是并存实现。
 - `render/` — 模板与 prompt 字节 · 胶囊 · 板面 · 图 · 预览 · issue body · brief。
 
 **入口**：`surface/index.ts` 的 `Cli`，一条 `run(argv)`。**它不知道** 一条判定为什么成立——它只印别人算好的事实。
@@ -81,13 +81,13 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 「能力齐全」按这八组点名，每组的行为都是复刻对象，缺一即不齐。每条能力带一个**今日树的 pin**（模块路径 + 符号名，不写行号）：pin 只用于定位，验收形态是**条件**——旧树在翻面时整棵删除（§3.3），所以 pin 不住在验收里，住在「这条能力在新树上仍能按条件判红」这一句里。
 
 1. **八条命令**：implement · review · fix · base · schema · issue · board · init，各带自己的旗标、值域与退出码（pin：`face/declare.ts#CliVerb`）。
-2. **轮次机械**：implement / review / fix / docs-fix 四 mode 的派发（pin：`render/templates.ts#MODE_PROMPTS` 的键集）· 草稿读取与结论判定 · 轮次身份与续号 · cycle 与 attempt 的消费规则 · 波行闭合。
+2. **轮次机械**：implement / review / fix / docs-fix 四 mode 的派发（mode 名册 pin：`render/templates.ts#WORK_MODES`；prompt 行分两带，`TEMPLATE_PROMPT.modes` 与 `TEMPLATE_PROMPT.reviews`）· 草稿读取与结论判定 · 轮次身份与续号 · cycle 与 attempt 的消费规则 · 波行闭合。
 3. **账本与前沿**：波行 · 文档评审行 · 分支线 · 闭合判定 · 文档被轮外改动后的重开 · `next:` 与 `reason:` 的六格装配（pin：`session/next.ts#Route`）。
 4. **门**：结构腿的九行（pin：`session/preflight.ts#PreFlightGateName`）· 轮内四门并入后的行集 · 拒绝事实的树级存放与两个到期触发点（pin：`session/refusal.ts#PreFlightRefusal` · `#RefusalState`）· 接手授权（三条 leg 各自的授权条件）。
-5. **在飞与终止**：in-flight 记录的建立与释放 · 四态判定 · 预算与 stall 判官 · 终止面的三档结论（pin：`session/ledger.ts#TerminationCause`）。
-6. **文档契约**：四类文档的身份与登记表（pin：`contract/declare.ts#DocType` · `#ElementRegistry` · `#DocFace`）· 判据与选择器 · 形状规则 · 完成判据 · 波宽（pin：`contract/wave-width.ts#MAX_TASKS_PER_WAVE`）· 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`）。
-7. **表达**：prompt 字节 · 胶囊（pin：`face/capsule.ts#Capsule.emit`）· 板面两态 · 预览 · 图 · issue body · brief。
-8. **环境**：路径基准与文档根 · workspace 布局与原子写 · 锁 · git 读 · 宿主探测 · init 与 plugins 的安装更新序列。
+5. **在飞与终止**：in-flight 记录的建立与释放 · 记录侧判定（pin：`session/inflight.ts#InFlightState`，三种 kind：absent · held · corrupt）与它在 `checked:` 面印出的词行（pin：`face/words.ts#CAPSULE_WORDS` 的 `checked.inFlight` 行集，corrupt 按有锁 / 无锁两行）· 预算与 stall 判官 · 终止面的三档结论（pin：`session/ledger.ts#TerminationCause`）。
+6. **文档契约**：四类文档的身份与登记表（pin：`contract/declare.ts#DocType` · `#ElementRegistry` · `#DocFace`）· 判据与选择器（pin：`contract/selector-engine.ts#SelectorEngine` · `contract/rules.ts#RULE_REGISTRY`）· 形状规则（pin：`contract/shape-rules.ts#PathShape`）· 完成判据（pin：`contract/completion-criterion.ts#CompletionCriteria`）· 波宽（pin：`contract/wave-width.ts#MAX_TASKS_PER_WAVE`）· 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`；名册取自 `render/skeleton.ts#SkeletonAssembler#compose` 的分支集）。
+7. **表达**：prompt 字节（pin：`render/templates.ts#TEMPLATE_PROMPT`）· 胶囊（pin：`face/capsule.ts#Capsule.emit`）· 板面两态（pin：`face/board-view.ts#BoardView`）· 预览（pin：`face/preview.ts#Preview`）· 图（pin：`scripts/lib/diagrams.ts#DiagramProducts`，emit 侧渲染）· issue body（pin：`render/issue-body.ts#IssueBodyRenderer`）· brief（pin：`render/brief.ts#BriefRenderer`）。
+8. **环境**：路径基准与文档根（pin：`infra/root.ts#RepoRoot` · `infra/doc-roots.ts#ENGINE_DOC_ROOTS`）· workspace 布局与原子写（pin：`infra/workspace.ts#Workspace` · `infra/atomic.ts#AtomicWriter`）· 锁（pin：`session/inflight.ts#InFlight`，今天 `proper-lockfile` 的唯一持有者）· git 读（pin：`infra/git.ts#GitClient`）· 宿主探测（pin：`infra/proc.ts#ProcessFacts` · `infra/runtime.ts#ENGINE_RUNTIME`）· init 与 plugins 的安装更新序列（pin：`face/init.ts#CliInit` · `face/plugins.ts#PLUGINS`）。
 
 #### 2.2 冻结的八个面
 
@@ -96,7 +96,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 1. 八条命令的 stdout、stderr 与退出码（含正常、拒绝、失败三条路）。
 2. `--help` 与 usage 形面，以及错用时的退出码 2。
 3. `schema get` 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`）的字节——`--output skeleton` 对四族都合法，名册取自 `render/skeleton.ts#SkeletonAssembler#compose`，不是散在散文里的计数。
-4. 四个 mode（implement · review · fix · docs-fix，即 `render/templates.ts#MODE_PROMPTS` 的键集——`base` 是纯产物命令，没有孩子也没有模板行；`docs-fix` 才是 spec / plan / overall 上每一次文档修复轮的派发面）与五种 review kind（`contract/review-criteria.ts#ReviewKind`）的 prompt 字节——**包含模板契约的 `$version` 不变**：重建不改提示字节，因而不递增。这一条最容易在实现时被当成「顺手升一版」，它是错的。
+4. 四个 mode（implement · review · fix · docs-fix，名册即 `render/templates.ts#WORK_MODES`）与 review 全族的 prompt 字节——**包含模板契约的 `$version` 不变**：重建不改提示字节，因而不递增。这一条最容易在实现时被当成「顺手升一版」，它是错的。prompt 行分两带，对齐格按带逐行取、不写字面计数：`TEMPLATE_PROMPT.modes` 按 `WorkModeRowKey` 收 implement · fix · docs-fix（review 不在此带），`TEMPLATE_PROMPT.reviews` 是 `render/templates.ts#REVIEW_VARIANTS` 的每 `TargetType` 一行。review 字节按目标类型分，不按 `ReviewKind` 分：`ReviewKind` 是评审判据体（criteria body）的词表（`contract/review-criteria.ts#ReviewKind`），而 `**Criteria — <type>:**` 这一行插的是目标类型，`spec` 这一个 kind 因此盖住 phase-spec 与 single-spec 两行，两行字节不同——按 kind 冻结会漏掉其中一行。`base` 是纯产物命令，没有孩子也没有模板行；`docs-fix` 才是 spec / plan / overall 上每一次文档修复轮的派发面。
 5. 胶囊字节（`status · handoff` 两槽，`face/capsule.ts#Capsule.emit`）。
 6. 板面输出，含 `--notes` 未展与展开两态。
 7. `--dry-run` 的预览块。
@@ -104,7 +104,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 2.3 语料：取旧测试的夹具，丢旧测试的断言
 
-语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。七种形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合。对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。
+语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。七种形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合。对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。这个家今天不被任何工程收集——引擎的 vitest include 是 `src-next/**/__tests__/**/*.test.ts`，引擎 `tsconfig.json` 只含 `src-next`，根 `typecheck` 链也只点名三个既有工程——所以落对账器的那一波必须同批把 `tests/parity/**/*.test.ts` 加进 `packages/cdd-engine/vitest.config.ts` 的 include，为 `packages/cdd-engine/tests/parity` 建一份自己的 tsconfig 工程并同批挂进根 `typecheck` 链；执行它的命令是 `pnpm -C packages/cdd-engine exec vitest run tests/parity`。翻面（§3.3）同批删掉这处 include 与该工程——它们与对账器同生同死。
 
 #### 2.4 对账器只在测试面
 
@@ -128,7 +128,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 3.3 翻面是一波之内的原子动作
 
-一次翻面，顺序固定：编译面指向 `src/`（tsconfig 系）→ 测试 include 指向 `src/` → 树外测试面改指新树（`packages/kairos/tests/` 的 8 个文件 15 条 import · `scripts/__tests__/` 的两个孪生 `next-loop-twin` 与 `journey-twin` 及其路径常量 · `package.json#scripts.precommit` 的三条 `src-next/**` 守卫路径）→ `package.json` 的 smoke 脚本指向新树 → `check:no-bare-functions` 的扫描根换成 `src/` → 六份图源改真 → 手维护文档改指新入口（`README.md` · `packages/cdd-engine/README.md` · `AGENTS.md`）→ 删除整棵 `src-next/` 与它的测试 → `pnpm run emit` 重生图 HTML → `pnpm run validate` 与 `check:dist-smoke` 全绿。
+一次翻面，顺序固定：编译面指向 `src/`（tsconfig 系）→ 测试 include 指向 `src/`，同批删掉 `tests/parity` 的 include 与它的 tsconfig 工程 → 树外测试面改指新树（`packages/kairos/tests/` 的 8 个文件 15 条 import · `scripts/__tests__/` 的两个孪生 `next-loop-twin` 与 `journey-twin` 及其路径常量 · `package.json#scripts.precommit` 的三条 `src-next/**` 守卫路径）→ `package.json` 的 smoke 脚本指向新树 → `check:no-bare-functions` 的扫描根换成 `src/` → 六份图源改真 → 手维护文档改指新入口（`README.md` · `packages/cdd-engine/README.md` · `AGENTS.md`）→ 删除整棵 `src-next/` 与它的测试 → `pnpm run emit` 重生图 HTML → `pnpm run validate` 与 `check:dist-smoke` 全绿。
 
 翻面之后 `dist/` 由新树产出，`check:dist-smoke` 是这一步的唯一证明——它跑的是编译产物，而测试跑的是源码；源码接受而产物不接受的那类缺陷只在这里现形。
 
@@ -163,7 +163,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 - 可删除性成立：删掉一条命令壳、一处板面投影、一条判据，各自只改一处注册。
 - 消费者面字节保真：§2.2 的八个面在固定语料上与冻结基线逐字节相同——判者是翻面前那一次对账器运行，那一跑就是证据（基线随旧树一同销毁，翻面后不再有字节判者，见 Constraints）。
-- 不混的两条禁门可红（产品文件里 `src/` 与旧树互相 import 各一条；正控 = 对账器同时读两棵树仍绿），对账器人为改一处字节即红。
+- 不混的两条禁门可红（产品文件里 `src/` 与旧树互相 import 各一条；正控 = 对账器同时读两棵树仍绿），对账器人为改一处字节即红；两条断言与对账器都落在一个被收集的执行面上（`pnpm -C packages/cdd-engine exec vitest run`，含 §2.3 的 `tests/parity` include），不是写在无人执行的目录里。
 - 旧树零留存：`src-next/` 整棵不在树上，编译面、测试 include、smoke 脚本、零裸函数扫描根、六份图源全部指向 `src/`，树外测试面（`packages/kairos/tests/` · `scripts/__tests__/` 两个孪生 · `precommit` 三条守卫路径）与三份手维护文档同时改指，`emit` 之后 `emit:check` 报 fresh。
 - 深度可陈述：四个一级切片与 `run/` 四段各有一句不变量写在入口模块的类注释里，且每片的对外成员数远小于其实现文件数。
 - `pnpm run validate` exit 0，引擎全套件绿；changeset 只 `cdd-engine` 一包、取 patch（D74：方法论契约未变，重建不改消费者字节）。
@@ -184,3 +184,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：P39 形态重裁定后的 phase-spec。四切片的对象划分（`run` · `docs` · `surface` · `env`）与各自不变量 · `run/` 四段内部分工 · 登记表跟判据走 · 八面字节冻结与「取夹具丢断言」的语料法 · 测试面差分对账器 · 双向 import 禁门 · 一波原子翻面与旧树整棵删除 · 新树再推导规则 · 与 D95 旧范围的取代关系 | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-25） |
 | v0.2 | 2026-11-25 | 评审轮一（F1–F9）落地：mode 名册改为 `render/templates.ts#MODE_PROMPTS` 的键集（`base` → `docs-fix`）· 骨架四族并补 `single-spec` 与 `render/skeleton.ts#SkeletonAssembler` 的 pin · 翻面顺序补树外三处测试面与三份手维护文档的改指 · 守恒面的判者写实（对账器在翻面前判，翻面后无字节判者）· 开场读数更正为 20 个超 500 行与 35,125 行并标明快照口径 · 能力清单逐条带 pin 与「pin 只定位、验收是条件」一句 · 独立编译工程挂进根 `typecheck` 链 · 对账器与语料的 home 与禁门域声明 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.3 | 2026-11-25 | 评审轮二（F1–F6）落地：四 mode 名册改锚 `render/templates.ts#WORK_MODES`，prompt 分 `TEMPLATE_PROMPT.modes` 与 `TEMPLATE_PROMPT.reviews` 两带 · review prompt 面改按 `render/templates.ts#REVIEW_VARIANTS` 的每 `TargetType` 一行，`ReviewKind` 只留作 criteria body 词表 · 在飞一族改述为记录侧三种判定 kind 与 `checked:` 面词行两个口径 · 对账器的执行面落地（引擎 vitest include 加 `tests/parity`、独立 tsconfig 工程挂进根 `typecheck`，翻面同批删除）· 能力清单 #6 / #7 / #8 逐项补 pin · D95 注册日与 2026-11-18 重测读数分开写 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -10,7 +10,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 ## Design
 
-病在对象划分，不在文件位置。相位开场当日的读数是这句判断的证据：跨面 import 202 条，其中 **8 对面序双向成环**（`face⇄session` 57/3 · `face⇄infra` 30/2 · `face⇄contract` 29/1 · `session⇄infra` 23/2 · `session⇄contract` 17/3 · `face⇄render` 9/3 · `contract⇄infra` 8/6 · `session⇄render` 1/1）；49 个文件超 200 行，12 个超 500 行；全树 36,164 行分在 84 个非测试文件里。注册当日（D95，2026-11-18）的读数是 177 条 / 44 个 / 21 个——**每一项都在长，而搬文件从未发生**。
+病在对象划分，不在文件位置。相位开场当日的读数是这句判断的证据：跨面 import 202 条，其中 **8 对面序双向成环**（`face⇄session` 57/3 · `face⇄infra` 30/2 · `face⇄contract` 29/1 · `session⇄infra` 23/2 · `session⇄contract` 17/3 · `face⇄render` 9/3 · `contract⇄infra` 8/6 · `session⇄render` 1/1）；49 个文件超 200 行，20 个超 500 行；全树 35,125 行分在 84 个非测试文件里（口径：`src-next/**` 非测试 `.ts` 的相对路径 import 逐条计 + `wc -l`；这是相位开场当日的快照，不是判据）。注册当日（D95，2026-11-18）的读数是 177 条 / 44 个 / 21 个——跨面边与超 200 行的文件数继续增长，而搬文件从未发生。
 
 环不是路径造成的：`face` 与 `session` 各有 57 与 3 条边互指，是因为两边都在判「这一轮是什么状态」；`contract` 与 `infra` 互指，是因为拼写矩阵一头是判据一头是路径。把文件按层级挪一遍，这两处仍然互指——只是从两个目录互指变成两个子目录互指。所以本相位**不搬文件**：在新 `src/` 里按对象重新推导地复刻一遍，能力与消费者字节保真，对象与测试全部重新推导。
 
@@ -46,7 +46,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 - `grammar/` — markdown 树与跨度 · 正文切分 · front-matter · home 驱动的登记表提取 · 任务块文法。
 - `identity/` — doc type 与登记表（`DocType` · `ElementRegistry` · `DocFace`）· slug 与文档身份 · 目标类型。**登记表就住在这里**，因为它判的正是身份。
 - `judging/` — 不变量（含跨文档链）· 选择器与覆盖 · 形状规则 · 评审判据与 lens 问句 · 完成判据 · 波宽。
-- `skeleton/` — 三类骨架的生成。
+- `skeleton/` — 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`）的生成，名册即 `render/skeleton.ts#SkeletonAssembler#compose` 上那个穷举 switch 的分支集。
 
 **登记表不设目录**：登记表不是一个对象，是某条判据的输入表，跟消费它的判据同住——形状规则与它的表一处，评审判据与它的问句表一处，目标类型归 `identity/`。同名两文件因此分属两个世界：`contract/declare.ts` 是文档登记表，归 `docs/identity/`；`face/declare.ts` 是 CLI 声明，归 `surface/commands/`。
 
@@ -78,35 +78,33 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 2.1 能力清单：复刻的对象
 
-「能力齐全」按这八组点名，每组的行为都是复刻对象，缺一即不齐：
+「能力齐全」按这八组点名，每组的行为都是复刻对象，缺一即不齐。每条能力带一个**今日树的 pin**（模块路径 + 符号名，不写行号）：pin 只用于定位，验收形态是**条件**——旧树在翻面时整棵删除（§3.3），所以 pin 不住在验收里，住在「这条能力在新树上仍能按条件判红」这一句里。
 
-1. **八条命令**：implement · review · fix · base · schema · issue · board · init，各带自己的旗标、值域与退出码。
-2. **轮次机械**：implement / review / fix 三 mode 的派发 · 草稿读取与结论判定 · 轮次身份与续号 · cycle 与 attempt 的消费规则 · 波行闭合。
-3. **账本与前沿**：波行 · 文档评审行 · 分支线 · 闭合判定 · 文档被轮外改动后的重开 · `next:` 与 `reason:` 的六格装配。
-4. **门**：结构腿的九行 · 轮内四门并入后的行集 · 拒绝事实的树级存放与两个到期触发点 · 接手授权（三条 leg 各自的授权条件）。
-5. **在飞与终止**：in-flight 记录的建立与释放 · 四态判定 · 预算与 stall 判官 · 终止面的三档结论。
-6. **文档契约**：四类文档的身份与登记表 · 判据与选择器 · 形状规则 · 完成判据 · 波宽 · 三类骨架。
-7. **表达**：prompt 字节 · 胶囊 · 板面两态 · 预览 · 图 · issue body · brief。
+1. **八条命令**：implement · review · fix · base · schema · issue · board · init，各带自己的旗标、值域与退出码（pin：`face/declare.ts#CliVerb`）。
+2. **轮次机械**：implement / review / fix / docs-fix 四 mode 的派发（pin：`render/templates.ts#MODE_PROMPTS` 的键集）· 草稿读取与结论判定 · 轮次身份与续号 · cycle 与 attempt 的消费规则 · 波行闭合。
+3. **账本与前沿**：波行 · 文档评审行 · 分支线 · 闭合判定 · 文档被轮外改动后的重开 · `next:` 与 `reason:` 的六格装配（pin：`session/next.ts#Route`）。
+4. **门**：结构腿的九行（pin：`session/preflight.ts#PreFlightGateName`）· 轮内四门并入后的行集 · 拒绝事实的树级存放与两个到期触发点（pin：`session/refusal.ts#PreFlightRefusal` · `#RefusalState`）· 接手授权（三条 leg 各自的授权条件）。
+5. **在飞与终止**：in-flight 记录的建立与释放 · 四态判定 · 预算与 stall 判官 · 终止面的三档结论（pin：`session/ledger.ts#TerminationCause`）。
+6. **文档契约**：四类文档的身份与登记表（pin：`contract/declare.ts#DocType` · `#ElementRegistry` · `#DocFace`）· 判据与选择器 · 形状规则 · 完成判据 · 波宽（pin：`contract/wave-width.ts#MAX_TASKS_PER_WAVE`）· 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`）。
+7. **表达**：prompt 字节 · 胶囊（pin：`face/capsule.ts#Capsule.emit`）· 板面两态 · 预览 · 图 · issue body · brief。
 8. **环境**：路径基准与文档根 · workspace 布局与原子写 · 锁 · git 读 · 宿主探测 · init 与 plugins 的安装更新序列。
 
 #### 2.2 冻结的八个面
 
 复刻的判据是字节，不是「测试通过」。八个面逐个冻结：
 
-复刻的判据是字节，不是「测试通过」。八个面逐个冻结：
-
 1. 八条命令的 stdout、stderr 与退出码（含正常、拒绝、失败三条路）。
 2. `--help` 与 usage 形面，以及错用时的退出码 2。
-3. `schema get` 三类骨架的字节。
-4. 四个 mode（implement · review · fix · base）与五种 review kind 的 prompt 字节——**包含模板契约的 `$version` 不变**：重建不改提示字节，因而不递增。这一条最容易在实现时被当成「顺手升一版」，它是错的。
-5. 胶囊字节（`status · handoff` 两槽）。
+3. `schema get` 四类骨架（`overall` · `plan` · `phase-spec` · `single-spec`）的字节——`--output skeleton` 对四族都合法，名册取自 `render/skeleton.ts#SkeletonAssembler#compose`，不是散在散文里的计数。
+4. 四个 mode（implement · review · fix · docs-fix，即 `render/templates.ts#MODE_PROMPTS` 的键集——`base` 是纯产物命令，没有孩子也没有模板行；`docs-fix` 才是 spec / plan / overall 上每一次文档修复轮的派发面）与五种 review kind（`contract/review-criteria.ts#ReviewKind`）的 prompt 字节——**包含模板契约的 `$version` 不变**：重建不改提示字节，因而不递增。这一条最容易在实现时被当成「顺手升一版」，它是错的。
+5. 胶囊字节（`status · handoff` 两槽，`face/capsule.ts#Capsule.emit`）。
 6. 板面输出，含 `--notes` 未展与展开两态。
 7. `--dry-run` 的预览块。
 8. `CDD_BLOCKED` 报文 · 拒绝站名 · `checked:` 面的行集与让位条件。
 
 #### 2.3 语料：取旧测试的夹具，丢旧测试的断言
 
-语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。七种形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合。基线从 live 树录制一次，落在 `tests/parity/baseline/`，随对账器一同销毁。
+语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。七种形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合。对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。
 
 #### 2.4 对账器只在测试面
 
@@ -120,23 +118,23 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 3.1 双向 import 禁门
 
-`src/` 不得 import `src-next/`，`src-next/` 不得 import `src/`，两条各一条可红断言。这是「不要混」从口号变成判据的唯一形态——没有它，两棵树会在某次顺手 import 里悄悄合流，翻面时才发现新树挂着一根旧树的脐带。
+`src/` 不得 import `src-next/`，`src-next/` 不得 import `src/`，两条各一条可红断言。这是「不要混」从口号变成判据的唯一形态——没有它，两棵树会在某次顺手 import 里悄悄合流，翻面时才发现新树挂着一根旧树的脐带。两条断言的域是**产品文件**：`src/**` 与 `src-next/**` 各自去掉 `__tests__`；`src/` 的测试面（含 §2.4 的对账器）允许同时读两棵树，它是这套禁令的正控——不允许测试面同时看两边，「测试面之外零混」这句话本身就无判。
 
 #### 3.2 `src/` 自第一波就绿
 
-新树用独立编译面：一份只含 `src` 的 tsconfig 工程，与新树自己的测试 include。`src/` 从第一波就进类型检查与测试，不存在「还没人编译过」的窗口——那个窗口本身就是缺陷。
+新树用独立编译面：`packages/cdd-engine/tsconfig.src.json` 一份只含 `src` 的 tsconfig 工程，与新树自己的测试 include，并在第一波同批挂进根 `typecheck` 链（`package.json#scripts.typecheck` 增加 `tsc --noEmit -p packages/cdd-engine/tsconfig.src.json`）——一个没人调用的工程文件等于没有编译面。`src/` 从第一波就进类型检查与测试，波次条件是「在 `src/` 里埋一处类型错误，`pnpm run typecheck` 即红」，不存在「还没人编译过」的窗口——那个窗口本身就是缺陷。
 
 测试与源码同片（`src/**/__tests__/`），只有跨片与端到端测试在顶层。旧测试随旧树一同删除，不搬运。
 
 #### 3.3 翻面是一波之内的原子动作
 
-一次翻面，顺序固定：编译面指向 `src/`（tsconfig 系）→ 测试 include 指向 `src/` → `package.json` 的 smoke 脚本指向新树 → `check:no-bare-functions` 的扫描根换成 `src/` → 六份图源改真 → 删除整棵 `src-next/` 与它的测试 → `pnpm run emit` 重生图 HTML → `pnpm run validate` 与 `check:dist-smoke` 全绿。
+一次翻面，顺序固定：编译面指向 `src/`（tsconfig 系）→ 测试 include 指向 `src/` → 树外测试面改指新树（`packages/kairos/tests/` 的 8 个文件 15 条 import · `scripts/__tests__/` 的两个孪生 `next-loop-twin` 与 `journey-twin` 及其路径常量 · `package.json#scripts.precommit` 的三条 `src-next/**` 守卫路径）→ `package.json` 的 smoke 脚本指向新树 → `check:no-bare-functions` 的扫描根换成 `src/` → 六份图源改真 → 手维护文档改指新入口（`README.md` · `packages/cdd-engine/README.md` · `AGENTS.md`）→ 删除整棵 `src-next/` 与它的测试 → `pnpm run emit` 重生图 HTML → `pnpm run validate` 与 `check:dist-smoke` 全绿。
 
 翻面之后 `dist/` 由新树产出，`check:dist-smoke` 是这一步的唯一证明——它跑的是编译产物，而测试跑的是源码；源码接受而产物不接受的那类缺陷只在这里现形。
 
 #### 3.4 翻面之后的零残留
 
-代码、配置、脚本与图源里不再出现旧树的路径；已闭合文档的正文与变更记录是记录面，不追改（记录保留落笔时的文字，这是本程序一贯的分界）。
+代码、配置、脚本、图源与**手维护文档**里不再出现旧树的路径；`README.md` · `packages/cdd-engine/README.md` · `AGENTS.md` 三份是消费者面（D101），不是生成物，改指新入口要手改。已闭合文档的正文与变更记录是记录面，不追改（记录保留落笔时的文字，这是本程序一贯的分界）。
 
 ### 4. 新树的再推导规则
 
@@ -153,7 +151,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 **失败模式**：对账器绿而翻面红。那说明语料缺一种形态，处置是补语料，不是放宽判据。反之，为了翻面绿而改消费者字节，按缺陷处理。
 
-**不做**：改任何消费者字节 · 新增命令、旗标、门或语料臂 · 动 `packages/kairos/` 的任何字节 · 搬运旧测试 · 在产品树里混两棵树 · 把旧树留成历史副本 · 重开已闭合相位的结论。
+**不做**：改任何消费者字节 · 新增命令、旗标、门或语料臂 · 动 `packages/kairos/` 的发布面字节（`skills/**` 与生成物；引擎 import 的测试文件随翻面改指，见 Constraints）· 搬运旧测试 · 在产品树里混两棵树 · 把旧树留成历史副本 · 重开已闭合相位的结论。
 
 ### 6. 与在册账目的关系
 
@@ -164,19 +162,19 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 ### Acceptance criteria
 
 - 可删除性成立：删掉一条命令壳、一处板面投影、一条判据，各自只改一处注册。
-- 消费者面字节保真：§2.2 的八个面在固定语料上与冻结基线逐字节相同。
-- 不混的两条禁门可红（`src/` 与旧树互相 import 各一条），对账器人为改一处字节即红。
-- 旧树零留存：`src-next/` 整棵不在树上，编译面、测试 include、smoke 脚本、零裸函数扫描根、六份图源全部指向 `src/`，`emit` 之后 `emit:check` 报 fresh。
+- 消费者面字节保真：§2.2 的八个面在固定语料上与冻结基线逐字节相同——判者是翻面前那一次对账器运行，那一跑就是证据（基线随旧树一同销毁，翻面后不再有字节判者，见 Constraints）。
+- 不混的两条禁门可红（产品文件里 `src/` 与旧树互相 import 各一条；正控 = 对账器同时读两棵树仍绿），对账器人为改一处字节即红。
+- 旧树零留存：`src-next/` 整棵不在树上，编译面、测试 include、smoke 脚本、零裸函数扫描根、六份图源全部指向 `src/`，树外测试面（`packages/kairos/tests/` · `scripts/__tests__/` 两个孪生 · `precommit` 三条守卫路径）与三份手维护文档同时改指，`emit` 之后 `emit:check` 报 fresh。
 - 深度可陈述：四个一级切片与 `run/` 四段各有一句不变量写在入口模块的类注释里，且每片的对外成员数远小于其实现文件数。
 - `pnpm run validate` exit 0，引擎全套件绿；changeset 只 `cdd-engine` 一包、取 patch（D74：方法论契约未变，重建不改消费者字节）。
 
 ## Constraints
 
-- 消费面零字节变化是本相位的守恒面，不是可选项：它由 §2.2 的八个面定义，由对账器在翻面前、`check:dist-smoke` 在翻面后判。
+- 消费面零字节变化是本相位的守恒面，不是可选项：它由 §2.2 的八个面定义，**翻面前**由对账器逐字节判（那一次运行就是证据）；**翻面后**没有任何字节判者——基线随旧树销毁，`check:dist-smoke` 是「编译产物能跑通一条命令」的 smoke，不是逐字节判者，此后动这八个面按评审面判、不按门判（本相位不新增门）。
 - 不新增任何门：本相位换的是实现，不是判据；新增门会在同一个相位里同时改判定面与被判定的树，红绿都说不清。
 - 文档里写条件不写快照：不写行号坐标，不把今天的读数字面当判据（D103：代理型判据不设）。
 - 测试与源码同片；旧测试随旧树删除，不搬运、不押「一字不改」。
-- `packages/kairos/` 本相位零字节改动，因此 changeset 只有 `cdd-engine` 一包。
+- `packages/kairos/` 的发布面（`skills/**` 与生成物）本相位零字节改动；引擎 import 的测试文件（`packages/kairos/tests/` 的 8 个文件）随翻面改指 `src/`，因此 changeset 仍只有 `cdd-engine` 一包。
 - 轮次的写权边界：一轮只写它的 findings 点名的文档（自己的目标文档 + finding 画面内的代码文件），父宪章与兄弟文档由编排器回填（既有 `cl:own-document` 条款）。
 - 每波结束时两棵树各自的套件都绿，且 `src/` 侧的波次必须让它的测试随片落地——空波（只加代码不加测试）不算一波。
 
@@ -185,3 +183,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：P39 形态重裁定后的 phase-spec。四切片的对象划分（`run` · `docs` · `surface` · `env`）与各自不变量 · `run/` 四段内部分工 · 登记表跟判据走 · 八面字节冻结与「取夹具丢断言」的语料法 · 测试面差分对账器 · 双向 import 禁门 · 一波原子翻面与旧树整棵删除 · 新树再推导规则 · 与 D95 旧范围的取代关系 | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-25） |
+| v0.2 | 2026-11-25 | 评审轮一（F1–F9）落地：mode 名册改为 `render/templates.ts#MODE_PROMPTS` 的键集（`base` → `docs-fix`）· 骨架四族并补 `single-spec` 与 `render/skeleton.ts#SkeletonAssembler` 的 pin · 翻面顺序补树外三处测试面与三份手维护文档的改指 · 守恒面的判者写实（对账器在翻面前判，翻面后无字节判者）· 开场读数更正为 20 个超 500 行与 35,125 行并标明快照口径 · 能力清单逐条带 pin 与「pin 只定位、验收是条件」一句 · 独立编译工程挂进根 `typecheck` 链 · 对账器与语料的 home 与禁门域声明 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

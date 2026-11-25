@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -48,7 +48,7 @@ none
 ### Task 2: 接手授权绑 in-flight 门
 
 #### Objective
-把 leg ①（`face/lifecycle.ts#CliLifecycle.foldAbort` 的 stale 记录接手）的授权从「整段结构门通过」收窄为**两条已读事实的合取**：`session/preflight.ts#PreFlightVerdict.checked` 里存在 `in-flight:` 行（tree-clean 已过、in-flight 门没有拒绝）∧ `session/inflight.ts#InFlight.staleState()` 非 `null`。两条缺一不可：脏树被拒时 in-flight 行根本不进 `checked`，此时只读 `staleState()` 会在脏树上开始 fold abort。`PreFlightVerdict.holding` 不是判据——它只在 in-flight 门自己拒绝时填入，而 leg ① 成立的那条路径上门恰恰放过。legs ②③（supersede 戳 · `N+1` 派发）仍守 `structure === null`；`foldAbort` 的 abort 账零变。
+把 leg ①（`face/lifecycle.ts#CliLifecycle.foldAbort` 的 stale 记录接手）的授权从「整段结构门通过」收窄为**两条已读事实的合取**：`session/preflight.ts#PreFlightVerdict.checked` 里存在 `in-flight:` 行 ∧ `session/inflight.ts#InFlight.staleState()` 非 `null`。这行只证 **tree-clean 已过**：`session/preflight.ts#PreFlight.#inFlightRow` 在 `#inFlightRefusal` 之前就把行推进 `checked`，被 in-flight 门自己拒的判决照样带着它，所以「in-flight 门没有拒绝」由 `staleState() !== null` 那条合取项承担、不由这行证明。两条缺一不可：脏树被拒时 in-flight 行根本不进 `checked`，此时只读 `staleState()` 会在脏树上开始 fold abort。`PreFlightVerdict.holding` 不是判据——它只在 in-flight 门自己拒绝时填入，而 leg ① 成立的那条路径上门恰恰放过。legs ②③（supersede 戳 · `N+1` 派发）仍守 `structure === null`；`foldAbort` 的 abort 账零变。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
@@ -61,16 +61,18 @@ none
 #### Produces
 - `#recoverRun` 的 leg ① 授权谓词：`checked` 含 `in-flight:` 行 ∧ `staleState() !== null`
 - 行为 pin：`--recover` ∧ doc-contract 拒绝的端到端（记录被接手清除 · abort 账恰一条 `interrupted` · 随后同一命令不带 `--recover` 时被 doc-contract 拒绝而不是被 in-flight 拒绝）
+- 行为 pin：legs ②③ 在「文档门拒绝 ∧ 有漂移 ∧ 有 pending fix」的树上零 supersede 戳、零新 review 轮派发（同一棵树去掉文档违规后两者落地）
 
 #### Steps
 - 把 leg ① 的授权改成合取式 — checkable: 从 `structure === null` 改为「`checked` 行存在 ∧ `staleState()` 非 null」，`structure` 只留给 legs ②③
 - 脏树不 fold — checkable: tree-clean 拒绝 ∧ 树上有 stale 记录 ⇒ 记录零改动、`recordRound` 零调用
 - 活 holder 不位移 — checkable: `alive === true` ∧ 任一后续门拒绝 ⇒ 记录原样、零 abort 账
 - abort 账一条 — checkable: 被接手的记录恰写一条 `interrupted`，op/cycle/attempt/`dispatchBase` 逐字来自记录
+- 文档门拒绝不写戳 — checkable: `review --type plan --recover` 在「文档门拒绝 ∧ 有漂移 ∧ 有 pending fix」的树上 ⇒ leg ① 折过（记录已清），但零 `supersededBy` 戳、零新 review 轮派发；同一棵树去掉文档违规 ⇒ 戳与下一轮都落地。`#reopenLeg` 不收结构事实（`structure` 只留在调用处），若把文档门的判决穿给它，新参数名与改动的文件写进这一步
 - 提交 — checkable: `git log -1 --format=%s` 以 `fix(p44):` 起头
 
 #### Acceptance
-四条行为 pin 全绿；`foldAbort` 与 `session/ledger.ts#AbortFold.bookedOf` 零改动。
+五条行为 pin 全绿；`foldAbort` 与 `session/ledger.ts#AbortFold.bookedOf` 零改动。
 
 #### DependsOn
 1
@@ -104,11 +106,12 @@ none
 - 三提示面读同一格 — checkable: 阻断报文 · board 行 · dry-run 提示对 `targetGone` 记录输出同一句
 - 成对臂 — checkable: 目标还在的 stale 记录 ⇒ 三提示面仍 `stealable` 且 `checked:` 行仍 `stale`；两条目标事实都不在 ⇒ 四面换词（无一面复述 `stealable`）
 - 混合态 — checkable: 只带 workspace 事实且该目录不在 ⇒ 行只渲 workspace 那一格子句
+- 镜像混合态 — checkable: `plan` 路径不在树上 ∧ `<workspaceRoot>/<slug>` 目录在 ⇒ `targetGone === true`，四个读者同读的那一格只渲 plan 子句、workspace 子句零输出（目标还在的那条事实不由这一行替它说话）
 - 硬切枚举 — checkable: `words.guard.test.ts` 的接管提示枚举含第四态行，「含 `--recover` · 不含 `--steal-stale`」两条断言对它成立
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p44):` 起头
 
 #### Acceptance
-四处渲染面各一条 pin + 成对两臂 + 混合态一格；零新增 lens 标签与站名。
+四处渲染面各一条 pin + 成对两臂 + 混合态两条镜像臂（plan 不在而目录在 · 目录不在而 plan 在）；零新增 lens 标签与站名。
 
 #### DependsOn
 1
@@ -116,7 +119,7 @@ none
 ### Task 4: 提示面：评审问句与写权纪律
 
 #### Objective
-三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `#CLAUSES` 新增 `cl:own-document`：一轮只写它的 findings 点名的文档（自己的目标文档 + finding 画面内的代码文件），其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
+三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `#CLAUSES` 新增 `cl:own-document`：写面按模式点名，不挂在 `findings` 上——**implement** 轮 = 自己的目标文档 + wave brief 里 `### Task N:` 点名的任务文件（它的载体只有 `work` 面、没有 `findings`，`judge` 面由 review 轮写）；**review** 轮 = 自己的目标文档 + finding 画面内的代码文件；**fix** · **docs-fix** 轮 = 自己的目标文档 + finding 画面点名的代码文件（docs-fix 轮就是被判文档自己）。其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`
@@ -137,11 +140,11 @@ none
 - 扩写共享 `spec-lens` 行 — checkable: 该行（`reviewKinds: ["wave","branch"]`）含「看着实现了、实现看着不对」一问，wave 与 branch 两个投影逐字同句
 - `CALIBRATION_TAIL` 加 S5 — checkable: 该常量含「多轴分别报 / 禁止跨轴重排」一句，且不出现在任何 per-key 副本里（一事实一处）
 - 零新增 — checkable: `REVIEWS` 的 `lensEnum` 键集与 `LENS_QUESTION_ROWS` 行数零变（两条断言）
-- 写权纪律 — checkable: `CLAUSES` 含 `cl:own-document` 且四个模式（implement · review · fix · docs-fix）的渲染各自含该句；`$version` 递增；成对：写本轮目标文档仍被允许，写父宪章零许可
+- 写权纪律 — checkable: `CLAUSES` 含 `cl:own-document` 且四个模式（implement · review · fix · docs-fix）的渲染各自含该句；该句含三个写面名（**implement** 轮的 `### Task N:` 任务文件 · **review** 轮的 finding 画面代码文件 · **fix** 与 **docs-fix** 轮的 finding 画面点名的代码文件）；`$version` 递增；成对三臂：fix 轮写本轮目标文档仍被允许 · implement 轮写一份 brief 点名的任务文件仍被允许（findings-only 形状在这一臂红） · 写一份 findings 之外的文档零许可
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p44):` 起头
 
 #### Acceptance
-三句各一条 pin + 两条零变断言 + 写权子句的四模式成对断言；`SEVERITY_RUBRIC` 的组装面零变。
+三句各一条 pin + 两条零变断言 + 写权子句的四模式共享断言与三臂成对断言；`SEVERITY_RUBRIC` 的组装面零变。
 
 #### DependsOn
 none
@@ -186,35 +189,36 @@ none
 ### Task 6: 名册改真与本 spec 的验收尾
 
 #### Objective
-`single-home` 退役后名册在源码面有四处转述，同批改真：`contract/invariants.ts` 的文件头（枚举四个形状 id 的注释）、`contract/rules.ts` 的注册注释、`face/cli.ts` 的两处注释；文档面 `docs/kairos/specs/2026-11-23-engine-doc-tooling-p43-design.md` §4.2 的名册句去掉 `single-home`，只留三行，宪章的 P44 行同一批跟上。**零残留 grep pin** 写成显式形态：扫 `contract/` 与 `face/` 的源码面按规则 id 匹配，`__tests__/` 只保留负向断言，`single-homed` 这类散文词不在扫描面。最后把本 spec 的验收尾**改回统一措辞**——它是这条规则的自证现场，退役后无需豁免；这一步是显式的文档编辑，不掉在「收尾顺手改」里。
+`single-home` 退役后名册在源码面有四处转述，同批改真：`contract/invariants.ts` 的文件头（枚举四个形状 id 的注释）、`contract/rules.ts` 的注册注释、`face/cli.ts` 的两处注释。同批把两处「为已删语料而写」的代码改真：`face/cli.ts#Cli.#beginCommand` 不再重建 `#contract`（它的每个字段都是构造期从声明表派生的只读值，重建与不重建得到同一个判断面），`#contract` 的字段注释与方法注释里「strategies hold their own state」那一半去掉、改成「命令边界不重建」的那一句；测试侧 `__tests__/support/memory-fs.ts` 的模块头只留两条还在的夹具家族。**零残留 grep pin** 写成显式形态：扫 `contract/` 与 `face/` 的源码面按规则 id 匹配，`__tests__/` 只保留负向断言，`single-homed` 这类散文词不在扫描面。文档面的名册（P43 spec §4.2 的名册句 · 宪章的 P44 行）属于登记面，归**编排器的回填**，本任务只把它记成一条 `Produces:` 义务、不写这两个文件的字节。最后把本 spec 的验收尾**改回统一措辞**——它是这条规则的自证现场，退役后无需豁免；这一步是显式的文档编辑，不掉在「收尾顺手改」里。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
 - Modify: `packages/cdd-engine/src-next/contract/rules.ts`
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`
-- Modify: `docs/kairos/specs/2026-11-23-engine-doc-tooling-p43-design.md`
-- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`
+- Modify: `packages/cdd-engine/src-next/__tests__/support/memory-fs.ts`
 - Modify: `docs/kairos/specs/2026-11-25-engine-doc-tooling-p44-design.md`
+- Test: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
 
 #### Consumes
 - Task 5 的退役面
-- spec §8.2 的「名册改真」与「本 spec 的验收尾」两条
+- spec §8.2 的「名册改真」「`#contract` 的重建随语料退役」「本 spec 的验收尾」三条
 
 #### Produces
-- 四处源码注释的名册只剩三行
-- P43 spec §4.2 与宪章 P44 行的名册同批改真
-- 零残留 pin 的扫描面与形态写死；本 spec 的验收尾回到统一措辞
+- 四处源码注释的名册只剩三行；`#beginCommand` 不再重建 `#contract`；测试侧 `DocFs` 的模块头只列两条在册夹具
+- 零残留 pin 落在 `contract/__tests__/rules.test.ts`（红/绿成对）；本 spec 的验收尾回到写定的那一句
+- 登记面回填义务：P43 spec §4.2 的名册句与宪章的 P44 行（由编排器落地，本任务零字节改动）
 
 #### Steps
 - 源码面四处改真 — checkable: `line-coordinate` · `live-arithmetic` · `change-history-date-shape` 三行在四处注释里各出现一次，`single-home` 零命中
-- P43 spec §4.2 改真 — checkable: 名册句只列三行；`single-home` 在该文件零命中
-- 宪章同批 — checkable: 宪章 P44 行的名册与 §4.2 同形，登记行的算术为四→三
-- 零残留 pin — checkable: 扫描面（`contract/` + `face/` 源码 · `__tests__/` 只留负向断言）与形态写进测试；把 id 写回任一源码处即红
-- 本 spec 验收尾改回 — checkable: 该条与其它相位 spec 的验收尾逐字一致（单一措辞）
+- `#contract` 的重建随语料退役 — checkable: `face/cli.ts#Cli.#beginCommand` 里 `new Contract()` 零命中，`#contract` 字段注释与该方法的文档注释改成「命令边界不重建」的那一句，字段类型与它的派生面零改；pin 取源码形态（那条构造缺席），行为断言不可得时不强凑
+- 测试侧缝头改真 — checkable: `__tests__/support/memory-fs.ts` 的模块头只列 P41 T7 的 charter 夹具与 P43 T9 的 selector matrix，`single-home` 在该文件零命中
+- 零残留 pin — checkable: 扫描面（`contract/` + `face/` 源码按规则 id 匹配 · `__tests__/` 只留负向断言）写成 `contract/__tests__/rules.test.ts` 里的红/绿成对——把 id 写回 `contract/rules.ts` 即红，交付树上零命中
+- 登记面回填义务 — checkable: 计划把 P43 spec §4.2 的名册句与宪章 P44 行记成编排器的回填（上方 `Produces:` 点名），本任务那一次提交的 `git diff --name-only` 不含这两个文件
+- 本 spec 验收尾改回 — checkable: 该条逐字为「引擎 vitest 全绿 · `pnpm run validate` ALL PASS · `packages/cdd-engine` 一包 changeset 取 **minor**（D74：方法论契约不变）。」——差异只在本相位自己的两处更正（`ALL PASS` 与一包），判据是与这句写定的字节比对，不与其它相位 spec 比对
 - 提交 — checkable: `git log -1 --format=%s` 以 `docs(p44):` 起头
 
 #### Acceptance
-四处源码 + 两处文档各一条断言；零残留 pin 的红/绿成对；本 spec 的尾与同族逐字一致。
+四处源码各一条断言 + `#beginCommand` 的零重建一条 + 测试侧缝头一条；零残留 pin 的红/绿成对；本 spec 的尾与写定的那一句逐字一致；登记面两个文件在本任务的提交里零改动。
 
 #### DependsOn
 5
@@ -282,3 +286,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：八个任务四波（Wave 1 = T1 · T4 · T5 无依赖；Wave 2 = T2 · T3 · T6；Wave 3 = T7；Wave 4 = T8）· 每任务一条可判交付物 · 依赖图与 spec 的六项逐项对应；T7 串在 T6 之后（同批文档面改真按登记面先行），四波均不超三个任务 | Oscaner M. · Claude（kairos:cdd-plan） |
 | v0.2 | 2026-11-25 | 计划期 backfill（用户补入 ⑦）：`cl:own-document` 折进 T4（同一提示面 `render/templates.ts`），T4 改名为「提示面：评审问句与写权纪律」——单开一个任务会让第二波变四个，与 `wave-width-at-most-three` 相撞；任务数与四波形状零变 | Oscaner M. · Claude（kairos:cdd-plan 计划期回填） |
+| v0.3 | 2026-11-25 | 首轮 plan 评审整改（F1–F10）：T4 的 `cl:own-document` 写面改为按模式点名（implement 取 brief 的 `### Task N:` 任务文件），成对臂换成三臂；T3 补镜像混合态臂（plan 不在而目录在）；T2 的 `in-flight:` 行只证 tree-clean 已过，并补 legs ②③ 的第五臂；T6 把登记面（P43 spec §4.2 与宪章 P44 行）改为编排器回填义务、补 `#beginCommand` 零重建与测试侧缝头两步、零残留 pin 落到 `contract/__tests__/rules.test.ts`、验收尾改成对写定句的字节比对 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |

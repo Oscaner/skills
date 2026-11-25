@@ -1095,6 +1095,42 @@ describe("PreFlight — the in-flight gate", () => {
     }
   });
 
+  it("keeps `stealable` for a dead holder whose target still stands — no fourth state when no cell is gone", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // Both of the record's own target facts STAND: the plan it names is on this tree
+      // and its slug's workspace directory exists. The blocking report therefore ends
+      // with the ordinary `stealable` sentence and may not borrow the fourth state's
+      // line — this is the branch every `--recover`-less dispatch over a dead holder
+      // takes, and it is the only arm that reads the pair as a PAIR on this face.
+      const planAbs = path.join(repoRoot, "docs/p.md");
+      mkdirSync(path.dirname(planAbs), { recursive: true });
+      writeFileSync(planAbs, "---\ntitle: p\ndoc-type: plan\n---\n", "utf8");
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "other-slug"), { recursive: true });
+      writeRecord(repoRoot, recordOf());
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, false) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      const message = refused.message ?? "";
+      // The pair is read as a PAIR: both cells held ⇒ the ordinary `stealable`
+      // sentence ends the report, and the fourth state's line — an assertion about the
+      // record's own cells — may not appear, not even as a partial clause.
+      expect(message.endsWith(new Words().inFlightWords().stealable)).toBe(true);
+      expect(message).not.toContain("the dispatch's target is gone");
+      // The checked row reads the stale TABLE off the same cells — one reading, two
+      // faces: the row keeps `stale` exactly while the report keeps `stealable`.
+      expect(
+        refused.checked.some((row) => row.startsWith("in-flight: stale holder — pid 4242")),
+      ).toBe(true);
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("treats a corrupt record with its lock as held (refuse, or pass under the flag) — never clears it", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {

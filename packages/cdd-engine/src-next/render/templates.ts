@@ -837,7 +837,7 @@ export const CLAUSES = {
   "cl:plan-freeze":
     "Approved plan/spec files are frozen beyond the round's declared `capability: may.amend` scope — without that declaration a needed change goes out through findings, never an in-place edit; the structure face is outside amending authority in every round.",
   "cl:own-document":
-    "Write only your own documents: this round writes its own target document plus the files its own instruction names — an **implement** round writes the task files its wave brief names at `### Task N:`; a **fix** or **docs-fix** round writes the code files the findings view names (on a docs-fix round that is the judged document itself); a **review** round has no code write surface at all — its target document is read-only and its only write is its `findings` carrier, the `Read-only` sentence in this same prompt stated as a document-set rule. Every other document — the parent charter, a sibling spec, the plan — lies outside this round's write authority and lands through the orchestrator's backfill, never by the round's own hand. The division with `cl:plan-freeze`: that clause governs permission INSIDE the target document (may this document be changed at all), while this one governs the boundary of the document SET (which documents may be touched); when both are broken, the freeze clause is the one reported first.",
+    "Write only your own documents: this round writes its own target document plus the files its own instruction names — an **implement** round writes the task files its wave brief names at `### Task N:`; a **fix** or **docs-fix** round writes the code files the findings view names (on a docs-fix round that is the judged document itself); a **review** round has no code write surface at all — its target document is read-only and its only writes are the prescribed `OUTPUT_*` artifacts, its `findings` carrier among them, never a document outside its own target — the `Read-only` sentence in this same prompt states the same rule from the carrier side. Every other document — the parent charter, a sibling spec, the plan — lies outside this round's write authority and lands through the orchestrator's backfill, never by the round's own hand. The division with `cl:plan-freeze`: that clause governs permission INSIDE the target document (may this document be changed at all), while this one governs the boundary of the document SET (which documents may be touched); when both are broken, the freeze clause is the one reported first.",
   "cl:atomic-commit":
     "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers. A read-only round has nothing to commit: its only writes are the prescribed `OUTPUT_*` artifacts, and committing belongs to the orchestrator.",
   "cl:self-validate":
@@ -848,7 +848,14 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 26
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 27
+ *  rewrites the `cl:own-document` review half, one byte change over 26: the clause
+ *  said a review's "only write is its `findings` carrier" while the review shells'
+ *  own `Read-only` sentence already granted it the prescribed `OUTPUT_*` artifacts,
+ *  so the two shipped sentences disagreed on a review's write set. It now names the
+ *  same set as that sentence (`OUTPUT_*` artifacts, `findings` among them) and keeps
+ *  the document-set boundary as its own subject (§9.2).
+ *  $version 26
  *  carries the P44 review-prompt batch (§4.2 · §5.1 · §9.2), four byte changes over
  *  25: the `spec-consistency` lens row gains its referent question (a reading is
  *  asked which items it counts and whether those items are still on the tree — the
@@ -937,7 +944,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 26,
+  $version: 27,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

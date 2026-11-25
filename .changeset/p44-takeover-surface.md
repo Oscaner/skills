@@ -46,5 +46,10 @@ S5 (report every axis separately, never one "most severe" finding). Two carry a 
 the `spec-consistency` lens row asks a reading **which items it counts and whether those items
 are still on the tree** (the reading/referent drift is that question's answer, never a new
 criterion), and the `cl:own-document` discipline clause bounds a round's write authority to its
-own document set. `TEMPLATE_PROMPT.$version` 26 is their one mechanical signal. Zero new lens
-labels, zero new tiers, zero new gate names: the lens row and cell counts are untouched.
+own document set — a review round's half naming the same write set that round's `Read-only`
+sentence names (the prescribed `OUTPUT_*` artifacts, the `findings` carrier among them), since
+"its only write is its `findings` carrier" contradicted the `OUTPUT_REPORT` row every review
+round context prescribes. `TEMPLATE_PROMPT.$version` is their one mechanical signal, and it
+stands at 27 — 26 for the four bytes, one more for the review half's write-set correction.
+Zero new lens labels, zero new tiers, zero new gate names: the lens row and cell counts are
+untouched.

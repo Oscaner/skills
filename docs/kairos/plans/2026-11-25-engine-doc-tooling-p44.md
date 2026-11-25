@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -132,7 +132,7 @@ none
 ### Task 4: 提示面：评审问句与写权纪律
 
 #### Objective
-三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `CLAUSES` 新增 `cl:own-document`：写面按模式点名，不挂在 `findings` 上——**implement** 轮 = 自己的目标文档 + wave brief 里 `### Task N:` 点名的任务文件（它的载体只有 `work` 面、没有 `findings`，`judge` 面由 review 轮写）；**fix** · **docs-fix** 轮 = 自己的目标文档 + finding 画面点名的代码文件（docs-fix 轮就是被判文档自己）；**review** 轮 = 自己的目标文档（只读）+ 它的 `findings` 载体，**零代码写面**——这半读的是同一提示里那句 `Read-only`（「never mutate tracked content, the index, HEAD, or branch state」），不是第四个写面。其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
+三处判据体各加一句，零新增 lens 标签、零新增分级：① `contract/review-criteria.ts#LENS_QUESTION_ROWS` 的现成 `spec-consistency` 行扩写**指称问句**——文档给出一个读数时，问它数的是哪几条、那几条还在不在树上（#521 的处置：脱钩是这条问句的答案，不是新判据）；② 同表 wave/branch 共享的 `spec-lens` 行收 S4「需求看着实现了、实现看着不对」；③ `render/templates.ts#CALIBRATION_TAIL` 加 S5「多轴分别报，禁止合并成一个『最严重』」；④ 同文件 `CLAUSES` 新增 `cl:own-document`：写面按模式点名，不挂在 `findings` 上——**implement** 轮 = 自己的目标文档 + wave brief 里 `### Task N:` 点名的任务文件（它的载体只有 `work` 面、没有 `findings`，`judge` 面由 review 轮写）；**fix** · **docs-fix** 轮 = 自己的目标文档 + finding 画面点名的代码文件（docs-fix 轮就是被判文档自己）；**review** 轮 = 自己的目标文档（只读）+ 它 prescribed 的 `OUTPUT_*` 载体（`findings` 载体在内），**零代码写面**——这半与同一提示里那句 `Read-only`（「never mutate tracked content, the index, HEAD, or branch state」）同一写集，不是第四个写面。其它文档（父宪章 · 兄弟 spec · 计划）在它的写权之外、经编排器回填落地；与 `cl:plan-freeze` 的分工写在同一处（后者管目标文档**内**的许可，前者管文档**集**的边界）；四个模式共享该子句，`TEMPLATE_PROMPT.$version` 随提示字节递增。`render/templates.ts#REVIEWS` 的 `lensEnum` 与 `LENS_QUESTIONS.forReviewKind` 的行数零变。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/review-criteria.ts`
@@ -146,7 +146,7 @@ none
 
 #### Produces
 - `spec-consistency` 行的指称问句；`spec-lens` 行的 S4 问句；`CALIBRATION_TAIL` 的 S5 一句
-- `CLAUSES` 的 `cl:own-document`（四模式共享：写面按 implement · fix · docs-fix 三个点名，**review** 轮零代码写面并明写它读的是 `Read-only` 那句），与 `cl:plan-freeze` 的分工句；`TEMPLATE_PROMPT.$version` 递增
+- `CLAUSES` 的 `cl:own-document`（四模式共享：写面按 implement · fix · docs-fix 三个点名，**review** 轮零代码写面并明写它与 `Read-only` 那句同写集，即 prescribed 的 `OUTPUT_*` 载体），与 `cl:plan-freeze` 的分工句；`TEMPLATE_PROMPT.$version` 递增
 - `REVIEWS.spec.lensEnum` 零新增标签；`LENS_QUESTION_ROWS` 行数与 `forReviewKind` 的投影行数零变
 
 #### Steps
@@ -154,7 +154,7 @@ none
 - 扩写共享 `spec-lens` 行 — checkable: 该行（`reviewKinds: ["wave","branch"]`）含「看着实现了、实现看着不对」一问，wave 与 branch 两个投影逐字同句
 - `CALIBRATION_TAIL` 加 S5 — checkable: 该常量含「多轴分别报，禁止合并成一个『最严重』」一句，且不出现在任何 per-key 副本里（一事实一处）
 - 零新增 — checkable: `REVIEWS` 的 `lensEnum` 键集与 `LENS_QUESTION_ROWS` 行数零变（两条断言）
-- 写权纪律 — checkable: `CLAUSES` 含 `cl:own-document` 且四个模式（implement · review · fix · docs-fix）的渲染各自含该句；该句含三个写面名（**implement** 轮的 `### Task N:` 任务文件 · **fix** 轮的 finding 画面点名的代码文件 · **docs-fix** 轮的 finding 画面点名的代码文件，后者就是被判文档自己），并对 **review** 轮写明零代码写面（只写它的 `findings` 载体，写权读同一提示里的 `Read-only` 句）；`$version` 递增；成对四臂：fix 轮写本轮目标文档仍被允许 · implement 轮写一份 brief 点名的任务文件仍被允许（findings-only 形状在这一臂红） · 写一份 findings 之外的文档零许可 · 一份 review 外壳（`render/templates.ts#TEMPLATE_PROMPT.reviews.<type>.shell`）同时含 `Read-only` 与该子句，而该子句里无任何 review 轮的代码写面。`render/__tests__/render.test.ts` 的 `$version` pin 是这一递增的唯一 stale 断言，随本步一起走：`expect(TEMPLATE_PROMPT.$version)` 的期望值与上方那段逐相位递增史注释同批跟上（pin 从 25 到 26），否则该套件在写面之外红
+- 写权纪律 — checkable: `CLAUSES` 含 `cl:own-document` 且四个模式（implement · review · fix · docs-fix）的渲染各自含该句；该句含三个写面名（**implement** 轮的 `### Task N:` 任务文件 · **fix** 轮的 finding 画面点名的代码文件 · **docs-fix** 轮的 finding 画面点名的代码文件，后者就是被判文档自己），并对 **review** 轮写明零代码写面（只写它 prescribed 的 `OUTPUT_*` 载体、`findings` 载体在内，与该提示里 `Read-only` 句同写集）；`$version` 递增；成对四臂：fix 轮写本轮目标文档仍被允许 · implement 轮写一份 brief 点名的任务文件仍被允许（findings-only 形状在这一臂红） · 写一份 findings 之外的文档零许可 · 一份 review 外壳（`render/templates.ts#TEMPLATE_PROMPT.reviews.<type>.shell`）同时含 `Read-only` 与该子句，而该子句里无任何 review 轮的代码写面。`render/__tests__/render.test.ts` 的 `$version` pin 是这一递增的唯一 stale 断言，随本步一起走：`expect(TEMPLATE_PROMPT.$version)` 的期望值与上方那段逐相位递增史注释同批跟上（四个字节批走到 26；同一子句的 review 半在分支修复轮改成与 `Read-only` 句同一写集，pin 随到 27），否则该套件在写面之外红
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p44):` 起头
 
 #### Acceptance
@@ -307,3 +307,4 @@ none
 | v0.4 | 2026-11-25 | 二轮 plan 评审整改（F1–F7）：T1 的产出从单一布尔改成逐格读数（`targetGone.plan` · `targetGone.workspace`，折叠谓词由两格派生），T3 的渲法与两处混合态臂改读这两格；T3 的 `Words.inFlightBlocked` 定下第三参（可选·活口优先）与 `#renderHeld` 的两参零字节，并补「活口优先」臂；T3 与 T4 补上 stale 行 pin 与 `$version` pin 两个写面内的文件；T5 补三处测试模块头的改真；T6 的源码面四处 checkable 改按每处实际带的东西陈说；T4 的 S5 归回 spec §5.1 的原句，T3 的 `Consumes` 点名两条验收，T6 的登记面步骤只留负向半 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.5 | 2026-11-25 | 三轮 plan 评审整改（F1–F5）：T1 把 `face/__tests__/board-view.test.ts` 收进写面、把 `held` 字面量的补齐单写成一步（新成员必填，`tsc` 在 Wave 1 收口）；T4 的 `cl:own-document` 把 review 轮写成零代码写面（与同一提示的 `Read-only` 句同读），写面名回到 implement · fix · docs-fix 三个，成对臂补第 4 条 review 外壳臂；T6 的名册语句按处拆开（三个形状 id 只钉 `contract/invariants.ts` 的名册行，`contract/rules.ts` 的括注只掉 `single-home`、取负向断言）；T3 补 `Words.inFlightTargetGone` 裸行渲染器，board 行与 dry-run 提示改读它；T1 · T5 · T6 的提交类型改成 `feat` · `refactor` · `refactor` 加 `docs`（T6 拆两条提交）；另：T2 的验收从五条 pin 改成六条、T5 补注册表注释 scope 计数的改真一步 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.6 | 2026-11-25 | 四轮 plan 评审整改（F1 · F2，另一条笔记）：T2 补「非折分支不夺判决」——`structure !== null` ∧ leg ① 未折即返回 `allowed`，`blocked` / `RECOVER_NOTHING` 只留结构门放过的树，`#recoverRun` 入参多一格结构事实，并补活 holder 与脏树两条 CLI 臂；T3 把 `Words.inFlightTargetGone` 的契约改成整条裸行（读出不在的那几格子句 + `--recover` 接管句，持有格零输出），四个读者一并点名（`PreFlight.#inFlightRow` 也走它），补每面一条字节臂与镜像混合态的零子句断言；T4 的 `#CLAUSES` 改回树上的 `CLAUSES` | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
+| v0.7 | 2026-11-25 | 分支评审整改（F2）：T4 的 `cl:own-document` review 半改成与 `Read-only` 句同一写集（prescribed 的 `OUTPUT_*` 载体、`findings` 载体在内）——旧句「只写它的 `findings` 载体」与 review 变体的 `OUTPUT_REPORT` 行相撞；`$version` 26 → 27 | Oscaner M. · Claude（kairos:cdd-fix） |

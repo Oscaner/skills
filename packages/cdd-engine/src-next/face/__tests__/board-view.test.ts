@@ -1721,6 +1721,28 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(mirror).not.toContain(words.inFlightWords().stealable);
   });
 
+  it("never prints a takeover hint beside a live holder — even when both target cells read gone", () => {
+    // The liveness judgment decides FIRST: `stealable` and the fourth state are claims
+    // about a holder that is gone, so a running dispatch's row carries neither. This is
+    // the board's only arm where a LIVE holder meets a read-out-missing target, and it
+    // is what a future `targetGone`-first selection would silently break.
+    const live = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: true, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(live).toContain("pid 4242");
+    expect(live).not.toContain("the dispatch's target is gone");
+    expect(live).not.toContain("the plan the record names is not on this tree");
+    expect(live).not.toContain("--recover");
+    expect(live).not.toContain(words.inFlightWords().stealable);
+  });
+
   it("(f) the held row names the holder's IDENTITY only — never the dispatch narrative", () => {
     const rows = BoardView.inFlightRows(
       {

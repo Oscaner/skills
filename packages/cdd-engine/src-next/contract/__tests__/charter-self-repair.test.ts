@@ -15,6 +15,7 @@
 // and the arm names the heading it reports.
 
 import { describe, expect, it } from "vitest";
+import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
 import type { DocFs } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 
@@ -26,8 +27,9 @@ const FIXTURE_ROOT = "/x-fixture";
  *  carries: the arms assert the synthetic carrier they build. */
 const CHARTER_PATH = "x-charter-fixture.md";
 
-/** The neighbour corpus — empty by construction: no arm here judges a comparison. */
-const NO_NEIGHBOURS: DocFs = { exists: () => false, read: () => null, list: () => [] };
+/** The neighbour corpus — empty by construction: no arm here judges a comparison, so
+ *  the shared seam answers absence on every face (`MemoryFs` over no files). */
+const NO_NEIGHBOURS: DocFs = new MemoryFs({});
 
 /** One fixture document's front matter — an overall whose identity parses. */
 const OVERALL_HEAD = [

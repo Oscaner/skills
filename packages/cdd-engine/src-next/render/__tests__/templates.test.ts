@@ -590,4 +590,18 @@ describe("P44 §9.2 — cl:own-document bounds the round's document set", () => 
       expect(shell, type).toContain(clause);
     }
   });
+
+  it("gives a review the same write set its own `Read-only` sentence gives it", () => {
+    // The round context prescribes `OUTPUT_REPORT` to a review as well, so "its only
+    // write is its `findings` carrier" contradicted the shell's own `Read-only`
+    // sentence ("the prescribed `OUTPUT_*` artifacts are a review's only writes").
+    // One write set, two sentences: the clause names the artifacts, `findings` among
+    // them, and leaves the document boundary as its own subject.
+    const reviewPart = clause.slice(clause.indexOf("**review**"));
+    expect(reviewPart).toContain("the prescribed `OUTPUT_*` artifacts");
+    expect(reviewPart).toContain("its `findings` carrier among them");
+    expect(reviewPart).not.toContain("its only write is its");
+    const shell = rendered("review", "branch");
+    expect(shell).toContain("the prescribed `OUTPUT_*` artifacts are a review's only writes");
+  });
 });

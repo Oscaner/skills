@@ -23,7 +23,7 @@ author: "[human] · Claude Opus 5（kairos:cdd-design · grilling Q1–Q3 落定
 
 #### 1.2 删档不删行
 
-- `contract/review-criteria.ts#CRITERIA_ROWS` 保持 `census:criteria.rows = 6` 行——删的是档，不是行。两条 `nit` 行改判 `warn`，正文重写成「这条观察该去哪」：
+- `contract/review-criteria.ts#CRITERIA_ROWS` 保持 `census:criteria.rows = 5` 行——删的是档，不是行。两条 `nit` 行改判 `warn`，正文重写成「这条观察该去哪」：
   - `expression-only`：从「pure expression 是 nit」改判 `warn`；三格的替换字节（`body` · `duty` · `counterExample`）在下一条的五格清单里按英文原样给出，不在此处分述，免得两份措辞各自漂。`duty` 收两半：它改变的那项判断，**以及这一档的代价——欠一个 fix 轮，且不对它复评**。代价写在这一行而不是新起一行：这一行本就在教「轻的东西去哪」，而代价正是同一条分界的另一半；新起一行要动 `census:criteria.rows` 与两份已闭合 P37 文档的四处引用，为一个句子付两次账。改名（把 `warn` 换成 `fix`）同样不做：那会把判档从「它是什么」改成「它要多少」，且让存量载体的读侧欠第二张映射表。
   - `regrade-mark`：教学保留（降档要写理由），结论不变——标记是展示事实（`face/board-view.ts#LineCarriers` 的 `regradeNoteOf` 与 capsule 那一行），不是一条 finding。
 - `render/templates.ts#SEVERITY_RUBRIC` 就是 `CRITERIA.renderRubric()` 的整张表渲染，每一条 review 指令都带着它——「词表收两档」因此是**整张表**的正文改写，不是两条退休行的改写。表内带 `nit` 字面的格恰五格，逐格点名，不留一格给实现者补。**逐格的替换字节按英文原样钉死，不写中文意译**：这张表经 `CRITERIA.renderRubric()` 渲进每一条 review 指令，是英文散文，用中文转述等于把语种留给实现者——而零命中扫面只找 `\bnit\b`，句子换成哪种语言它都看不见。五格逐格（现写 → 替换）：
@@ -167,7 +167,7 @@ no/such/dir/missing.ts#PinAudit  ⇒  its carrier `no/such/dir/missing.ts` resol
 - `session/handoff-schema.ts#rollup` 四臂：空 findings ⇒ `APPROVED`；仅 `warn` ⇒ `REVIEW_FIX`；仅 `nit`（存量载体的形状）⇒ `REVIEW_FIX`；含 `blocker` ⇒ `CHANGES_REQUESTED`。四条共用一份夹具的四种填法，且 `warn` 与 `nit` 两臂的结论逐字节等于本相位之前同一份夹具的输出。
 - 存量载体的跳转成对臂（读真链 `session/ledger.ts#Ledger` 的 `#round` → `session/next.ts#NextStepRouter.next`，不是只读 `rollup`）：一份 findings 全为 `nit` 的存量评审载体 ⇒ 结论 `REVIEW_FIX` 且 `next:` 走 fix 臂（不关线）；同一份载体把那一档改写成 `warn` ⇒ 与相位前逐字节同一跳。零条 findings 的载体 ⇒ `APPROVED` 且走关线臂（成对：只改 findings 条数）。
 - 读侧投影的三值成对臂：一份上一轮 `warn`、本轮同一条降为 `nit` 的存量载体 ⇒ `#tierRankOf` 判降级、`regradeNote` 给标记，与本相位之前的同一份 fixture 逐字节相同（成对：本轮那一档写成 `warn` ⇒ 无标记）；同一份新草稿里的 `nit` 在 read-back 被拒，而同一份存量载体（磁盘上已存在）被 `session/ledger.ts#RoundFinding.severity` 那枚三值联合接受——`#tierRankOf` 的入参同挂这一枚，故三级排名不是 cast 后面的一次幸存（成对只改「存量载体 / 新草稿」这一面）。
-- `contract/review-criteria.ts#CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 6`，两条原 `nit` 行读 `warn` 档；`contract/__tests__/census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
+- `contract/review-criteria.ts#CRITERIA_ROWS` 的行数等于 `census:criteria.rows = 5`，两条原 `nit` 行读 `warn` 档；`contract/__tests__/census.guard.test.ts` 对这条 id 零失配（这是核对，不是改动面）。
 - `contract/review-criteria.ts#CriteriaRegistry.renderRubric` 两条守卫：一份注册表带着 `nit` 行（`tier` 落在 `TIER_ORDER` 之外，用 `as unknown as CriteriaRow` 造——类型面两值，§1.2 的第二条守卫是防御纵深）⇒ 抛错；同一份注册表删掉那一行 ⇒ 正常渲染（成对臂只改这一行）。计数面读 `contract/review-criteria.ts#CriteriaRegistry` 的 `rows`：每行的 `tier` 落在 `TIER_ORDER` 内、每档至少一行、按档分组后的行数之和等于 `census:criteria.rows`。
 - 同一表的 doc comment 不带逐档计数：改档后 `warn` 档四行、`nit` 零行，注释只留「每档至少一行」与六条边界名——`blocker` 两条（functional impact · reproduction gate）加 `warn` 四条（the debt · the pin parseability gate · the expression boundary · the downgrade mark）（成对：把 `regrade-mark` 的 `tier` 用同一枚 `as unknown as CriteriaRow` 改回 `nit` ⇒ 第三档落表外、`renderRubric` 的第二条守卫同时红）。
 - `contract/review-criteria.ts#regradeNote` 在上一轮 `blocker`、本轮同一条 `warn` 时给出标记；上一轮 `warn`、本轮 `warn` 时不给（成对：只改本轮那一档）。

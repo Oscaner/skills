@@ -10,8 +10,8 @@
 // implementation-face evidence duty, the two spec-shaped document targets share the
 // ONE narrative body, and `reviewBodyOf` is the single target → criteria map.
 //
-// P28 T3 — the volatile-facts discipline: the narrative body names the three claim
-// shapes a spec may pin (a symbol, a census form, a condition) instead of accepting
+// P28 T3 — the volatile-facts discipline: the narrative body names the claim shapes a
+// spec may pin (a symbol, a count, a condition) instead of accepting
 // the tree as it stands, while the plan variant stays byte-frozen. The plan bytes keep
 // the PIN form — a colocated pin's `path:line` is what the read-back resolves — while a
 // plan's PROSE may carry none: `line-coordinate` declares `docKeys: "all"` and a plan's
@@ -33,9 +33,7 @@ import {
   CLOSED_WAVE_DISCIPLINE,
   type ContextLine,
   type ModePromptRow,
-  pinLensOf,
   REVIEWS,
-  type ReviewGuides,
   type ReviewKey,
   reviewBodyOf,
   reviewGuideOf,
@@ -167,21 +165,23 @@ describe("P22 T15 — the charter criteria (REVIEWS.overall) and the criteria-bo
 });
 
 /**
- * The three claim shapes the narrative body names — one stable substring each, so a
+ * The claim shapes the narrative body names — one stable substring each, so a
  * rewording that keeps the shape stays green while dropping a shape goes red. A whole
  * byte pin is deliberately absent: punctuation must not be the thing that breaks.
  */
 const VOLATILE_FACT_ANCHORS = [
   "module path + symbol name",
-  "census registry",
+  "no census registry exists",
   "belongs to the plan",
 ] as const;
 
-/** The three shape rule rows the two authoring nodes name in their `- **` bullets. The
- *  rubric states the same shapes as ONE prose axis and names none of them, so this is the
- *  reverse read of the node face: a batch that copies a node's block into
- *  `docNarrativeAxes` would give the same sentence a second form, which reddens here. */
-const SHAPE_RULE_IDS = ["line-coordinate", "measure-literal", "live-arithmetic"] as const;
+/** The two variable-class shape rows — `line-coordinate` (a line coordinate is not a
+ *  pin) and `live-arithmetic` (no arithmetic over live counts). The rubric states both
+ *  shapes as ONE prose axis and names neither id: the ids ride the `pin` / `narrative`
+ *  node bullets and the docs-fix shell's own write constraints, so a batch that copies
+ *  either form into `docNarrativeAxes` gives the same sentence a second form, which
+ *  reddens here. */
+const SHAPE_RULE_IDS = ["line-coordinate", "live-arithmetic"] as const;
 
 /** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the
  *  spec variant only: the frozen bytes keep the pin form (`path:line` inside a colocated
@@ -203,7 +203,7 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
     }
   });
 
-  it("keeps the rubric a prose axis — no bullet line, none of the three rule ids", () => {
+  it("keeps the rubric a prose axis — no bullet line, none of the shape rule ids", () => {
     // The three homes must not drift into two FORMS of one sentence: the nodes teach the
     // shapes as bullets that name their rule rows, the rubric states them as prose and
     // names none. Pre-seeding a copied node block here reddens the first half.
@@ -354,51 +354,6 @@ describe("P37 T2 — the lens questions ride the review prompt bytes", () => {
     expect(projected.split("\n")).toHaveLength(3);
     expect(projected).not.toContain(LENS_QUESTIONS.of("wave", "scope").question);
     expect(numberedLinesOf(REVIEWS.wave.axesGuide)).toHaveLength(4);
-  });
-});
-
-/**
- * P37 §7.2 — the lens an engine-AUTHORED pin row carries (fix round 3). The child's
- * prompt declares a lens menu per face and the read-back injects its own pin rows
- * into the same carrier, so the two surfaces must name the same vocabulary: the row
- * is written for a reader (the next fix round, the maintainer) who cannot otherwise
- * tell an engine row from a child that ignored the enum. The gate lives at
- * `pinLensOf`, which throws on a drifted pair; the pair's exact values are pinned
- * here because they are the carrier bytes a consumer reads.
- */
-describe("P37 §7.2 — the injected pin row carries the face's own declared lens", () => {
-  it("declares every face's pin lens inside that face's own menu", () => {
-    for (const key of CRITERIA_KEYS) {
-      expect(REVIEWS[key].lensEnum, `${key} menu`).toContain(REVIEWS[key].pinLens);
-    }
-  });
-
-  it("derives the per-face value from the target type — the two spec shapes share one word", () => {
-    const byType: Readonly<Record<TargetType, string>> = {
-      wave: "standards",
-      branch: "standards",
-      plan: "buildability",
-      overall: "inventory",
-      "phase-spec": "consistency",
-      "single-spec": "consistency",
-    };
-    for (const type of TARGET_TYPES) {
-      expect(pinLensOf(type), type).toBe(byType[type]);
-      // the value is a label of the menu the SAME round's prompt prints
-      expect(REVIEWS[reviewBodyOf(type)].lensEnum, type).toContain(pinLensOf(type));
-    }
-  });
-
-  it("throws when a face's pin lens drifts off its menu — the gate, not a silent carrier row", () => {
-    const drifted: ReviewGuides = {
-      ...REVIEWS,
-      overall: { ...REVIEWS.overall, pinLens: "consistency" },
-    };
-    expect(() => pinLensOf("overall", drifted)).toThrow(
-      /the pin lens "consistency" is not declared by the overall lens menu/,
-    );
-    // the declared table is untouched: the throw reads the argument, never mutates it
-    expect(pinLensOf("overall")).toBe("inventory");
   });
 });
 

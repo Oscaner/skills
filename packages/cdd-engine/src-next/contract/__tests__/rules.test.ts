@@ -48,14 +48,6 @@ const HARDENED_RULE_IDS = [
 ] as const;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 35 rows: 33 doc-scope + 2 ledger-scope", () => {
-    const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
-    const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(35);
-    expect(doc).toHaveLength(33);
-    expect(ledger).toHaveLength(2);
-  });
-
   it("keeps the class comment's counts equal to the table's own lengths — computed, never grepped", () => {
     // The comment's spelling (`doc scope … rows + ledger scope … rows = …`) differs
     // from this file's title spelling, so no literal grep holds either tree; the
@@ -133,48 +125,47 @@ describe("RULE_REGISTRY — the declaration surface", () => {
 /** The per-id seat table — the delivered registry read once, pinned as literals so a
  *  row's seat cannot move without a red here. */
 const SEATS: Readonly<Record<string, readonly string[]>> = {
-  presence: ["dispatch", "close", "corpus"],
-  "change-history-version-unique": ["dispatch", "close", "corpus"],
-  "change-history-row-shape": ["dispatch", "close", "corpus"],
-  "change-history-header-columns": ["dispatch", "close", "corpus"],
-  "change-history-latest-matches-front-matter": ["dispatch", "close", "corpus"],
-  "change-history-newest-last": ["dispatch", "close", "corpus"],
-  "task-id-unique": ["dispatch", "close", "corpus"],
-  "phase-id-unique": ["dispatch", "close", "corpus"],
-  domain: ["dispatch", "close", "corpus"],
-  crosslink: ["dispatch", "close", "corpus"],
-  "section-order": ["dispatch", "close", "corpus"],
-  "front-matter-version-in-lineage": ["dispatch", "close", "corpus"],
-  continuity: ["dispatch", "close", "corpus"],
-  residue: ["dispatch", "close", "corpus"],
-  hollow: ["dispatch", "close", "corpus"],
-  "link-shape": ["dispatch", "close", "corpus"],
-  "file-existence": ["dispatch", "close", "corpus"],
-  "sibling-scan": ["dispatch", "close", "corpus"],
-  "slug-ref": ["dispatch", "close", "corpus"],
-  "cross-doc-chain": ["dispatch", "close", "corpus"],
-  "section-scoped-domain": ["dispatch", "close", "corpus"],
-  "change-history-row-not-in-other-table": ["dispatch", "close", "corpus"],
-  "list-marker-not-doubled": ["dispatch", "close", "corpus"],
-  "wave-width-at-most-three": ["dispatch", "close", "corpus"],
-  "single-create": ["dispatch", "close", "corpus"],
-  "dangling-task-ref": ["dispatch", "close", "corpus"],
-  "depends-on-cycle": ["dispatch", "close", "corpus"],
-  "phase-design-spec-is-phase-spec": ["dispatch", "close", "corpus"],
-  "measure-literal": ["dispatch", "close", "corpus"],
-  "line-coordinate": ["dispatch", "close", "corpus"],
-  "live-arithmetic": ["dispatch", "close", "corpus"],
-  "single-home": ["dispatch", "close", "corpus"],
-  "change-history-date-shape": ["dispatch", "close", "corpus"],
+  presence: ["dispatch", "close"],
+  "change-history-version-unique": ["dispatch", "close"],
+  "change-history-row-shape": ["dispatch", "close"],
+  "change-history-header-columns": ["dispatch", "close"],
+  "change-history-latest-matches-front-matter": ["dispatch", "close"],
+  "change-history-newest-last": ["dispatch", "close"],
+  "task-id-unique": ["dispatch", "close"],
+  "phase-id-unique": ["dispatch", "close"],
+  domain: ["dispatch", "close"],
+  crosslink: ["dispatch", "close"],
+  "section-order": ["dispatch", "close"],
+  "front-matter-version-in-lineage": ["dispatch", "close"],
+  continuity: ["dispatch", "close"],
+  residue: ["dispatch", "close"],
+  hollow: ["dispatch", "close"],
+  "link-shape": ["dispatch", "close"],
+  "file-existence": ["dispatch", "close"],
+  "sibling-scan": ["dispatch", "close"],
+  "slug-ref": ["dispatch", "close"],
+  "cross-doc-chain": ["dispatch", "close"],
+  "section-scoped-domain": ["dispatch", "close"],
+  "change-history-row-not-in-other-table": ["dispatch", "close"],
+  "list-marker-not-doubled": ["dispatch", "close"],
+  "wave-width-at-most-three": ["dispatch", "close"],
+  "single-create": ["dispatch", "close"],
+  "dangling-task-ref": ["dispatch", "close"],
+  "depends-on-cycle": ["dispatch", "close"],
+  "phase-design-spec-is-phase-spec": ["dispatch", "close"],
+  "line-coordinate": ["dispatch", "close"],
+  "live-arithmetic": ["dispatch", "close"],
+  "single-home": ["dispatch", "close"],
+  "change-history-date-shape": ["dispatch", "close"],
   "closed-wave-fits-depends-on-layers": ["ledger"],
   "planned-tasks-vs-recorded-tasks": ["ledger"],
 };
 
 describe("seat — the closed vocabulary of a row's judgment face (P42 §8)", () => {
-  const SEAT_VOCABULARY = ["dispatch", "close", "corpus", "ledger"] as const;
+  const SEAT_VOCABULARY = ["dispatch", "close", "ledger"] as const;
 
-  it("declares exactly 35 per-id seats — the same row set the registry carries", () => {
-    expect(Object.keys(SEATS)).toHaveLength(35);
+  it("declares one seat per row — the hand-written table against the registry's own length", () => {
+    expect(Object.keys(SEATS)).toHaveLength(RULE_REGISTRY.length);
     expect(Object.keys(SEATS).sort()).toEqual(RULE_REGISTRY.map((row) => row.id).sort());
   });
 
@@ -190,9 +181,17 @@ describe("seat — the closed vocabulary of a row's judgment face (P42 §8)", ()
     expect(SEAT_VOCABULARY).not.toContain(outside);
   });
 
-  it("gives every doc row the three doc seats and every ledger row `ledger` alone", () => {
+  it("keeps the closed vocabulary equal to the faces the rows actually occupy", () => {
+    // A word kept in the vocabulary after its last row dropped it would leave the union
+    // declaring a face the tree no longer runs, so the two sides are compared — never
+    // one side asserted alone.
+    const occupied = [...new Set(RULE_REGISTRY.flatMap((row) => row.seat))].sort();
+    expect([...SEAT_VOCABULARY].sort()).toEqual(occupied);
+  });
+
+  it("gives every doc row the two doc seats and every ledger row `ledger` alone", () => {
     for (const row of RULE_REGISTRY) {
-      const expected = row.scope === "doc" ? ["dispatch", "close", "corpus"] : ["ledger"];
+      const expected = row.scope === "doc" ? ["dispatch", "close"] : ["ledger"];
       expect(row.seat, row.id).toEqual(expected);
     }
   });

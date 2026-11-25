@@ -19,10 +19,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import { ClosedDocument } from "../contract/closed-document.ts";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
-import type { Finding } from "../contract/invariants.ts";
+import { type Finding, identityIndexOf } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
-import { PinAudit } from "../contract/pins.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
@@ -35,7 +35,7 @@ import type { DocEntry } from "../infra/slug-index.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues } from "../render/templates.ts";
-import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
+import { TemplateAssembler } from "../render/templates.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type {
@@ -280,12 +280,12 @@ export class CliLifecycle {
    *  when the channel opened — the record face must see a channel that never opened,
    *  not only the stderr notice. */
   #logUnavailable: RoundViolation | null = null;
-  /** The pin gate of this dispatch (P37 §7.2) — the one audit instance, built on first
-   *  use so the resolution index is walked once per dispatch, never once per read. */
-  #pinIndex: PinAudit | null = null;
-  /** The composition root's audit accessor, when supplied — the ONE construction point of
-   *  the dispatch's pin audit, shared with the pre-flight closure port. */
-  readonly #pinAuditFactory: (() => PinAudit) | null;
+  /** This dispatch's closure reading — built on first ask, so a round that judges no
+   *  document (a wave / branch face, the whole work plane) pays no doc scan. */
+  #closedDocumentMemo: ClosedDocument | null = null;
+  /** The composition root's closure accessor, when supplied — the ONE construction point
+   *  of the dispatch's closure reading, shared with the pre-flight closure port. */
+  readonly #closedDocumentFactory: (() => ClosedDocument) | null;
   /** The doc-contract coordinator this face's close-out leg runs (P42 §7) — the SAME
    *  instance the pre-dispatch gate judged with, handed in at the composition root.
    *  Required: a lifecycle that built its own would read a second registry, and the two
@@ -315,11 +315,11 @@ export class CliLifecycle {
     /** The host id the composition root probed ONCE — required, no default: a default
      *  would re-open the second detection path this seam retired (P40 T6). */
     host: HostId | "";
-    /** The dispatch's one pin audit accessor (design spec §1.4) — the composition root
-     *  hands its lazily constructed audit to BOTH this class and the pre-flight closure
-     *  port, so one dispatch scans the doc roots once. Absent → this class builds its
-     *  own memoized audit (the eleven construction sites that never supply one). */
-    pinAudit?: () => PinAudit;
+    /** The dispatch's one closure reading (design spec §1.4) — the composition root
+     *  hands the SAME lazily constructed reader to this class and to the pre-flight
+     *  closure port, so one dispatch scans the doc roots once. Absent → this class builds
+     *  its own memoized reader over the rule plane's default index read. */
+    closedDocument?: () => ClosedDocument;
     /** The doc-contract coordinator the close-out leg judges with (P42 §7) — the
      *  composition root's ONE instance, the same object its pre-flight seam holds. */
     contract: Contract;
@@ -343,7 +343,7 @@ export class CliLifecycle {
       stderr: (t) => process.stderr.write(t),
     };
     this.#reviews = opts.reviews ?? null;
-    this.#pinAuditFactory = opts.pinAudit ?? null;
+    this.#closedDocumentFactory = opts.closedDocument ?? null;
     this.#contract = opts.contract;
   }
 
@@ -750,7 +750,7 @@ export class CliLifecycle {
 
   /** The judged document's contract findings read at the round's CLOSE — the SAME
    *  `Contract.validate` construction the pre-dispatch gate runs (doc key · absolute
-   *  path · bytes · root, the closure fact from the one pin audit nothing else builds,
+   *  path · bytes · root, the closure fact from this dispatch's one closure reading,
    *  and the plan layers from the graph's own `batches()`), on the ONE `Contract`
    *  instance the composition root handed in. Unreadable / undeclared documents read
    *  zero findings: the gate already owns those faces, and this leg is a DELTA, not a
@@ -777,7 +777,7 @@ export class CliLifecycle {
     // contract plane is exactly the one mechanism the gate's explicit index also uses.
     return this.#contract.validate(
       { docKey, path: absolute, content, root: repoRoot, taskLayers },
-      this.#pinAudit().provenClosed(rel),
+      this.#closedDocument().closed(rel),
     );
   }
 
@@ -1360,12 +1360,6 @@ export class CliLifecycle {
         `the handoff draft at ${path} violates the ${plane} schema: ${readBack.problems.join("; ")}`,
       );
     }
-    // P37 §7.2 — the pin read-back corpora ② and ③ are judged HERE, before the local
-    // findings projection and before `conclusionOf`, so that ONE `rollup` reads them,
-    // `DraftedOutcome.findings` projects them and `#materialize` persists them. The
-    // judgment lives here and the write there: a warn injected at the writer would
-    // reach the carrier while the round still concluded `APPROVED`.
-    if (plane === "judge") this.#injectPinFindings(frame, draft);
     // T2 — the plane-aware read: the judge plane ALONE reads `draft.findings` (its
     // own declared required field — rolled up to the conclusion); the work plane
     // derives its status from the draft's declared status, never the findings slot
@@ -1417,97 +1411,17 @@ export class CliLifecycle {
     };
   }
 
-  /** P37 §7.2 — the two read-back corpora of the pin gate, injected as REAL warn-level
-   *  findings into `draft.findings`. The row's LENS is the judged face's own declared
-   *  `pinLens` (`render/templates.ts#pinLensOf`), never a literal here: the child's
-   *  prompt declares a lens menu per face, and an engine row outside that menu would
-   *  be unreadable as "the engine wrote it" to every later reader. They are not a
-   *  refusal: no `CDD_BLOCKED` is printed, and the round keeps its conclusions — a warn
-   *  reaches `rollup`, so a review round with a dead pin concludes `REVIEW_FIX` instead
-   *  of `APPROVED`. Nothing here is a second reporting surface: the rows enter the same
-   *  `findings[]`, are projected by the same `findingsOf`, and are keyed by the same
-   *  `#findingsList` at materialize. */
-  #injectPinFindings(frame: OpenFrame, draft: Record<string, unknown>): void {
-    const lens = pinLensOf(frame.type);
-    const injected = [
-      ...this.#documentPinRows(frame, lens),
-      ...this.#contractPinRows(draft, lens, CliLifecycle.#judgedDocOf(frame)),
-    ];
-    if (injected.length === 0) return;
-    const rows = Array.isArray(draft.findings) ? draft.findings : [];
-    draft.findings = [...rows, ...injected];
-  }
-
-  /** The document this round judges (§7.3 condition ①'s subject) — a repo-relative
-   *  path for the two doc-target kinds, `null` for a wave / branch round: those audit
-   *  no document body, so a `Create:` declaration has no identity key to match and its
-   *  pending path stays a finding (design spec §7.2's `standards` arm). */
-  static #judgedDocOf(frame: OpenFrame): string | null {
-    const target = frame.target;
-    return target.kind === "spec" || target.kind === "plan" ? target.doc : null;
-  }
-
-  /** Corpus ② — the JUDGED document's own body (the three doc targets only; a wave /
-   *  branch / plan round judges no document body). The path comes from `frame.target`
-   *  (`{ kind: "spec", doc }`, resolved at the CLI seam), and the body is read through
-   *  this class's own repo read: `#reconstruct` builds no second `SlugIndex` and adds no
-   *  field to `DispatchScene`. */
-  #documentPinRows(frame: OpenFrame, lens: string): readonly Record<string, unknown>[] {
-    if (frame.target.kind !== "spec") return [];
-    const doc = frame.target.doc;
-    let body: string;
-    try {
-      body = readFileSync(path.resolve(this.#repoRootValue().absolute, doc), "utf8");
-    } catch {
-      return [];
-    }
-    return this.#pinAudit()
-      .scanText(body, this.#rel(doc))
-      .map((finding) => CliLifecycle.#pinRow(finding.summary, lens));
-  }
-
-  /** Corpus ③ — each finding's `contract.path` (design spec §2.3). `PinAudit`'s
-   *  markdown scan never carries this cell: the anchor is a declared coordinate, judged
-   *  on its own. A missing path appends one warn per offending finding. The judged
-   *  document rides in as the time face's subject (§7.3): a `Create:` declaration of
-   *  the judged document's own plan is pending, not dead. */
-  #contractPinRows(
-    draft: Record<string, unknown>,
-    lens: string,
-    judged: string | null,
-  ): readonly Record<string, unknown>[] {
-    const rows = Array.isArray(draft.findings) ? draft.findings : [];
-    const audit = this.#pinAudit();
-    const rel = judged === null ? null : this.#rel(judged);
-    const out: Record<string, unknown>[] = [];
-    for (const row of rows) {
-      const pin = (row as { contract?: { path?: unknown } } | null)?.contract?.path;
-      if (typeof pin !== "string" || pin.trim().length === 0) continue;
-      if (audit.pathResolves(pin.trim(), rel)) continue;
-      out.push(
-        CliLifecycle.#pinRow(
-          `the pin \`${pin.trim()}\` resolves nowhere — the finding's \`contract.path\` anchor names no path in the tree`,
-          lens,
-        ),
-      );
-    }
-    return out;
-  }
-
-  /** One injected pin finding — a warn under the judged face's own declared pin lens,
-   *  the tier §7.2 pins and the lens its menu can carry. */
-  static #pinRow(summary: string, lens: string): Record<string, unknown> {
-    return { severity: "warn", lens, summary };
-  }
-
-  /** The one audit instance of this dispatch — the resolution index is built once and
-   *  shared by both corpora (and by every round this instance drives). When the
-   *  composition root supplies its accessor, THAT instance is the dispatch's one audit
-   *  (the shape gate's closure port asks the same one); otherwise this class builds its
-   *  own on first use, so a construction site that supplies no accessor owes no edit. */
-  #pinAudit(): PinAudit {
-    this.#pinIndex ??= this.#pinAuditFactory?.() ?? new PinAudit(this.#repoRootValue().absolute);
-    return this.#pinIndex;
+  /** The one closure reading of this dispatch — the shape gate's `Contract.validate`
+   *  argument. When the composition root supplies its accessor, THAT instance is the
+   *  dispatch's one reader (the pre-flight closure port asks the same one); otherwise
+   *  this class builds its own on first use over the rule plane's default index read, so
+   *  a construction site that supplies no accessor owes no edit. The fallback is lazy:
+   *  a round that judges no document never pays the scan. */
+  #closedDocument(): ClosedDocument {
+    this.#closedDocumentMemo ??=
+      this.#closedDocumentFactory?.() ??
+      new ClosedDocument(identityIndexOf(this.#repoRootValue().absolute));
+    return this.#closedDocumentMemo;
   }
 
   /** The blocker-evidence refusal — the module-level composition below, read through

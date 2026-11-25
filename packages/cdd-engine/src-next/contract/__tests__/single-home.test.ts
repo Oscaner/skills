@@ -12,7 +12,7 @@
 // zero-`function`-declaration discipline).
 
 import { describe, expect, it } from "vitest";
-import type { DocFs } from "../invariants.ts";
+import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
 import { SentenceIndex, SingleHomeInvariant } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 
@@ -22,36 +22,6 @@ const CRITERION =
 
 /** A sentence too short to compare — below the length floor by construction. */
 const SHORT = "Short claim.";
-
-/** A memory filesystem seam — the right domain's list/read face, keyed by absolute
- *  path so a case can place neighbours in any doc root. */
-class MemoryFs implements DocFs {
-  readonly #files: ReadonlyMap<string, string>;
-
-  constructor(files: Readonly<Record<string, string>>) {
-    this.#files = new Map(Object.entries(files));
-  }
-
-  exists(at: string): boolean {
-    return this.#files.has(at);
-  }
-
-  read(at: string): string | null {
-    return this.#files.get(at) ?? null;
-  }
-
-  list(at: string): readonly string[] {
-    const prefix = at.endsWith("/") ? at : `${at}/`;
-    const names = new Set<string>();
-    for (const file of this.#files.keys()) {
-      if (!file.startsWith(prefix)) continue;
-      const rest = file.slice(prefix.length);
-      if (rest.includes("/")) continue;
-      names.add(rest);
-    }
-    return [...names];
-  }
-}
 
 /** One spec document carrying `lines` in its decision face. */
 const specDoc = (slug: string, lines: readonly string[]): string =>

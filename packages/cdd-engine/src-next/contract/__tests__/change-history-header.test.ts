@@ -4,7 +4,7 @@
 // header that quietly grows, loses or renames a column leaves every row "conforming"
 // while the table stops being the declared four-column lineage. The two legs are
 // orthogonal: this file pins the header alone (its own kind), and the row-shape pins
-// live in `judge.test.ts` / `doc-corpus.guard.test.ts` untouched.
+// live in `judge.test.ts` untouched.
 
 import { describe, expect, it } from "vitest";
 

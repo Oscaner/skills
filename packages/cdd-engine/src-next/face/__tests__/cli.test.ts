@@ -5872,6 +5872,61 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
+  it("board --notes folds the child-note bodies to their count, and the flag opens the same bytes", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      // The branch line's own review round, with its carrier on disk and one note: the
+      // default face prints the count alone, the flag appends the folded body.
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "prog-p1");
+      mkdirSync(workspace, { recursive: true });
+      const carrier = path.join(workspace, "branch-review-1.json");
+      const note = "the brief's Constraints mirror repeats the plan";
+      writeFileSync(
+        carrier,
+        `${JSON.stringify({ findings: [], notes: [note] }, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        JSON.stringify({
+          timeoutCount: 0,
+          waves: [
+            {
+              wave: "branch",
+              rounds: [
+                {
+                  op: "review",
+                  cycle: 1,
+                  attempt: 1,
+                  dispatchBase: null,
+                  carrierPath: carrier,
+                  verdict: { treeClean: true, targetAction: true },
+                  violations: [],
+                },
+              ],
+            },
+          ],
+        }),
+        "utf8",
+      );
+      // The folded default: the count is printed, no byte of the body is.
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      expect(io.stdoutText).toContain("notes +1");
+      expect(io.stdoutText).not.toContain(note);
+      io.stdoutText = "";
+      // The flag is declared + wired through every summaryCell call site: one token,
+      // the same count, and the body appended after it.
+      expect(await command.runArgv(["board", "--plan", PLAN, "--notes"])).toBe(0);
+      expect(io.stderrText).not.toContain("Usage");
+      expect(io.stdoutText).toContain(`notes +1; ${note}`);
+      expect(io.stdoutText.split("\n").filter((row) => row.includes("notes +1")).length).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an overall --spec path renders the program board", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -12896,7 +12951,7 @@ describe("P40 T6 — the refusal record's two anchors and the dry-run refusal ex
 
 // ---------------------------------------------------------------------------
 // P41 T5 — one command, one snapshot. Every per-root seam of the composition
-// root (the identity index · the pin audit · the production pre-flight) and the
+// root (the identity index · the closure reading · the production pre-flight) and the
 // judgment instance's own right-domain corpus are dropped at the command
 // boundary, so a second `runArgv` on ONE `Cli` answers from the tree it reads
 // then — never from the snapshot the first command took.
@@ -12929,12 +12984,12 @@ describe("P41 T5 — the command boundary drops every per-root snapshot", () => 
       writeFileSync(charter, charterBody(true), "utf8");
       const argv = ["review", "--type", "phase-spec", "--spec", spec, "--dry-run"];
       expect(await command.runArgv(argv)).toBe(0);
-      expect(io.stderrText).toContain("measure-literal: skipped (closed document)");
+      expect(io.stderrText).toContain("line-coordinate: skipped (closed document)");
       writeFileSync(charter, charterBody(false), "utf8");
       io.stderrText = "";
       expect(await command.runArgv(argv)).toBe(0);
-      expect(io.stderrText).toContain("measure-literal: passed");
-      expect(io.stderrText).not.toContain("measure-literal: skipped (closed document)");
+      expect(io.stderrText).toContain("line-coordinate: passed");
+      expect(io.stderrText).not.toContain("line-coordinate: skipped (closed document)");
     } finally {
       cleanup();
     }

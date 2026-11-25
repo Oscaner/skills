@@ -23,15 +23,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { ClosedDocument } from "../../contract/closed-document.ts";
 import type { Finding } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
-import { PinAudit } from "../../contract/pins.ts";
 import type { CliOptions } from "../../face/cli.ts";
 import { Cli } from "../../face/cli.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../../face/lifecycle.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../../face/termination.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { type TargetType, targetFaces } from "../faces.ts";
@@ -69,12 +70,12 @@ const specDoc = (body: readonly string[]): string =>
     "",
   ].join("\n");
 
-/** The one violation this file writes — a bare measurement on the decision face. */
-const MEASURE = "这一相位补了 42 rows。";
+/** The one violation this file writes — a line coordinate on the decision face. */
+const COORDINATE = "这一处读第 41 行。";
 
 /** A second violation under the SAME heading — repairing the first and writing this one
  *  leaves the `kind@field` set unchanged while a defect is genuinely new. */
-const MEASURE_OTHER = "这一相位又补了 7 tests。";
+const COORDINATE_OTHER = "这一处又读第 42 行。";
 
 /** The IO seam — captures both channels (the soft-entry warn rides stderr). */
 class CaptureIo implements CliIo {
@@ -201,7 +202,7 @@ const baselineOf = (f: Fixture, content = specDoc(["判据面正文。"])): read
       slugIndex: undefined,
       taskLayers: undefined,
     },
-    new PinAudit(f.repoRoot).provenClosed("docs/k/s.md"),
+    new ClosedDocument(SlugIndex.build(f.repoRoot)).closed("docs/k/s.md"),
   );
 
 /** The docs-fix frame of the fixture's spec line, carrying its baseline. */
@@ -255,9 +256,9 @@ describe("P42 T10 — the baseline cell rides the frame", () => {
     {
       path: "docs/k/s.md",
       field: "## Design",
-      message: "the decision face states a bare measurement: 3 行",
-      fix: "state the count as census:<id> = <n>",
-      kind: "measure-literal",
+      message: "the decision face carries a line coordinate: 第 41 行",
+      fix: "cite the module path and the symbol name instead of a line number",
+      kind: "line-coordinate",
       severity: "warn",
     },
   ];
@@ -367,13 +368,13 @@ describe("P42 T10 — the close-out leg", () => {
     const f = fixture();
     try {
       const baseline = baselineOf(f);
-      const outcome = await runFix(f, fixFrame(f, baseline), new DocFixRunner(() => MEASURE));
+      const outcome = await runFix(f, fixFrame(f, baseline), new DocFixRunner(() => COORDINATE));
       const entries = contractEntries(outcome);
       expect(entries).toHaveLength(1);
       expect(entries[0]?.grade).toBe("hard");
       // The existing cause — zero new violation enum — and one row per added finding.
       expect(entries[0]?.cause).toBe("contract-violation");
-      expect(entries[0]?.message).toContain("measure-literal@");
+      expect(entries[0]?.message).toContain("line-coordinate@");
       expect(outcome.status).toBe("BLOCKED");
     } finally {
       f.cleanup();
@@ -397,9 +398,9 @@ describe("P42 T10 — the close-out leg", () => {
     try {
       // The document ALREADY carries the violation: the baseline holds it, so the round
       // that leaves it alone is not blamed for history it inherited.
-      writeFileSync(f.doc, specDoc([MEASURE]), "utf8");
-      const baseline = baselineOf(f, specDoc([MEASURE]));
-      expect(baseline.filter((finding) => finding.kind === "measure-literal")).toHaveLength(1);
+      writeFileSync(f.doc, specDoc([COORDINATE]), "utf8");
+      const baseline = baselineOf(f, specDoc([COORDINATE]));
+      expect(baseline.filter((finding) => finding.kind === "line-coordinate")).toHaveLength(1);
       const outcome = await runFix(f, fixFrame(f, baseline), new QuietRunner());
       expect(contractEntries(outcome)).toEqual([]);
       expect(outcome.status).toBe("APPROVED");
@@ -411,18 +412,18 @@ describe("P42 T10 — the close-out leg", () => {
   it("reports only the ADDED one — a second violation beside the inherited one", async () => {
     const f = fixture();
     try {
-      writeFileSync(f.doc, specDoc([MEASURE]), "utf8");
-      const baseline = baselineOf(f, specDoc([MEASURE]));
+      writeFileSync(f.doc, specDoc([COORDINATE]), "utf8");
+      const baseline = baselineOf(f, specDoc([COORDINATE]));
       const outcome = await runFix(
         f,
         fixFrame(f, baseline),
-        new DocFixRunner(() => [MEASURE, MEASURE_OTHER].join("\n")),
+        new DocFixRunner(() => [COORDINATE, COORDINATE_OTHER].join("\n")),
       );
       const entries = contractEntries(outcome);
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.message).toContain("7 tests");
+      expect(entries[0]?.message).toContain("第 42 行");
       // the inherited row is not restated as new
-      expect(entries[0]?.message).not.toContain("42 rows");
+      expect(entries[0]?.message).not.toContain("第 41 行");
     } finally {
       f.cleanup();
     }
@@ -431,15 +432,19 @@ describe("P42 T10 — the close-out leg", () => {
   it("compares the WHOLE identity — repairing one row under a heading and writing another is new", async () => {
     const f = fixture();
     try {
-      writeFileSync(f.doc, specDoc([MEASURE]), "utf8");
-      const baseline = baselineOf(f, specDoc([MEASURE]));
+      writeFileSync(f.doc, specDoc([COORDINATE]), "utf8");
+      const baseline = baselineOf(f, specDoc([COORDINATE]));
       // The round REPAIRS the inherited row and writes a different one under the SAME
       // heading: `kind@field` is unchanged on both sides, so a set difference there would
       // read zero — the multiset on the full identity reads one.
-      const outcome = await runFix(f, fixFrame(f, baseline), new DocFixRunner(() => MEASURE_OTHER));
+      const outcome = await runFix(
+        f,
+        fixFrame(f, baseline),
+        new DocFixRunner(() => COORDINATE_OTHER),
+      );
       const entries = contractEntries(outcome);
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.message).toContain("7 tests");
+      expect(entries[0]?.message).toContain("第 42 行");
     } finally {
       f.cleanup();
     }
@@ -453,7 +458,7 @@ describe("P42 T10 — the close-out leg", () => {
       // pin the close-out's reading: a same-identity row is KNOWN whatever its tier, so
       // the leg never re-blames reading it. The baseline is the gate's measurement, never
       // an absolute standard the round is held to.
-      const written = specDoc(["这一处补了 5 rows。"]);
+      const written = specDoc(["这一处读第 7 行。"]);
       writeFileSync(f.doc, written, "utf8");
       const inherited = baselineOf(f, written).map((finding) => ({
         ...finding,
@@ -474,7 +479,7 @@ describe("P42 T10 — the close-out leg", () => {
       const outcome = await runFix(
         f,
         fixFrame(f, baseline, "branch"),
-        new DocFixRunner(() => MEASURE),
+        new DocFixRunner(() => COORDINATE),
       );
       expect(contractEntries(outcome)).toEqual([]);
     } finally {
@@ -499,7 +504,7 @@ describe("P42 T10 — the close-out leg", () => {
         // The frame cell never lands on disk: neither the key nor the finding's own
         // message text appears in any of the three stores.
         expect(text).not.toContain("contract");
-        expect(text).not.toContain("bare measurement");
+        expect(text).not.toContain("carries a line coordinate");
       }
       // The fix carrier is a work-plane carrier: it holds no findings slot at all.
       const carrier = JSON.parse(read("phase-spec-fix-1.json")) as Record<string, unknown>;
@@ -510,22 +515,22 @@ describe("P42 T10 — the close-out leg", () => {
   });
 });
 describe("P42 T10 — the fix prompt's write constraints", () => {
-  it("names each of the three shape rules exactly once in the docs-fix shell", () => {
+  it("names each of the two shape rules exactly once in the docs-fix shell", () => {
     const shell = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
-    const NAMED = ["measure-literal", "line-coordinate", "live-arithmetic"] as const;
+    const NAMED = ["line-coordinate", "live-arithmetic"] as const;
     for (const rule of NAMED) {
       expect(shell.split(rule).length - 1, rule).toBe(1);
     }
-    // The row names the WRITE constraints and nothing else: the two remaining
-    // closed-document-exempt rows describe a record the round does not write, so a
-    // fourth name is the row drifting, not the shell growing.
+    // The row names the WRITE constraints and nothing else: the closed-document-exempt
+    // rows it leaves out describe a record the round does not write, so a name outside
+    // this list is the row drifting, not the shell growing.
     for (const rule of ["single-home", "change-history-date-shape"]) {
       expect(shell, rule).not.toContain(rule);
     }
     // the pair: a shell that names none of them is what this arm would catch, and the
-    // work shells never carry the three (they write no document)
+    // work shells never carry the variable-class rows (they write no document)
     const work = TEMPLATE_PROMPT.modes.implement.shell.join("\n");
-    expect(work).not.toContain("measure-literal");
+    expect(work).not.toContain("line-coordinate");
   });
 });
 

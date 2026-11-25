@@ -1,7 +1,7 @@
 ---
 title: 'P44 · 引擎接手面收口：授权绑门 · 目标消失形态 · single-home 退役 · 读数只记不判'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 base: develop
@@ -205,7 +205,7 @@ none
 ### Task 6: 名册改真与本 spec 的验收尾
 
 #### Objective
-`single-home` 退役后名册在源码面有四处转述，同批改真：`contract/invariants.ts` 的模块头名册行、`contract/rules.ts` 的注册注释、`face/cli.ts#Cli.#contract` 的字段注释与 `#beginCommand` 的两处注释。同批把两处「为已删语料而写」的代码改真：`face/cli.ts#Cli.#beginCommand` 不再重建 `#contract`（它的每个字段都是构造期从声明表派生的只读值，重建与不重建得到同一个判断面），`#contract` 的字段注释与方法注释里「strategies hold their own state」那一半去掉、改成「命令边界不重建」的那一句；测试侧 `__tests__/support/memory-fs.ts` 的模块头只留两条还在的夹具家族。**零残留 grep pin** 写成显式形态：扫 `contract/` 与 `face/` 的源码面按规则 id 匹配，`__tests__/` 只保留负向断言，`single-homed` 这类散文词不在扫描面。文档面的名册（P43 spec §4.2 的名册句 · 宪章的 P44 行）属于登记面，归**编排器的回填**，本任务只把它记成一条 `Produces:` 义务、不写这两个文件的字节。最后把本 spec 的验收尾**改回统一措辞**——它是这条规则的自证现场，退役后无需豁免；这一步是显式的文档编辑，不掉在「收尾顺手改」里。
+`single-home` 退役后名册在源码面有四处转述，同批改真：`contract/invariants.ts` 的模块头名册行、`contract/rules.ts` 的注册注释、`face/cli.ts#Cli.#contract` 的字段注释与 `#beginCommand` 的两处注释。同批把两处「为已删语料而写」的代码改真：`face/cli.ts#Cli.#beginCommand` 不再重建 `#contract`（它的每个字段都是构造期从声明表派生的只读值，重建与不重建得到同一个判断面），`#contract` 的字段注释与方法注释里「strategies hold their own state」那一半去掉、改成「命令边界不重建」的那一句；测试侧 `__tests__/support/memory-fs.ts` 的模块头只留两条还在的夹具家族。**零残留 grep pin** 写成显式形态：图案取规则 id 的带词边界 kebab 形 `(?<![\w-])single-home(?![\w-])`，扫描面取 `contract/` 与 `face/` 的源码，`__tests__/` 只保留负向断言。散文用法（`single-homed` · 普通英语的「single home」）**住在扫描面之内**——`contract/skill-anatomy.ts` · `face/host.ts` · `face/dispatch-values.ts` 都住在 `contract/` 与 `face/` 之内——它们躲开判决靠的是图案的词边界，不是搬到面外；写成「不在扫描面内」会让后来者以为在 `face/host.ts` 里写该 id 不会变红。文档面的名册（P43 spec §4.2 的名册句 · 宪章的 P44 行）属于登记面，归**编排器的回填**，本任务只把它记成一条 `Produces:` 义务、不写这两个文件的字节。最后把本 spec 的验收尾**改回统一措辞**——它是这条规则的自证现场，退役后无需豁免；这一步是显式的文档编辑，不掉在「收尾顺手改」里。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`
@@ -228,7 +228,7 @@ none
 - 源码面四处改真 — checkable: 每处按它现在实际带的东西收口，不按名册想象的形状改——① `contract/invariants.ts` 的模块头名册行（`the shape gate (P41)` 那一行）去掉该 id，`line-coordinate` · `live-arithmetic` · `change-history-date-shape` 仍逐字在那一行；② `contract/rules.ts` 的注册表注释里的括注（`the variable classes · single-home · the record face's date shape`）去掉 ` · single-home`、留它自己的两句描述——这一处从不逐字带规则 id，故它**不**承载那三个 id，不把名册写进它；③ `face/cli.ts#Cli.#contract` 的字段注释与 ④ `#beginCommand` 的方法注释、行内注释改读「命令边界不重建」那一句，不再点名任何规则 id（那两处的判断是构造期派生，不是更短的名册）。断言按处分：`single-home` 在这四处零命中；三个形状 id 的逐字出现只钉 `contract/invariants.ts` 的名册行一处；`contract/rules.ts` 的注册表注释取负向断言（括注里不带任何规则 id）
 - `#contract` 的重建随语料退役 — checkable: `face/cli.ts#Cli.#beginCommand` 里 `new Contract()` 零命中，`#contract` 字段注释与该方法的文档注释改成「命令边界不重建」的那一句，字段类型与它的派生面零改；pin 取源码形态（那条构造缺席），行为断言不可得时不强凑
 - 测试侧缝头改真 — checkable: `__tests__/support/memory-fs.ts` 的模块头只列 P41 T7 的 charter 夹具与 P43 T9 的 selector matrix，`single-home` 在该文件零命中
-- 零残留 pin — checkable: 扫描面（`contract/` + `face/` 源码按规则 id 匹配 · `__tests__/` 只留负向断言）写成 `contract/__tests__/rules.test.ts` 里的红/绿成对——把 id 写回 `contract/rules.ts` 即红，交付树上零命中
+- 零残留 pin — checkable: 图案取规则 id 的带词边界 kebab 形 `(?<![\w-])single-home(?![\w-])`，扫描面取 `contract/` 与 `face/` 的源码（`__tests__/` 只留负向断言），写成 `contract/__tests__/rules.test.ts` 里的红/绿成对——`    id: "single-home",` 这样的行命名该 id，读数为 1（把 id 写回 `contract/rules.ts` 即红），而 `Edge judgment is single-homed here` 的读数为 0（散文用法在扫描面内而不匹配），交付树上零命中
 - 登记面回填义务 — checkable: 本任务源面那一次提交的 `git diff --name-only` 不含 `docs/kairos/specs/2026-11-23-engine-doc-tooling-p43-design.md` 与宪章（名册句与 P44 行的回填由编排器落地，见上方 `Produces:` 的登记面义务）
 - 本 spec 验收尾改回 — checkable: 该条逐字为「引擎 vitest 全绿 · `pnpm run validate` ALL PASS · `packages/cdd-engine` 一包 changeset 取 **minor**（D74：方法论契约不变）。」——差异只在本相位自己的两处更正（`ALL PASS` 与一包），判据是与这句写定的字节比对，不与其它相位 spec 比对
 - 提交（源面）— checkable: `git log -1 --format=%s` 以 `refactor(p44):` 起头——名册与注释改真、`#beginCommand` 的零重建、测试侧缝头与零残留 pin 同一提交
@@ -308,3 +308,4 @@ none
 | v0.5 | 2026-11-25 | 三轮 plan 评审整改（F1–F5）：T1 把 `face/__tests__/board-view.test.ts` 收进写面、把 `held` 字面量的补齐单写成一步（新成员必填，`tsc` 在 Wave 1 收口）；T4 的 `cl:own-document` 把 review 轮写成零代码写面（与同一提示的 `Read-only` 句同读），写面名回到 implement · fix · docs-fix 三个，成对臂补第 4 条 review 外壳臂；T6 的名册语句按处拆开（三个形状 id 只钉 `contract/invariants.ts` 的名册行，`contract/rules.ts` 的括注只掉 `single-home`、取负向断言）；T3 补 `Words.inFlightTargetGone` 裸行渲染器，board 行与 dry-run 提示改读它；T1 · T5 · T6 的提交类型改成 `feat` · `refactor` · `refactor` 加 `docs`（T6 拆两条提交）；另：T2 的验收从五条 pin 改成六条、T5 补注册表注释 scope 计数的改真一步 | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.6 | 2026-11-25 | 四轮 plan 评审整改（F1 · F2，另一条笔记）：T2 补「非折分支不夺判决」——`structure !== null` ∧ leg ① 未折即返回 `allowed`，`blocked` / `RECOVER_NOTHING` 只留结构门放过的树，`#recoverRun` 入参多一格结构事实，并补活 holder 与脏树两条 CLI 臂；T3 把 `Words.inFlightTargetGone` 的契约改成整条裸行（读出不在的那几格子句 + `--recover` 接管句，持有格零输出），四个读者一并点名（`PreFlight.#inFlightRow` 也走它），补每面一条字节臂与镜像混合态的零子句断言；T4 的 `#CLAUSES` 改回树上的 `CLAUSES` | Oscaner M. · Claude（kairos:cdd-plan 修复轮） |
 | v0.7 | 2026-11-25 | 分支评审整改（F2）：T4 的 `cl:own-document` review 半改成与 `Read-only` 句同一写集（prescribed 的 `OUTPUT_*` 载体、`findings` 载体在内）——旧句「只写它的 `findings` 载体」与 review 变体的 `OUTPUT_REPORT` 行相撞；`$version` 26 → 27 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.8 | 2026-11-25 | 五轮 plan 评审整改（F1）：T6 把零残留 pin 的机制按 spec §8.2 写对——散文用法住在扫描面之内，躲开判决靠图案的带词边界 kebab 形 `(?<![\w-])single-home(?![\w-])`，不是搬到面外；T6 的 Objective 与「零残留 pin」那一步各补上图案与红/绿成对两臂（命名该 id 的行读数为 1 · `Edge judgment is single-homed here` 的读数为 0） | Oscaner M. · Claude（kairos:cdd-fix） |

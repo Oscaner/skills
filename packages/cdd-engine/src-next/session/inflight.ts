@@ -35,7 +35,7 @@ import path from "node:path";
 import lockfile from "proper-lockfile";
 import { AtomicWriter } from "../infra/atomic.ts";
 import { ProcessFacts } from "../infra/proc.ts";
-import type { WorkspaceRoot } from "../infra/workspace.ts";
+import { Workspace, type WorkspaceRoot } from "../infra/workspace.ts";
 import { ArtifactRegistry } from "./round-artifacts.ts";
 
 /** One dispatch's in-flight record — the identity facts written before the spawn, plus
@@ -88,13 +88,34 @@ export interface InFlightRecord {
   readonly verdict: string | null;
 }
 
+/** The held record's own TARGET facts — one boolean per existence read the record's
+ *  cells support (spec §3.1): `plan` reads `InFlightRecord.plan`'s path, `workspace`
+ *  reads the slug's workspace directory. The record is judged on WHICH FACT IT
+ *  CARRIES, never on the face it was dispatched from: `plan` is null only on a
+ *  `--spec` dispatch of a document face, and a fact the record does not carry has no
+ *  "gone" shape to read, so its cell is false. "The target is gone" is DERIVED from
+ *  the two cells (any true one) and never stored as a third cell — a single boolean
+ *  could not say WHICH fact read out missing, and the fourth state's line renders
+ *  exactly those cells (spec §3.2). */
+export interface TargetGone {
+  readonly plan: boolean;
+  readonly workspace: boolean;
+}
+
 /** The three states of a judgment-time read of the record. */
 export type InFlightState =
   /** No record on disk — no dispatch claims the tree. */
   | { readonly kind: "absent" }
   /** A readable record stands; `alive` is `ProcessFacts.live`'s judgment (an
-   *  unreadable start time folds to `true` — never an authorized takeover). */
-  | { readonly kind: "held"; readonly record: InFlightRecord; readonly alive: boolean }
+   *  unreadable start time folds to `true` — never an authorized takeover), and
+   *  `targetGone` is the record's own target facts (never a fourth state: a stale
+   *  record keeps ONE takeover path, spec §3.3). */
+  | {
+      readonly kind: "held";
+      readonly record: InFlightRecord;
+      readonly alive: boolean;
+      readonly targetGone: TargetGone;
+    }
   /** A present-but-unreadable record; `locked` is the leftover lock directory — the
    *  only corroborating fact a corrupt record can carry. */
   | { readonly kind: "corrupt"; readonly locked: boolean };
@@ -278,15 +299,34 @@ export class InFlight {
   /** Judge the tree NOW — the three-state read every gate and report face shares.
    *  `held.alive` is `ProcessFacts.live` verbatim, except that its `null` (an
    *  unreadable start time) folds to `true`: refusing a takeover on a fact that could
-   *  not be read is the safe direction (a false "alive" only delays a takeover). */
+   *  not be read is the safe direction (a false "alive" only delays a takeover).
+   *  `held.targetGone` is the record's own two existence reads — zero process facts,
+   *  zero document reads, and zero state of its own. */
   async inspect(): Promise<InFlightState> {
     const record = this.#readRecord();
     if (record !== null) {
       const alive = await this.#liveness.live(record.pid, record.startedAt);
-      return { kind: "held", record, alive: alive ?? true };
+      return { kind: "held", record, alive: alive ?? true, targetGone: this.#targetGone(record) };
     }
     if (!existsSync(this.path())) return { kind: "absent" };
     return { kind: "corrupt", locked: existsSync(this.lockPath()) };
+  }
+
+  /** The record's own target facts — one existence read per fact the record carries.
+   *  `plan` is a repoRoot-relative path (the read-time normalization's shape), so it
+   *  resolves through the repo basis; a null `plan` is a fact the record does not
+   *  carry and reads `false`, never "gone". The workspace directory derives from the
+   *  ONE workspace path rule (`Workspace`), never a second `join`.
+   *
+   *  A record whose target looks gone is still `held`: liveness stays the judgment
+   *  (`alive === true` never yields to `--recover`), and no exit path clears the record
+   *  on this fact — the cells only let a report SAY the target is gone. */
+  #targetGone(record: InFlightRecord): TargetGone {
+    const basis = this.#root.basis;
+    return {
+      plan: record.plan !== null && !existsSync(basis.resolve(basis.relativize(record.plan))),
+      workspace: !existsSync(new Workspace(this.#root, record.slug).path),
+    };
   }
 
   /** The tree's STALE in-flight — the three takeover morphologies of spec §2.1①

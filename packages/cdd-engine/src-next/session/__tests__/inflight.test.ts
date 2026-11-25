@@ -13,6 +13,10 @@
 //     true (never an authorized takeover), a reused pid reads dead;
 //   · `recover` acts inside acquire only: a dead holder is taken over, a live one
 //     still refuses;
+//   · a held record carries its OWN target facts (`targetGone.plan` /
+//     `targetGone.workspace`) — one existence read per fact the record carries, a fact
+//     the record does not carry reading false, and no third cell: "the target is gone"
+//     is the derived fold of the two;
 //   · the sampling trail is fail-open on both sides: an unwritable record write is
 //     swallowed by `heartbeat` while `acquire`'s own record write stays loud.
 // Every fixture is a fresh temp repo; the real process table is the default reader,
@@ -32,7 +36,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProcessFacts } from "../../infra/proc.ts";
-import { WorkspaceRoot } from "../../infra/workspace.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import {
   HoldingError,
   InFlight,
@@ -282,6 +286,83 @@ describe("InFlight.release / inspect — the normal end and the crash", () => {
     expect(state.alive).toBe(false);
     expect(state.record.pid).toBe(DEAD_PID);
     expect(existsSync(inflight.path())).toBe(true);
+  });
+});
+
+describe("InFlight.inspect — the held record's own target facts (P44 §3.1)", () => {
+  /** Plant the slug's workspace directory — the one cell the record's slug reads. */
+  const plantWorkspace = (repo: string, slug = "p3"): void => {
+    new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), slug).ensure();
+  };
+
+  /** Plant the record's `plan` path under the repo root. */
+  const plantPlan = (repo: string, plan: string): void => {
+    mkdirSync(path.dirname(path.join(repo, plan)), { recursive: true });
+    writeFileSync(path.join(repo, plan), "# plan\n", "utf8");
+  };
+
+  /** The held state of one planted record. */
+  const heldOf = async (inflight: InFlight) => {
+    const state = await inflight.inspect();
+    expect(state.kind).toBe("held");
+    if (state.kind !== "held") throw new Error("the record did not read as held");
+    return state;
+  };
+
+  it("reads the plan fact gone when the recorded plan is not on the tree", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ plan: "docs/missing-p3.md" }));
+    plantWorkspace(repo);
+    const state = await heldOf(inflight);
+    expect(state.targetGone.plan).toBe(true);
+    expect(state.targetGone.workspace).toBe(false);
+  });
+
+  it("reads both cells present when the plan and the workspace directory are both there", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ plan: "docs/p3.md" }));
+    plantPlan(repo, "docs/p3.md");
+    plantWorkspace(repo);
+    const state = await heldOf(inflight);
+    expect(state.targetGone).toEqual({ plan: false, workspace: false });
+  });
+
+  it("carries no plan fact on a `--spec` record — that cell is false, whatever the tree holds", async () => {
+    // The record is judged on WHICH FACT IT CARRIES, never on the face it came from: a
+    // null `plan` has no "gone" shape to read, so only the workspace cell decides.
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ plan: null, phase: "review" }));
+    plantWorkspace(repo);
+    const state = await heldOf(inflight);
+    expect(state.targetGone.plan).toBe(false);
+    expect(state.targetGone.workspace).toBe(false);
+  });
+
+  it("judges the mixed state cell by cell — a renamed plan beside a standing workspace", async () => {
+    // One fact read out missing is enough: the two cells take OPPOSITE values, and the
+    // fold (any true one) says the target is gone. A single stored boolean could not
+    // report which fact was read (§3.2 renders exactly the cells that read out).
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ plan: "docs/renamed-p3.md" }));
+    plantWorkspace(repo);
+    const state = await heldOf(inflight);
+    expect(state.targetGone).toEqual({ plan: true, workspace: false });
+    expect(state.targetGone.plan || state.targetGone.workspace).toBe(true);
+  });
+
+  it("keeps exactly two cells and no folded third — the fold is derived", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf());
+    plantWorkspace(repo);
+    const state = await heldOf(inflight);
+    expect(Object.keys(state.targetGone).sort()).toEqual(["plan", "workspace"]);
+    // The held branch's morphology is unchanged: no fourth kind, no extra boolean.
+    expect(Object.keys(state).sort()).toEqual(["alive", "kind", "record", "targetGone"]);
   });
 });
 

@@ -572,6 +572,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         sampledAt: null,
         verdict: null,
       },
+      targetGone: { plan: false, workspace: false },
     };
     const text = render("prog-overall", "claude", null, refusal, holding).text;
     // The program board IS the rendered face (the assertion is not vacuous)…
@@ -602,6 +603,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         sampledAt: null,
         verdict: null,
       },
+      targetGone: { plan: false, workspace: false },
     };
     const refusal: RefusalState = {
       kind: "standing",
@@ -1661,12 +1663,22 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("adds the takeover hint only for a dead holder", () => {
     const alive = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
     const dead = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: false },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1677,7 +1689,12 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("(f) the held row names the holder's IDENTITY only — never the dispatch narrative", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1697,7 +1714,12 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("(f2) a re-dispatch's attempt and a later cycle are readable in the row", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord({ cycle: 3, attempt: 2 }), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord({ cycle: 3, attempt: 2 }),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1707,7 +1729,12 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("(f3) a record written before the cycle/attempt cells existed omits them, not prints null", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord({ cycle: null, attempt: null }), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord({ cycle: null, attempt: null }),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );

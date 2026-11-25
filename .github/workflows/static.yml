@@ -22,11 +22,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # The upload runs in its OWN job, never in the deploy job's step list.
+  # `actions/deploy-pages` lists the run's artifacts to find `github-pages`, and
+  # that listing is eventually consistent: an artifact finalized a fraction of a
+  # second earlier can still be missing from it (actions/deploy-pages#451 —
+  # measured lag 0.4 s to 46 s). Uploading and deploying in one job (the shape
+  # GitHub's own static starter ships) hit the race on this repository twice.
+  # A separate job puts the deploy seconds later, which is the shape the other
+  # Pages starters use and the one that issue reports as the fix.
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,6 +42,14 @@ jobs:
         with:
           # Upload the diagrams directory as the site root
           path: 'docs/diagrams'
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

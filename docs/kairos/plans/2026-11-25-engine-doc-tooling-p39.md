@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -45,7 +45,7 @@ base: develop
 - `src/bin.ts`：组合根占位（导出 `main()`，本波不接线）
 
 #### Steps
-- 退役 `src` 那一条腿 — checkable: 从 `RETIRED_PLANES` 移除 `"src"` 且保留 `"config"`；随后人为建一个包根的 `config` 目录 ⇒ 该 pin 仍红（证明 `config` 腿还活着），删掉即绿；同一文件里「`src-next` 内零说明符指向退役平面」那条断言不受影响（`pnpm -C packages/cdd-engine exec vitest run src-next/__tests__/zero-dep.test.ts` 绿）
+- 退役 `src` 那一条腿 — checkable: 从 `RETIRED_PLANES` 移除 `"src"` 且保留 `"config"`；随后人为建一个包根的 `config` 目录 ⇒ 该 pin 仍红（证明 `config` 腿还活着），删掉即绿；同一文件里「`src-next` 内零说明符指向退役平面」那条断言不受影响（`pnpm -C packages/cdd-engine exec vitest run src-next/__tests__/zero-dep.test.ts` 绿）——**这一行在本波已交付的切分里没有随编译面同批落地**：它由闭合波的一次一行后续提交补上（Constraints 的第二个旧树例外正是为它写的，`zero-dep.test.ts` 也就此在 Files 里认领），在它落地之前引擎套件带着 `deleted plane src must be absent from the package root` 这一条红，而本相位不把该步挪进别的任务——挪进去等于让一整波为别人的文件变红，且那波在 Files 里修不了它
 - 写 `tsconfig.src.json` 并挂进根 `typecheck` 链 — checkable: `pnpm run typecheck` exit 0，且它点名四个工程（引擎旧树 · `scripts` · kairos 测试 · 引擎新树）
 - 埋一处类型错误到 `src/bin.ts` — checkable: `pnpm run typecheck` 红，且报文指到 `src/`
 - 撤回那处错误 — checkable: `pnpm run typecheck` 回到 exit 0
@@ -57,7 +57,7 @@ base: develop
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
-四条波次条件可红可回（含 `zero-dep.test.ts` 的 `src` 腿退役后整棵引擎套件绿）：编译面红一次、测试面红一次、禁门两向各红一次；撤回后 `pnpm run typecheck` 与 `pnpm -C packages/cdd-engine exec vitest run` 均绿且收集到的用例清单与埋断言之前相等；`src/bin.ts` 与 `tsconfig.src.json` 在树上；禁门的域是产品文件（`src/**` 与 `src-next/**` 各自去掉 `__tests__`），测试面不被这两个断言扫；零裸函数的扫描根已含 `src/`（在 `src/` 写一行裸函数即红，不等翻面）。
+四条波次条件可红可回：编译面红一次、测试面红一次、禁门两向各红一次；撤回后 `pnpm run typecheck` 绿、`pnpm -C packages/cdd-engine exec vitest run` 除 `zero-dep.test.ts` 那一条（Steps 的交付切分：闭合波的一次一行后续提交）之外绿，且收集到的用例清单与埋断言之前相等；`src/bin.ts` 与 `tsconfig.src.json` 在树上；禁门的域是产品文件（`src/**` 与 `src-next/**` 各自去掉 `__tests__`），测试面不被这两个断言扫；零裸函数的扫描根已含 `src/`（在 `src/` 写一行裸函数即红，不等翻面）。
 
 #### DependsOn
 none
@@ -87,7 +87,7 @@ none
 - **自证臂**（与逐波判据分开，由 `compareTree` 的旧树一侧承担）：同一场景在旧树连录两次，两份录制逐格互比为空；人为把其中一份的一个字节改写后逐格互比即报差异——它不依赖任何新树 producer，所以「自身可红」在 T2 当天成立，而 GAP 格在逐波判据里仍只计集合、不比字节
 - `fixtures/`：从旧测试提取的夹具树，七种树形态各一份（空树 · wave 进行中 · in-flight 持有 · refused 在树 · doc-drift · stale holder 且 target gone · branch 已闭合），外加三份非树夹具：`init` 的 PATH 替身 harness 与注入 step runner · `issue render` 的 stdin findings JSON · 骨架面的冻结日期常量
 - `baseline/` 的格清单就是 spec §2.2 的八面逐格：面 1 按 `命令 × 路 × 流` 逐格展开，三条路（正常 · 拒绝 · 失败）各成一族，`init` 的步骤序列与 `issue render` 的渲染及 stdin 契约另按在册项逐格录；面 2 的 `--help` / usage / 错用退出码 2 同类在册。某条命令不存在某条路时在名册里写「不适用」，不留空、不省略；没有一格留「随某任务补」的占位
-- **格 → 接线任务名册**（`packages/cdd-engine/tests/parity/GRID-WIRING.md`，本任务 Files 里的一件）：每格写明它在新树一侧的 producer 由哪个任务交付并接线，**一格一个接线任务**（多格共用一个任务可以，一格挂两个任务不行），并写明该 producer 的落点（模块路径 + 导出名）——「已落地」读作「该落点在树上且可解析」，于是漏接在它自己那一波就红，不等到 T17。命令面与 `--help` / usage / 错用码 2 归 T16（壳与声明），其中 `init` 的步骤序列归 T8、`issue render` 的渲染与输入契约归 T15；面 1 的拒绝路格按成因各成一格（波门的 `mixed-batch` · `wave-too-wide` · `too-many-tasks` · `split` · `wrong-phase` 各一格，门口四站名各一格），接线任务只有 T16 一个（壳——被拒时走哪条流、退出码几都在那一格里比），波门五行的判定与行序取 T13 的 `WaveGate#vet`、站名与让位取 T11 的门行集、报文取 T14 的词表，它们是读值来源而非第二接线任务；失败路格同理，接线任务只有 T16 的壳一个（一条命令崩掉时走哪条流、退出码几都在那一格里比），终止因取 T12 的 `DispatchOutcome`、失败面的报文取 T15 的渲染面，它们是读值来源而非第二接线任务——一格的三条流都由命令面产出，只有壳落地才能把这一族推进字节比对，名册不让只在第七波落地的终止因独自认领；骨架四族归 T9（装配器入口、进程内、冻结日期下逐字节比内容）；**骨架落盘另成一格**（`schema get <族> --output skeleton <target>` 的目标文件是否真被写出）——接线任务只有 T16 一个、producer 落点 `surface/commands/schema.ts#SchemaCommand`，判的是落盘事实：两棵树各起一次真进程、各自往自己的临时目录落一份，当次运行内两份字节逐字节相等且目标文件非空（两棵树同取当天时钟，故这一格不挂跨天基线；内容面仍归 T9 那四格），缺了这一格则「路径回显了、文件没写」在八面里没有任何一格会红；prompt 两带 · 胶囊 · 板面两态 · 预览归 T15；阻断面按格拆开：`CDD_BLOCKED` 报文与 `checked:` 行集归 T14（词表）、站名与让位条件归 T11（门行集与让位——接线任务仍只有 T11 一个，那一格的读值取 T10 的 `docs/judging/closure.ts#ClosedDocument`，门只拼行、不另算闭包）、阻断行落在 stdout 的那一处归 T16（打印面）
+- **格 → 接线任务名册**（`packages/cdd-engine/tests/parity/GRID-WIRING.md`，本任务 Files 里的一件）：每格写明它在新树一侧的 producer 由哪个任务交付并接线，**一格一个接线任务**（多格共用一个任务可以，一格挂两个任务不行），并写明该 producer 的落点（模块路径 + 导出名）——「已落地」读作「该落点在树上且可解析」，于是漏接在它自己那一波就红，不等到 T17。命令面与 `--help` / usage / 错用码 2 归 T16（壳与声明），其中 `init` 的步骤序列归 T8、`issue render` 的渲染与输入契约归 T15；面 1 的拒绝路格按成因各成一格（波门的 `mixed-batch` · `wave-too-wide` · `too-many-tasks` · `split` · `wrong-phase` 各一格，门口四站名各一格），接线任务只有 T16 一个（壳——被拒时走哪条流、退出码几都在那一格里比），波门五行的判定与行序取 T13 的 `WaveGate#vet`、站名与让位取 T11 的门行集、报文取 T14 的词表，它们是读值来源而非第二接线任务；失败路格同理，接线任务只有 T16 的壳一个（一条命令崩掉时走哪条流、退出码几都在那一格里比），终止因取 T12 的 `DispatchOutcome`、失败面的报文取 T15 的 `surface/render/usage.ts`（`UsageFace#report`，声明过的值 → 冻结字节与退出码），它们是读值来源而非第二接线任务——一格的三条流都由命令面产出，只有壳落地才能把这一族推进字节比对，名册不让只在第七波落地的终止因独自认领；骨架四族归 T9（装配器入口、进程内、冻结日期下逐字节比内容）；**骨架落盘另成一格**（`schema get <族> --output skeleton <target>` 的目标文件是否真被写出）——接线任务只有 T16 一个、producer 落点 `surface/commands/schema.ts#SchemaCommand`，判的是落盘事实：两棵树各起一次真进程、各自往自己的临时目录落一份，当次运行内两份字节逐字节相等且目标文件非空（两棵树同取当天时钟，故这一格不挂跨天基线；内容面仍归 T9 那四格），缺了这一格则「路径回显了、文件没写」在八面里没有任何一格会红；prompt 两带 · 胶囊 · 板面两态 · 预览归 T15（渲染器落点 `surface/render/preview.ts`，它的输入由 T13 的 `Run#previewOf` 交付——接线任务仍只有 T15 一个，T13 是读值来源）；阻断面按格拆开：`CDD_BLOCKED` 报文与 `checked:` 行集归 T14（词表）、站名与让位条件归 T11（门行集与让位——接线任务仍只有 T11 一个，那一格的读值取 T10 的 `docs/judging/closure.ts#ClosedDocument`，门只拼行、不另算闭包）、阻断行落在 stdout 的那一处归 T16（打印面）
 - `packages/cdd-engine/tests/parity/tsconfig.json` 挂进根 `typecheck` 链；`vitest.config.ts#include` 追加 `tests/parity/**/*.test.ts`
 - 执行命令：`pnpm -C packages/cdd-engine exec vitest run tests/parity`
 
@@ -126,28 +126,28 @@ none
 - Create: `packages/cdd-engine/src/env/paths/__tests__/paths.test.ts`
 
 #### Consumes
-- 旧树的 `infra/root.ts#RepoRoot` · `infra/doc-roots.ts#ENGINE_DOC_ROOTS` · `infra/slug-index.ts` · `infra/workspace.ts#Workspace` · `infra/atomic.ts#AtomicWriter` · `infra/round-log.ts` · `infra/carrier-seal.ts` · `face/artifacts.ts` 的 `BaseArtifact` · `BaseSource` · `BASE_ARTIFACT_FIELDS` · `#readBase` / `#baseName`（基产物的读写）与 `#readText` / `#runSchemaSkeleton` 的落盘那一段（文本读与文本落盘各只一处，见 Produces）；基产物的文件名由构造参数 `baseName` 进来，拼写矩阵的家在 T7 的 `run/ledger/artifacts.ts#ArtifactIdentity`，本任务不持第二份（以上会读行为，不读形状）
+- 旧树的 `infra/root.ts#RepoRoot` · `infra/doc-roots.ts#ENGINE_DOC_ROOTS` · `infra/slug-index.ts` · `infra/workspace.ts#Workspace` · `infra/atomic.ts#AtomicWriter` · `infra/round-log.ts` · `infra/carrier-seal.ts` · `face/artifacts.ts` 的 `BaseArtifact` · `BaseSource` · `BASE_ARTIFACT_FIELDS` · `#readBase` / `#baseName`（基产物的读写，含无 `--force` 时那一处冲突判定）与 `#readText` / `#runSchemaSkeleton` 的落盘那一段（文本读面与两条文本落盘面见 Produces）· `face/gate.ts#CliGate#renderBrief` · `session/round-naming.ts#RoundNaming#briefName`（brief 的工作区相对名与它的落盘）· `face/dispatch-values.ts#DispatchValues#INPUT_WAVE_BRIEF`（brief 的仓库相对路径消费者）；基产物的文件名由构造参数 `baseName` 进来，拼写矩阵的家在 T7 的 `run/ledger/artifacts.ts#ArtifactIdentity`，本任务不持第二份（以上会读行为，不读形状）
 
 #### Produces
 - `Env`（`env/index.ts`）：构造一次，成员为四段的只读门面；本任务交付 `paths` 与 `workspace` 两段
 - `paths`：`RepoRoot.of(cwd)`（不可推算即抛）· `docRootsOf(root)` · `SlugIndex`（同 slug 多份 ⇒ `invalid`）
-- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写，基准是**工作区**：`WorkspaceRoot` 下 `<slug>/<name>`）/ `#writeText(target, text)`（文本落盘，基准是**仓库根**：绝对路径由 `paths` 交付的 `RepoRoot` 从工作区根携带的仓库基准取，`RepoRoot#resolve` 是唯一拼法）/ `#readText(target)`（文本读，与 `#writeText` 同一条仓库根拼写，读不到即抛、不返回空串）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写——**文本一对与 JSON 一对不共用拼写**：JSON 面住工作区里，而文本面两个唯一消费者都在工作区外（骨架的 `target` 与物料读面的 `file` 都是仓库根相对的 `RepoPath`），把文本拼到工作区下会让每次物料读都抛、骨架落盘写进 `.kairos/<slug>/` 而回显一个没被写的路径；`#writeText` 是 `src/**` 里唯一的文本落盘入口（`schema get --output skeleton` 的落盘就经它，T9 的装配器注入调用；第二处 `writeFileSync` 即缺陷），`#readText` 是物料读盘的那一个入口（T4 的 `Documents` 经注入调用它，`docs/**` 里因此零 `node:fs`）；**两处外部事实由构造参数进来，不在本模块里取**：`now: () => number`（时间戳来源，T5 的 `env/process/clock.ts` 落地后由组合根传入唯一实现）与 `baseName: string`（基产物的文件名，由 T7 的产物矩阵派生）。两个参数都是**必填无默认值**，缺即抛；本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`）的非测试文件里零 `Date.now` / 零无参 `new Date(` / 零文件名拼接字面——`env/process/clock.ts` 是 `env/` 内唯一的读时钟处（T5 交付，`now()` · `isoOf(epoch)` · `dayOf(epoch)` 三件能力都在那里读）
+- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写，基准是**工作区**：`WorkspaceRoot` 下 `<slug>/<name>`）/ `#writeText(name, text)`（文本落盘，基准是**工作区**：经 `Workspace#resolve` 落进本工作区，回传它写下的**仓库相对路径**——`INPUT_WAVE_BRIEF` 印的就是这条回值）/ `#writeTextAt(target, text)`（文本落盘，基准是**仓库根**：绝对路径由 `paths` 交付的 `RepoRoot` 从工作区根携带的仓库基准取，`RepoRoot#resolve` 是唯一拼法）/ `#readText(target)`（文本读，与 `#writeTextAt` 同一条仓库根拼写，读不到**返回一个声明过的失败值**而不是抛、也不返回空串）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写——**两条文本落盘面加一条文本读面，三个消费者各取自己那一条**：工作区相对的 `name` 是派发 brief（引擎自己写、孩子在**同一个工作区**里读的产物名，名字取自 T7 产物矩阵的 `brief` 行），仓库根相对的 `target` 是骨架落盘与物料读面（两者的 `target` / `file` 都是仓库根相对的 `RepoPath`）；拼写不许跨面复用——把 brief 拼到仓库根会让 `INPUT_WAVE_BRIEF` 印一个孩子读不到的路径、树上多出未跟踪文件，把骨架拼到工作区下会让目标一个字未写而 stdout 回显一个没被写的路径；`#writeText` 与 `#writeTextAt` 是 `src/**` 里仅有的两条文本落盘面（`schema get --output skeleton` 经 `#writeTextAt`；brief 经 `#writeText`，T13 的派发面在写它时取回值），这两条面之外 `src/**` 的非测试文件里再出现一处 `writeFileSync` 即缺陷（`env/workspace/` 是唯一落盘片），`#readText` 是物料读盘的那一个入口（T4 的 `Documents` 经注入调用它，`docs/**` 里因此零 `node:fs`）；两条写面的失败同样是一个声明过的值而不是抛（措辞归 `surface/render`，`env/` 零消费者字节）；**`BaseArtifact#set` 的冲突判定住这里**——既有产物的基 ≠ 新基且未带 `--force` ⇒ 声明过的 `conflict` 值（带既有基），带 `--force` 或产物缺席 ⇒ `written`；谓词与读回在本模块，那一行字节在 `surface/render`，壳里零判定；**两处外部事实由构造参数进来，不在本模块里取**：`now: () => number`（时间戳来源，T5 的 `env/process/clock.ts` 落地后由组合根传入唯一实现）与 `baseName: string`（基产物的文件名，由 T7 的产物矩阵派生）。两个参数都是**必填无默认值**，缺即抛；本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`）的非测试文件里零 `Date.now` / 零无参 `new Date(` / 零文件名拼接字面——`env/process/clock.ts` 是 `env/` 内唯一的读时钟处（T5 交付，`now()` · `isoOf(epoch)` · `dayOf(epoch)` 三件能力都在那里读）
 - 四类路径判据的往返 pin：写入—读回—拼写不变量
 
 #### Steps
 - 写 `paths` 的两条 pin（可推算 · 不可推算即抛） — checkable: 在临时目录里 `RepoRoot.of` 取到 git 顶层；在非仓目录里它抛且报文点名 cwd
 - 写 slug 索引的判据 pin — checkable: 同 slug 两份文档 ⇒ 该 slug 读作 `invalid`，单份 ⇒ 可取到路径
-- 写基产物的 pin — checkable: 首次写入后读回同一对象；字段集与 `BASE_ARTIFACT_FIELDS` 的元组逐值相等（断言从元组派生，不手写字段名）；畸形 JSON 读作 `null` 而不抛
+- 写基产物的 pin — checkable: 首次写入后读回同一对象；字段集与 `BASE_ARTIFACT_FIELDS` 的元组逐值相等（断言从元组派生，不手写字段名）；畸形 JSON 读作 `null` 而不抛；`#set` 在既有产物的基不同的入参上返回 `conflict` 并带既有基，带 `--force` 的同一条入参返回 `written`，且本模块的非测试文件里零错用措辞（那一行字节在 `surface/render`）
 - 写注入参数的 pin — checkable: 不传 `now` 或 `baseName` ⇒ 构造即抛（无默认值）；传一个固定 `now` 两次 ⇒ `recordedAt` 相同；传一个改过的 `baseName` ⇒ 落地文件名随之变（名字不是本模块的字面）
 - 写 workspace 的原子写 pin — checkable: 写入过程中被注入的失败不留半截 JSON（读回旧值）
-- 写文本读写的 pin — checkable: `#writeText` 落地的字节逐字节读回、`#readText` 读同一路径得回同一串（比字节，不比行数）；**基准是仓库根**：在临时仓里立一份 `docs/**` 文档，用真的 `RepoRoot` 与真的 workspace 读它得回它的字节，再往另一份 `docs/**` 目标落一次文本后该目标非空且字节相等（同一 slug 的工作区里不出现同名路径）；写中途注入失败不留半截（读回旧值）；`src/**` 非测试文件里出现第二处 `writeFileSync` 即红（扫调用面——`env/workspace/workspace.ts` 是唯一落盘处）
+- 写文本读写的 pin — checkable: `#writeText` 落地的字节逐字节读回、`#readText` 读同一路径得回同一串（比字节，不比行数）；**两条基准各一条 pin**：`#writeTextAt` 面——在临时仓里立一份 `docs/**` 文档，用真的 `RepoRoot` 与真的 workspace 读它得回它的字节，再往另一份 `docs/**` 目标落一次文本后该目标非空、字节相等，且落点就是仓库根相对的那个 `RepoPath`（不是 `.kairos/<slug>/` 下的同名路径）；`#writeText` 面——同一 workspace 用工作区相对的 `name` 落一次文本，回传的仓库相对路径与它写下的那一处是同一条，字节逐字节读回，且该文件落在工作区根之下（brief 走这一条，`INPUT_WAVE_BRIEF` 的取值就是它）；写中途注入失败不留半截（读回旧值）；`src/**` 的非测试文件里，`writeFileSync` 只出现在 `env/workspace/` 这一片（`env/workspace/workspace.ts` 是唯一落盘处），别的文件里出现一次即红
 - 写 `.kairos/.gitignore` 的 keep-out pin — checkable: `ensure` 之后 `.kairos/cdd/` 在被忽略面内，且它不建任何以 slug 命名的目录
 - 写 `Env` 的门面 — checkable: `Env` 对外只露 `paths` 与 `workspace` 两段（成员集 pin），构造函数参数不超过四个
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/env` 绿；`pnpm run typecheck` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-`env/index.ts` 的类注释第一行是不变量原句；`paths` 与 `workspace` 两段各至少三条 pin（可推算 / 不可推算即抛 · slug 单建与多份 invalid · 原子写不留半截 · keep-out 不建 slug 目录 · 文本读写各一处入口）；文本落盘全树只有一个入口（`Workspace#writeText`），物料读盘也只有一个入口（`Workspace#readText`，`docs/**` 里零 `node:fs`），两者都从仓库基准拼路径而不是工作区基准（真 `RepoRoot` + 真 workspace 的读写各一条 pin）；零时钟面只盖本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`），`env/` 内的唯一读时钟处是 `env/process/clock.ts`（T5）；`Env` 的成员集只有这两段；基产物的字段集从 `BASE_ARTIFACT_FIELDS` 派生；测试与源码同片。
+`env/index.ts` 的类注释第一行是不变量原句；`paths` 与 `workspace` 两段各至少三条 pin（可推算 / 不可推算即抛 · slug 单建与多份 invalid · 原子写不留半截 · keep-out 不建 slug 目录 · 文本读一条入口与两条写面各一条）；文本落盘全树只有 `Workspace` 的两条面——`#writeText` 以工作区为基准（派发 brief，回传仓库相对路径）· `#writeTextAt` 以仓库根为基准（骨架与物料落盘），`env/workspace/` 之外零 `writeFileSync`；物料读盘只有 `Workspace#readText` 一个入口（仓库基准，`docs/**` 里零 `node:fs`），读不到与写失败都是一个声明过的值而不是抛（真 `RepoRoot` + 真 workspace 的读写各一条 pin）；基产物的 `#set` 冲突判定在本模块、字节在 `surface/render`；零时钟面只盖本任务交付的三段（`env/index.ts` · `env/paths/**` · `env/workspace/**`），`env/` 内的唯一读时钟处是 `env/process/clock.ts`（T5）；`Env` 的成员集只有这两段；基产物的字段集从 `BASE_ARTIFACT_FIELDS` 派生；测试与源码同片。
 
 #### DependsOn
 1
@@ -171,7 +171,7 @@ none
 - 旧树的 `contract/markdown-tree.ts` · `contract/markdown-tree-types.ts`（`Walk` / `When` / `Selector` 的类型面，跟着树走）· `contract/markdown-document.ts`（mdast 解出的文档索引：行 · 标题 · front-matter 键 · 表格 · 行内代码跨度）· `contract/markdown-spans.ts` · `contract/doc-body.ts` · `contract/frontmatter.ts` · `contract/home-extractors.ts` · `contract/task-block-grammar.ts` · `contract/task-blocks.ts`（读行为；闭包读不在这一片——它判的是闭包而不是正文文法，落 T10）
 
 #### Produces
-- `Documents`（`docs/index.ts`）门面骨架，本任务只露 `parse`；构造入参含文本读面 `readText: (target) => string`（组合根传 `env.workspace#readText`，T3；它按仓库根基准拼路径，故 `docs/**` 的目标读得到）——`parse` 从注入的读面取文本，不从磁盘取；落盘能力（`textWriter`）与当天日期（`today`）本任务不收，它们在 T9 装配器构造处一并进来
+- `Documents`（`docs/index.ts`）门面骨架，本任务只露 `parse`；构造入参含文本读面 `readText: (target) => RepoText | ReadFailure`（组合根传 `env.workspace#readText`，T3；它按仓库根基准拼路径，故 `docs/**` 的目标读得到，读不到时回一个声明过的失败值）——`parse` 从注入的读面取文本，不从磁盘取；**读面的失败值原样返回**：`parse` 的返回值带一个声明过的读失败面（`{kind: "read-failure", target}`），不当空文档、不改抛，措辞由 `surface/render` 拼（命令面的 `error: cannot read file: <rel>` 就是它经那一处印出的），本片零消费者字节；落盘能力（`textWriter`）与当天日期（`today`）本任务不收，它们在 T9 装配器构造处一并进来
 - `grammar`：`MarkdownTree`（标题树 + 围栏感知）· `MarkdownDocument`（不可变的文档索引：一次 mdast 解析，标题 / 表格 / front-matter 键 / 行内代码全是它的只读面）· `docBodyOf`（正文段与记录面的分界）· `frontmatterOf`（真 YAML 解析，失败即带位抛）· `HomeExtractor`（登记表 home 驱动）· `TaskBlocks`（任务块与 `DependsOn` 行）
 - 树节点与跨度都是不可变值类型
 
@@ -187,7 +187,7 @@ none
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-`docs/index.ts` 的类注释第一行是不变量原句；五条 pin 齐（围栏感知 · front-matter 失败带位 · 记录面不参与正文判据 · home 改动即改提取 · 任务块与循环）；`grammar` 段对 `judging` 零依赖（import 面断言）；`docs/**` 里零 `node:fs`，读盘只经注入的 `env.workspace#readText`（换一个假读面即改读到的文本）。
+`docs/index.ts` 的类注释第一行是不变量原句；五条 pin 齐（围栏感知 · front-matter 失败带位 · 记录面不参与正文判据 · home 改动即改提取 · 任务块与循环）；`grammar` 段对 `judging` 零依赖（import 面断言）；`docs/**` 里零 `node:fs`，读盘只经注入的 `env.workspace#readText`（换一个假读面即改读到的文本）；读面的失败值原样返回（不抛、不当空文档）；
 
 #### DependsOn
 1
@@ -380,8 +380,8 @@ none
 - `criteria`：评审判据体（按 kind 的判据文本）与 `LENS_QUESTION_ROWS`；`Documents.criteriaOf(kind)` 与 `lensQuestionsOf(kind)`
 - `CompletionCriteria`（按 verb 分档）· `MAX_TASKS_PER_WAVE`
 - `TaskGraph`（`docs/judging/task-graph.ts`）：从 `TaskBlocks` 的 `DependsOn` 行构造，`#validate()` 四类边失败（缺边 · 缺 id · 自环 · 成环）· `#batches()` 的拓扑波分解 · `#frontier(done)` · `detailLine()`（一条失败的一行拼写）。两条 pin 跟它同住：**波宽只此一处派生**（波宽判的正是 `#batches()` 的每一批，另立一份波分解即缺陷）· **表与族同住**（边读与它的校验同在这一个类，不另开一份边表）。它落在本任务而不是 `run/` 或 `run/advance`：波宽判据是它的直接消费面，而 `run/gate` 的 `graph` 腿（T11）与 `run/advance` 的波次前沿（T13）都经依赖边读它，不自己持一份
-- `SkeletonAssembler`：构造入参含 `today`（必填无默认值，不传即抛）与注入的文本落盘能力 `textWriter: (target, text) => void`（`env/workspace/workspace.ts#writeText`，T3）；`compose(type, target)` 对四族穷举、只出字节（旧树 `SkeletonAssembler#render()` 的字节面，**不带尾随换行**）；`assembleAt(type, target)` 一次完成「渲染 → 补且只补一个尾随 `\n` → 经 `textWriter` 落盘 → 回仓库根相对路径」；本类不碰 `node:fs`，写盘只有 `textWriter` 一条路
-- `Documents`（`docs/index.ts`）的构造入参含 `today`（当天；由组合根从 `env.process.clock#dayOf` 取一次传进来——本地日，不是 `isoOf` 的 UTC 切片，本类不自己读时钟）与 `textWriter`，由它在 `docs/index.ts` 构造唯一一份装配器；`Documents.skeletonOf(type)` 出 `compose` 的字节（无尾随换行），`Documents.skeletonAt(type, target)` 是落盘面——落地的字节是 `skeletonOf(type)` 加那一个 `\n`（`schema get --output skeleton` 的壳只调这一个入口，渲染与写盘都不在壳里，也不在组合根里另拼一处）
+- `SkeletonAssembler`：构造入参含 `today`（必填无默认值，不传即抛）与注入的文本落盘能力 `textWriter: (target, text) => Written | WriteFailure`（`env/workspace/workspace.ts#writeTextAt`，T3；骨架的目标是仓库根相对的 `RepoPath`，故走仓库基准那一条面）；`compose(type, target)` 对四族穷举、只出字节（旧树 `SkeletonAssembler#render()` 的字节面，**不带尾随换行**）；`assembleAt(type, target)` 一次完成「渲染 → 补且只补一个尾随 `\n` → 经 `textWriter` 落盘 → 回同一份声明过的结果值」——成功是仓库根相对路径，写失败是 `{kind: "write-failure", target}`（不抛；`error: cannot write file: <target>` 那行字节归 `surface/render`，本片零消费者措辞）；本类不碰 `node:fs`，写盘只有 `textWriter` 一条路
+- `Documents`（`docs/index.ts`）的构造入参含 `today`（当天；由组合根从 `env.process.clock#dayOf` 取一次传进来——本地日，不是 `isoOf` 的 UTC 切片，本类不自己读时钟）与 `textWriter`，由它在 `docs/index.ts` 构造唯一一份装配器；`Documents.skeletonOf(type)` 出 `compose` 的字节（无尾随换行），`Documents.skeletonAt(type, target)` 是落盘面——落地的字节是 `skeletonOf(type)` 加那一个 `\n`，回值就是 `assembleAt` 的结果值（成功带仓库相对路径、失败带目标）（`schema get --output skeleton` 的壳只调这一个入口，渲染与写盘都不在壳里，也不在组合根里另拼一处）
 
 #### Steps
 - 写 lens 问句表的 pin — checkable: 每 kind 的问句非空且无重复标签；`spec-consistency` 行携带指称问句（把它的问句字面抄到别处即红）
@@ -390,7 +390,7 @@ none
 - 写图的 pin — checkable: 一份 `DependsOn` 自环的 plan ⇒ `#validate()` 报 `self-loop` 且 `detailLine()` 点名该任务；成环 ⇒ 报 `cycle` 并列出环上的任务；缺 id ⇒ 报 `missing-id`；`#batches()` 的每一批内无依赖边（拓扑性），`#frontier(done)` 随 `done` 变化
 - 写波宽单点派生的 pin — checkable: 换一份边集给 `task-graph.ts` ⇒ `wave-width` 判据的输入随之变；`wave-width.ts` 不持有自己的波分解
 - 写四族骨架的 pin — checkable: 四类 DocType 各一条；类型集与 `compose` 的 switch 分支集一致（类型集从同一常量派生，测试断言「每个值都有分支」）
-- 写骨架落盘的 pin — checkable: `Documents.skeletonAt(type, target)` 落地的字节与 `skeletonOf(type)` 加一个尾随 `\n` 逐字节相等（比字节，不比行数；落地文档以且仅以一个 `\n` 结尾，多一个或少一个都红）；注入一个记数的 `textWriter` ⇒ 落盘调用只有一次、目标与回显的相对路径是同一个；`docs/skeleton/**` 与 `docs/index.ts` 里零 `node:fs`（import 面断言；`env/` 仍是唯一 import `node:fs` 的片）
+- 写骨架落盘的 pin — checkable: `Documents.skeletonAt(type, target)` 落地的字节与 `skeletonOf(type)` 加一个尾随 `\n` 逐字节相等（比字节，不比行数；落地文档以且仅以一个 `\n` 结尾，多一个或少一个都红）；注入一个记数的 `textWriter` ⇒ 落盘调用只有一次、目标与回显的相对路径是同一个；注入一个返回写失败的 `textWriter` ⇒ `skeletonAt` 返回 `write-failure` 而不抛；`docs/skeleton/**` 与 `docs/index.ts` 里零 `node:fs`（import 面断言；`env/` 仍是唯一 import `node:fs` 的片）
 - 写日期注入的 pin — checkable: 同传一个冻结日期两次 ⇒ 字节相同；不传日期时构造即抛（无默认取系统时钟）
 - 写骨架字节的格接入 — checkable: 对账器的骨架格用装配器入口在进程内驱动两棵树，同一 `frozenDate`
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs tests/parity` 绿（对账器按 T2 的 GAP 口径：已接线的格零差异、未接线的格计入 GAP，不判红）
@@ -505,7 +505,7 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 
 #### Produces
 - `child`：`Child.dispatch(frame)` → `DispatchOutcome`（退出码 · 日志路径 · 终止因）· 预算四键——起进程经注入的 `ChildRunner`，本任务不持信号
-- `values`：`DispatchValues`（身份 · 场景 · 快照三格扁平事实 → 扁平记录）——预帧的一道装配，相对化只发生一处，四个行与渲染面读同一份
+- `values`：`DispatchValues`（身份 · 场景 · 快照三格扁平事实 → 扁平记录）——预帧的一道装配，相对化只发生一处，四个行与渲染面读同一份；身份格里的 brief 仓库相对路径由派发面（T13 的 `Lifecycle`）在落地那一刻交进来，本模块不拼、不落盘、不渲染
 - `liveness`：活性判官（轮日志增长与进程组 CPU 两条腿，四态；每轮一个实例，不可读期保留上一次读数而不是清零）
 - `handoff`：手交契约（键集）与读回（失败分型：缺失 / 畸形 / 违约）· 结论派生三路——findings 里有 blocker ⇒ `CHANGES_REQUESTED`，只有 warn ⇒ `REVIEW_FIX`，findings 为空 ⇒ `APPROVED`
 - `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）；记录里的起跑时刻先取进程表、答不出时回落注入的 `Clock`（T5 落点 `env/process/clock.ts`，旧树 `face/lifecycle.ts#recordOf` 的 `Date.now()` 那一处按注入时钟改写）——本片零 `Date.now()`、零无参 `new Date()`
@@ -552,13 +552,13 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - 旧树的 `face/cli.ts#Cli.#sceneOf` 与 `#runWork` 的外围（场景装配：argv 侧输入 → 一帧——slug 判定 · 计划读 · 身份文档声明的 `doc-type:` / `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router）：它读 `docs/` 与 `env/` 两个面，在新树由本任务的 `Frame` 认领，经构造注入的 `Documents` 与 `Env` 取值——`run/` 里不自己拼路径、不自己读 markdown
 
 #### Produces
-- `frame`：`Frame#of(request)`——argv 侧输入（命令字 · 旗标 · 路径字面）装配成一帧：slug 判定（经 `env.paths` 的 `SlugIndex`）· 计划读（经 `Documents`）· 身份文档声明的 `doc-type:` / `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router；路径只经 `env.paths` 拼、markdown 只经 `Documents` 读——本段零 `node:fs`、零 yaml 解析、零 slug 猜测
+- `frame`：`Frame#of(request)`——argv 侧输入（命令字 · 旗标 · 路径字面）装配成一帧：slug 判定（经 `env.paths` 的 `SlugIndex`）· 计划读（经 `Documents`）· 身份文档声明的 `doc-type:` / `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router；路径只经 `env.paths` 拼、markdown 只经 `Documents` 读——本段零 `node:fs`、零 yaml 解析、零 slug 猜测；**失败是一个声明过的值**（计划读不到 ⇒ `{kind: "read-failure", target}`、缺必填旗标或未知取值 ⇒ `{kind: "usage", reason}`，两个面各从 T4 的读失败与 T16 的声明面取），本段不抛、不拼措辞——`error: cannot read file: <rel>` 与 `error: cdd <verb>: task <id> not found in the plan` 这类字节由 `surface/render` 按这个值印出
 - `advance`：`frontierOf(slug)` · `nextOf(frontier)` → 六格 `NextHop` · `reasonOf(hop)` · 波次 frontier（读 T9 `TaskGraph#batches()` 与 `#frontier(done)`，不另建）
 - `wave`：`WaveGate#vet(requested, verb)`——判定成五行、**行序即判据**（命中靠前的行就报那一行的成因，不落到靠后的行）：`mixed-batch`（请求命中一个跨已闭合与未闭合任务的静态批——批是一个整体，计划修订不得把半执行批的剩余成员放成自己那一波）· `wave-too-wide`（派生波宽超 `MAX_TASKS_PER_WAVE`，判在精确读之前，故宽 frontier 永不被误报成 `split`）· `too-many-tasks`（请求集本身超上限，不截断、不默默对半）· `split`（请求集不等于派生波，报错时带波板提示）· `wrong-phase`（该波的相位 ≠ 本次动词）；成因 token 只取 `DISPATCH_REASON` 的 line 腿（经由 `WAVE_GATE_REASON` 的类型视），本片不另立拼写；那张表与它的两个视图都住在 `run/advance/next.ts`——`DISPATCH_REASON`（structure · line · station 三腿的 `{token, leg}` 表：structure 腿复用门行 id、line 腿是波门五行与 doc / branch 拒绝、station 腿是 hop 的 `reason:` 词）· `WAVE_GATE_REASON`（line 腿的波门五个值）· hop 的 `reason:` 视图 · `REVIEW_CYCLE_CAP`（评审软上限：hop 的 `soft-cap` 那一格的连续 blocker 计数门槛，与 `soft-cap` 行同住一处，软上限值在 `src/**` 里只有这一份字面）与它的两处可核面——`DISPATCH_REASON` 的 `softCap` station 行、评审闭合的 `done` 决策词：旧树那两个私有成员（连续 blocker 计数与闭合那一支）按 spec §4 重新推导后不以旧私有拼写存在，树外消费者 `scripts/__tests__/next-loop-twin.test.ts` 的源码文本臂因此改指这三处（见 T18 的改指清单与那一步的处置），`wave.ts` 与它之外的一片都不持第二份拼写；裁决带回派生波与各任务相位两件读值
 - `line-phase`：行相位与行身份事实（从 `run/gate` 的授权面派生），**零措辞**——拒绝措辞由 `surface/render/route.ts` 按 hop 拼出，`run/advance` 不 import `surface`
 - `target-faces`：每个目标类型一行（审计目标 · 产物面 · next 消费语义）——新类型是表行，不是生命周期的分支
-- `lifecycle`：`Lifecycle#advance(frame)`——一次派发一步（前沿 → 派发 → 结果 → 记账 → 改道），帧由 `frame` 段装配，目标类型差异只经 `target-faces` 的表行
-- `Run` 门面收口：`advance(request)` / `boardOf(request)` / `inflightOf()` / `refusalOf()` / `recordRound(...)` 五类成员——前两条收 argv 侧输入（命令字 · 旗标 · 路径字面），场景装配在 `Run` 内一次完成；壳不拼 slug、不读计划、不拼路径
+- `lifecycle`：`Lifecycle#advance(frame)`——一次派发一步（前沿 → 派发 → 结果 → 记账 → 改道），帧由 `frame` 段装配，目标类型差异只经 `target-faces` 的表行；**wave 的 brief 在派发前落地，且只落一回**：`Lifecycle` 收注入的 brief 面（`briefOf(request)` → 名字与字节，`surface/render/brief.ts` 的实现由组合根注入，`run/` 不 import `surface`）与注入的文本写面（`env.workspace#writeText`，T3），把字节落到派发所属的那个工作区、把回传的仓库相对路径交给 `DispatchValues` 的身份格（`INPUT_WAVE_BRIEF` 取的就是它）；`--dry-run` 不上这条路——不渲染 brief、不落盘、不取锁、不起孩子，它只走 `previewOf`
+- `Run` 门面收口：成员集是 `advance(request)` / `previewOf(request)` / `boardOf(request)` / `inflightOf()` / `refusalOf()` / `recordRound(...)`——前三条收 argv 侧输入（命令字 · 旗标 · 路径字面），场景装配在 `Run` 内一次完成；壳不拼 slug、不读计划、不拼路径；**`previewOf` 是 `--dry-run` 的唯一生产者**：返回一次性派发将要用的那一帧、宿主事实与预帧值（零写、零取锁、零 spawn），壳拿它喂 T15 的 `Preview` 渲染器；`advance` 不在那条路上——抑制住在这里，壳才不需要自己判
 
 #### Steps
 - 写场景装配的 pin — checkable: 同一 argv 侧输入两次装配字节相同；装配只经注入的 `Documents` 与 `Env`（`run/advance/**` 的非测试文件里零 `node:fs` · 零路径拼接字面 · 零 slug 猜测）；`--plan` 的两种等价拼法（相对与带 `./` 前缀）装配出同一 slug；`Run.advance` 与 `Run.boardOf` 收的是 argv 侧输入，不是已装配的 slug
@@ -570,11 +570,13 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - 写波门五行的成对 pin — checkable: 每个成因一条必报与一条邻居不报（`mixed-batch`：跨已闭合与未闭合的静态批 ⇒ 报；整批均未闭合 ⇒ 不报。`wave-too-wide`：宽 frontier 而只请求其子集 ⇒ 报 `wave-too-wide` 而非 `split`（这一条判的是行序）。`too-many-tasks`：请求集超上限而派生波不宽 ⇒ 报；派生波不宽 ⇒ 不报。`split`：请求集是派生波的真子集而派生波不宽 ⇒ 报；请求集等于派生波 ⇒ 不报。`wrong-phase`：请求集等于派生波而相位不匹配 ⇒ 报；相位匹配 ⇒ 不报）
 - 写波门 token 单源的 pin — checkable: 五个成因的 token 逐值取自 `run/advance/next.ts` 的 `DISPATCH_REASON` line 腿（经 `WAVE_GATE_REASON` 的类型视，断言从表的键集派生，不手写拼写）；`DISPATCH_REASON` · `WAVE_GATE_REASON` 与 hop 的 `reason:` 视图只在 `next.ts` 拼写（`wave.ts` 里写一个成因字面即红）
 - 写闭合终态的 pin — checkable: 零 blocker 的 fix 轮之后该行不再被判回 review；review 空 findings 判 APPROVED
+- 写 dry-run 抑制的 pin — checkable: `Run.previewOf(request)` 加随后的一次 `Preview` 渲染全程零写、零取锁、零 spawn（注入记数的写面、锁与 `ChildRunner` 替身，计数全零）；`previewOf` 的帧与 `advance` 将要派发的那一帧同源（同一份账本两次读，帧字节相同）；`--dry-run` 下 `Run.advance` 零调用
+- 写 brief 落地的 pin — checkable: 一次 wave 派发的 brief 就在 `INPUT_WAVE_BRIEF` 印出的那个路径上（工作区相对名取自 T7 产物矩阵的 `brief` 行），字节与注入的 brief 渲染器产物逐字节相等；`--dry-run` 下该路径不存在（零写的那条臂与上一条同源）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-五组 pin 齐（投影无缓存 · 六格 · drift 重开 · 波门五行的成对臂含行序 · 闭合终态）· 目标类型表驱动 · 单轮一步 · 场景装配各一条；`run/index.ts` 的五类成员集 pin 绿；`advance` 不 import `surface`；波门成因 token 只从 `DISPATCH_REASON` 的 line 腿派生，那张表与它的两个视图同住 `run/advance/next.ts`，`REVIEW_CYCLE_CAP` 与 hop 的 `soft-cap` 行同住同一文件（树外消费者只读这一处）；场景装配只经注入的 `Documents` 与 `Env`，`run/` 里零路径拼接、零 markdown 解析。
+五组 pin 齐（投影无缓存 · 六格 · drift 重开 · 波门五行的成对臂含行序 · 闭合终态）· 目标类型表驱动 · 单轮一步 · 场景装配各一条 · dry-run 抑制与 brief 落地各一条；`run/index.ts` 的成员集 pin 绿（含 `previewOf`）；`advance` 不 import `surface`；波门成因 token 只从 `DISPATCH_REASON` 的 line 腿派生，那张表与它的两个视图同住 `run/advance/next.ts`，`REVIEW_CYCLE_CAP` 与 hop 的 `soft-cap` 行同住同一文件（树外消费者只读这一处）；场景装配只经注入的 `Documents` 与 `Env`，`run/` 里零路径拼接、零 markdown 解析。
 
 #### DependsOn
 11, 12
@@ -618,7 +620,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 ### Task 15: `surface/` 的渲染
 
 #### Objective
-把事实渲染成消费者字节：prompt 模板（两带）、胶囊、板面两态、预览块、图、issue body、brief。**不变量**：消费者拿到的字节就是契约。
+把事实渲染成消费者字节：prompt 模板（两带）、胶囊、板面两态、预览块、图、issue body、brief、命令面的错用与失败字节。**不变量**：消费者拿到的字节就是契约。
 
 #### Files
 - Create: `packages/cdd-engine/src/surface/render/templates.ts`
@@ -629,6 +631,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - Create: `packages/cdd-engine/src/surface/render/route.ts`
 - Create: `packages/cdd-engine/src/surface/render/issue.ts`
 - Create: `packages/cdd-engine/src/surface/render/brief.ts`
+- Create: `packages/cdd-engine/src/surface/render/usage.ts`
 - Create: `packages/cdd-engine/src/surface/render/__tests__/render.test.ts`
 - Modify: `packages/cdd-engine/src/surface/index.ts`
 - Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
@@ -639,8 +642,9 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 
 #### Produces
 - `templates`：两带 prompt（modes 三行 · reviews 每 `TargetType` 一行）· `$version` 原值不变
-- `capsule` / `board`（两态）/ `preview` / `graph` / `issue` / `brief` 各一个渲染类，全部只读 `words` + 事实对象；时间戳格式化不在渲染器里——`{startedAt}` / `{uptime}` 已由 `Words` 用注入的 `Clock` 拼好；`issue` 连同它的输入契约：stdin 的 findings JSON 缺键 / 多键 / 类型错三类违约各一行报文（渲染器在渲染前自己判，壳只读 stdin 并打印）
+- `capsule` / `board`（两态）/ `preview` / `graph` / `issue` / `brief` 各一个渲染类，全部只读 `words` + 事实对象；时间戳格式化不在渲染器里——`{startedAt}` / `{uptime}` 已由 `Words` 用注入的 `Clock` 拼好；`brief` 只出字节与工作区相对名，落地不在渲染器里（T13 的派发面经 `env.workspace#writeText` 落，`INPUT_WAVE_BRIEF` 取回值）；`issue` 连同它的输入契约：stdin 的 findings JSON 缺键 / 多键 / 类型错三类违约各一行报文（渲染器在渲染前自己判，壳只读 stdin 并打印）
 - `route` 渲染器（`surface/render/route.ts`）：`next:` 与行门族那两处拒绝措辞的**唯一拼装点**（措辞取自 `words`，`run/advance` 不拼字节）；胶囊与板面都经它取值，所以两处的 `next:` 逐字节相同，不是各拼一次
+- `usage`（`surface/render/usage.ts`）：命令面错用与失败字节的**唯一载体**——`UsageFace#report(outcome)` 把一个声明过的结果值映射成 `{stream, text, exitCode}`：`error: cannot read file: <rel>` · `error: cannot write file: <target>` · `error: cdd <verb>: task <id> not found in the plan` · `error: cdd <verb>: cannot dispatch a <phase> round — <reject>` · `error: cdd init: missing --harness` · `error: cdd base set: base already set to <existing> — pass --force to override` 这几行只在这一处拼（错用行取 `words`，usage 行取声明面），壳只把值交过来；成功面也走同一处（路径回显与那一个尾随 `\n`）
 - `surface/index.ts` 扩出各渲染入口
 
 #### Steps
@@ -649,14 +653,15 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - 写胶囊的 pin — checkable: `status · handoff` 字节；handoff 缺席时的形态
 - 写 `next:` 单点拼装的 pin — checkable: 同一 `NextHop` 经胶囊与板面渲染 ⇒ 两处 `next:` 字节相同（把 `route.ts` 的拼法改一处，两处同时变）
 - 写板面两态 — checkable: 默认零 notes 正文且带 `notes +M`；`--notes` 展开后正文全量、token 段序不重排
-- 写预览块 — checkable: 五类行（`step:` / `reads:` / `would write:` / `would record:` / `child:`）齐且零 `next:` 行
+- 写预览块 — checkable: 五类行（`step:` / `reads:` / `would write:` / `would record:` / `child:`）齐且零 `next:` 行；渲染器的入参就是 T13 的 `Run.previewOf` 的返回值（同一帧两次渲染字节相同，渲染器自己不读账本）
 - 写 issue 输入契约的 pin — checkable: 合法 JSON ⇒ 字节与旧树相同；缺键 / 多键 / 类型错三类各一条报文且退出码为错用码
+- 写错用与失败字节的 pin — checkable: 每个声明过的值经 `UsageFace#report` 得回冻结字节与退出码（读失败 ⇒ `error: cannot read file: <rel>` 且 2 · 写失败 ⇒ `error: cannot write file: <target>` 且 2 · 计划里无该任务 ⇒ `error: cdd <verb>: task <id> not found in the plan` 且 2 · 波门拒绝 ⇒ `error: cdd <verb>: cannot dispatch a <phase> round — <reject>` 且 1 · 缺旗标 ⇒ `error: cdd init: missing --harness` 且 2 · 基冲突 ⇒ `error: cdd base set: base already set to <existing> — pass --force to override` 且 2），且这几行字面在 `surface/render` 之外零出现（沿用同一扫法）
 - 写措辞单份的复审 — checkable: `surface/render` 里不出现词表外的散文措辞（沿用 T14 的扫法）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿（对账器按 T2 的 GAP 口径：已接线的格零差异、未接线的格计入 GAP，不判红）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-七组 pin 齐（两带名册 · 字节等价 · 胶囊 · `next:` 单点拼装 · 板面两态 · 预览五类行 · 措辞单份）· issue 输入契约一条；prompt / 胶囊 / 板面 / 预览四类格在对账器里逐字节比。
+七组 pin 齐（两带名册 · 字节等价 · 胶囊 · `next:` 单点拼装 · 板面两态 · 预览五类行 · 措辞单份）· issue 输入契约一条 · 错用与失败字节一条；prompt / 胶囊 / 板面 / 预览四类格在对账器里逐字节比。
 
 #### DependsOn
 9, 13, 14
@@ -689,15 +694,19 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 #### Produces
 - `declare`：`CliVerb` 八值 · 旗标与值域声明（单源）· `ARGV_CHANNEL`
 - `projection`：命令树装配——`declare` 的单一表面在构造期一次装配成 commander 树（描述 · 嵌套叶 · 绑定规则 · 值域校验 · 帮助注入 · `REQUIRED_GROUPS` 钩子），`program` 是唯一出口
-- 八条壳：每条一个类，方法体只取参、调一个入口、输出
-- 三条纯命令的产物面无新落点：`base` 的读与写走 `env/workspace/base-artifact.ts`（T3，`BASE_ARTIFACT_FIELDS` 从那里导出）· `issue render` 的渲染与输入契约走 `surface/render/issue.ts`（T15）· 骨架走 `docs/skeleton/assembler.ts`（T9）——`schema` 壳（`surface/commands/schema.ts#SchemaCommand`）只调 `Documents.skeletonAt(type, target)` 一个入口：渲染、经注入的 `env.workspace#writeText` 落盘、回显相对路径三件都在那一个入口里完成，壳既不渲染也不写盘。壳只取参、调它们、原样输出。这两件实例的所有者是 `Env`：`base` 的基产物读写是 `env.workspace` 的成员（`env/workspace/base-artifact.ts`），`init` 的 `Provisioner` 是 `env.provision` 的成员（T8），组合根只构造 `Env` 一处，`Cli` 收的是这两个成员的引用，壳只持它们的类型、零 `new`
+- 八条壳：每条一个类，方法体只取参、调一个入口、把该入口返回的结果值交给 `surface` 的唯一输出面（`Cli#report(outcome)`）原样印出——两个动作之间零分支
+- **命令面的错用与失败字节无新落点**：载体是 `surface/render/usage.ts`（T15，`UsageFace#report`），壳交的是一个声明过的值（T3 的读 / 写失败与基冲突 · T4 的 `read-failure` · T9 的 `write-failure` · T13 的 `read-failure` 与 `usage`）；`base` 的 `--force` 冲突谓词住 `env/workspace/base-artifact.ts#BaseArtifact#set`（T3），壳只把它的返回值交出去——判定与措辞都不在壳里
+- `--dry-run` 的入口是 `Run.previewOf(request)`（T13），它的渲染器是 `surface/render/preview.ts`（T15）；工作命令的壳在这一支上只调这两处、不碰 `Run.advance`（分叉只读旗标值，不读域事实）
+- 三条纯命令的产物面无新落点：`base` 的读与写走 `env/workspace/base-artifact.ts`（T3，`BASE_ARTIFACT_FIELDS` 从那里导出）· `issue render` 的渲染与输入契约走 `surface/render/issue.ts`（T15）· 骨架走 `docs/skeleton/assembler.ts`（T9）——`schema` 壳（`surface/commands/schema.ts#SchemaCommand`）只调 `Documents.skeletonAt(type, target)` 一个入口：渲染、经注入的 `env.workspace#writeTextAt` 落盘、回显相对路径三件都在那一个入口里完成，壳既不渲染也不写盘。壳只取参、调它们、原样输出。这两件实例的所有者是 `Env`：`base` 的基产物读写是 `env.workspace` 的成员（`env/workspace/base-artifact.ts`），`init` 的 `Provisioner` 是 `env.provision` 的成员（T8），组合根只构造 `Env` 一处，`Cli` 收的是这两个成员的引用，壳只持它们的类型、零 `new`
 - `Cli#run(argv)`（`surface/index.ts`）
 - `__tests__/channel-closure.guard.test.ts`：通道闭合守卫（读 `declare` 的 `CLI_COMMANDS` / `ARGV_CHANNEL` 与 `env/process/host.ts` 的 `HOSTS` / `DISPATCH` / `REFS`；守卫读产品面的单源，不另立白名单。`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
 - 写动词集与值域的 pin — checkable: 八值齐；每个旗标的取值形状在声明面；`--type` 的六值
 - 写薄壳的判据 pin — checkable: 每条壳的实现体里没有文件读写、没有判定、没有字符串拼装（扫 import 面与调用面：壳不 import `node:fs`、不 import `run/gate`、不 import `env` 的 IO 面——`env/workspace/base-artifact.ts` 的写入口与 `env/process/child-runner.ts` 的 spawn 面；`base` 与 `init` 只 import 注入实例的类型，实例是 `Env` 的成员、壳里与 `src/bin.ts` 里都不构造；也不在输出前拼字节）；行数只在评审面陈述，不进套件——把一条诊断换成指标，后续实现者会去压行数而不把判定挑出去
-- 写三件事的 pin — checkable: 每条壳的调用面只有一个入口（一个 `run/` · `docs/` · `env/` 的方法），无第二层判断分支；`schema` 壳的那一个入口是 `Documents.skeletonAt(type, target)`（它不 import `node:fs`，也不 import `env` 的写入口——落盘能力由 `Documents` 持有，壳只管把回显串原样输出）
+- 写三件事的 pin — checkable: 每条壳的调用面只有一个入口（一个 `run/` · `docs/` · `env/` 的方法），无第二层判断分支；`schema` 壳的那一个入口是 `Documents.skeletonAt(type, target)`（它不 import `node:fs`，也不 import `env` 的写入口——落盘能力由 `Documents` 持有，壳只管把回显串原样输出）；输出只经 `Cli#report(outcome)` 一次（值全部来自那一个入口，壳不拼字节）；`--dry-run` 向 `Run.previewOf`、其余向 `Run.advance`——这一分叉只读旗标值，不读域事实
+- 写错用与失败字节的成对 pin — checkable: `cdd board --plan <不存在>` 打印冻结的 `error: cannot read file: <rel>` 且 exit 2；`cdd base set --plan <…> --base <other>` 在既有产物的基是别的基且未带 `--force` 时打印 `error: cdd base set: base already set to <existing> — pass --force to override` 且 exit 2，带上 `--force` 则改写并 exit 0；`cdd implement --plan <…> --tasks <id>` 在计划里没有该任务时打印 `error: cdd implement: task <id> not found in the plan` 且 exit 2；把 `usage` 面的任一行字面改一处 ⇒ 对应那条 pin 红（字节的载体只有 `surface/render/usage.ts`）
+- 写 dry-run 接线的 pin — checkable: `cdd implement --plan <…> --tasks <…> --dry-run` 打印预览五类行、零写、零 spawn 且 exit 0（注入记数的写面与 `ChildRunner` 替身计数全零），且它读的是真派发要用的同一帧（`Run.previewOf` 与 `Run.advance` 将要取的那一帧字节相同）
 - 写退出码的 pin — checkable: 正常 0 · 拒绝 1 · 错用 2 · 未知命令 2，各一条
 - 写 help 与 usage 的 pin — checkable: `--help` 形面与 usage 字节；子命令树可读；对账器的 `--help` / usage / 错用码 2 三格由本任务接上
 - 接骨架落盘那一格 — checkable: 起真进程跑 `schema get <族> --output skeleton <target>`，目标文件被写出且字节与 `Documents.skeletonAt` 的那一份相等（两棵树各自往自己的临时目录落一份、当次运行内逐字节比）；把壳里的 `skeletonAt` 换成只回显路径而不落盘的假实现 ⇒ 该格红
@@ -705,7 +714,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用面单入口 · 四个退出码 · help/usage 字节）；三件事的入口面含 `env/`，`base` 与 `init` 的产物面实例由 `Env` 持有、经 `Cli` 传入壳（壳里零 `new`，这两个实例也不在组合根里 new，一条能力只一条实例路径）；八条壳全部只经 `surface/index.ts` 的 `Cli` 对外；骨架壳的落盘只经 `Documents.skeletonAt`（渲染与写盘都不在壳里，写盘唯一入口是 `env.workspace#writeText`）。
+pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用面单入口 · 四个退出码 · help/usage 字节 · 错用与失败字节的成对臂 · dry-run 接线）；三件事的入口面含 `env/`，`base` 与 `init` 的产物面实例由 `Env` 持有、经 `Cli` 传入壳（壳里零 `new`，这两个实例也不在组合根里 new，一条能力只一条实例路径）；八条壳全部只经 `surface/index.ts` 的 `Cli` 对外；骨架壳的落盘只经 `Documents.skeletonAt`（渲染与写盘都不在壳里，写盘唯一入口是 `env.workspace#writeTextAt`）；错用与失败字节只经 `surface/render/usage.ts`，基冲突谓词只在 `BaseArtifact#set`。
 
 #### DependsOn
 12, 13, 15
@@ -726,7 +735,7 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 
 #### Produces
 - `src/bin.ts`：唯一组合根，构造 `Env` → `Documents` → `Run` → `Cli` 并接线；导出的 `main` 写成箭头常量（`export const main = …`，不是裸 `function`——后者会撞 `check:no-bare-functions`），可被 `node src/bin.ts` 直接跑（tsx 或编译后）
-- `Documents` 的三件构造入参在组合根一次给齐：`today`（当天，从 `env.process.clock#dayOf` 取一次传进去——`Documents` 只收下、不自己读时钟，骨架的 `date:` 行由此而来）、`readText`（`env.workspace#readText`）与 `textWriter`（`env.workspace#writeText`）；骨架装配器由 `Documents` 构造一处，组合根不 new 它（`skeletonAt` 的落盘因此只经那一个入口）
+- `Documents` 的三件构造入参在组合根一次给齐：`today`（当天，从 `env.process.clock#dayOf` 取一次传进去——`Documents` 只收下、不自己读时钟，骨架的 `date:` 行由此而来）、`readText`（`env.workspace#readText`）与 `textWriter`（`env.workspace#writeTextAt`）；骨架装配器由 `Documents` 构造一处，组合根不 new 它（`skeletonAt` 的落盘因此只经那一个入口）；派发那一路的两个面也在这里接线：`Run` 的 `Lifecycle` 收 `surface/render/brief.ts` 的 brief 面与 `env.workspace#writeText`（T3，brief 落工作区），`surface/render/preview.ts` 收 `Run.previewOf` 的返回值
 - `composition.test.ts`：组合根是唯一 new 四片入口处（扫 `src/**` 的非测试文件，`new Env` / `new Documents` / `new Run` / `new Cli` 只在此出现——四片各一个类名，扫描名单与切片集逐值对应），且 `Provisioner` 与基产物读写只在 `env/index.ts` 的 `Env` 构造处实例化——组合根与 `surface/**` 都不 new 它们（一份能力一条实例路径）
 - `smoke.integration.test.ts`：与旧脚本同形的一条集成测试——起 `src/bin.ts` 的真子进程，断言 `--help` 面与 `--dry-run` 的五类行，零仓内写入。它占住 `packages/cdd-engine/package.json#scripts.smoke` 在翻面后要指向的靶子（T18 只改指向，不删行）
 
@@ -847,3 +856,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | v0.12 | 2026-11-25 | **编排者的结构收口（用户裁定 A：停在评审七轮未收敛处，改结构而不是再叠 fix）**：四笔。① **T1 步序**——回填时我把「退役 `zero-dep` 的 `src` 腿」插在末尾，而第 4 步已接收集面、`src/` 一在包根那条 pin 就必红，于是第 6 步的「回到全绿」不可达；退役步骤提到第一步。② **T3 的两处外部事实改为构造入参**——`now: () => number` 与 `baseName: string`，必填无默认值，缺即抛：这样 T3 不再需要 T5 的 `Clock` 与 T7 的产物矩阵，**步序不可行从根上消失，且零加边、零移文件**（比原计划的「把两个叶子提到第一波」更省）。③ **对账器文件的归属**——T8 · T9 · T15 · T16 各补 `tests/parity/GRID-WIRING.md` 与 `parity.test.ts` 两条 `Modify`，接线格的写点不再没有落点。④ 去掉一条字面计数（`reviews` 改按 `TargetType` 类型派生）。波次零变：19 任务 / 13 波 / 宽 1·3·2·3·1·1·2·1·1·1·1·1·1 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-25） |
 | v0.13 | 2026-11-25 | docs-fix 轮七（F1–F6 全部落地，未放宽判据）：**骨架落盘有了具名主人**——T3 的 `Workspace` 加 `#writeText` / `#readText` 一对文本读写入口（与 `#writeJson` 同源、同一条路径拼写，`src/**` 里各只一处），T9 的装配器收注入的 `textWriter` 并由 `Documents` 构造一处，壳只调 `Documents.skeletonAt(type, target)` 一个入口（渲染 · 落盘 · 回显三件都在里面，壳零 `node:fs`），T2 的名册加「骨架落盘」一格（接线任务 T16、判落盘事实），于是「路径回显了、文件没写」在八面里有格会红；T3 的零时钟面收窄到本任务交付的三段，并点名 `env/process/clock.ts` 是 `env/` 内唯一读时钟处（T5）；**骨架日期有了合法载体**——`Documents` 的构造入参含 `today`，组合根从 `env.process.clock` 取一次传进去，T16 那句「系统时钟走 `env/process/clock.ts`」删去；T13 的 Produces 认领 `REVIEW_CYCLE_CAP`（与 hop 的 `soft-cap` 行同住 `next.ts`，树外消费者读这一处），T18 的改指清单把 `CliLifecycle` 那一行改成实际被消费的静态常量与落点 `env/workspace/round-log.ts#LOGS_DIR`；T4 的读取面改成「文本进、索引出」，读盘经注入的 `env.workspace#readText`；T3 的 Consumes 与 T11 的 Acceptance 把产物矩阵的家改指 T7 的 `run/ledger/artifacts.ts#ArtifactIdentity`。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.14 | 2026-11-25 | docs-fix 轮八（F1–F5 全部落地，未放宽判据）：**文本读写换了基准**——`Workspace#writeText` / `#readText` 与 `#writeJson` 不再共用一条拼写：JSON 面住工作区里，文本面从 `paths` 交付的 `RepoRoot`（工作区根携带的仓库基准）拼绝对路径，两个唯一消费者（骨架的 `target` · 物料读面的 `file`）本来都是仓库根相对的 `RepoPath`；旧写法把物料读拼成 `.kairos/<slug>/docs/…`（每次读都抛）、把骨架落盘撇进 `.kairos/<slug>/`（目标一个字未写而 stdout 回显一个没被写的路径）；T3 补一条「真 `RepoRoot` + 真 workspace 读一份 `docs/**` 得回字节、往另一份 `docs/**` 落一次文本后非空」的 pin；**骨架当天有了生产者**——`Clock` 补第三件能力 `dayOf(epoch)`（本地日 `YYYY-MM-DD`，旧树 `#getFullYear` 那一条老路），`isoOf(epoch)` 保留 UTC `toISOString` 形（`{startedAt}` 的字节靠它，两者不在日界互相切片派生），T5 的 Produces 与 pin 同批补，T9 / T17 的 `today` 改指它；**骨架尾随换行有了主人**——`compose` 出 `render()` 的无换行字节，`assembleAt` 补且只补一个 `\n`，T9 的落盘 pin 改成「与 `skeletonOf(type)` 加一个 `\n` 逐字节相等」；**孪生源码文本臂有了处置**——`next-loop-twin.test.ts` 那三处符号断言改指新树落点面（`export const REVIEW_CYCLE_CAP` 保留，两个私有成员换成 `DISPATCH_REASON` 的 `softCap` station 行与闭合的 `done` 决策词），T13 的 Produces 认领这三处、T18 的 Files 从「路径常量」扩到「路径常量与源码文本臂」，不把旧私有拼写搬进新树；**`HostId` 有了落点**——T5 的 Produces 点名 `HOST_IDS` 与从它派生的 `HostId`（住 `env/process/host.ts`），T18 的改指清单补齐。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.15 | 2026-11-25 | docs-fix 轮九（F1–F4 全部落地，未放宽判据）：**brief 的落盘有了主人、基准与拼写**——`Workspace` 保留两条文本落盘面：`#writeText(name, text)` 以**工作区**为基准并回传仓库相对路径（派发 brief 走这一条，`INPUT_WAVE_BRIEF` 的值就是这条回值）、`#writeTextAt(target, text)` 以仓库根为基准（骨架与物料落盘走这一条），对应的 pin 与验收按两条基准各写一条，并删掉那句「文本面两个消费者都在工作区外」的前提与「同一 slug 工作区里不出现同名路径」这条会反咬正确写位的括号；T13 的 `Lifecycle` 在派发前经注入的 brief 面与 `env.workspace#writeText` 落一次 brief、把回值交给 `DispatchValues` 的身份格，T15 的 brief 渲染器只出字节与名字、不碰磁盘，并补一条 brief 落地 pin（落在 `INPUT_WAVE_BRIEF` 的路径上、字节与渲染器产物相等、`--dry-run` 下不存在）；**命令面的错用与失败字节有了载体**——读 / 写 / 基冲突 / 计划读 / 骨架落盘各回一个声明过的结果值（T3 · T4 · T9 · T13 的 Produces 各一行），字节的唯一拼装点是 T15 新增的 `surface/render/usage.ts`（`UsageFace#report`），`base` 的 `--force` 谓词落 T3 的 `BaseArtifact#set`，壳只把值交出去，T16 补两条成对 pin（`cdd board --plan <不存在>` 与既有基不同且无 `--force` 的 `cdd base set`）；**`--dry-run` 有了生产者与抑制点**——`Run` 的成员集加 `previewOf(request)`（下一帧 · 宿主事实 · 预帧值；零写零取锁零 spawn），抑制住 `run/advance` 而非壳，T13 补 dry-run 抑制 pin、T16 补 dry-run 接线 pin，T2 的预览格点名 T13 为读值来源；**T1 的 `zero-dep` 退役步按已交付切分对齐**——它在闭合波由一次一行后续提交落地（Constraints 的第二个旧树例外为它而写），落地前引擎套件带那一条红，不搬进别的任务；T17 的组合根接线同批点名 brief 面与 `#writeTextAt`。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -106,7 +106,11 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。七种树形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合。
 
-语料是旧测试的**整个夹具面**，不只是一张树状态清单：树状态产不出冻结面要的每一份输入——`init` 与 `plugins` 的字节靠一个架在 PATH 上的替身 harness 加一个注入的 step runner 生成（`face/__tests__/init.test.ts` 就是今日那份夹具），`issue render` 从 stdin 读 findings JSON，骨架面把注入的运行日期写进 front matter、所以那份日期也要钉住。§5 的「不新增语料臂」是「不超过旧测试已经带着的那些臂」，不是「不超过七种树形态」。对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。这个家今天不被任何工程收集——引擎的 vitest include 是 `src-next/**/__tests__/**/*.test.ts`，引擎 `tsconfig.json` 只含 `src-next`，根 `typecheck` 链也只点名三个既有工程——所以落对账器的那一波必须同批把 `tests/parity/**/*.test.ts` 加进 `packages/cdd-engine/vitest.config.ts` 的 include，为 `packages/cdd-engine/tests/parity` 建一份自己的 tsconfig 工程并同批挂进根 `typecheck` 链；执行它的命令是 `pnpm -C packages/cdd-engine exec vitest run tests/parity`。翻面（§3.3）同批删掉这处 include 与该工程——它们与对账器同生同死。
+语料是旧测试的**整个夹具面**，不只是一张树状态清单：树状态产不出冻结面要的每一份输入——`init` 与 `plugins` 的字节靠一个架在 PATH 上的替身 harness 加一个注入的 step runner 生成（`face/__tests__/init.test.ts` 就是今日那份夹具），`issue render` 从 stdin 读 findings JSON，骨架面把构造入参的运行日期写进 front matter、所以那份日期也要钉住。§5 的「不新增语料臂」是「不超过旧测试已经带着的那些臂」，不是「不超过七种树形态」。
+
+钉那份日期的家只有一处：日期从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面把它取成系统时钟当天（`face/artifacts.ts#Artifacts.#today` 自己的注释就写明骨架不带日期参数面），旗标、环境变量与夹具缝都不通到它，而 §5 不许为它新开一条。所以四族骨架的字节格走装配器入口、在进程内同时驱动两棵树，同传一个冻结的日期——这个日期是语料的常量，录制基线与判比取同一个值，基线才跨天稳定——`date:` 行照常逐字节比，不屏蔽也不归一：被屏蔽掉的那一格正好是字节面存在的理由。必须真起进程的格（`init` 的 PATH 替身）产出的字节里没有日期，于是没有一格依赖运行当天；`schema get` 的壳面（回显路径与退出码）仍在起进程的那组格里比，它同样不带日期。
+
+对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。这个家今天不被任何工程收集——引擎的 vitest include 是 `src-next/**/__tests__/**/*.test.ts`，引擎 `tsconfig.json` 只含 `src-next`，根 `typecheck` 链也只点名三个既有工程——所以落对账器的那一波必须同批把 `tests/parity/**/*.test.ts` 加进 `packages/cdd-engine/vitest.config.ts` 的 include，为 `packages/cdd-engine/tests/parity` 建一份自己的 tsconfig 工程并同批挂进根 `typecheck` 链；执行它的命令是 `pnpm -C packages/cdd-engine exec vitest run tests/parity`。翻面（§3.3）同批删掉这处 include 与该工程——它们与对账器同生同死。
 
 #### 2.4 对账器只在测试面
 
@@ -190,3 +194,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.2 | 2026-11-25 | 评审轮一（F1–F9）落地：mode 名册改为 `render/templates.ts#MODE_PROMPTS` 的键集（`base` → `docs-fix`）· 骨架四族并补 `single-spec` 与 `render/skeleton.ts#SkeletonAssembler` 的 pin · 翻面顺序补树外三处测试面与三份手维护文档的改指 · 守恒面的判者写实（对账器在翻面前判，翻面后无字节判者）· 开场读数更正为 20 个超 500 行与 35,125 行并标明快照口径 · 能力清单逐条带 pin 与「pin 只定位、验收是条件」一句 · 独立编译工程挂进根 `typecheck` 链 · 对账器与语料的 home 与禁门域声明 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.3 | 2026-11-25 | 评审轮二（F1–F6）落地：四 mode 名册改锚 `render/templates.ts#WORK_MODES`，prompt 分 `TEMPLATE_PROMPT.modes` 与 `TEMPLATE_PROMPT.reviews` 两带 · review prompt 面改按 `render/templates.ts#REVIEW_VARIANTS` 的每 `TargetType` 一行，`ReviewKind` 只留作 criteria body 词表 · 在飞一族改述为记录侧三种判定 kind 与 `checked:` 面词行两个口径 · 对账器的执行面落地（引擎 vitest include 加 `tests/parity`、独立 tsconfig 工程挂进根 `typecheck`，翻面同批删除）· 能力清单 #6 / #7 / #8 逐项补 pin · D95 注册日与 2026-11-18 重测读数分开写 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.4 | 2026-11-25 | 评审轮三（F1–F4）落地：翻面的手维护文档清单补齐 `README.zh-CN.md` 与 `packages/cdd-engine/README.zh-CN.md` 两份镜像（§3.3 · §3.4 · Acceptance #4）· 语料面写实为旧测试的整个夹具面，非树输入（`init` 的 PATH 替身与注入 runner、`issue render` 的 stdin JSON、骨架的注入日期）一并点名，§5 的禁令限定为「不超过旧测试已带的臂」· 形状规则改 pin `contract/rules.ts#RULE_REGISTRY`，路径文法作它消费的对象（§1.2 · §2.1 #6）· `src/` 测试 include 的家与波次写实，编译臂配一条测试臂（§3.2） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.5 | 2026-11-25 | 评审轮四（F1）落地：§2.3 补上骨架 `date:` 行的钉法——日期只从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面取自系统时钟且无旗标 / 环境变量 / 夹具缝可达，故四族骨架按装配器入口在进程内同传一个冻结日期驱动两棵树，`date:` 行逐字节比而不屏蔽，需真起进程的格产出的字节不含日期 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

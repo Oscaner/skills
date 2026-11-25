@@ -1,7 +1,7 @@
 ---
 title: '引擎接手面收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 program: 2026-10-10-engine-doc-tooling
@@ -10,7 +10,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 A「接手
 
 ## Design
 
-本相位收两条独立缺陷与三笔记录面欠账，判据是同一个：**一个事实只能被它自己的判据授权**。① 把「树」的事实挂在「文档」的判决下，于是文档门的拒绝撤销了树的清理；② 一个已经判得出来的形态没有被命名，于是操作者拿到的是「也许还活着」的报文；③④⑤ 则是反向的克制——读数与指称物脱钩这一类**不立新门**，只用问句与一次派生改真承担。
+本相位收三条缺陷与三笔记录面欠账，判据是同一个：**一个事实只能被它自己的判据授权**。①② 是同一条边界的两个方向：把「树」的事实挂在「文档」的判决下，于是文档门的拒绝撤销了树的清理；一个已经判得出来的形态没有被命名，于是操作者拿到的是「也许还活着」的报文。③④⑤ 则是反向的克制——读数与指称物脱钩这一类**不立新门**，只用问句与一次派生改真承担。⑥ 是一条判据的域划宽了，于是 13 份文档各写一种说法。
 
 ### 1. 判据：授权面划宽与判据面划错是两件事
 
@@ -46,7 +46,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 
 #### 3.1 判据：记录自带的两条存在性事实
 
-记录自带两条不需要读进程就能判的事实：`session/inflight.ts#InFlightRecord.plan`（repoRoot 相对路径，可判存在性）与 `InFlightRecord.slug`（其 workspace 目录可判存在性）。两条都不成立时，这条记录**确定**是残骸，报文却与「进程刚死、目标还在」共用一句。
+记录自带两条不需要读进程就能判的事实：`session/inflight.ts#InFlightRecord.plan`（repoRoot 相对路径，可判存在性）与 `InFlightRecord.slug`（其 workspace 目录可判存在性）。记录**带哪条事实才判哪条**：`plan: null` 的面（spec / branch 评审）没有 plan 事实，只判 workspace 目录一条；两条都带且都不成立时由一句话一并写出；任一条成立即不是残骸。两条都不成立时，这条记录**确定**是残骸，报文却与「进程刚死、目标还在」共用一句。
 
 `session/inflight.ts#InFlight.inspect` 的 `held` 分支因此新增一个 `targetGone` 事实（由上述两条存在性读取得出），`InFlightState` 的语汇不变——它仍是 `held`，因为形态学（谁是接手候选项）不该分叉：stale 记录的接手路径只有一条。
 
@@ -114,6 +114,20 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 
 不新增门、不新增 lens 标签、不新增分级档、不新增语料臂；`vet` 的门顺序与 `next:` 路由零变。
 
+### 8. 骨架固定段不是判据：`single-home` 的域收窄
+
+#### 8.1 缺陷：门逼出的改写是 fake content
+
+`single-home@Sentence` 判的是「同一条**判据**住了两处」（`contract/invariants.ts#SentenceIndex`：归一化后字符 3-gram 的 Jaccard ≥ 0.6，且去代码跨度后的正文 ≥ 40 字符）。它判唯一性关系，从不问句子真假——这是它该在 P43 活下来的理由。
+
+但它的域划宽了：phase-spec 的验收尾按构造在**每一份**相位 spec 里出现（实测 13 份）。门于是只接受改写措辞，而改写一个真句子的措辞、内容一字不变，正是 D101 点名的 fake content。同一份规则文件里已有先例替它说话：`SentenceIndex.isWorkItem` 的注释写着「`- Modify: <path>` normalizes to the same ~58-character sentence in every plan, so comparing it would judge the template dead」——验收尾与 work item 同类：**按构造必然重复的骨架固定段**。
+
+#### 8.2 落地：验收尾升为声明片段
+
+- 验收尾的**唯一 home** 是 `render/skeleton.ts` 的骨架生成器：phase-spec 骨架在 `### Acceptance criteria` 段尾吐出该片段（它已经吐了 change-history 首行脚手架，属同一职责）。
+- `SentenceIndex` 的豁免面新增一条，按**恒等**比较该声明片段——与 `isWorkItem` 同形的声明式谓词，**零正则形状判定、零第二处字面**。
+- 既有 13 份 spec 的尾与声明片段同形，自动豁免；本 spec 的验收尾在 ⑥ 落地后**改回统一措辞**（现为绕门而改写的版本，是本相位的活样本）。
+
 ### Acceptance criteria
 
 - `--recover` ∧ doc-contract 拒绝的端到端：记录被接手清除，abort 账恰一条 `interrupted`，随后同一命令不带 `--recover` 即可派发。
@@ -125,6 +139,8 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - `CALIBRATION_TAIL` 携带「多轴分别报、禁止跨轴重排」一句；`REVIEWS.wave` 与 `REVIEWS.branch` 的共享 `spec-lens` 行携带 S4 问句。
 - `--steal-stale` 在 `docs/diagrams/src/` 零命中；`pnpm run emit` 后 `emit:check` fresh。
 - 决策表 D102 在册；charter 的 Phase inventory 表头不再引用已退役的 `phase-inventory.guard.test.ts`。
+- `single-home` ∧ 两条同形验收尾：不被拦（`render/skeleton.ts` 的声明片段恒等豁免，零新增正则）；把该片段改一个字即重新被拦（行为 pin，防豁免退化成「任意句子都放行」）。
+- `cdd schema get phase-spec --output skeleton` 吐出的骨架携带验收尾；本 spec 的验收尾改回统一措辞。
 - 引擎套件全绿 · `pnpm run validate` exit 0 · 两包 changeset 取 **minor**。
 
 ## Constraints
@@ -134,6 +150,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - **`vet` 的门顺序零变**：tree-clean → in-flight → plan-carrier → graph → plan-ledger → doc-contract → 四条派发前门，顺序与「第一拒绝者拥有判决」不动。
 - **机械面只许判派生**（D101 · D102）：本相位新增的判据只有两条存在性读取与一次派生改真。
 - **零新增 token**：不新增门名、不新增 lens 标签、不新增分级档、不新增语料臂测试。
+- **骨架固定段有一个 home**：验收尾只在 `render/skeleton.ts` 声明，`SentenceIndex` 按恒等引用；新相位由骨架生成该尾，不新增第二处字面。
 - **不发布**：changeset 归并落 pending，两包 minor（D74）。
 
 ## Change history
@@ -142,3 +159,4 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-25 | 首稿：① 接手授权面收窄（leg ① 绑 in-flight 门 · legs ②③ 仍守结构腿）· ② `stale holder, target gone` 第四态（三面同词表）· ③ #521 只记不判（问句挂 `spec-consistency`）· ④ 上游借鉴收窄到 S4 + S5 · ⑤ 已发布死指称 `--steal-stale` 改真 | Oscaner M. · Claude（kairos:cdd-design → cdd-spec-writer） |
 | v0.2 | 2026-11-25 | 首轮评审的 `doc-contract` 拒绝整改（F1–F2）：① 设计面按生成骨架补两级项标题（`### N.` 组 + `#### N.M` 项 · `presence@#### N.M item heading`）；② 验收末条改用 ` · ` 分段并改写开场，脱离 P12/P13/P14 的同句（`single-home@Sentence`）。内容零变更 | Oscaner M. · Claude（kairos:cdd-spec-writer 修复轮） |
+| v0.3 | 2026-11-25 | 需求面回填 ⑥（用户裁定）：`single-home` 的域收窄——验收尾升为 `render/skeleton.ts` 的声明片段、`SentenceIndex` 按恒等豁免（§8）；§3.1 补「记录带哪条事实才判哪条」（活证据：被砍的评审轮留下 `plan: null` 的 stale 记录）；验收格增两条、约束格增一条 | Oscaner M. · Claude（kairos:cdd-spec-writer 回填） |

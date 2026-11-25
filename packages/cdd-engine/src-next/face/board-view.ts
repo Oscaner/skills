@@ -788,7 +788,10 @@ export class BoardView {
    *  holder's IDENTITY facts alone (the operating verb, the round's cycle + attempt
    *  cells a takeover has to answer for, the wave key and the pid, spec §5.3): the
    *  child's command line, its start instant and its plan path are dispatch
-   *  narrative, not board facts. A DEAD holder adds the takeover hint. The free and
+   *  narrative, not board facts. A DEAD holder adds the takeover hint — the fourth
+   *  state's line when the record's own target facts read out missing, else the
+   *  ordinary `stealable` sentence (`Words.inFlightTakeoverHint` is that ONE choice).
+   *  The free and
    *  corrupt rows are the word table's declared rows — the board's hint is the same
    *  bytes the preview face and the gate print (one vocabulary, never a board
    *  literal). The orphan rows are the drafts no recorded round owns — the board
@@ -802,7 +805,7 @@ export class BoardView {
     const rows: string[] = [];
     if (state.kind === "held") {
       const record = state.record;
-      const dead = state.alive ? "" : ` — ${words.inFlightWords().stealable}`;
+      const dead = state.alive ? "" : ` — ${words.inFlightTakeoverHint(state.targetGone)}`;
       const identity = [
         `pid ${record.pid}`,
         `op: ${record.phase ?? "dispatch"}`,

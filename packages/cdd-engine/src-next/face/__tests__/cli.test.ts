@@ -10156,6 +10156,175 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
       cleanup();
     }
   });
+
+  // P44 §2.1 — leg ①'s authorization is the in-flight gate's OWN pass (the stale
+  // record + a `checked` face carrying the gate's row), never the structure leg's
+  // verdict. The three arms below split what that means: a live holder is never
+  // displaced, a dirty tree is never folded, and a LATER gate's refusal no longer
+  // revokes the tree's cleanup.
+  it("keeps a LIVE holder standing under `--recover` — the gate's held verdict, never the double gap", async () => {
+    const sync = new StubRunner();
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // The fixture's own pid holds the tree: `staleState()` answers null for a live
+      // record, so leg ①'s conjunction fails however the checked face reads.
+      const holder = await holdTree(repoRoot);
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const recordBytes = readFileSync(recordPath, "utf8");
+      const lockPath = `${recordPath}.lock`;
+      const locked = existsSync(lockPath);
+      io.stderrText = "";
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]),
+      ).toBe(1);
+      // The first (and only) refuser is the in-flight gate: its held report, with the
+      // holder's identity — never the recovery judgment's double-gap sentence.
+      expect(io.stderrText).toContain("CDD_BLOCKED: in-flight");
+      expect(io.stderrText).toContain("a dispatch is already in flight");
+      expect(io.stderrText).toContain(String(process.pid));
+      expect(io.stderrText).toContain("cdd implement --tasks 1 --plan docs/kairos/plans/p3.md");
+      expect(io.stderrText).not.toContain("nothing to take over");
+      // Zero displacement: the record's bytes and the lock carrier are as they were.
+      expect(readFileSync(recordPath, "utf8")).toBe(recordBytes);
+      expect(existsSync(lockPath)).toBe(locked);
+      expect(sync.calls).toEqual([]);
+      await holder.release();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("leaves a stale record untouched on a DIRTY tree — tree-clean's refusal never folds", async () => {
+    const sync = new StubRunner();
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      plantStaleRecord(repoRoot);
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const recordBytes = readFileSync(recordPath, "utf8");
+      dirtyTree(repoRoot);
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--recover",
+        ]),
+      ).toBe(1);
+      // tree-clean refuses BEFORE the in-flight row is pushed onto `checked`, so leg
+      // ①'s conjunction has no first cell — and the record is not this call's to clear.
+      expect(io.stderrText).toContain("CDD_BLOCKED: tree-clean");
+      expect(io.stderrText).toContain("the working tree is dirty");
+      expect(io.stderrText).not.toContain("nothing to take over");
+      expect(readFileSync(recordPath, "utf8")).toBe(recordBytes);
+      // No fold, no record round: the ledger still holds no wave-1 record at all.
+      expect(ledgerOf(repoRoot).recordsOf("1")).toEqual([]);
+      expect(sync.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("takes the record over when a LATER gate refuses — the abort record is the killed round's own", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      plantStaleRecord(repoRoot);
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const clean = readFileSync(plan, "utf8");
+      // A document defect only: the tree is clean and the stale record still stands.
+      writeFileSync(plan, clean.replace("## Change history", "## Change log"), "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        1,
+      );
+      // The document gate keeps its verdict (it is the first refuser) …
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract");
+      expect(frames).toHaveLength(0);
+      // … and the tree's cleanup already happened: the record is gone, one abort
+      // record landed, its cells read verbatim off the killed round's own record.
+      expect(existsSync(recordPath)).toBe(false);
+      const aborted = ledgerOf(repoRoot).recordsOf("1");
+      expect(aborted).toHaveLength(1);
+      expect(aborted[0]).toMatchObject({
+        op: "implement",
+        cycle: 2,
+        attempt: 1,
+        dispatchBase: "base-B",
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(aborted[0]?.violations).toEqual([
+        expect.objectContaining({ grade: "hard", cause: "interrupted" }),
+      ]);
+      // With no record left on the tree, the same command WITHOUT the flag is refused
+      // by the document gate too — the pair that tells "folded" from "still standing".
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED: in-flight");
+      expect(io.stderrText).not.toContain("a dispatch is already in flight");
+      // The repaired document dispatches the same round.
+      writeFileSync(plan, clean, "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      expect(frames.filter((frame) => frame.phase === "review")).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps legs ②③ out of a document-gate refusal — leg ① folds, zero stamp, zero N+1 dispatch", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review 1 leaves a blocker (the pending fix) and binds the reviewed revision.
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      expect(ledgerOf(repoRoot).pendingFix("plan", "plan")).toBe(true);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const drifted = readFileSync(plan, "utf8");
+      writeFileSync(plan, drifted.replace("## Change history", "## Change log"), "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        1,
+      );
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract");
+      // Leg ① landed (the killed round is booked, the record cleared) …
+      expect(existsSync(recordPath)).toBe(false);
+      expect(ledgerOf(repoRoot).recordsOf("1")).toHaveLength(1);
+      // … legs ②③ did not: no supersede stamp and no second review round reached a
+      // dispatch, because they write the DOCUMENT's ledger and the document refused.
+      const reviews = ledgerOf(repoRoot).recordsOf("plan");
+      expect(reviews).toHaveLength(1);
+      expect(reviews.every((record) => record.supersededBy === undefined)).toBe(true);
+      expect(frames.filter((frame) => frame.phase === "review")).toHaveLength(1);
+      // The same tree MINUS the document violation: the stamp and the N+1 round land.
+      writeFileSync(plan, drifted, "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        0,
+      );
+      const reopened = ledgerOf(repoRoot).recordsOf("plan");
+      expect(reopened[0]?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
+      expect(reopened[1]).toMatchObject({ op: "review", cycle: 2 });
+      expect(frames.filter((frame) => frame.phase === "review")).toHaveLength(2);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

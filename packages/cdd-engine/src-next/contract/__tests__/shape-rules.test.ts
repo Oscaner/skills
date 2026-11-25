@@ -28,14 +28,9 @@ import { RULE_REGISTRY } from "../rules.ts";
  *  strategies on the same policy do (they must not touch the real tree). */
 const FS: DocFs = { exists: () => false, read: () => null, list: () => [] };
 
-/** The shape rows this file judges — the variable classes, `single-home` and the date
- *  row — all `block` since P41's own close-out. */
-const SHAPE_RULE_IDS = [
-  "line-coordinate",
-  "live-arithmetic",
-  "single-home",
-  "change-history-date-shape",
-] as const;
+/** The shape rows this file judges — the variable classes and the date row — all
+ *  `block` since P41's own close-out. */
+const SHAPE_RULE_IDS = ["line-coordinate", "live-arithmetic", "change-history-date-shape"] as const;
 
 /** One phase-spec carrier over the given body lines — a parseable document whose
  *  body is exactly what the arms below place. */

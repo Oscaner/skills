@@ -30,6 +30,7 @@ import {
 } from "../../contract/review-criteria.ts";
 import type { TargetType } from "../../session/faces.ts";
 import {
+  CLAUSES,
   CLOSED_WAVE_DISCIPLINE,
   type ContextLine,
   type ModePromptRow,
@@ -476,5 +477,131 @@ describe('P40 T1 — `written: "engine"` marks the one artifact the engine write
       (decl) => decl.written === "engine",
     );
     expect(declarations.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P44 §5.1 — the two borrowed review lenses. S1 and S2 were already carried by the
+// shared calibration tail; this batch adds only the two that were missing: S4 (a
+// requirement that looks implemented while the implementation looks wrong) on the
+// wave / branch shared `spec-lens` question, and S5 (report each axis separately,
+// never one merged "most severe" finding) in the tail. Zero new lens labels, zero
+// new tiers: the row count and every `lensEnum` are untouched.
+// ---------------------------------------------------------------------------
+
+describe("P44 §5.1 — the borrowed lenses ride the existing rows", () => {
+  it("carries S4 on the shared spec-lens row, byte-identically in both projections", () => {
+    const row = LENS_QUESTIONS.rows.find((candidate) => candidate.id === "spec-lens");
+    expect(row).toBeDefined();
+    expect(row?.reviewKinds).toEqual(["wave", "branch"]);
+    expect(row?.question).toContain(
+      "a requirement look implemented while the implementation looks wrong",
+    );
+    const question = row?.question ?? "";
+    // the wave and branch shells each fold the SAME question into their criteria line
+    expect(REVIEWS.wave.axesGuide).toContain(question);
+    expect(REVIEWS.branch.axesGuide).toContain(question);
+    expect(TEMPLATE_PROMPT.reviews.wave.shell.join("\n")).toContain(question);
+    expect(TEMPLATE_PROMPT.reviews.branch.shell.join("\n")).toContain(question);
+  });
+
+  it("carries S5 in the shared tail — one sentence, no per-key copy", () => {
+    const sentence = "Report every axis separately";
+    expect(SEVERITY_RUBRIC).toContain(sentence);
+    expect(SEVERITY_RUBRIC).toContain("never merge several axes into one 'most severe'");
+    // the module bytes hold the sentence exactly once: a per-key copy would be a second
+    const source = readFileSync(fileURLToPath(new URL("../templates.ts", import.meta.url)), "utf8");
+    expect(source.split(sentence).length).toBe(2);
+  });
+
+  it("adds no lens label and no row — the two zero-change assertions", () => {
+    expect(REVIEWS.wave.lensEnum).toEqual(["standards", "spec", "buildability", "scope"]);
+    expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability", "scope"]);
+    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(LENS_QUESTION_ROWS).toHaveLength(15);
+    expect(LENS_QUESTIONS.forReviewKind("wave")).toHaveLength(4);
+    expect(LENS_QUESTIONS.forReviewKind("branch")).toHaveLength(4);
+    expect(LENS_QUESTIONS.forReviewKind("spec")).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P44 §9.2 — `cl:own-document`. `cl:plan-freeze` governs permission INSIDE the target
+// document (may this one be changed at all); this clause governs the boundary of the
+// document SET (which documents may be touched). The write surface is named per mode,
+// never attached to `findings` alone: an implement round carries the `work` face only
+// (its `judge` face belongs to a later review round), so its authority comes from the
+// wave brief's `### Task N:` rows. The four arms below are PAIRED: the two inside-face
+// writings stay allowed and the two outside ones stay refused.
+// ---------------------------------------------------------------------------
+
+describe("P44 §9.2 — cl:own-document bounds the round's document set", () => {
+  const clause = CLAUSES["cl:own-document"];
+  /** One mode's RENDERED prompt — the resolved clause bytes, not the placeholder. */
+  const rendered = (role: string, type: string): string =>
+    new TemplateAssembler().render(frameOf(role, type));
+
+  it("rides all four modes — every work face and every review face renders the same bytes", () => {
+    for (const [role, type] of [
+      ["implement", ""],
+      ["fix", "branch"],
+      ["docs-fix", "phase-spec"],
+    ] as const) {
+      expect(rendered(role, type), role).toContain(clause);
+    }
+    for (const type of TARGET_TYPES) {
+      expect(rendered("review", type), type).toContain(clause);
+    }
+    // one clause, one home — the licence list is the single source every shell reads
+    expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain("{{> cl:own-document}}");
+    expect(TEMPLATE_PROMPT.reviews.wave.shell.join("\n")).toContain("{{> cl:own-document}}");
+    expect(TEMPLATE_PROMPT.clauses["cl:own-document"]).toBe(clause);
+  });
+
+  it("allows a fix round's own target document (the inside-face arm)", () => {
+    expect(clause).toContain("this round writes its own target document");
+    expect(rendered("fix", "branch")).toContain(clause);
+  });
+
+  it("allows an implement round's brief-named task files (the findings-only shape is red here)", () => {
+    // An implement round has no `findings` slot at all, so a clause that hung its write
+    // authority on findings would leave this round with no legal write surface.
+    expect(clause).toContain(
+      "**implement** round writes the task files its wave brief names at `### Task N:`",
+    );
+    expect(clause).toContain("the findings view names");
+  });
+
+  it("grants zero permission over a document outside the round — the charter, a sibling spec, the plan", () => {
+    expect(clause).toContain("parent charter");
+    expect(clause).toContain("a sibling spec");
+    expect(clause).toContain("the plan");
+    expect(clause).toContain("never by the round's own hand");
+  });
+
+  it("names NO code write surface for a review round — whose shell carries `Read-only`", () => {
+    const reviewPart = clause.slice(clause.indexOf("**review**"));
+    expect(reviewPart).toContain("no code write surface");
+    expect(reviewPart).toContain("`Read-only`");
+    expect(reviewPart).not.toContain("code files");
+    for (const type of TARGET_TYPES) {
+      const shell = rendered("review", type);
+      expect(shell, type).toContain("**Read-only:**");
+      expect(shell, type).toContain(clause);
+    }
+  });
+
+  it("gives a review the same write set its own `Read-only` sentence gives it", () => {
+    // The round context prescribes `OUTPUT_REPORT` to a review as well, so "its only
+    // write is its `findings` carrier" contradicted the shell's own `Read-only`
+    // sentence ("the prescribed `OUTPUT_*` artifacts are a review's only writes").
+    // One write set, two sentences: the clause names the artifacts, `findings` among
+    // them, and leaves the document boundary as its own subject.
+    const reviewPart = clause.slice(clause.indexOf("**review**"));
+    expect(reviewPart).toContain("the prescribed `OUTPUT_*` artifacts");
+    expect(reviewPart).toContain("its `findings` carrier among them");
+    expect(reviewPart).not.toContain("its only write is its");
+    const shell = rendered("review", "branch");
+    expect(shell).toContain("the prescribed `OUTPUT_*` artifacts are a review's only writes");
   });
 });

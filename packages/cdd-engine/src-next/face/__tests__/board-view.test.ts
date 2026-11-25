@@ -572,6 +572,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         sampledAt: null,
         verdict: null,
       },
+      targetGone: { plan: false, workspace: false },
     };
     const text = render("prog-overall", "claude", null, refusal, holding).text;
     // The program board IS the rendered face (the assertion is not vacuous)…
@@ -602,6 +603,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         sampledAt: null,
         verdict: null,
       },
+      targetGone: { plan: false, workspace: false },
     };
     const refusal: RefusalState = {
       kind: "standing",
@@ -1661,12 +1663,22 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("adds the takeover hint only for a dead holder", () => {
     const alive = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
     const dead = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: false },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1675,9 +1687,70 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(dead.join("\n")).toContain(words.inFlightWords().stealable);
   });
 
+  it("reads the fourth state's line for a dead holder whose target is gone — never `stealable`", () => {
+    // Both target facts read out missing: the row speaks both clauses, and `stealable`
+    // ("the holder is gone, the target still stands") is not borrowed for it.
+    const both = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: true, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(both).toContain(
+      "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over",
+    );
+    expect(both).not.toContain(words.inFlightWords().stealable);
+    // The mirror shape: only the workspace fact read out missing, so only that cell
+    // renders — the plan the record still holds gets no sentence.
+    const mirror = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: false,
+        targetGone: { plan: false, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(mirror).toContain("the record's workspace directory is not on this tree");
+    expect(mirror).not.toContain("the plan the record names");
+    expect(mirror).not.toContain(words.inFlightWords().stealable);
+  });
+
+  it("never prints a takeover hint beside a live holder — even when both target cells read gone", () => {
+    // The liveness judgment decides FIRST: `stealable` and the fourth state are claims
+    // about a holder that is gone, so a running dispatch's row carries neither. This is
+    // the board's only arm where a LIVE holder meets a read-out-missing target, and it
+    // is what a future `targetGone`-first selection would silently break.
+    const live = BoardView.inFlightRows(
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: true, workspace: true },
+      },
+      [],
+      words,
+    ).join("\n");
+    expect(live).toContain("pid 4242");
+    expect(live).not.toContain("the dispatch's target is gone");
+    expect(live).not.toContain("the plan the record names is not on this tree");
+    expect(live).not.toContain("--recover");
+    expect(live).not.toContain(words.inFlightWords().stealable);
+  });
+
   it("(f) the held row names the holder's IDENTITY only — never the dispatch narrative", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord(), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord(),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1697,7 +1770,12 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("(f2) a re-dispatch's attempt and a later cycle are readable in the row", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord({ cycle: 3, attempt: 2 }), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord({ cycle: 3, attempt: 2 }),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );
@@ -1707,7 +1785,12 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
 
   it("(f3) a record written before the cycle/attempt cells existed omits them, not prints null", () => {
     const rows = BoardView.inFlightRows(
-      { kind: "held", record: inFlightRecord({ cycle: null, attempt: null }), alive: true },
+      {
+        kind: "held",
+        record: inFlightRecord({ cycle: null, attempt: null }),
+        alive: true,
+        targetGone: { plan: false, workspace: false },
+      },
       [],
       words,
     );

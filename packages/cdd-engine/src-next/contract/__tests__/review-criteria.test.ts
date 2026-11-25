@@ -379,3 +379,46 @@ describe("P37 T2 — the lens question table's rows and cells", () => {
     expect(LENS_QUESTIONS.of("wave", "scope").id).toBe("scope-lens");
   });
 });
+
+/**
+ * P44 §4.2 · §5.1 — the two rows the review face borrows one question each from. The
+ * `spec-consistency` row already judged drift; the referent ask (which items a reading
+ * counts, and whether they are still on the tree) is its EXTENSION, never a new
+ * criterion: a reading and its referent coming apart is what that question answers. The
+ * wave / branch shared `spec-lens` row gains the other half of the requirement gap —
+ * "looks implemented, the implementation looks wrong". Zero rows and zero lens labels
+ * are added: both asks ride rows that already existed.
+ */
+describe("P44 §4.2 · §5.1 — the referent ask and the S4 half ride existing rows", () => {
+  it("extends the spec-consistency row in place — same id, same kind, same lens", () => {
+    const row = LENS_QUESTIONS.of("spec", "consistency");
+    expect(row.id).toBe("spec-consistency");
+    expect(row.reviewKinds).toEqual(["spec"]);
+    expect(row.lens).toBe("consistency");
+    expect(row.question).toContain("Do two places state the same fact differently");
+    // the added half: a reading is asked which items it counts and whether they remain
+    expect(row.question).toContain("which items does it count");
+    expect(row.question).toContain("are those items still on the tree");
+  });
+
+  it("extends the shared spec-lens row — one row, both kinds, one question", () => {
+    const row = LENS_QUESTIONS.of("wave", "spec");
+    expect(row.id).toBe("spec-lens");
+    expect(row.reviewKinds).toEqual(["wave", "branch"]);
+    expect(row.question).toContain(
+      "a requirement look implemented while the implementation looks wrong",
+    );
+    // the branch cell shares that row, so the two projections are the same bytes
+    expect(LENS_QUESTIONS.of("branch", "spec").question).toBe(row.question);
+  });
+
+  it("adds zero rows and zero labels — the census and the spec projection are unchanged", () => {
+    expect(LENS_QUESTIONS.rows).toHaveLength(15);
+    expect(LENS_QUESTIONS.rows.reduce((sum, row) => sum + row.reviewKinds.length, 0)).toBe(19);
+    expect(LENS_QUESTIONS.forReviewKind("spec").map((row) => row.lens)).toEqual([
+      "completeness",
+      "consistency",
+      "clarity",
+    ]);
+  });
+});

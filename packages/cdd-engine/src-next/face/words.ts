@@ -37,7 +37,7 @@ import { PreFlightRows, type RowWording } from "../contract/preflight-rows.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { PlanReadWords } from "../infra/plan-source.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
-import type { InFlightRecord } from "../session/inflight.ts";
+import type { InFlightRecord, TargetGone } from "../session/inflight.ts";
 import type { Identity } from "../session/round-artifacts.ts";
 
 // ---------------------------------------------------------------------------
@@ -155,6 +155,12 @@ export interface InFlightWords {
   held: string;
   /** The takeover hint — the standing record's holder is gone. */
   stealable: string;
+  /** The fourth state's row — the standing record's TARGET is gone (P44 §3.2). A row
+   *  of clause cells, never one sentence: the plan fact and the workspace fact are two
+   *  existence reads, and the line names exactly the ones that read out missing (a
+   *  record whose plan is still on the tree never has its workspace cell speak for it).
+   *  `Words.inFlightTargetGone` is the row's only renderer. */
+  targetGone: InFlightTargetGoneWords;
   /** The corrupt record with its lock still on disk. */
   corruptLocked: string;
   /** The corrupt record without a lock. */
@@ -168,6 +174,24 @@ export interface InFlightWords {
   /** The three recovery sentences (canonical bytes: look at the working tree first ·
    *  commit the changes that work · discard the ones that are broken). */
   recovery: readonly [string, string, string];
+}
+
+/** The fourth state's row cells — the two clause cells (one per fact the record
+ *  carries), the separator between them and the takeover sentence the whole row ends
+ *  with. A cell renders only where its fact read out missing; the takeover instruction
+ *  is NOT a cell (it is the same sentence the sibling hint rows carry, and it rides
+ *  the row whichever cells render). */
+export interface InFlightTargetGoneWords {
+  /** The row's lead — the state the rendered cells qualify. */
+  lead: string;
+  /** The plan cell — the plan the record names is not on this tree. */
+  plan: string;
+  /** The workspace cell — the record's workspace directory is not on this tree. */
+  workspace: string;
+  /** The cell separator (both facts read out missing). */
+  separator: string;
+  /** The takeover sentence (the current flag spelling, never the retired one). */
+  takeover: string;
 }
 
 /** The checked-list wording rows — the pre-flight's per-rule outcome vocabulary
@@ -368,12 +392,20 @@ export const CAPSULE_WORDS = {
       "            rewrites or deletes an artifact; the workspace is yours",
     ],
   },
-  /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
-   *  corrupt shapes and the three canonical recovery sentences. */
+  /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the fourth
+   *  state's two-cell row, the two corrupt shapes and the three canonical recovery
+   *  sentences. */
   inFlight: {
     held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
     stealable:
       "the holding process is gone — re-run the same command with --recover to take the in-flight record over",
+    targetGone: {
+      lead: "the dispatch's target is gone —",
+      plan: "the plan the record names is not on this tree",
+      workspace: "the record's workspace directory is not on this tree",
+      separator: " · ",
+      takeover: "re-run the same command with --recover to take the in-flight record over",
+    },
     corruptLocked:
       "the in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over",
     corruptUnlocked:
@@ -714,8 +746,12 @@ export class Words implements WordLocaleFace, PlanReadWords {
   /** The held BLOCK message of an in-flight judgment — the pre-flight gate's refusal
    *  and the CLI's acquire-race render fill the SAME rows (identical bytes by
    *  construction: one message, two call sites). A null record is the lock-with-no-
-   *  readable-record shape. */
-  inFlightBlocked(record: InFlightRecord | null, alive: boolean): string {
+   *  readable-record shape. A DEAD holder carries the takeover hint: the fourth
+   *  state's naked line when the record's target facts read out missing, else the
+   *  ordinary `stealable` sentence. A LIVE holder renders the held report alone — the
+   *  flag never crosses "alive", so the third cell is unread there (the acquire race's
+   *  two-argument call keeps its bytes). */
+  inFlightBlocked(record: InFlightRecord | null, alive: boolean, targetGone?: TargetGone): string {
     if (record === null) return this.inFlightWords().corruptLocked;
     const held = this.inFlightHeld({
       pid: record.pid,
@@ -724,7 +760,43 @@ export class Words implements WordLocaleFace, PlanReadWords {
       wave: record.wave,
       slug: record.slug,
     });
-    return alive ? held : `${held} — ${this.inFlightWords().stealable}`;
+    if (alive) return held;
+    const hint =
+      targetGone === undefined
+        ? this.inFlightWords().stealable
+        : this.inFlightTakeoverHint(targetGone);
+    return `${held} — ${hint}`;
+  }
+
+  /** Whether the record's own target facts read out missing — the fourth state's
+   *  predicate (P44 §3.1): the DERIVED fold of the two cells, "any fact the record
+   *  carries reads gone". Stored nowhere — a third cell could not say WHICH fact read
+   *  out, and the row renders exactly the cells that did. */
+  targetGoneOf(targetGone: TargetGone): boolean {
+    return targetGone.plan || targetGone.workspace;
+  }
+
+  /** The fourth state's naked line — the ONE renderer the four observation faces read
+   *  (`in-flight:` row · the blocking report · the board row · the dry-run takeover
+   *  hint), so no face pushes the table's raw row out and the same reading renders the
+   *  same bytes everywhere. Only the cells that read out missing render: a fact the
+   *  record still holds emits nothing, and an empty cell is an absence, never a
+   *  placeholder sentence. No `held` prefix — the caller owns the row's own spelling. */
+  inFlightTargetGone(targetGone: TargetGone): string {
+    const row = this.inFlightWords().targetGone;
+    const cells = [targetGone.plan ? row.plan : "", targetGone.workspace ? row.workspace : ""];
+    return `${row.lead} ${cells.filter((cell) => cell !== "").join(row.separator)} — ${row.takeover}`;
+  }
+
+  /** The dead holder's takeover hint — the fourth state's naked line when any of the
+   *  record's target facts read out missing, else the ordinary `stealable` sentence.
+   *  ONE choice for the three hint faces (the blocking report · the board row · the
+   *  dry-run hint): `stealable` keeps its one meaning ("the holder is gone, the target
+   *  still stands"), so no face borrows it for a record whose target is gone. */
+  inFlightTakeoverHint(targetGone: TargetGone): string {
+    return this.targetGoneOf(targetGone)
+      ? this.inFlightTargetGone(targetGone)
+      : this.inFlightWords().stealable;
   }
 
   /** The preview / board lock row value of one holder record — the same identity

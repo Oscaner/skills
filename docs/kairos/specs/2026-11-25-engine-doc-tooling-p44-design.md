@@ -184,7 +184,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - 形状门的名册只剩 `line-coordinate` · `live-arithmetic` · `change-history-date-shape`：P43 spec §4.2 的名册句已改真，宪章的 P44 行同批跟上（它的形状门读数与名册同数，不再自写一条算术）；源码面的转述同批改真——`contract/invariants.ts` 的模块头名册行、`contract/rules.ts` 的注册表注释、`face/cli.ts#Cli.#contract` 的字段注释与 `#beginCommand` 的两处注释，`session/graph.ts` 的散文用法按 §8.2 明示豁免；`#beginCommand` 不再重建 `#contract`；`single-home` 在名册里零命中。
 - `spec-consistency` 的 lens 问句保留（重复判据的危害由它判）；`AGENTS.md` 的「One home per rule」写作约定不动；本 spec 的验收尾改回统一措辞。
 - `CLAUSES` 携带 `cl:own-document` 一句（四个模式共享，写面按模式点名：implement 轮 = 自己的目标文档 + brief 里 `### Task N:` 的任务文件，fix · docs-fix 轮 = 自己的目标文档 + finding 画面里的代码文件），`TEMPLATE_PROMPT.$version` 递增；越界写父宪章的轮次在提示面零许可。成对两臂：fix 轮写本轮目标文档仍被允许；implement 轮写一份 brief 点名的任务文件仍被允许（它没有 findings，写权若只挂在 findings 上这条臂会红），而写一份 findings 之外的文档不被允许。
-- 引擎套件全绿 · `pnpm run validate` exit 0 · `packages/cdd-engine` 一包 changeset 取 **minor**（本相位在 `packages/kairos/` 上零字节改动，不开第二个包）。
+- 引擎 vitest 全绿 · `pnpm run validate` ALL PASS · `packages/cdd-engine` 一包 changeset 取 **minor**（D74：方法论契约不变）。
 
 ## Constraints
 

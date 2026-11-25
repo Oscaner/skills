@@ -32,12 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Setup Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@v5
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@v3
         with:
           # Upload the diagrams directory as the site root
           path: 'docs/diagrams'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4

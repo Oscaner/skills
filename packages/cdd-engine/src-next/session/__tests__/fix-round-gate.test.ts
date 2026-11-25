@@ -524,7 +524,7 @@ describe("P42 T10 — the fix prompt's write constraints", () => {
     // The row names the WRITE constraints and nothing else: the closed-document-exempt
     // rows it leaves out describe a record the round does not write, so a name outside
     // this list is the row drifting, not the shell growing.
-    for (const rule of ["single-home", "change-history-date-shape"]) {
+    for (const rule of ["change-history-date-shape"]) {
       expect(shell, rule).not.toContain(rule);
     }
     // the pair: a shell that names none of them is what this arm would catch, and the

@@ -335,11 +335,10 @@ export class Cli {
   /** The contract coordinator — the doc-contract judgment face the pre-flight's
    *  doc gate reads (the single interpreter entry; spec §12 · D34 retired the
    *  filename→type derivation — the doc type is now the declared header fact read
-   *  through BoardView.readDocType). Its instance carries the judgment strategies' own
-   *  state (the `single-home` right-domain corpus, per workspace root), so the command
-   *  boundary REBUILDS it: a corpus list carried across commands would answer from a
-   *  snapshot taken before this command's writes. */
-  #contract: Contract;
+   *  through BoardView.readDocType). Every field it holds is derived from the declared
+   *  rule table at CONSTRUCTION time and read-only afterwards, so the command boundary
+   *  does NOT rebuild it: a fresh instance would judge the same table the same way. */
+  readonly #contract: Contract;
   /** The commander command tree — the declaration projection (CommandTreeBuilder,
    *  face/projection.ts): the domain-run error face's usage byte is the command
    *  node's commander-native helpInformation() first line (the self-built usage
@@ -462,10 +461,14 @@ export class Cli {
   /** The command boundary — the ONE invalidation point of every snapshot a command
    *  may take and the next one must not inherit. One COMMAND, one snapshot: the three
    *  per-root memos (`#index` · `#closed` · the production pre-flight, whose closure
-   *  port closes over `#closed`) and the judgment instance's own right-domain
-   *  corpus are dropped here, so the next invocation re-scans. A memo carried across
-   *  commands would answer from a snapshot taken before the documents this command
-   *  writes or observes — the `✔ Done` cell of the judged document included.
+   *  port closes over `#closed`) are dropped here, so the next invocation re-scans. A
+   *  memo carried across commands would answer from a snapshot taken before the
+   *  documents this command writes or observes — the `✔ Done` cell of the judged
+   *  document included.
+   *
+   *  The contract coordinator is NOT rebuilt here: every field it holds is derived from
+   *  the declared rule table at construction time and read-only afterwards, so a fresh
+   *  instance would judge the same table the same way.
    *
    *  The memos stay keyed on the repo root (one `Cli` may serve several fixtures), and
    *  the invalidation lives here rather than in a `#...Root` companion every seam has
@@ -474,9 +477,6 @@ export class Cli {
     this.#index.reset();
     this.#closed.reset();
     this.#preflight.reset();
-    // The strategies hold their own state (the `single-home` corpus per root); a fresh
-    // judgment instance is the whole reset, and its construction reads no file.
-    this.#contract = new Contract();
   }
 
   /** The exit-code discriminator — the CommanderError surface (§3.1): the explicit
@@ -1050,24 +1050,30 @@ export class Cli {
     const structure = this.#authority.structureRefusal(preflight);
     if (structure === null && !parsed.dryRun) this.#refusalOf(scene).clear();
 
-    // THE `--recover` judgment (P30 §2.1①–③), at the composition root and BEFORE the
-    // dispatch verdict: the takeover lands first, the supersede stamp second and the
-    // `N+1` review dispatch third — the order is fixed HERE, never inside `step()`.
-    // A STRUCTURE refusal keeps its own face: the recovery legs are skipped, so a dirty
-    // tree or a live holder is never displaced by an argument.
-    const recovery =
-      recover && structure === null
-        ? await this.#recoverRun({
-            verb,
-            type,
-            scene,
-            parsed,
-            inflight,
-            artifacts,
-            values: before.values,
-            host,
-          })
-        : null;
+    // THE `--recover` judgment (P30 §2.1①–③ · P44 §2.1), at the composition root and
+    // BEFORE the dispatch verdict: the takeover lands first, the supersede stamp second
+    // and the `N+1` review dispatch third — the order is fixed HERE, never inside
+    // `step()`. The judgment RUNS even when the structure leg refused: leg ① is
+    // authorized by the in-flight gate's own pass (this tree's stale record, judged by
+    // the gate that ran), never by the structure leg's verdict — a later gate's refusal
+    // is a fact about a DOCUMENT, and it may not revoke the tree's cleanup. The
+    // structure fact still reaches the judgment as its own cell: when no leg landed it
+    // answers `allowed`, so the FIRST refuser keeps its verdict (a dirty tree or a live
+    // holder is never displaced by an argument).
+    const recovery = recover
+      ? await this.#recoverRun({
+          verb,
+          type,
+          scene,
+          parsed,
+          inflight,
+          artifacts,
+          values: before.values,
+          host,
+          preflight,
+          structureRefused: structure !== null,
+        })
+      : null;
     if (recovery !== null && recovery.kind === "blocked") {
       this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
       return 1;
@@ -1362,7 +1368,14 @@ export class Cli {
    *  The ORDER is the ruling (§2.1④): the abort fold first, the stamp second, the
    *  `N+1` dispatch third — it lives here, not in `step()`'s internals. `fix --recover`
    *  and `implement --recover` take leg ① only (never a reopen), wave lines likewise
-   *  (their reopen face stays P29's brief-drift). */
+   *  (their reopen face stays P29's brief-drift).
+   *
+   *  The two legs' AUTHORIZATIONS differ (P44 §2.1–§2.2): leg ① is the in-flight
+   *  gate's own pass — the record's stale morphology plus a `checked` face that
+   *  carries the gate's row, i.e. a tree-clean gate that already passed; legs ②③ keep
+   *  the structure leg (`structure === null`) because they write the DOCUMENT's ledger
+   *  (a supersede stamp and the `N+1` dispatch), which a refusing document gate must
+   *  hold back. */
   async #recoverRun(parts: {
     verb: CliVerb;
     type: TargetType;
@@ -1372,6 +1385,15 @@ export class Cli {
     artifacts: ArtifactRegistry;
     values: Readonly<Record<string, string>>;
     host: HostId | "";
+    /** The seam's verdict for this dispatch — read for its `checked` face (the
+     *  in-flight gate's own row), never for its `ok` cell: a refusal that reaches the
+     *  in-flight gate still carries that row, and the row is what says the gate judged
+     *  THIS tree. */
+    preflight: PreFlightVerdict;
+    /** Whether the structure leg refused — the caller's `structureRefusal` cell. A
+     *  refusal without a landed leg leaves the verdict to that first refuser, so the
+     *  judgment answers `allowed` instead of the double-gap BLOCK. */
+    structureRefused: boolean;
   }): Promise<RecoverRun> {
     const { verb, type, scene, parsed, inflight, artifacts, values, host } = parts;
     // The fold rides a throwaway harness: this judgment runs BEFORE the wave brief is
@@ -1381,9 +1403,18 @@ export class Cli {
     // record is the root's ONE assembly (P40 T5) — the fold renders nothing, so the
     // throwaway instance carries the SAME object the dispatching one will.
     const stale = (await inflight.staleState()) !== null;
+    // LEG ① authorization: two read facts, both required (spec §2.1). The `in-flight:`
+    // row says tree-clean passed and the in-flight gate judged this tree — a dirty
+    // tree's refusal stops BEFORE that row is pushed, so a stale record on a dirty tree
+    // is never folded; and `staleState()` says the gate passed (a live holder's record
+    // answers null, which is why the flag never crosses `alive`). Neither cell is a
+    // restatement of the other: the row alone cannot say the gate passed (it is pushed
+    // before the refusal it may itself carry), and `staleState()` alone cannot say
+    // tree-clean passed.
+    const takenOver = stale && Cli.#inFlightJudged(parts.preflight.checked);
     // `true`: this judgment runs ONLY under the derived `--recover` (the caller's guard),
     // so the harness it builds holds the takeover permission by construction.
-    if (stale)
+    if (takenOver)
       await this.#lifecycleOf({
         scene,
         parsed,
@@ -1392,9 +1423,22 @@ export class Cli {
         values,
         host,
       }).foldAbort();
-    const reopened = await this.#reopenLeg(verb, type, scene, inflight);
-    if (stale || reopened) return { kind: "allowed" };
+    const reopened = parts.structureRefused
+      ? false
+      : await this.#reopenLeg(verb, type, scene, inflight);
+    if (takenOver || reopened) return { kind: "allowed" };
+    // A structure refusal is the tree's own verdict: the judgment never overrides the
+    // first refuser with its own double-gap message.
+    if (parts.structureRefused) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
+  }
+
+  /** Whether the seam's `checked` face carries the in-flight gate's row — the ONE
+   *  reading of leg ①'s first fact (spec §2.1). The row's own state word is NOT the
+   *  judgment: `#inFlightRow` runs before `#inFlightRefusal`, so a refusal the
+   *  in-flight gate itself owns carries the row too. */
+  static #inFlightJudged(checked: readonly string[]): boolean {
+    return checked.some((row) => row.startsWith("in-flight:"));
   }
 
   /** The reopen leg (spec §2.3) — its three conditions judged here, and the stamp

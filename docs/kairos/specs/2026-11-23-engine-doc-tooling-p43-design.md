@@ -1,7 +1,7 @@
 ---
 title: '引擎自证面退役 — Phase Spec'
 doc-type: phase-spec
-version: v0.17
+version: v0.18
 date: 2026-11-23
 slug: '2026-11-23-engine-doc-tooling-p43-design'
 program: 2026-10-10-engine-doc-tooling
@@ -121,7 +121,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 #### 4.2 退出后的面
 
 - 文档里的测量数字不再有任何机械面：写作纪律与评审是它剩下的全部。这是本相位接受的代价（§8）。D98 ③ 给语料读数留过两条出路——删掉，或搬进 `census:<id>` 由引擎比对；本相位撤掉后一条，宪章 D98 行已补作废句（D101 ⑥），于是那边的手写语料读数与这边的手写文档读数从此由同一把尺子处置：删掉，覆盖由夹具证明。消费面那四处句子说的是同一条写作约定，处置住 §4.1。
-- 形状门的名册与各臂的归属只记在这一句：`line-coordinate` · `live-arithmetic` · `single-home` · `change-history-date-shape` 四条照旧在册，每条各带违规必报与邻居沉默的成对夹具；整门的零候选臂只有一条，由 `line-coordinate` 承担（`ProseFace.gaps` 的缺口读数，§4.1），`residue` 是 P41 之前就在册的闸门行、不属于这条形状门也不随本相位改动；退役的 `measure-literal` 的夹具随规则一起离树，本相位不为它补夹具也不为它守。§1.3 · §3.2 的夹具核对、§4.1 的下线清单、§7.1 的要点三与验收格都只指回这一句。
+- 形状门的名册与各臂的归属只记在这一句：`line-coordinate` · `live-arithmetic` · `change-history-date-shape` 三条照旧在册（`single-home` 随 P44 整条退役，理由住 P44 spec §8.1 与 D103），每条各带违规必报与邻居沉默的成对夹具；整门的零候选臂只有一条，由 `line-coordinate` 承担（`ProseFace.gaps` 的缺口读数，§4.1），`residue` 是 P41 之前就在册的闸门行、不属于这条形状门也不随本相位改动；退役的 `measure-literal` 的夹具随规则一起离树，本相位不为它补夹具也不为它守。§1.3 · §3.2 的夹具核对、§4.1 的下线清单、§7.1 的要点三与验收格都只指回这一句。
 - 已闭合文档里的 `census:<id> = <n>` 声明不再有读者，本相位不为它们做任何迁移：没有判据读它们，也就不存在「与登记面不符」这回事。
 
 ### 5. `selector-coverage` 的物料替换
@@ -227,7 +227,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 - `pin` 门零残座（按符号判，不按文件判）：`PinAudit` 的扫描与登记两半 · `PinIndex` · `PinSource` · `PinDeclarations` · `ForwardPaths` · `corpusOf` · `PinVocabulary` 的 pin 定义（含 `isPin` · `#isProduct` · 模板词表 · `testOf` · `memberOf` · `isSymbol`）与判据行 · `pinLensOf` 注入面 · `ReviewGuides.pinLens` 与其取值 · `pin.*` 四行登记与比较机器 · 整文件退役的测试，全树没有留存；同时 contract/markdown-spans.ts 的 ProseSpans 在籍且被生产读，`tokensOf` · `proseEntriesOf` · `proseOf` · `blankedOf` 都在它上面（`contract/__tests__/shape-rules.test.ts` 的 import 已改指新模块，夹具绿），contract/shape-rules.ts 的路径文法与 contract/closed-document.ts 的 ClosedDocument 同样在籍；`contract/census.ts` 整个模块随 §4.1 下线、不在树上，没有幸存形态要开脱。
 - 形状行仍拿得到生产的闭合实参：`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0，且 contract/__tests__/closed-document.test.ts 的成对夹具证明两格各自闭合、零命中与多命中都不闭合；闭合读数的文档枚举走 `infra/slug-index.ts#SlugIndex`，路径归一化只在 contract/shape-rules.ts 一处实现（闭合读链与 `pathOf` 同源），索引由调用点注入而不新起构造（`face/__tests__/cli.test.ts` 的 P36 T3 保持绿），树上不存在第二处目录走读。
 - pin 面的改指不留悬空 import：`session/__tests__/preflight-rows.test.ts` · `session/__tests__/fix-round-gate.test.ts` · `contract/__tests__/shape-rules.test.ts` · `contract/__tests__/single-create.test.ts` 都编得过、绿得了，`packages/cdd-engine/src-next/contract/pins.ts` 不再在树上。
-- 被撤语料臂的判据仍可红：`single-create` 与 P41 形状门留在册的四条各有违规 / 邻合格夹具，形状门的零候选臂只有一条、由 `line-coordinate` 承担（名册与各臂归属住 §4.2）；`selector-coverage` 删一条 selector 即红。`measure-literal` 与它的文法臂不在册——它们随 §4 一并退役，留下的夹具与模板里也没有它的读写：本相位的处置面（夹具 · 模板 · 两个 skill 节点 · 登记行 · 两处头注释）上该 id 的读取为零（一次只圈这些路径的 `rg`；`CHANGELOG` 的发行史与 `docs/kairos/**` 的退役记录不在此列），`SHAPE_RULE_IDS` · `VOLATILE_FACT_ANCHORS` 与 `contract/__tests__/rules.test.ts` 的席位表都不再列它，`charter-self-repair.test.ts` 与 `cli.test.ts` 的旧载体按 §4.1 换过且绿。消费面同批改准：两个 authoring 节点的 `count` 行不再点名 census 形态或那个 id，而四处共用的尾句照旧留着（点名维护值的守卫才是引用的理由，不是它的形态）；`#docNarrativeAxes` 的正文与它上方的注释同批改读，两者的计数分句都不再交出 census 形态或那个 id，且逐字等于 §4.1 落定的那一句（`VOLATILE_FACT_ANCHORS` 断言的正是它）；`#DOCS_FIX_SHAPE_RULES` 只列仍在册的形状规则、它的点数词与那份清单逐项对齐、它上方的注释同样按留下的清单重述；`claim-shapes.test.ts` 的映射臂与它的反转臂绿（§4.1）。
+- 被撤语料臂的判据仍可红：`single-create` 与 P41 形状门留在册的三条各有违规 / 邻合格夹具，形状门的零候选臂只有一条、由 `line-coordinate` 承担（名册与各臂归属住 §4.2）；`selector-coverage` 删一条 selector 即红。`measure-literal` 与它的文法臂不在册——它们随 §4 一并退役，留下的夹具与模板里也没有它的读写：本相位的处置面（夹具 · 模板 · 两个 skill 节点 · 登记行 · 两处头注释）上该 id 的读取为零（一次只圈这些路径的 `rg`；`CHANGELOG` 的发行史与 `docs/kairos/**` 的退役记录不在此列），`SHAPE_RULE_IDS` · `VOLATILE_FACT_ANCHORS` 与 `contract/__tests__/rules.test.ts` 的席位表都不再列它，`charter-self-repair.test.ts` 与 `cli.test.ts` 的旧载体按 §4.1 换过且绿。消费面同批改准：两个 authoring 节点的 `count` 行不再点名 census 形态或那个 id，而四处共用的尾句照旧留着（点名维护值的守卫才是引用的理由，不是它的形态）；`#docNarrativeAxes` 的正文与它上方的注释同批改读，两者的计数分句都不再交出 census 形态或那个 id，且逐字等于 §4.1 落定的那一句（`VOLATILE_FACT_ANCHORS` 断言的正是它）；`#DOCS_FIX_SHAPE_RULES` 只列仍在册的形状规则、它的点数词与那份清单逐项对齐、它上方的注释同样按留下的清单重述；`claim-shapes.test.ts` 的映射臂与它的反转臂绿（§4.1）。
 - `selector-coverage` 在合成物料上全绿，且把任一份合成文档的字段名改错即红。
 - `emit:check` 接管原生成物断言：篡改 `.claude-plugin/` 一处、`docs/diagrams/src/*.json` 一处、ISSUE_TEMPLATE 一处，各使 `emit:check` 非零退出；`diagrams.guard` 那一格产物的 tag 读取与 EN↔zh-CN 孪生对的真实产物比较也在这一门上，两条各拿一份篡改去红。
 - 测试面零语料臂：引擎与 kairos 两套测试里不存在以本仓 `docs/kairos/**` 为语料并断言其状态的断言；发布面探针（README family · `AGENTS.md` · `marketplace/source.json` · skills · 生成物）照旧断言其状态且全绿（`claim-shapes` 的 `count` 臂按 §4.1 反转，其余照旧）；孪生判据只对夹具；`diagrams.guard` 的源内容臂与 `diagram-twin` 的内存注入臂均保留并绿。
@@ -271,3 +271,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定「tests �
 | v0.15 | 2026-11-23 | **评审轮九整改（F1–F4 · 用户裁定）**：缺口读数改挂到留在册的形状行 `line-coordinate`（`LineCoordinateInvariant.evaluate` 接手 `ProseFace.gaps`），§4.1 撤回「不重挂」的禁条；§4.2 收成名册与各臂归属的唯一一句（每规则违规 · 邻居两臂，零候选臂一条归 `line-coordinate`），§1.3 · §3.2 · §7.1 · 验收格与宪章 D101 ② 只指回它；`fix-round-gate.test.ts` 的夹具按载体处置（`MEASURE` / `MEASURE_OTHER` 改成 `line-coordinate` 的违规并改名 · 措辞断言随新报文 · 手写 baseline 取同一条在册行）；§4.1 的处置证据收为处置面的 `rg` 并将 `contract/invariants.ts` 与 `charter-self-repair.test.ts` 的头注释记入清单，`charter-self-repair.test.ts` 的缺口 describe 留下换 kind、`single-home` 臂的字面断言随行退役；宪章 D101 ⑥ · P43 ⑥ 与验收 ⑧ 的形状门计数改为指向 §4.2。 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.16 | 2026-11-23 | **评审轮十整改（F1–F2 · 用户裁定）**：§4.1 的处置面补上形状门自身的计数散句——`contract/rules.ts` 的 `skipWhenClosed` 列注释与登记表头 · `ProseWalk` 与 `ProseFace` 头注释 · `contract/__tests__/shape-rules.test.ts` 的文件头与两条 describe 标题，并写明门有几行、几种文法只住 §4.2（交付时删掉那个数、指回名册，不就地重新推导）；§7.1 要点三与 `AGENTS.md` 验收格改为交付后的臂读数——每条规则欠违规必报与邻居沉默这一对，零候选臂由整门担且只担一条，指针落到 D101 ② 而消费面不写节号。 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.17 | 2026-11-24 | **收口**：P43 全链闭合——六轴交付（pin 按符号退役 · 语料臂退役而判据留 · 生成物归 emit:check · `AGENTS.md` 立规范 · board notes 默认折叠 · `measure-literal` 整条退出）· 分支终评 closed-line · `pnpm run validate` 全绿。 | Oscaner M. · Claude（kairos:cdd-close） |
+| v0.18 | 2026-11-25 | **名册改真（P44 交付面 · 编排器回填）**：`single-home` 随 P44 整条退役（D103 · 代理不是派生），本文件 §4.2 的名册句与验收格在该相位的地界里由四条改三条；这是**声明面**改真（门里现在有哪几条），不是追改历史读数——退役的理由住 P44 spec §8.1 与本文件原句的引指 | Oscaner M. · Claude（kairos:cdd-plan 编排器回填） |

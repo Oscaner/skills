@@ -64,7 +64,7 @@ import { HandoffSchema } from "../../session/handoff-schema.ts";
 import type { DispatchRequest } from "../dispatch-authority.ts";
 import { DispatchAuthority } from "../dispatch-authority.ts";
 import { TaskGraph } from "../graph.ts";
-import { InFlight } from "../inflight.ts";
+import { InFlight, type InFlightRecord } from "../inflight.ts";
 import { Ledger } from "../ledger.ts";
 import { DISPATCH_REASON } from "../next.ts";
 import {
@@ -1109,6 +1109,117 @@ describe("PreFlight — the shape tiers and the closed-document exemption (P41 T
       }
       // The other rows judged the same body — closure is not a document-wide silence.
       expect(closed.checked).toContain("open-warn: warned — 1 warning(s)");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P44 §3.2 — the in-flight row reads one of TWO tables, chosen by the record's own
+// target facts: `checked.inFlight.stale` keeps "the holder is gone, the target still
+// stands", and a record whose target read out missing renders the fourth state's line
+// from the `inFlight` row. The three arms below are the pair plus the two mirror
+// shapes: one fact gone renders that cell alone, so neither cell speaks for a target
+// the record still holds.
+// ---------------------------------------------------------------------------
+
+/** One standing in-flight record — the cells the row's judgment reads (the rest are
+ *  the identity facts a record carries). */
+const standingRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
+  pid: 4242,
+  command: "cdd implement --tasks 1",
+  slug: "p40-slug",
+  startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
+  wave: "1",
+  phase: "implement",
+  cycle: 1,
+  attempt: 1,
+  briefHash: null,
+  plan: "docs/kairos/plans/x-p40.md",
+  dispatchBase: null,
+  sampledAt: null,
+  verdict: null,
+  ...over,
+});
+
+describe("the in-flight row — the fourth state reads the OTHER table (P44 §3.2)", () => {
+  /** Plant one stale record and answer the verdict's `in-flight:` row (the gate
+   *  passes it under `--recover`, so the row is what this case reads). */
+  const staleRowOf = async (
+    fixture: Fixture,
+    record: InFlightRecord,
+  ): Promise<{ row: string; verdict: PreFlightVerdict }> => {
+    const dir = path.join(fixture.repo, ".kairos", "cdd");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "in-flight.json"), JSON.stringify(record, null, 2), "utf8");
+    const verdict = await preflightOf().vet({ ...waveCtxOf(fixture), recover: true });
+    return { row: verdict.checked.find((row) => row.startsWith("in-flight:")) ?? "", verdict };
+  };
+
+  it("keeps the ordinary stale row while both target facts stand", async () => {
+    const fixture = fixtureOf();
+    try {
+      const { row, verdict } = await staleRowOf(fixture, standingRecord());
+      expect(verdict.ok).toBe(true);
+      expect(row).toBe("in-flight: stale holder — pid 4242 (re-run with --recover to take over)");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("renders both clauses when both target facts read out missing", async () => {
+    const fixture = fixtureOf();
+    try {
+      const { row } = await staleRowOf(
+        fixture,
+        standingRecord({ plan: "docs/kairos/plans/gone.md", slug: "gone-slug" }),
+      );
+      expect(row).toBe(
+        "in-flight: the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over",
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("renders the plan clause alone when only the plan is gone (the workspace still stands)", async () => {
+    const fixture = fixtureOf();
+    try {
+      const { row } = await staleRowOf(
+        fixture,
+        standingRecord({ plan: "docs/kairos/plans/gone.md" }),
+      );
+      expect(row).toBe(
+        "in-flight: the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over",
+      );
+      expect(row).not.toContain("workspace directory");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("renders the workspace clause alone when only the directory is gone (the plan still stands)", async () => {
+    const fixture = fixtureOf();
+    try {
+      const { row } = await staleRowOf(fixture, standingRecord({ slug: "gone-slug" }));
+      expect(row).toBe(
+        "in-flight: the dispatch's target is gone — the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over",
+      );
+      expect(row).not.toContain("the plan the record names");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("renders the workspace clause alone for a record that carries no plan fact", async () => {
+    const fixture = fixtureOf();
+    try {
+      // A `--spec` dispatch's record carries `plan: null`, so only one fact exists to
+      // read — and the plan cell never speaks for a fact the record does not have.
+      const { row } = await staleRowOf(fixture, standingRecord({ plan: null, slug: "gone-slug" }));
+      expect(row).toContain("the record's workspace directory is not on this tree");
+      expect(row).not.toContain("the plan the record names");
     } finally {
       fixture.cleanup();
     }

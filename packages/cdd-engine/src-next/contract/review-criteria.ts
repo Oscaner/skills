@@ -279,7 +279,7 @@ export const LENS_QUESTION_ROWS: readonly LensQuestionRow[] = [
     reviewKinds: ["wave", "branch"],
     lens: "spec",
     question:
-      "Does the change depart from the reviewed contract (the wave brief / plan / design spec) while the behaviour a consumer receives changes with it?",
+      "Does the change depart from the reviewed contract (the wave brief / plan / design spec) while the behaviour a consumer receives changes with it — and does a requirement look implemented while the implementation looks wrong: are the places that claim to implement it actually right?",
     face: "numbered",
   },
   {
@@ -335,7 +335,7 @@ export const LENS_QUESTION_ROWS: readonly LensQuestionRow[] = [
     reviewKinds: ["spec"],
     lens: "consistency",
     question:
-      "Do two places state the same fact differently, so the downstream reader goes wrong whichever one is taken?",
+      "Do two places state the same fact differently, so the downstream reader goes wrong whichever one is taken — and when a document gives a reading (a count, a list, an enumeration), which items does it count, and are those items still on the tree?",
     face: "numbered",
   },
   {

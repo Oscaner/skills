@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.7",
+    "@biomejs/biome": "^2.6.8",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@changesets/config": "^4.0.1",
@@ -28,7 +28,7 @@
     "archify": "github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify",
     "lefthook": "^2.2.2",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.1",
     "yaml": "^2.9.1"
   },
   "packageManager": "pnpm@12.18.0+sha512.9d7882d5dc82147ecfc4e062aa34834e0ad0296710a1837a1115ae012127d36b7109e321ac1598a1dd0a65597681b1e99917e12ed0d749eae91187943363beb3"

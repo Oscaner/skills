@@ -653,8 +653,12 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23;
     // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24;
     // P38 §3.3 / §5.1 — the scratch discipline in four shells + the `none` half-sentence
-    // in the two fix shells: 24 → 25)
-    expect(TEMPLATE_PROMPT.$version).toBe(25);
+    // in the two fix shells: 24 → 25; P44 §4.2 / §5.1 / §9.2 — the spec-consistency
+    // referent question, the S4 spec-lens question, the S5 calibration-tail sentence and
+    // the shared `cl:own-document` discipline clause: 25 → 26; P44 §9.2 — the clause's
+    // review half names the same write set the `Read-only` sentence names (the prescribed
+    // `OUTPUT_*` artifacts, the `findings` carrier among them): 26 → 27)
+    expect(TEMPLATE_PROMPT.$version).toBe(27);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only. A wave review
     // DOES carry both judged-doc anchors (§4.1: `INPUT_SPEC` is the phase's identity
     // document, `INPUT_OVERALL` the charter its `program:` reaches); this render's scene

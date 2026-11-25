@@ -979,6 +979,18 @@ describe("PreFlight — the plan-ledger gate", () => {
 // P21 T6 — the in-flight gate (the tree's dispatch fact, §2.2 / §6.4)
 // ---------------------------------------------------------------------------
 
+/** The fourth state's naked line, pinned as BYTES (never through the renderer): the
+ *  dead-holder fixture's record carries both facts, and both read out missing — its
+ *  plan path is not on this tree and its slug's workspace directory does not exist. */
+const TARGET_GONE_LINE =
+  "the dispatch's target is gone — the plan the record names is not on this tree · the record's workspace directory is not on this tree — re-run the same command with --recover to take the in-flight record over";
+
+/** The same line's MIRROR shape: the record's plan path is not on this tree while its
+ *  slug's workspace directory still stands, so only the plan cell speaks — the held
+ *  fact emits nothing at all, never a placeholder sentence. */
+const PLAN_GONE_ONLY_LINE =
+  "the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over";
+
 describe("PreFlight — the in-flight gate", () => {
   it("refuses a live holder before the structural gates, names it, and writes nothing", async () => {
     const { repoRoot, cleanup } = gitRepo();
@@ -1023,7 +1035,7 @@ describe("PreFlight — the in-flight gate", () => {
     }
   });
 
-  it("refuses a dead holder with the takeover hint, and only the explicit flag lets the gate pass", async () => {
+  it("refuses a dead holder with the fourth state's line, and only the explicit flag lets the gate pass", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       writeRecord(repoRoot, recordOf());
@@ -1034,7 +1046,10 @@ describe("PreFlight — the in-flight gate", () => {
       expect(refused.ok).toBe(false);
       expect(refused.gate).toBe("in-flight");
       expect(refused.reason).toBe("held");
-      expect(refused.message).toContain("--recover");
+      // The blocking report keeps the holder's identity and ends with the fourth
+      // state's line — `stealable` keeps its own meaning ("the target still stands").
+      expect(refused.message).toContain(TARGET_GONE_LINE);
+      expect(refused.message).not.toContain("the holding process is gone");
       expect(inFlightSnapshot(repoRoot)).toBe(before);
 
       // the flag only lets the GATE pass; the takeover itself is the real
@@ -1045,9 +1060,71 @@ describe("PreFlight — the in-flight gate", () => {
         recover: true,
       });
       expect(takeover.ok).toBe(true);
-      expect(takeover.checked).toContain(
-        "in-flight: stale holder — pid 4242 (re-run with --recover to take over)",
-      );
+      // The checked face swaps its TABLE for the fourth state: `checked.inFlight`
+      // has no cell that can render it, so the row reads the `inFlight` row instead.
+      expect(takeover.checked).toContain(`in-flight: ${TARGET_GONE_LINE}`);
+      expect(takeover.checked.some((row) => row.includes("stale holder"))).toBe(false);
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("names the plan cell alone when only the plan is gone — the workspace directory still stands", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      writeRecord(repoRoot, recordOf());
+      // The mirror of the arm above: `<workspaceRoot>/<slug>` exists for the record's
+      // OWN slug, so the workspace cell reads held and the plan cell may not speak for it.
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "other-slug"), { recursive: true });
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, false) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      expect(refused.message).toContain(PLAN_GONE_ONLY_LINE);
+      // The held fact is an ABSENCE: it renders no clause at all, never a placeholder.
+      expect(refused.message).not.toContain("the record's workspace directory is not on this tree");
+      // The checked row reads the same bytes — the blocking report and the row are one
+      // renderer, so neither face can select its cells on its own.
+      expect(refused.checked).toContain(`in-flight: ${PLAN_GONE_ONLY_LINE}`);
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps `stealable` for a dead holder whose target still stands — no fourth state when no cell is gone", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // Both of the record's own target facts STAND: the plan it names is on this tree
+      // and its slug's workspace directory exists. The blocking report therefore ends
+      // with the ordinary `stealable` sentence and may not borrow the fourth state's
+      // line — this is the branch every `--recover`-less dispatch over a dead holder
+      // takes, and it is the only arm that reads the pair as a PAIR on this face.
+      const planAbs = path.join(repoRoot, "docs/p.md");
+      mkdirSync(path.dirname(planAbs), { recursive: true });
+      writeFileSync(planAbs, "---\ntitle: p\ndoc-type: plan\n---\n", "utf8");
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "other-slug"), { recursive: true });
+      writeRecord(repoRoot, recordOf());
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, false) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      const message = refused.message ?? "";
+      // The pair is read as a PAIR: both cells held ⇒ the ordinary `stealable`
+      // sentence ends the report, and the fourth state's line — an assertion about the
+      // record's own cells — may not appear, not even as a partial clause.
+      expect(message.endsWith(new Words().inFlightWords().stealable)).toBe(true);
+      expect(message).not.toContain("the dispatch's target is gone");
+      // The checked row reads the stale TABLE off the same cells — one reading, two
+      // faces: the row keeps `stale` exactly while the report keeps `stealable`.
+      expect(
+        refused.checked.some((row) => row.startsWith("in-flight: stale holder — pid 4242")),
+      ).toBe(true);
       expect(inFlightSnapshot(repoRoot)).toBe(before);
     } finally {
       cleanup();

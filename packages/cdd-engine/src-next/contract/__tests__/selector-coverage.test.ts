@@ -11,14 +11,14 @@
 // declared conforming form. Each one is judged by the same doc-contract a consumer
 // document meets — no exemption.
 //
-// The judgment's RIGHT DOMAIN is the four carriers themselves, mounted into an in-memory
-// corpus this file owns (the judge context's `fs` seam). `single-home` is the one rule
-// that sweeps neighbours, and it reads them through that seam: pointing the judgment at
-// the checkout instead would make the matrix's silence a claim about this repository's
-// own records — the surface this phase retires — and a contributor editing an internal
-// record would redden a test that never named that document. The canonicalization
-// through the translation layer stays: it is the tree's input contract (the normalized
-// view), not a property of the old fixtures.
+// The judgment's CENTRAL NEIGHBOUR is the programme overall the judged document's
+// `program:` names: `cross-doc-chain` reads it through the judge context's `fs` seam, so
+// the four carriers are mounted into an in-memory corpus this file owns. Pointing the
+// judgment at the checkout instead would make the matrix's silence a claim about this
+// repository's own records — the surface this phase retires — and a contributor editing
+// an internal record would redden a test that never named that document. The
+// canonicalization through the translation layer stays: it is the tree's input contract
+// (the normalized view), not a property of the old fixtures.
 //
 // Every optional and conditional form the registry lets a document omit rides the
 // carrier itself, never a block appended for the matrix's benefit: a form carried by
@@ -33,7 +33,7 @@ import { MemoryFs } from "../../__tests__/support/memory-fs.ts";
 import { Words } from "../../face/words.ts";
 import { ENGINE_DOC_ROOTS } from "../../infra/doc-roots.ts";
 import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
-import { type Finding, SingleHomeInvariant } from "../invariants.ts";
+import { CrossDocChainInvariant, type Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
 import { Translator } from "../translate.ts";
@@ -51,8 +51,8 @@ const fixturePath = (docType: DocType): string =>
 const DOC_TYPES: readonly DocType[] = ["overall", "plan", "phase-spec", "single-spec"];
 
 /** The doc root each carrier's own type belongs to — the mount point that makes the
- *  carriers a neighbour corpus `single-home` actually sweeps (a document outside the doc
- *  roots is invisible to that rule's right domain). */
+ *  carriers readable neighbours (a document outside the doc roots is invisible to every
+ *  identity read, so a corpus mounted elsewhere would answer nothing). */
 const DOC_ROOT: Readonly<Record<DocType, string>> = {
   overall: ENGINE_DOC_ROOTS.overalls,
   "phase-spec": ENGINE_DOC_ROOTS.specs,
@@ -108,9 +108,9 @@ class Fixtures {
    *  silence is a statement about the corpus it writes.
    *
    *  The mounted copies carry a slug of their own, and that is load-bearing: a document
-   *  and its same-slug sibling are the two faces of ONE design (a spec and its plan), and
-   *  `single-home` skips that pair on purpose — four carriers still on the skeleton's
-   *  `:::fill slug` would compare nothing and read clean for the wrong reason. */
+   *  whose slug is still the skeleton's `:::fill slug` is skipped by every identity read,
+   *  so the neighbours would answer nothing and the matrix would read clean for the wrong
+   *  reason. */
   #corpus(excluded: DocType, planted: Readonly<Record<string, string>> = {}): MemoryFs {
     const files: Record<string, string> = {};
     for (const docType of DOC_TYPES) {
@@ -376,51 +376,54 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(offenders, `carriers with findings: ${offenders.join(" | ")}`).toEqual([]);
   });
 
-  it("reports a criterion the corpus carries beside the judged carrier — and only then", () => {
-    // The right-domain read's own red side. `single-home` sweeps the mounted corpus
-    // through the judge context's `fs` seam, so a criterion the FILE writes into that
-    // corpus is reported on the carrier that states it, and the same carrier judged
-    // against the unplanted corpus is silent. Drop the seam and this arm reddens: the
-    // checkout carries no such sentence, so the matrix's silence can no longer become a
+  it("reads the programme overall through the judge context's `fs` seam — and only then", () => {
+    // The neighbour read's own red side, carried by `cross-doc-chain`'s spec arm: the
+    // carrier's `program:` names an overall, and that overall's lineage is read through
+    // the judge context's `fs` seam (`#parentLineage`). Plant the overall with a lineage
+    // the carrier's `parent-version` token does not belong to: the finding names the
+    // programme, and the SAME carrier judged against the unplanted corpus is silent
+    // because the programme resolves nowhere. Drop the seam and this arm reddens — the
+    // checkout carries no such document, so the matrix's silence could no longer become a
     // claim about this repository's own records without a red to catch it.
-    const criterion =
-      "The contract gate refuses a round only when a declared rule reports a blocking finding.";
-    const carrier = replacing("- :::fill constraint", `- ${criterion}`)(fixtures.text("plan"));
-    const plantedAt = path.join(REPO_ROOT, ENGINE_DOC_ROOTS.specs, "planted-criterion-fixture.md");
+    const carrier = replacing(
+      "program: <overall-slug>",
+      "program: planted-programme-fixture",
+    )(fixtures.text("phase-spec"));
+    const plantedAt = path.join(
+      REPO_ROOT,
+      ENGINE_DOC_ROOTS.overalls,
+      "planted-programme-fixture.md",
+    );
     const planted = {
       [plantedAt]: [
         "---",
-        "title: Planted Criterion Fixture",
-        "doc-type: phase-spec",
-        "version: v0.1",
+        "title: Planted Programme Fixture",
+        "doc-type: overall",
+        "version: v9.9",
         "date: 2026-11-23",
-        "slug: planted-criterion-fixture",
-        "parent-version: v0.1",
-        "program: x-program",
+        "slug: planted-programme-fixture",
         "author: fixture",
         "---",
         "",
-        "## Design",
+        "## Change history",
         "",
-        `- ${criterion}`,
+        "| Version | date | summary | author |",
+        "| --- | --- | --- | --- |",
+        "| v9.9 | 2026-11-23 | planted | fixture |",
         "",
       ].join("\n"),
     };
-    const kind = new SingleHomeInvariant().name;
+    const kind = new CrossDocChainInvariant().name;
     const reported = fixtures
-      .findings("plan", carrier, planted)
+      .findings("phase-spec", carrier, planted)
       .filter((finding) => finding.kind === kind);
-    expect(reported, "the planted neighbour is named").toHaveLength(1);
-    expect(reported[0]?.message).toContain("planted-criterion-fixture.md");
-    // the pair, isolable half: the SAME mutated carrier judged against the unplanted
-    // corpus is silent, so the red above comes from the corpus this case writes
+    expect(reported, "the planted programme is read through the seam").toHaveLength(1);
+    expect(reported[0]?.message).toContain("does not belong to the program's lineage");
+    expect(reported[0]?.message).toContain("planted-programme-fixture");
+    // the pair, isolable half: the same carrier judged against the unplanted corpus is
+    // silent, so the red above comes from the corpus this case writes
     expect(
-      fixtures.findings("plan", carrier).filter((finding) => finding.kind === kind),
-      "the mutation alone states nothing to report",
-    ).toEqual([]);
-    // the pair: the unmutated carrier against the same unplanted corpus is silent too
-    expect(
-      fixtures.findings("plan").filter((finding) => finding.kind === kind),
+      fixtures.findings("phase-spec", carrier).filter((finding) => finding.kind === kind),
       "an unplanted corpus states nothing to report",
     ).toEqual([]);
   });

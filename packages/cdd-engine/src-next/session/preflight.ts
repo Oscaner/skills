@@ -619,7 +619,7 @@ export class PreFlight {
       if (recover) return null;
       return {
         reason: "held",
-        message: this.#words.inFlightBlocked(state.record, false),
+        message: this.#words.inFlightBlocked(state.record, false, state.targetGone),
       };
     }
     if (state.kind === "corrupt" && state.locked && !recover) {
@@ -633,16 +633,20 @@ export class PreFlight {
 
   /** The in-flight gate's checked row — `in-flight: <judged state>` (the ONE gate
    *  row that names its state; the takeover flag never rewrites the fact, it only
-   *  lets the gate pass). */
+   *  lets the gate pass). A DEAD holder's row swaps the TABLE it reads (P44 §3.2):
+   *  `checked.inFlight.stale` keeps "the holder is gone, the target still stands",
+   *  and a record whose own target facts read out missing renders the fourth state's
+   *  naked line — the SAME bytes the three hint faces print, because the row reads
+   *  `Words.inFlightTargetGone` rather than pushing the table's raw cell out. */
   #inFlightRow(state: InFlightState): string {
     const rows = this.#words.checkedWords().inFlight;
     if (state.kind === "absent") return `in-flight: ${rows.free}`;
     if (state.kind === "corrupt")
       return `in-flight: ${state.locked ? rows.corruptLocked : rows.corruptUnlocked}`;
-    return `in-flight: ${(state.alive ? rows.held : rows.stale).replace(
-      "{pid}",
-      String(state.record.pid),
-    )}`;
+    if (state.alive) return `in-flight: ${rows.held.replace("{pid}", String(state.record.pid))}`;
+    if (this.#words.targetGoneOf(state.targetGone))
+      return `in-flight: ${this.#words.inFlightTargetGone(state.targetGone)}`;
+    return `in-flight: ${rows.stale.replace("{pid}", String(state.record.pid))}`;
   }
 
   /** Assemble the refusal verdict — the gates/checked rows accumulated so far, plus

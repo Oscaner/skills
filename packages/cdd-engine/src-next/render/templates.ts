@@ -204,6 +204,7 @@ const LICENSE_ITEMS: readonly string[] = [
   "- {{> cl:bash-stall-limit}}",
   "- {{> cl:no-infinite-loop}}",
   "- {{> cl:plan-freeze}}",
+  "- {{> cl:own-document}}",
   "- {{> cl:atomic-commit}}",
   "- {{> cl:self-validate}}",
   "- {{> cl:no-secret-access}}",
@@ -605,7 +606,7 @@ const RUBRIC_PREAMBLE = "Calibrate findings by real severity — not everything 
  *  and it is NOT a second copy of the tier criteria: those are rows in
  *  `contract/review-criteria.ts`. */
 const CALIBRATION_TAIL =
-  "Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
+  "Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Report every axis separately — never merge several axes into one 'most severe' finding: a cross-axis ranking hides which axis the finding actually speaks for. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
 
 /** The severity rubric — the ONE calibration fragment every review axes guide
  *  shares. Its tier body is ASSEMBLED from the criteria registry (every row's
@@ -835,6 +836,8 @@ export const CLAUSES = {
     "Never run an unbounded loop — no `while True: pass`, no `while true; do …; done`, no spin-wait or tail-follow that only a human can stop. A wait must carry a bounded exit condition (a timeout, a max-attempt counter, or a terminating predicate) that ends the loop on its own.",
   "cl:plan-freeze":
     "Approved plan/spec files are frozen beyond the round's declared `capability: may.amend` scope — without that declaration a needed change goes out through findings, never an in-place edit; the structure face is outside amending authority in every round.",
+  "cl:own-document":
+    "Write only your own documents: this round writes its own target document plus the files its own instruction names — an **implement** round writes the task files its wave brief names at `### Task N:`; a **fix** or **docs-fix** round writes the code files the findings view names (on a docs-fix round that is the judged document itself); a **review** round has no code write surface at all — its target document is read-only and its only write is its `findings` carrier, the `Read-only` sentence in this same prompt stated as a document-set rule. Every other document — the parent charter, a sibling spec, the plan — lies outside this round's write authority and lands through the orchestrator's backfill, never by the round's own hand. The division with `cl:plan-freeze`: that clause governs permission INSIDE the target document (may this document be changed at all), while this one governs the boundary of the document SET (which documents may be touched); when both are broken, the freeze clause is the one reported first.",
   "cl:atomic-commit":
     "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers. A read-only round has nothing to commit: its only writes are the prescribed `OUTPUT_*` artifacts, and committing belongs to the orchestrator.",
   "cl:self-validate":
@@ -845,7 +848,20 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 25
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 26
+ *  carries the P44 review-prompt batch (§4.2 · §5.1 · §9.2), two byte changes over
+ *  25: the `spec-consistency` lens row gains its referent question (a reading is
+ *  asked which items it counts and whether those items are still on the tree — the
+ *  reading/referent drift is that question's answer, never a new criterion, §4.2);
+ *  the wave/branch shared `spec-lens` row gains the one requirement gap S4 names
+ *  ("looks implemented, the implementation looks wrong", §5.1); and the shared
+ *  calibration tail gains the per-axis reporting sentence S5 names (never one
+ *  "most severe" finding across axes, §5.1). The fourth byte change is the new
+ *  `cl:own-document` discipline clause: every shell's licence list carries it, so a
+ *  round's write authority is bounded to its own document set (§9.2). Zero lens
+ *  labels, zero tiers — the row count and every `lensEnum` are untouched.
+ *  The prompt bytes changed here, and this counter is their one mechanical signal.
+ *  $version 25
  *  carries the P38 dispatch-contract batch (§2.3 · §3.1 · §3.3 · §5.1), three byte
  *  changes over 24: the `scratch/<round-id>/` discipline sentence in all four shell
  *  texts (implement · review · fix · docs-fix); the `INPUT_RULINGS` `none`
@@ -921,7 +937,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 25,
+  $version: 26,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

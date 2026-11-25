@@ -1,0 +1,687 @@
+---
+title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
+doc-type: plan
+version: v0.1
+date: 2026-11-25
+slug: '2026-11-25-engine-doc-tooling-p39-design'
+base: develop
+---
+
+## Constraints
+
+- 读 spec `2026-11-25-engine-doc-tooling-p39-design` v0.5 为唯一设计输入；本计划不重述它的判据，只落实施序。冲突时以 spec 为准并回填本计划。
+- 新树只写 `packages/cdd-engine/src/**`。旧树 `packages/cdd-engine/src-next/**` 在本相位**零改动**——除 §3.3 翻面那一波整棵删除之外，任何一步动它即为缺陷。
+- 每波结束时两棵树各自的套件都绿，且 `src/` 侧的任务必须让测试随源码同片落地（`src/**/__tests__/**`）。只加源码不加测试的波不算一波。
+- 零裸函数（`check:no-bare-functions` 的扫描根在翻面时才换，但新树从第一波起就守它）；方法参数不超过四个，更多收成参数对象；类行数越限按 rule zero 在类头写一行理由。
+- 一类一句不变量，写在类注释第一行；四个一级切片与 `run/` 四段的入口类，把该片（段）的不变量原句放在那里（spec §1 · 验收 #5）。
+- 移植判据是**行为**不是形状：读旧模块取它的行为与边界，新树的类名 / 成员名 / 文件位置按 spec §1 与 §4 重新推导；旧抽象（五面、「面」这个词、技术角色命名的一级目录、type-only 逆边豁免）一律不得带过来。
+- 不写行号坐标；行为断言引 colocated pin（模块路径 + 符号名）。
+- `packages/cdd-engine/tests/parity/` 是对账器与它语料的家，在 `src/` 之外、翻面同批销毁；它**允许**同时 import 两棵树，产品文件之间**不允许**（spec §3.1）。
+- 消费面零字节变化（spec §2.2 的八个面）：翻面前由对账器判；翻面后无字节判者，此后按评审面判、不新增门。
+- 每任务一次提交，提交信息用 `feat(p39):` / `test(p39):` / `chore(p39):` 前缀。
+
+### Task 1: 新树的编译面、测试面与双向禁门
+
+#### Objective
+让 `src/` 从第一波起就是一个**真被编译、真被收集**的工程，并把「两棵树不混」变成两条可红断言。这一步不做任何业务移植——它交付的是「后面的每一波都能被判红」这个前提。
+
+#### Files
+- Create: `packages/cdd-engine/tsconfig.src.json`
+- Create: `packages/cdd-engine/src/bin.ts`
+- Create: `packages/cdd-engine/src/__tests__/tree-separation.test.ts`
+- Modify: `packages/cdd-engine/vitest.config.ts`
+- Modify: `package.json`
+
+#### Consumes
+- spec §3.1（禁门与它的域）· §3.2（独立编译面 · 两条波次条件）
+
+#### Produces
+- `packages/cdd-engine/tsconfig.src.json`：`include: ["src", "vitest.config.ts"]`、`rootDir: src`、`outDir: dist`、`module` / `target` / `strict` 与既有 `tsconfig.json` 同值（不许第二套编译口径）
+- 根 `package.json#scripts.typecheck` 追加 `tsc --noEmit -p packages/cdd-engine/tsconfig.src.json`
+- `packages/cdd-engine/vitest.config.ts#include` 追加 `src/**/__tests__/**/*.test.ts`（旧树的模式保留到翻面）
+- `src/__tests__/tree-separation.test.ts`：两条断言（`src/**` 非测试文件不 import `src-next/`；`src-next/**` 非测试文件不 import `src/`），读法是逐文件扫 import 说明符
+- `src/bin.ts`：组合根占位（导出 `main()`，本波不接线）
+
+#### Steps
+- 写 `tsconfig.src.json` 并挂进根 `typecheck` 链 — checkable: `pnpm run typecheck` exit 0，且它点名四个工程（引擎旧树 · `scripts` · kairos 测试 · 引擎新树）
+- 埋一处类型错误到 `src/bin.ts` — checkable: `pnpm run typecheck` 红，且报文指到 `src/`
+- 撤回那处错误 — checkable: `pnpm run typecheck` 回到 exit 0
+- 把 `src/**/__tests__/**/*.test.ts` 加进引擎 vitest include — checkable: `pnpm -C packages/cdd-engine exec vitest run` 的收集列表里出现 `src/__tests__/tree-separation.test.ts`
+- 在 `src/` 某测试里埋一条必然失败的断言 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 红
+- 撤回 — checkable: 回到全绿，引擎既有 2259 条不变
+- 写两条禁门断言 — checkable: 在 `src/` 的某个非测试文件里写一行 `import "../src-next/bin.ts"` 即红；反向（在 `src-next/` 非测试文件里 import `src/`）另造一次即红；两次撤回后绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
+
+#### Acceptance
+四条波次条件可红可回：编译面红一次、测试面红一次、禁门两向各红一次；撤回后 `pnpm run typecheck` 与 `pnpm -C packages/cdd-engine exec vitest run` 均绿且引擎既有用例数不变；`src/bin.ts` 与 `tsconfig.src.json` 在树上；禁门的域是产品文件（`src/**` 与 `src-next/**` 各自去掉 `__tests__`），测试面不被这两个断言扫。
+
+#### DependsOn
+none
+
+### Task 2: 对账器、基线录制与夹具抽取
+
+#### Objective
+把「复刻」从一句承诺变成一个可红的判据：一个只活在测试面的差分对账器，同时读两棵树，对固定语料逐字节比。本任务交付它的骨架、基线与夹具三个家，并让 `npm` 面的三条命令先跑通——后续每一片落地都要往它里面加格。
+
+#### Files
+- Create: `packages/cdd-engine/tests/parity/harness.ts`
+- Create: `packages/cdd-engine/tests/parity/baseline/`（录制产物）
+- Create: `packages/cdd-engine/tests/parity/fixtures/`（从旧测试提取的夹具树）
+- Create: `packages/cdd-engine/tests/parity/parity.test.ts`
+- Create: `packages/cdd-engine/tests/parity/tsconfig.json`
+- Modify: `packages/cdd-engine/vitest.config.ts`
+- Modify: `package.json`
+
+#### Consumes
+- spec §2.3（语料的整个夹具面 · 冻结日期 · 对账器的家与执行面）· §2.4（只在测试面 · 自身可红）· §3.2（`src/` 侧的波次条件）
+
+#### Produces
+- `harness.ts` 导出 `compareTree(scenario: Scenario): Diff[]`：给定一份夹具树，分别以旧树与新树的入口跑一次，返回逐格差异（格 = 命令 × 流（stdout / stderr / 退出码）或渲染面 × 场景）；`Scenario` 带 `frozenDate`（骨架面的注入日期，两棵树同传同一个值）
+- `baseline/`：从 live 树录制一次得到的期望字节，按场景 × 格存
+- `fixtures/`：从旧测试提取的夹具树，七种树形态各一份（空树 · wave 进行中 · in-flight 持有 · refused 在树 · doc-drift · stale holder 且 target gone · branch 已闭合）
+- `packages/cdd-engine/tests/parity/tsconfig.json` 挂进根 `typecheck` 链；`vitest.config.ts#include` 追加 `tests/parity/**/*.test.ts`
+- 执行命令：`pnpm -C packages/cdd-engine exec vitest run tests/parity`
+
+#### Steps
+- 建 `tests/parity/` 的三个家与 tsconfig 工程 — checkable: `pnpm run typecheck` exit 0 且点名 `tsconfig.src.json` 与 `tests/parity/tsconfig.json` 两个新工程
+- 加 include — checkable: `pnpm -C packages/cdd-engine exec vitest run tests/parity` 能收集到 `parity.test.ts` 并因空实现而红/绿（任一，只要被收集）
+- 提取七份夹具树 — checkable: `fixtures/` 下七个子目录，各自可被旧入口读成预期形态（用旧树的 `cdd board --plan` 与 `--dry-run` 各跑一次核对，读数落 `fixtures/README.md`）
+- 写 `compareTree` 的旧树一侧 — checkable: 单跑旧树对同一场景两次，差异为空（自身确定性）
+- 录制基线 — checkable: `baseline/` 覆盖八面中的命令面、骨架面、胶囊面、板面两态、预览面、阻断面（`init` / `issue render` 的格随 T5 / T15 落地时补），每格带 `frozenDate`
+- 让对账器自身可红 — checkable: 人为改 `baseline/` 里任一格的一个字节，`pnpm -C packages/cdd-engine exec vitest run tests/parity` 红；撤回后绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `test(p39):` 起头
+
+#### Acceptance
+对账器被收集、可跑、自身可红（改一格即红）；七份夹具树在册；基线覆盖命令面、骨架面、胶囊面、板面两态、预览面、阻断面六类格，`init` 与 `issue render` 两格在册标注「随 T5 / T15 补」；两个新 tsconfig 工程挂进根 `typecheck` 链；`pnpm run typecheck` 与 `pnpm -C packages/cdd-engine exec vitest run` 双绿。
+
+#### DependsOn
+1
+
+### Task 3: `env/` 的路径与工作区
+
+#### Objective
+立起外部世界的第一层：路径基准、文档根、slug 索引与 workspace 布局/原子写。**不变量（写在 `env/index.ts` 的类注释里）**：所有写入只经一条声明过、原子、可预览的路径。本任务同时立 `env/` 的入口骨架，后面两个 env 任务往它里面加段。
+
+#### Files
+- Create: `packages/cdd-engine/src/env/index.ts`
+- Create: `packages/cdd-engine/src/env/paths/root.ts`
+- Create: `packages/cdd-engine/src/env/paths/doc-roots.ts`
+- Create: `packages/cdd-engine/src/env/paths/slug-index.ts`
+- Create: `packages/cdd-engine/src/env/workspace/workspace.ts`
+- Create: `packages/cdd-engine/src/env/workspace/atomic.ts`
+- Create: `packages/cdd-engine/src/env/workspace/round-log.ts`
+- Create: `packages/cdd-engine/src/env/workspace/seal.ts`
+- Create: `packages/cdd-engine/src/env/workspace/__tests__/workspace.test.ts`
+- Create: `packages/cdd-engine/src/env/paths/__tests__/paths.test.ts`
+
+#### Consumes
+- 旧树的 `infra/root.ts#RepoRoot` · `infra/doc-roots.ts#ENGINE_DOC_ROOTS` · `infra/slug-index.ts` · `infra/workspace.ts#Workspace` · `infra/atomic.ts#AtomicWriter` · `infra/round-log.ts` · `infra/carrier-seal.ts`（读行为，不读形状）
+
+#### Produces
+- `Env`（`env/index.ts`）：构造一次，成员为四段的只读门面；本任务交付 `paths` 与 `workspace` 两段
+- `paths`：`RepoRoot.of(cwd)`（不可推算即抛）· `docRootsOf(root)` · `SlugIndex`（同 slug 多份 ⇒ `invalid`）
+- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写）/ `#roundLogOf` / `#sealOf`
+- 四类路径判据的往返 pin：写入—读回—拼写不变量
+
+#### Steps
+- 写 `paths` 的两条 pin（可推算 · 不可推算即抛） — checkable: 在临时目录里 `RepoRoot.of` 取到 git 顶层；在非仓目录里它抛且报文点名 cwd
+- 写 slug 索引的判据 pin — checkable: 同 slug 两份文档 ⇒ 该 slug 读作 `invalid`，单份 ⇒ 可取到路径
+- 写 workspace 的原子写 pin — checkable: 写入过程中被注入的失败不留半截 JSON（读回旧值）
+- 写 `.kairos/.gitignore` 的 keep-out pin — checkable: `ensure` 之后 `.kairos/cdd/` 在被忽略面内，且它不建任何以 slug 命名的目录
+- 写 `Env` 的门面 — checkable: `Env` 对外只露 `paths` 与 `workspace` 两段（成员集 pin），构造函数参数不超过四个
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/env` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+`env/index.ts` 的类注释第一行是不变量原句；`paths` 与 `workspace` 两段各至少三条 pin（可推算 / 不可推算即抛 · slug 单建与多份 invalid · 原子写不留半截 · keep-out 不建 slug 目录）；`Env` 的成员集只有这两段；测试与源码同片。
+
+#### DependsOn
+1
+
+### Task 4: `docs/` 的 markdown 文法
+
+#### Objective
+立起物料的第一层：把一份文档读成树、切成段、取出正文与跨度、解析 front-matter、跑 home 驱动的登记表提取、解析任务块。**不变量（写在 `docs/index.ts` 的类注释里，本任务只立它的骨架）**：文档的形状由登记表判、判据只读文本。本任务的交付物是纯函数式的读取面——它不认识判据，也不认识轮次。
+
+#### Files
+- Create: `packages/cdd-engine/src/docs/index.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/markdown-tree.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/doc-body.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/frontmatter.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/extract.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/task-blocks.ts`
+- Create: `packages/cdd-engine/src/docs/grammar/__tests__/grammar.test.ts`
+
+#### Consumes
+- 旧树的 `contract/markdown-tree.ts` · `contract/markdown-spans.ts` · `contract/doc-body.ts` · `contract/frontmatter.ts` · `contract/home-extractors.ts` · `contract/task-block-grammar.ts` · `contract/task-blocks.ts` · `contract/closed-document.ts`（读行为）
+
+#### Produces
+- `Documents`（`docs/index.ts`）门面骨架，本任务只露 `parse`
+- `grammar`：`MarkdownTree`（标题树 + 围栏感知）· `docBodyOf`（正文段与记录面的分界）· `frontmatterOf`（真 YAML 解析，失败即带位抛）· `HomeExtractor`（登记表 home 驱动）· `TaskBlocks`（任务块与 `DependsOn` 行）
+- 树节点与跨度都是不可变值类型
+
+#### Steps
+- 写围栏感知的 pin — checkable: 正文围栏里的 `## 标题` 不进标题树；围栏外的进
+- 写 front-matter 的 pin — checkable: 合法 YAML 读回键集；非法 YAML 抛且报文带行位
+- 写正文分界的 pin — checkable: `## Change history` 的行被读作记录面，正文段的判据不读它们
+- 写登记的 home 提取 pin — checkable: 改登记表的 home 值即改提取结果（同一 fixture 两次读，结果随 home 变）
+- 写任务块 pin — checkable: `#### DependsOn` 的一行逗号集读成 id 列表，`none` 读作空集；`DependsOn` 循环被读出
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+`docs/index.ts` 的类注释第一行是不变量原句；五条 pin 齐（围栏感知 · front-matter 失败带位 · 记录面不参与正文判据 · home 改动即改提取 · 任务块与循环）；`grammar` 段对 `judging` 零依赖（import 面断言）。
+
+#### DependsOn
+1
+
+### Task 5: `env/` 的进程、主机与版本库
+
+#### Objective
+补完外部世界的其余接触面：进程事实与宿主探测、锁、git 读。**不变量不变**（`env/` 仍是那一条），本任务把 `Env` 的两段加到四段。
+
+#### Files
+- Create: `packages/cdd-engine/src/env/process/proc.ts`
+- Create: `packages/cdd-engine/src/env/process/host.ts`
+- Create: `packages/cdd-engine/src/env/process/lock.ts`
+- Create: `packages/cdd-engine/src/env/vcs/git.ts`
+- Create: `packages/cdd-engine/src/env/vcs/plan-source.ts`
+- Create: `packages/cdd-engine/src/env/process/__tests__/process.test.ts`
+- Create: `packages/cdd-engine/src/env/vcs/__tests__/git.test.ts`
+- Modify: `packages/cdd-engine/src/env/index.ts`
+
+#### Consumes
+- 旧树的 `infra/proc.ts#ProcessFacts` · `infra/runtime.ts#ENGINE_RUNTIME` · `infra/config.ts` · `infra/git.ts#GitClient` · `infra/plan-source.ts`；`session/inflight.ts#InFlight` 的锁持有面（只读行为，锁本身在 T11 随 in-flight 落地时迁入 `env/process/lock.ts` 的持有者）
+
+#### Produces
+- `process`：`ProcessFacts`（进程组去重 · 存活判定）· 宿主事实（一次性探测，值不成调用）· `Lock`（`proper-lockfile` 的唯一持有者）
+- `vcs`：`GitClient`（只读：顶层、状态、提交）· `planSourceOf`
+- `Env` 成员扩到四段：`paths` · `workspace` · `process` · `vcs`
+
+#### Steps
+- 写进程事实的 pin — checkable: `npm exec` 包装内的子进程不重复计数（一组进程一条事实）；已退出进程读作不在
+- 写宿主探测「只探一次」的 pin — checkable: 同一 `Env` 上连续两次取宿主事实，底层探针只被调用一次（注入计数探针）
+- 写锁的 pin — checkable: 持有期间第二次获取被拒且报文点名持有者；释放后可获取
+- 写 git 读的 pin — checkable: 顶层、状态、提交三项各一条；状态读在脏树/净树两种输入下各一条
+- `Env` 成员扩到四段 — checkable: 成员集 pin 更新且不超过四段；构造参数仍不超过四个
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/env` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+四条 pin 齐（进程组去重 · 宿主只探一次 · 锁持有与释放 · git 三读）；`Env` 四段成员集 pin 绿；`env/` 对 `run/` `docs/` `surface/` 零 import（import 面断言）。
+
+#### DependsOn
+3
+
+### Task 6: `docs/` 的身份与判据
+
+#### Objective
+把物料从「字符串」变成「有身份的文档」：DocType 与登记表、slug 与文档身份、目标类型、判据表与选择器、形状规则、完成判据、波宽、评审判据与 lens 问句。**登记表跟判据走**——它们同住 `judging/`，`identity/` 只放身份与类型。**不变量（`docs/index.ts` 类注释）**：文档的形状由登记表判、判据只读文本；同一事实一个拼写。
+
+#### Files
+- Create: `packages/cdd-engine/src/docs/identity/types.ts`
+- Create: `packages/cdd-engine/src/docs/identity/registry.ts`
+- Create: `packages/cdd-engine/src/docs/judging/rules.ts`
+- Create: `packages/cdd-engine/src/docs/judging/criteria.ts`
+- Create: `packages/cdd-engine/src/docs/judging/selectors.ts`
+- Create: `packages/cdd-engine/src/docs/judging/completion.ts`
+- Create: `packages/cdd-engine/src/docs/judging/wave-width.ts`
+- Create: `packages/cdd-engine/src/docs/judging/__tests__/judging.test.ts`
+- Create: `packages/cdd-engine/src/docs/identity/__tests__/identity.test.ts`
+- Modify: `packages/cdd-engine/src/docs/index.ts`
+
+#### Consumes
+- 旧树的 `contract/declare.ts#DocType` / `#ElementRegistry` / `#DocFace` · `contract/target-type.ts` · `contract/rules.ts#RULE_REGISTRY` · `contract/shape-rules.ts#PathShape` · `contract/selector-engine.ts#SelectorEngine` · `contract/selector-spec.ts` · `contract/completion-criterion.ts#CompletionCriteria` · `contract/wave-width.ts#MAX_TASKS_PER_WAVE` · `contract/review-criteria.ts`（含 `LENS_QUESTION_ROWS`）
+
+#### Produces
+- `identity`：`DocType`（四值）· `TargetType` · `ElementRegistry` 与 `DocFace`（登记表本体）· slug 值域
+- `judging`：`RULE_REGISTRY`（形状规则即它的行，`PathShape` 是它读的路径文法，跟着表走）· `SelectorEngine`（含覆盖判据）· `CompletionCriteria`（按 verb 分档）· `MAX_TASKS_PER_WAVE` · 评审判据体与 `LENS_QUESTION_ROWS`
+- `Documents` 门面扩出 `judge(doc)`；`criteriaOf(kind)` 与 `lensQuestionsOf(kind)` 两个读面
+
+#### Steps
+- 写身份的 pin — checkable: 四类 DocType 各一条；未知 type 即抛；slug 值域的正负例各一条
+- 写登记表与 doc-face 的 pin — checkable: 每类的 face 集可读；一处 face 声明与正文实际 section 集不符即红
+- 写形状规则的 pin — checkable: 从 `RULE_REGISTRY` 删一行即少一条判据（行数随表走，不在散文里计数）；每条规则有违规必报与邻居沉默一对夹具
+- 写选择器覆盖的 pin — checkable: 合成文档上全绿；删一条 selector 即红
+- 写完成判据与波宽的 pin — checkable: implement 零提交判违约一条、review 空 findings 判 APPROVED 一条；依赖层四个任务 ⇒ `wave-width-at-most-three` 红并点名该层
+- 写 lens 问句表的 pin — checkable: 每 kind 的问句非空且无重复标签；`spec-consistency` 行携带指称问句
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+六组 pin 齐（身份四类 + 值域 · 登记表与 face · 规则逐条成对夹具 · 选择器覆盖可红 · 完成判据两档 + 波宽 · lens 问句表）；`judging/` 里没有任何「登记表目录」式的二级箱（规则与它的表同住）；`Documents.judge` 只经 `grammar` 的读面取文本。
+
+#### DependsOn
+4
+
+### Task 7: `run/` 的账本
+
+#### Objective
+立起机器的事实层：轮次身份、波行、文档评审行、分支线、审过的版本、产物身份、裁决与改档。**不变量（写在 `run/ledger/ledger.ts` 类注释，并在 `run/index.ts` 汇总该片不变量）**：同一事实一个家，一条记录只被一处写。本任务不碰判定——只记账与读回。
+
+#### Files
+- Create: `packages/cdd-engine/src/run/index.ts`
+- Create: `packages/cdd-engine/src/run/ledger/ledger.ts`
+- Create: `packages/cdd-engine/src/run/ledger/identity.ts`
+- Create: `packages/cdd-engine/src/run/ledger/artifacts.ts`
+- Create: `packages/cdd-engine/src/run/ledger/reviewed.ts`
+- Create: `packages/cdd-engine/src/run/ledger/rulings.ts`
+- Create: `packages/cdd-engine/src/run/ledger/__tests__/ledger.test.ts`
+
+#### Consumes
+- 旧树的 `session/ledger.ts`（`RoundFinding` / `RoundRecord` / 波行 / 文档行）· `session/line-identity.ts` · `session/round-artifacts.ts` · `session/round-naming.ts` · `session/reviewed-identity.ts` · `session/carrier-rulings.ts` · `session/carrier-integrity.ts` · `session/state.ts`（读行为）
+
+#### Produces
+- `Run`（`run/index.ts`）门面骨架，本任务只露账本读面
+- `ledger`：`Ledger#recordRound` / `#rounds` / `#waveLines` / `#docLines` / `#branchLine` · `RoundIdentity`（`(line, op, cycle, attempt)` 单射）· `ArtifactIdentity`（产物的名字与归属）· `ReviewedIdentity`（这一轮审的是哪一版）· `Rulings`（裁决与改档的落地与读回）
+- 记录一律经 `env.workspace` 的原子写落地
+
+#### Steps
+- 写轮次身份单射的 pin — checkable: 同一 `(line, op, cycle, attempt)` 两次记录 ⇒ 后者被拒或覆盖同一格（按旧行为的哪一种，pin 钉住那一种）；不同 `attempt` 是两条
+- 写波行闭合的 pin — checkable: 波行闭合后记录 `planTasks` 快照；未闭合的波行读作进行中
+- 写文档行的 pin — checkable: 文档评审行带 `doc_hash`；同一文档第二次评审批次递增
+- 写审过版本的 pin — checkable: 记录后改文档 ⇒ 读回该行的 `doc_hash` 与现文档不一致（drift 的读面成立）
+- 写产物身份的 pin — checkable: 产物的名字由身份四元组派生；同四元组同 kind 两次写 ⇒ 后者被拒（不许两个名字指同一产物）
+- 写裁决的 pin — checkable: 裁决落地后读回；改档记录保留原档与新档
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+六组 pin 齐（身份单射 · 波行闭合与快照 · 文档行与 doc_hash · 审过版本的可 drift 读面 · 产物身份单射 · 裁决与改档）；`run/ledger` 对 `run/gate`、`run/dispatch`、`run/advance` 零 import（它是最低段）；所有写入经 `env.workspace`。
+
+#### DependsOn
+6
+
+### Task 8: `env/` 的供给（`init` 与 `plugins`）
+
+#### Objective
+补完 `env/` 的最后一段：harness 的安装与更新序列。**它留在 `env/` 内**（不单开一片）——它与 workspace 写入守同一条不变量：只经声明过、原子、可预览的步骤触碰外部世界。
+
+#### Files
+- Create: `packages/cdd-engine/src/env/provision/init.ts`
+- Create: `packages/cdd-engine/src/env/provision/plugins.ts`
+- Create: `packages/cdd-engine/src/env/provision/__tests__/provision.test.ts`
+- Modify: `packages/cdd-engine/src/env/index.ts`
+
+#### Consumes
+- 旧树的 `face/init.ts#CliInit` · `face/plugins.ts#PLUGINS`（读行为：九步 vs 六步、`--include-recommends` 的两档、`--update` 的两序列、`--dry-run` 零 spawn）
+
+#### Produces
+- `provision`：`Provisioner#plan(host, options)`（返回步骤序列，纯）· `#apply(steps)`（真 spawn）
+- `Env` 成员扩到五段
+- 步骤数据面单源：`PLUGINS` 的行即核心三包 + 推荐六包，claude 列空
+
+#### Steps
+- 写「预览即计划」的 pin — checkable: `plan()` 对同一入参两次结果字节相同；`apply()` 收到的序列与 `plan()` 的返回值逐项相等（注入 step runner 记录）
+- 写零 spawn 的 pin — checkable: `--dry-run` 路径下 step runner 零调用
+- 写两档的 pin — checkable: 不带旗标与带 `--include-recommends` 的步骤数按数据面派生（不写字面计数）；claude 档零推荐步骤
+- 写 `--update` 的 pin — checkable: update 序列与 install 序列的步骤集不同，且两者都来自同一数据面
+- `Env` 扩到五段 — checkable: 成员集 pin 更新；构造参数不超过四个（超出则收参数对象）
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/env` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+四条 pin 齐（预览即计划 · 零 spawn · 两档按数据面派生 · update 与 install 同源）；`env/` 五段成员集 pin 绿；`provision` 的步骤数据面只有一处。
+
+#### DependsOn
+3, 5
+
+### Task 9: `docs/` 的骨架
+
+#### Objective
+四族骨架的生成，日期只从构造入参进来。**名册取自穷举 switch 的分支集**，不在散文里计数。
+
+#### Files
+- Create: `packages/cdd-engine/src/docs/skeleton/assembler.ts`
+- Create: `packages/cdd-engine/src/docs/skeleton/__tests__/skeleton.test.ts`
+- Modify: `packages/cdd-engine/src/docs/index.ts`
+
+#### Consumes
+- 旧树的 `render/skeleton.ts#SkeletonAssembler#compose`（读行为与四族的分支集）
+- spec §2.3 的骨架日期钉法（日期只从构造入参进来）
+
+#### Produces
+- `SkeletonAssembler`：构造入参含 `today`；`compose(type, target)` 对四族穷举
+- `Documents.skeletonOf(type)`
+
+#### Steps
+- 写四族全覆盖的 pin — checkable: 四类 DocType 各一条；类型集与 `compose` 的 switch 分支集一致（把类型集写成从同一常量派生的数组，测试断言「每个值都有分支」）
+- 写日期注入的 pin — checkable: 同传一个冻结日期两次 ⇒ 字节相同；不传日期时构造即抛（无默认取系统时钟）
+- 写骨架字节的格接入 — checkable: 对账器的骨架格用装配器入口在进程内驱动两棵树，同一 `frozenDate`
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/docs tests/parity` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+四族各一条 pin + 日期注入两条（同值稳定 · 无默认时钟）；骨架格进对账器并在冻结日期下逐字节比；散文里不出现骨架族数。
+
+#### DependsOn
+6
+
+### Task 10: `run/` 的门
+
+#### Objective
+立起判定层：结构腿的九行、轮内四门并入后的行集、拒绝事实的树级存放与两个到期触发点、接手授权三条 leg 各自的授权条件。**不变量**：拒绝是关于树的事实，不写轮次；任一时刻至多一条。
+
+#### Files
+- Create: `packages/cdd-engine/src/run/gate/preflight.ts`
+- Create: `packages/cdd-engine/src/run/gate/refusal.ts`
+- Create: `packages/cdd-engine/src/run/gate/authority.ts`
+- Create: `packages/cdd-engine/src/run/gate/__tests__/gate.test.ts`
+- Modify: `packages/cdd-engine/src/run/index.ts`
+
+#### Consumes
+- 旧树的 `session/preflight.ts`（`PreFlightGateName` · `DISPATCH_ROWS` · 让位条件）· `session/refusal.ts`（`PreFlightRefusal` · `RefusalState`）· `session/dispatch-authority.ts` · `face/cli.ts#Cli.#recoverRun` 的三 leg 授权面（读行为）
+
+#### Produces
+- `PreFlight#vet(context)` → 逐行读数与整段裁决；行集从常量派生（九行 + 四门，让位条件按既有两处）
+- `RefusalState`：树上至多一条拒绝事实、两个到期触发点（结构腿不拒绝时的门口清理 · `InFlight#release`）
+- `authority`：三条 leg 各自的授权条件（leg ① = in-flight 门放过 ∧ 记录 stale；legs ②③ = 结构腿通过）
+
+#### Steps
+- 写行集的 pin — checkable: 行集从单一常量派生；插入一条新行即改读面（不写字面行数）
+- 写「拒绝不写轮次」的 pin — checkable: 任一行拒绝后账本轮次数不变、树上多一条拒绝事实
+- 写至多一条的 pin — checkable: 连续两次拒绝 ⇒ 树上仍只有一条（后者不覆盖前者或按旧行为拒绝，pin 钉住那一种）
+- 写两个到期触发点的 pin — checkable: 九行全过 ⇒ 事实被清；`InFlight#release` ⇒ 事实被清；其它路径不清
+- 写三 leg 授权的 pin — checkable: 活 holder + `--recover` ⇒ leg ① 不成立（flag 不越过活着）；stale 记录 + doc-contract 拒绝 ⇒ leg ① 仍成立（记录关于树）；legs ②③ 在结构腿拒绝时不成立
+- 写让位条件的 pin — checkable: 无输入面的 wave 派发 ⇒ 四行一起让位；在四行之前被拒 ⇒ 四行不记
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+六组 pin 齐（行集派生 · 拒绝不写轮次 · 至多一条 · 两个到期点 · 三 leg 授权 · 两处让位）；`run/gate` 只向下依赖 `run/ledger`；拒绝事实的路径由 `env.workspace` 的拼写矩阵给出。
+
+#### DependsOn
+7
+
+### Task 11: `run/` 的派发
+
+#### Objective
+立起孩子这一层：派发输入契约、手交契约与读回、预算与终止、in-flight 记录（含锁的持有）。**不变量**：孩子存在之前零记录，孩子收工后无残留。
+
+#### Files
+- Create: `packages/cdd-engine/src/run/dispatch/child.ts`
+- Create: `packages/cdd-engine/src/run/dispatch/handoff.ts`
+- Create: `packages/cdd-engine/src/run/dispatch/inflight.ts`
+- Create: `packages/cdd-engine/src/run/dispatch/__tests__/dispatch.test.ts`
+- Modify: `packages/cdd-engine/src/run/index.ts`
+
+#### Consumes
+- 旧树的 `face/lifecycle.ts`（spawn · 预算 · stall 判官 · 终止面）· `session/inflight.ts`（记录与四态判定，锁的持有者迁到 `env/process/lock.ts`）· `session/handoff-schema.ts` · `session/carrier-integrity.ts` · `contract/preflight-rows.ts` · `contract/context-declarations.ts`（读行为）
+
+#### Produces
+- `child`：`Child.dispatch(frame)` → `DispatchOutcome`（退出码 · 日志路径 · 终止因）· 预算四键
+- `handoff`：手交契约（键集）与读回（失败分型：缺失 / 畸形 / 违约）
+- `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）
+
+#### Steps
+- 写「孩子前零记录、收工后无残留」的 pin — checkable: 注入一个立即失败的 spawn ⇒ 无 in-flight 残留；正常收工 ⇒ 记录建立后被释放
+- 写 in-flight 三 kind 的 pin — checkable: 空闲 · 持有 · 记录损坏三态各一条；损坏按无锁放行但报文点名
+- 写手交读回分型的 pin — checkable: 缺席 · 畸形 · 违约三型各一条，且三者各给不同的终止因
+- 写预算与终止的 pin — checkable: 超预算 ⇒ `over-budget`；无活动 ⇒ `stalled`；收到信号 ⇒ `signal`（三档取自 `TerminationCause`）
+- 写「拒绝不消费 attempt」的 pin — checkable: 派发前拒绝 ⇒ 账本轮次数与 attempt 都不前进
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+五组 pin 齐（记录生命周期 · 三 kind · 手交三型 · 三档终止 · 拒绝不消费 attempt）；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
+
+#### DependsOn
+10
+
+### Task 12: 改道 `run/` 的前沿
+
+#### Objective
+立起推进层：管线前沿、波次前沿、闭合判定、`next:` 与 `reason:` 的六格装配。**不变量**：前沿是账本的投影，不是第二份判断。
+
+#### Files
+- Create: `packages/cdd-engine/src/run/advance/pipeline.ts`
+- Create: `packages/cdd-engine/src/run/advance/wave.ts`
+- Create: `packages/cdd-engine/src/run/advance/next.ts`
+- Create: `packages/cdd-engine/src/run/advance/__tests__/advance.test.ts`
+- Modify: `packages/cdd-engine/src/run/index.ts`
+
+#### Consumes
+- 旧树的 `session/pipeline.ts` · `session/wave.ts` · `session/next.ts#Route` · `session/graph.ts`（读行为：六格装配、drift 重开、波次 frontier、闭合判定）
+
+#### Produces
+- `advance`：`frontierOf(slug)` · `nextOf(frontier)` → 六格 `NextHop` · `reasonOf(hop)` · 波次 frontier
+- `Run` 门面收口：`advance(frame)` / `boardOf(slug)` / `inflightOf()` / `refusalOf()` / `recordRound(...)` 五类成员
+
+#### Steps
+- 写前沿是投影的 pin — checkable: 同一账本两次取前沿结果相同；改一条账本事实即改前沿（没有第二份缓存）
+- 写六格装配的 pin — checkable: 六格逐格一条；`next:` 字节与 `reason:` 行按格派生
+- 写 drift 重开的 pin — checkable: 审过的文档被轮外改动 ⇒ 该行不再算闭合；闭合后前沿前进
+- 写波次 frontier 的 pin — checkable: frontier 五个 ⇒ 派发面报 `wave-too-wide`（不是 `split`）；`--tasks` 四个 ⇒ `too-many-tasks`
+- 写闭合终态的 pin — checkable: 零 blocker 的 fix 轮之后该行不再被判回 review；review 空 findings 判 APPROVED
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+五组 pin 齐（投影无缓存 · 六格 · drift 重开 · 波宽三档 · 闭合终态）；`run/index.ts` 的五类成员集 pin 绿；`advance` 不 import `surface`。
+
+#### DependsOn
+10, 11
+
+### Task 13: `surface/` 的词表
+
+#### Objective
+立起唯一词表：阻断措辞、拒绝站名、在飞四态的词行、capsule 槽、板面 token。**一条事实一张词表，一处渲染**——词表是数据的家，渲染器只连接它。
+
+#### Files
+- Create: `packages/cdd-engine/src/surface/index.ts`
+- Create: `packages/cdd-engine/src/surface/words/words.ts`
+- Create: `packages/cdd-engine/src/surface/words/__tests__/words.test.ts`
+
+#### Consumes
+- 旧树的 `face/words.ts`（`CAPSULE_WORDS` · `WORDS.checked.inFlight` 行集 · 阻断措辞）
+
+#### Produces
+- `WORDS`：拒绝站名闭集 · 阻断前缀 · `checked.inFlight` 五行 · capsule 两槽 · 板面 token
+- `surface/index.ts` 的 `Cli` 门面骨架（本任务只露词表）
+
+#### Steps
+- 写站名闭集的 pin — checkable: 站名集与 `run/gate` 的行集逐值相等（两处派生自同一常量，测试断言相等）
+- 写 `checked.inFlight` 行集的 pin — checkable: 五行齐（free · held · stale · corrupt 有锁 · corrupt 无锁）
+- 写 capsule 两槽的 pin — checkable: `status · handoff` 两槽；槽序固定
+- 写「第二份拷贝即红」的 pin — checkable: 同一措辞在词表外出现一次即红（扫 `surface/**` 的字面量，豁免渲染器的模板）
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+四条 pin 齐（站名与门行集相等 · in-flight 五行 · capsule 两槽 · 措辞单份）；`surface/words` 对 `run/` 只经类型读，不调 `Run` 的方法。
+
+#### DependsOn
+6, 10
+
+### Task 14: `surface/` 的渲染
+
+#### Objective
+把事实渲染成消费者字节：prompt 模板（两带）、胶囊、板面两态、预览块、图、issue body、brief。**不变量**：消费者拿到的字节就是契约。
+
+#### Files
+- Create: `packages/cdd-engine/src/surface/render/templates.ts`
+- Create: `packages/cdd-engine/src/surface/render/capsule.ts`
+- Create: `packages/cdd-engine/src/surface/render/board.ts`
+- Create: `packages/cdd-engine/src/surface/render/preview.ts`
+- Create: `packages/cdd-engine/src/surface/render/graph.ts`
+- Create: `packages/cdd-engine/src/surface/render/issue.ts`
+- Create: `packages/cdd-engine/src/surface/render/brief.ts`
+- Create: `packages/cdd-engine/src/surface/render/__tests__/render.test.ts`
+- Modify: `packages/cdd-engine/src/surface/index.ts`
+
+#### Consumes
+- 旧树的 `render/templates.ts`（`WORK_MODES` · `TEMPLATE_PROMPT.modes` / `.reviews` · `REVIEW_VARIANTS` · `$version`）· `render/brief.ts` · `render/issue-body.ts` · `face/capsule.ts` · `face/board-view.ts` · `face/preview.ts` · `face/graph-view.ts` · `face/route-render.ts`（读行为与字节）
+
+#### Produces
+- `templates`：两带 prompt（modes 三行 · reviews 每 `TargetType` 一行）· `$version` 原值不变
+- `capsule` / `board`（两态）/ `preview` / `graph` / `issue` / `brief` 各一个渲染类，全部只读 `words` + 事实对象
+- `surface/index.ts` 扩出各渲染入口
+
+#### Steps
+- 写 prompt 两带的 pin — checkable: `modes` 键集 = `WorkModeRowKey`（implement · fix · docs-fix）；`reviews` 每 `TargetType` 一行，六行齐；`$version` 与旧树相同
+- 写模板字节等价 — checkable: 对同一组输入，新渲染器与旧渲染器字节相同（对账器的 prompt 格由本任务接上）
+- 写胶囊的 pin — checkable: `status · handoff` 字节；handoff 缺席时的形态
+- 写板面两态 — checkable: 默认零 notes 正文且带 `notes +M`；`--notes` 展开后正文全量、token 段序不重排
+- 写预览块 — checkable: 五类行（`step:` / `reads:` / `would write:` / `would record:` / `child:`）齐且零 `next:` 行
+- 写措辞单份的复审 — checkable: `surface/render` 里不出现词表外的散文措辞（沿用 T13 的扫法）
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+六组 pin 齐（两带名册 · 字节等价 · 胶囊 · 板面两态 · 预览五类行 · 措辞单份）；prompt / 胶囊 / 板面 / 预览四类格在对账器里逐字节比。
+
+#### DependsOn
+9, 13
+
+### Task 15: `surface/` 的八条薄壳
+
+#### Objective
+八条命令的薄壳与 CLI 声明。**每条壳只做三件事**：取参 · 调 `run/` 或 `docs/` 的一个入口 · 原样输出；零判定、零文件 IO、零字符串拼装。超过约四十行（含类声明与 import）说明判定漏进了壳里。
+
+#### Files
+- Create: `packages/cdd-engine/src/surface/commands/declare.ts`
+- Create: `packages/cdd-engine/src/surface/commands/implement.ts`
+- Create: `packages/cdd-engine/src/surface/commands/review.ts`
+- Create: `packages/cdd-engine/src/surface/commands/fix.ts`
+- Create: `packages/cdd-engine/src/surface/commands/base.ts`
+- Create: `packages/cdd-engine/src/surface/commands/schema.ts`
+- Create: `packages/cdd-engine/src/surface/commands/issue.ts`
+- Create: `packages/cdd-engine/src/surface/commands/board.ts`
+- Create: `packages/cdd-engine/src/surface/commands/init.ts`
+- Create: `packages/cdd-engine/src/surface/commands/__tests__/commands.test.ts`
+- Modify: `packages/cdd-engine/src/surface/index.ts`
+
+#### Consumes
+- 旧树的 `face/cli.ts`（八命令的旗标、值域、退出码；场景装配与判定面不在壳里，回 `run/`）· `face/declare.ts`（`CliVerb` · `ARGV_CHANNEL` · `VALUE_SHAPES`）· `face/artifacts.ts#Artifacts`（`base set|get` 的产物面）
+
+#### Produces
+- `declare`：`CliVerb` 八值 · 旗标与值域声明（单源）· `ARGV_CHANNEL`
+- 八条壳：每条一个类，方法体只取参、调一个入口、输出
+- `Cli#run(argv)`（`surface/index.ts`）
+
+#### Steps
+- 写动词集与值域的 pin — checkable: 八值齐；每个旗标的取值形状在声明面；`--type` 的六值
+- 写薄壳判据的 pin — checkable: 逐条命令统计行数 ≤ 40（测试读各文件行数并断言），超出即点名
+- 写三件事的 pin — checkable: 每条壳的方法体里不出现文件读写与判定（扫 import 与调用面：壳不许 import `env`，不许 import `run/gate`）
+- 写退出码的 pin — checkable: 正常 0 · 拒绝 1 · 错用 2 · 未知命令 2，各一条
+- 写 help 与 usage 的 pin — checkable: `--help` 形面与 usage 字节；子命令树可读
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+五组 pin 齐（动词集与值域 · 每壳 ≤40 行 · 壳零 `env` 零判定 · 四个退出码 · help/usage 字节）；八条壳全部只经 `surface/index.ts` 的 `Cli` 对外。
+
+#### DependsOn
+11, 12, 14
+
+### Task 16: 组合根与对账首绿
+
+#### Objective
+把四片接成一棵树：`src/bin.ts` 成为唯一组合根，具体类在此 new，其余全部经构造参数收协作对象。本任务的终判是**对账器第一次全绿**——那就是「复刻成立」的证据。
+
+#### Files
+- Modify: `packages/cdd-engine/src/bin.ts`
+- Create: `packages/cdd-engine/src/__tests__/composition.test.ts`
+- Modify: `packages/cdd-engine/tests/parity/parity.test.ts`
+
+#### Consumes
+- 四片的入口（`Env` · `Documents` · `Run` · `Cli`）· spec §2.2 的八个面
+
+#### Produces
+- `src/bin.ts`：唯一组合根，构造 `Env` → `Documents` → `Run` → `Cli` 并接线；导出的 `main()` 可被 `node src/bin.ts` 直接跑（tsx 或编译后）
+- `composition.test.ts`：组合根是唯一 new 具体类处（扫 `src/**` 的非测试文件，`new Env` / `new Run` / `new Cli` 只在此出现）
+
+#### Steps
+- 接四片 — checkable: `node --experimental-strip-types src/bin.ts board --help` 或经 `tsx` 跑通一条命令，退出码 0
+- 写组合根唯一性 pin — checkable: 除 `src/bin.ts` 外，非测试文件里没有 `new` 四片入口的调用
+- 对账器接新树一侧 — checkable: `pnpm -C packages/cdd-engine exec vitest run tests/parity` 对八面逐格比
+- 收敛差异 — checkable: 差异格数逐轮下降至零；**每一处差异都按旧行为改新树**，不按新树改基线（改基线即自欺，基线是证据）
+- 对账首绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run tests/parity` 全绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+`node`（或 `tsx`）能跑通八条命令且退出码与旧树一致；组合根唯一性 pin 绿；对账器全绿（八面逐字节）；两棵树各自的套件同时绿。
+
+#### DependsOn
+8, 15
+
+### Task 17: 翻面
+
+#### Objective
+一波之内的原子翻面：入口与构建指向 `src/`，旧树整棵删除。顺序固定（spec §3.3），任何一步漏掉都会留一根脐带。
+
+#### Files
+- Modify: `packages/cdd-engine/tsconfig.json`
+- Modify: `packages/cdd-engine/tsconfig.build.json`
+- Modify: `packages/cdd-engine/vitest.config.ts`
+- Modify: `packages/cdd-engine/package.json`
+- Modify: `package.json`
+- Modify: `packages/kairos/tests/`（8 个文件的 import 路径）
+- Modify: `scripts/__tests__/next-loop-twin.test.ts`、`scripts/__tests__/journey-twin.test.ts` 及其路径常量
+- Modify: `README.md`、`README.zh-CN.md`、`packages/cdd-engine/README.md`、`packages/cdd-engine/README.zh-CN.md`、`AGENTS.md`
+- Modify: `docs/diagrams/src/*.json`（六份）
+- Delete: `packages/cdd-engine/src-next/`
+
+#### Consumes
+- spec §3.3（十一序）· §3.4（零残留的范围与「已是生成物还是手维护」的分界）
+
+#### Produces
+- 编译面 / 测试 include / smoke 脚本 / 零裸函数扫描根全部指向 `src/`
+- `tests/parity` 的 include 与它的 tsconfig 工程同批删除；对账器与基线随之销毁
+- 树外测试面与五份手维护文档改指新入口；六份图源改真
+
+#### Steps
+- 改编译面与测试面 — checkable: `pnpm run typecheck` 绿（四个工程里旧树位置换成 `src`）、`pnpm -C packages/cdd-engine exec vitest run` 收集到 `src/**` 与不再收集 `src-next/**`
+- 改 smoke 与扫描根 — checkable: `pnpm -C packages/cdd-engine run smoke` 指向 `src`；`pnpm run check:no-bare-functions` 的扫描根为 `src` 且零命中
+- 改树外测试面 — checkable: `pnpm -C packages/kairos test` 绿（8 个文件的 import 已改指）；`pnpm exec vitest run` 绿（两个孪生与路径常量已改）
+- 改五份手维护文档 — checkable: 仓库内 `src-next` 字面在代码 / 配置 / 脚本 / 图源 / 五份文档里零命中（历史文档的记录面除外，按 §3.4 的分界）
+- 删旧树与对账器 — checkable: `packages/cdd-engine/src-next/` 不存在；`tests/parity` 的 include 与 tsconfig 工程已删
+- 重生生成物 — checkable: `pnpm run emit` 后 `pnpm run emit:check` 报 fresh
+- 全绿 — checkable: `pnpm run validate` exit 0；`pnpm run check:dist-smoke` 绿（dist 由新树产出）
+- 失败面的处置写进验收 — checkable: 若 `validate` 或 `dist-smoke` 红而对账器绿，处置是回 T2 的语料面补一种形态（因为这说明语料缺臂），**不改判据、不改基线**；若为了让翻面绿而动了消费者字节，按缺陷处理
+- 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
+
+#### Acceptance
+spec §3.3 的十一序逐步可核；旧树路径在代码 / 配置 / 脚本 / 图源 / 五份手维护文档里零命中；`pnpm run validate` exit 0；`check:dist-smoke` 绿；`emit:check` fresh；`pnpm -C packages/kairos test` 与根套件绿。
+
+#### DependsOn
+16
+
+### Task 18: 相位收口
+
+#### Objective
+翻面之后把相位的账结清：changeset、切片不变量与入口的可核化、以及「翻面后无字节判者」这一事实的承接口。
+
+#### Files
+- Create: `.changeset/p39-rebuild-in-src.md`
+- Modify: `AGENTS.md`（切片表与验证命令，若 T17 未覆盖）
+- Create: `packages/cdd-engine/src/__tests__/slice-invariants.test.ts`
+
+#### Consumes
+- spec §4（再推导规则）· §5（代价：翻面后无字节判者）· Acceptance #5（不变量可陈述）
+
+#### Produces
+- changeset：`@oscaner-skills/cdd-engine` **patch**（D74：方法论契约未变，重建不改消费者字节）
+- `slice-invariants.test.ts`：四个一级切片的入口类注释第一行存在且非空；`run/` 四段各一句；每片对外成员数 < 该片实现文件数（深度判据的可核形态）
+- `AGENTS.md` 的切片表（若与 T17 的改指分开落地）
+
+#### Steps
+- 写 changeset — checkable: `pnpm exec changeset status` 认到 `cdd-engine: patch`，且 `packages/kairos` 无条目
+- 写可删除性 pin（spec 验收 #1） — checkable: 三条各一处注册，且删掉一个单元只缺那一行——命令壳的文件集与注册表行集双向相等；板面每个投影行一处注册；判据每条一行规则（删一个壳文件 ⇒ 测试点名那一行注册，不多不少）
+- 写不变量可核 pin — checkable: 抹掉任一切片入口类注释的第一行 ⇒ 测试红
+- 写深度判据 pin — checkable: 给某片人为加十个对外成员而实现文件不变 ⇒ 测试红
+- 更新 AGENTS.md 的目录表 — checkable: 表里五个面换成四切片，且每个切片一句不变量
+- 全绿 — checkable: `pnpm run validate` exit 0
+- 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
+
+#### Acceptance
+changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；深度判据可红；可删除性三处各一行注册（删一个单元只缺那一行）；`AGENTS.md` 的目录表与树上四切片一致；`pnpm run validate` exit 0。
+
+#### DependsOn
+17
+
+## Change history
+
+| Version | date | summary | author |
+| --- | --- | --- | --- |
+| v0.1 | 2026-11-25 | 首稿：18 个任务 / 11 波（宽 1·3·2·3·1·2·2·1·1·1·1）。W1 立编译面 / 测试面 / 双向禁门；W2 立对账器与 `env/paths+workspace` 与 `docs/grammar`；W3 `env/process+vcs` 与 `docs/identity+judging`；W4 `run/ledger` 与 `env/provision` 与 `docs/skeleton`；W5 `run/gate`；W6 `run/dispatch` 与 `surface/words`（词表的站名闭集与门行集同源，故依赖门）；W7 `run/advance` 与 `surface/render`；W8 `surface/commands`；W9 组合根与对账首绿；W10 翻面（十一序 · 旧树整棵删除）；W11 收口（changeset · 可删除性 · 不变量与深度的可核形态） | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-25） |

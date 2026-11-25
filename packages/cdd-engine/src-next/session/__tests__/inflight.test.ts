@@ -329,6 +329,17 @@ describe("InFlight.inspect — the held record's own target facts (P44 §3.1)", 
     expect(state.targetGone).toEqual({ plan: false, workspace: false });
   });
 
+  it("reads the workspace fact gone on its own when the plan is still on the tree", async () => {
+    // The workspace cell is a read of its own, so it must be able to read OUT alone:
+    // the plan stands and the slug's directory does not, the mirror of the arm above.
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ plan: "docs/p3.md" }));
+    plantPlan(repo, "docs/p3.md");
+    const state = await heldOf(inflight);
+    expect(state.targetGone).toEqual({ plan: false, workspace: true });
+  });
+
   it("carries no plan fact on a `--spec` record — that cell is false, whatever the tree holds", async () => {
     // The record is judged on WHICH FACT IT CARRIES, never on the face it came from: a
     // null `plan` has no "gone" shape to read, so only the workspace cell decides.

@@ -849,7 +849,7 @@ export const CLAUSES = {
 } as const;
 
 /** The dispatch-prompt data plane — the typed template-contract surface. $version 26
- *  carries the P44 review-prompt batch (§4.2 · §5.1 · §9.2), two byte changes over
+ *  carries the P44 review-prompt batch (§4.2 · §5.1 · §9.2), four byte changes over
  *  25: the `spec-consistency` lens row gains its referent question (a reading is
  *  asked which items it counts and whether those items are still on the tree — the
  *  reading/referent drift is that question's answer, never a new criterion, §4.2);

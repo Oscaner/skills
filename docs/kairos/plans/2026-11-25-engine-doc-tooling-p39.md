@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -45,6 +45,7 @@ base: develop
 - `src/bin.ts`：组合根占位（导出 `main()`，本波不接线）
 
 #### Steps
+- 退役 `src` 那一条腿 — checkable: 从 `RETIRED_PLANES` 移除 `"src"` 且保留 `"config"`；随后人为建一个包根的 `config` 目录 ⇒ 该 pin 仍红（证明 `config` 腿还活着），删掉即绿；同一文件里「`src-next` 内零说明符指向退役平面」那条断言不受影响（`pnpm -C packages/cdd-engine exec vitest run src-next/__tests__/zero-dep.test.ts` 绿）
 - 写 `tsconfig.src.json` 并挂进根 `typecheck` 链 — checkable: `pnpm run typecheck` exit 0，且它点名四个工程（引擎旧树 · `scripts` · kairos 测试 · 引擎新树）
 - 埋一处类型错误到 `src/bin.ts` — checkable: `pnpm run typecheck` 红，且报文指到 `src/`
 - 撤回那处错误 — checkable: `pnpm run typecheck` 回到 exit 0
@@ -53,7 +54,6 @@ base: develop
 - 撤回 — checkable: 回到全绿，且这一次收集到的用例清单与埋断言之前那一次相等（两头各存一份清单比对；不把当天的读数字面写进判据，D103）
 - 写两条禁门断言 — checkable: 在 `src/` 的某个非测试文件里写一行 `import "../src-next/bin.ts"` 即红；反向（在 `src-next/` 非测试文件里 import `src/`）另造一次即红；两次撤回后绿
 - 把 `src` 加进零裸函数扫描根 — checkable: 在 `src/` 的非测试文件里写一行 `export function f() {}` ⇒ `pnpm run check:no-bare-functions` 红并点名该文件；撤回后绿
-- 退役 `src` 那一条腿 — checkable: 从 `RETIRED_PLANES` 移除 `"src"` 且保留 `"config"`；随后人为建一个包根的 `config` 目录 ⇒ 该 pin 仍红（证明 `config` 腿还活着），删掉即绿；同一文件里「`src-next` 内零说明符指向退役平面」那条断言不受影响（`pnpm -C packages/cdd-engine exec vitest run src-next/__tests__/zero-dep.test.ts` 绿）
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
@@ -131,13 +131,14 @@ none
 #### Produces
 - `Env`（`env/index.ts`）：构造一次，成员为四段的只读门面；本任务交付 `paths` 与 `workspace` 两段
 - `paths`：`RepoRoot.of(cwd)`（不可推算即抛）· `docRootsOf(root)` · `SlugIndex`（同 slug 多份 ⇒ `invalid`）
-- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写（`base` · `source` · `plan` · `recordedAt` 四字段；`BASE_ARTIFACT_FIELDS` 与 `BaseSource` 从 `env/workspace/base-artifact.ts` 导出，kairos 的 `base-artifact-schema.test.ts` 翻面时改指这一处；缺失或畸形读作 `null`，写入经 `#writeJson` 落地）
+- `workspace`：`Workspace#ensure` / `#writeJson`（经原子写）/ `#roundLogOf` / `#sealOf` · `BaseArtifact` 的读与写——**两处外部事实由构造参数进来，不在本模块里取**：`now: () => number`（时间戳来源，T5 的 `env/process/clock.ts` 落地后由组合根传入唯一实现）与 `baseName: string`（基产物的文件名，由 T7 的产物矩阵派生）。两个参数都是**必填无默认值**，缺即抛；`env/**` 的非测试文件里零 `Date.now` / 零 `new Date(` / 零文件名拼接字面
 - 四类路径判据的往返 pin：写入—读回—拼写不变量
 
 #### Steps
 - 写 `paths` 的两条 pin（可推算 · 不可推算即抛） — checkable: 在临时目录里 `RepoRoot.of` 取到 git 顶层；在非仓目录里它抛且报文点名 cwd
 - 写 slug 索引的判据 pin — checkable: 同 slug 两份文档 ⇒ 该 slug 读作 `invalid`，单份 ⇒ 可取到路径
 - 写基产物的 pin — checkable: 首次写入后读回同一对象；字段集与 `BASE_ARTIFACT_FIELDS` 的元组逐值相等（断言从元组派生，不手写字段名）；畸形 JSON 读作 `null` 而不抛
+- 写注入参数的 pin — checkable: 不传 `now` 或 `baseName` ⇒ 构造即抛（无默认值）；传一个固定 `now` 两次 ⇒ `recordedAt` 相同；传一个改过的 `baseName` ⇒ 落地文件名随之变（名字不是本模块的字面）
 - 写 workspace 的原子写 pin — checkable: 写入过程中被注入的失败不留半截 JSON（读回旧值）
 - 写 `.kairos/.gitignore` 的 keep-out pin — checkable: `ensure` 之后 `.kairos/cdd/` 在被忽略面内，且它不建任何以 slug 命名的目录
 - 写 `Env` 的门面 — checkable: `Env` 对外只露 `paths` 与 `workspace` 两段（成员集 pin），构造函数参数不超过四个
@@ -322,6 +323,8 @@ none
 - Create: `packages/cdd-engine/src/env/provision/plugins.ts`
 - Create: `packages/cdd-engine/src/env/provision/__tests__/provision.test.ts`
 - Modify: `packages/cdd-engine/src/env/index.ts`
+- Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
+- Modify: `packages/cdd-engine/tests/parity/parity.test.ts`（本片各格的比较项）
 
 #### Consumes
 - 旧树的 `face/init.ts#CliInit` · `face/plugins.ts#PLUGINS`（读行为：九步 vs 六步、`--include-recommends` 的两档、`--update` 的两序列、`--dry-run` 零 spawn）
@@ -362,6 +365,8 @@ none
 - Create: `packages/cdd-engine/src/docs/judging/__tests__/criteria.test.ts`
 - Create: `packages/cdd-engine/src/docs/skeleton/__tests__/skeleton.test.ts`
 - Modify: `packages/cdd-engine/src/docs/index.ts`
+- Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
+- Modify: `packages/cdd-engine/tests/parity/parity.test.ts`（本片各格的比较项）
 
 #### Consumes
 - 旧树的 `contract/review-criteria.ts`（含 `LENS_QUESTION_ROWS`）· `contract/completion-criterion.ts#CompletionCriteria` · `contract/wave-width.ts#MAX_TASKS_PER_WAVE` · `render/skeleton.ts#SkeletonAssembler#compose`（读行为与四族的分支集）
@@ -622,6 +627,8 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - Create: `packages/cdd-engine/src/surface/render/brief.ts`
 - Create: `packages/cdd-engine/src/surface/render/__tests__/render.test.ts`
 - Modify: `packages/cdd-engine/src/surface/index.ts`
+- Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
+- Modify: `packages/cdd-engine/tests/parity/parity.test.ts`（本片各格的比较项）
 
 #### Consumes
 - 旧树的 `render/templates.ts`（`WORK_MODES` · `TEMPLATE_PROMPT.modes` / `.reviews` · `REVIEW_VARIANTS` · `$version`）· `render/brief.ts` · `render/issue-body.ts` · `face/capsule.ts` · `face/board-view.ts` · `face/preview.ts` · `face/graph-view.ts` · `face/route-render.ts` · `face/artifacts.ts#CliArtifacts#runIssue`（stdin JSON 契约与违约报文）· `face/gate.ts` 的两处拒绝措辞（读行为与字节）
@@ -633,7 +640,7 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - `surface/index.ts` 扩出各渲染入口
 
 #### Steps
-- 写 prompt 两带的 pin — checkable: `modes` 键集 = `WorkModeRowKey`（implement · fix · docs-fix）；`reviews` 每 `TargetType` 一行，六行齐；`$version` 与旧树相同
+- 写 prompt 两带的 pin — checkable: `modes` 键集 = `WorkModeRowKey`（implement · fix · docs-fix）；`reviews` 的键集恰是 `TargetType`（断言从 `REVIEW_VARIANTS: Record<TargetType, …>` 的类型派生，不写字面行数）；`$version` 与旧树相同
 - 写模板字节等价 — checkable: 对同一组输入，新渲染器与旧渲染器字节相同（对账器的 prompt 格由本任务接上）
 - 写胶囊的 pin — checkable: `status · handoff` 字节；handoff 缺席时的形态
 - 写 `next:` 单点拼装的 pin — checkable: 同一 `NextHop` 经胶囊与板面渲染 ⇒ 两处 `next:` 字节相同（把 `route.ts` 的拼法改一处，两处同时变）
@@ -669,6 +676,8 @@ pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 �
 - Create: `packages/cdd-engine/src/surface/commands/__tests__/commands.test.ts`
 - Create: `packages/cdd-engine/src/surface/commands/__tests__/channel-closure.guard.test.ts`
 - Modify: `packages/cdd-engine/src/surface/index.ts`
+- Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
+- Modify: `packages/cdd-engine/tests/parity/parity.test.ts`（本片各格的比较项）
 
 #### Consumes
 - 旧树的 `face/cli.ts`（八命令的旗标、值域、退出码；场景装配与判定面不在壳里，回 `run/advance` 的 `Frame`（T13）——壳交 argv 侧输入，不交已装配的 slug）· `face/declare.ts`（`CliVerb` · `ARGV_CHANNEL` · `VALUE_SHAPES`）· `face/projection.ts`（命令树装配：八条命令的描述 · 嵌套的叶 · 绑定规则 · 值域校验 · 帮助注入）· `face/artifacts.ts#CliArtifacts`（三条纯命令的取参—调用—输出序列；产物面本身不在壳里）
@@ -829,3 +838,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | v0.9 | 2026-11-25 | docs-fix 轮四（F1–F5 全部落地，未放宽判据）：T2 的「自身可红」改成不依赖新树 producer 的自证臂（同一场景旧树双录互比，改一份录制的一个字节即红），Acceptance 同口径收口，第一个接线格落地后已接线格的字节差异接上同一条红臂；面 1 的格文法写实成 `命令 × 路 ∈ {正常, 拒绝, 失败} × 流`，名册给拒绝路（T16 的壳 + T11 的门行）与失败路（T12 的终止因 + T16 的退出码面）各自的接线任务，不存在的路写「不适用」；T13 的 `line-phase` 收成零措辞，措辞只在 `surface/render/route.ts` 由 hop 拼出；T16 的三件事入口面补 `env/`，薄壳判据改判「不 import `env` 的 IO 面」，`base` 与 `init` 的产物面实例由组合根注入；Constraints 的设计输入改成 spec 的当前版本（不钉 v0.5 快照，差异以回填落地）。spec §1.3 的同口径回填留编排者。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.10 | 2026-11-25 | docs-fix 轮五（F1–F5 全部落地，未放宽判据）：T13 补 `wave` 的 Produced 面——`WaveGate#vet(requested, verb)` 五行齐 · 行序即判据 · 成因 token 只取 `DISPATCH_REASON` 的 line 腿，Steps 每个成因改成一条必报 + 一条邻居不报（宽 frontier + 子集请求必须报 `wave-too-wide` 而非 `split`），Acceptance 的「波宽三档」改成「波门五行的成对臂含行序」；T2 的名册把面 1 的拒绝路按成因各成一格（波门五行各一格 · 门口四站名各一格），接线任务收成单 owner（拒绝路归 T16 的壳，波门判定取 T13 · 站名取 T11 · 报文取 T14 作读值来源；失败路归 T12，退出码面取 T16 作读值来源），名册每格并写 producer 的落点（模块 + 导出名），「已落地」改读作「落点在树上且可解析」，漏接在它自己那一波就红；`Clock` 的 Produced 面含当前时刻与 epoch → ISO 两件能力，时钟 pin 只扫无参 `new Date()` 与 `Date.now()`，`Words` 收注入的时钟、自身零 `new Date(`；`base` 与 `init` 的产物面实例所有者改成 `Env`，组合根只造 `Env`，T17 的唯一性 pin 覆盖这两个实例。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.11 | 2026-11-25 | docs-fix 轮六（F1–F6 全部落地，未放宽判据）：T2 的失败路接线任务改成 T16 的壳一个（与拒绝路同形），终止因取 T12 的 `DispatchOutcome`、报文取 T15 的渲染面作读值来源——一格的三条流都由命令面产出，名册不再让只在第七波落地的终止因独自认领一族格；场景装配有了 owner：T13 新增 `run/advance/frame.ts` 的 `Frame#of(request)`（argv 侧输入 → 一帧：slug 判定 · 计划读 · 身份声明的 `doc-type:` 与 `program:` · 同名 spec 与 charter 链 · 目标 · 管线前沿四格 · `RunState` 与 router，经注入的 `Documents` 与 `Env` 取值），`Run.advance` 与 `Run.boardOf` 改收 argv 侧输入、T16 的 Consumes 改指这一处，附「同一 argv 两次装配字节相同」的 pin；`DISPATCH_REASON` 与 `WAVE_GATE_REASON` 及 hop 的 `reason:` 视图点名住 `run/advance/next.ts`，token 单源 pin 改判「表在 `next.ts`、`wave.ts` 里写一个成因字面即红」；`Clock` 补到两个后续读点——T11 的拒绝事实 `at` 与 T12 的 in-flight 起跑时刻（进程表答不出时回落注入时钟），各附一条零 `Date.now()` 的 pin；T18 的验收从「十一序」改成「spec §3.3 的固定序逐项可核」，Steps 前十条按那一序重排（图源在文档之前、smoke 与扫描根在树外测试面之后）；T17 的组合根唯一性 pin 的扫描名单补上 `new Documents`（四片四个类名）。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
+| v0.12 | 2026-11-25 | **编排者的结构收口（用户裁定 A：停在评审七轮未收敛处，改结构而不是再叠 fix）**：四笔。① **T1 步序**——回填时我把「退役 `zero-dep` 的 `src` 腿」插在末尾，而第 4 步已接收集面、`src/` 一在包根那条 pin 就必红，于是第 6 步的「回到全绿」不可达；退役步骤提到第一步。② **T3 的两处外部事实改为构造入参**——`now: () => number` 与 `baseName: string`，必填无默认值，缺即抛：这样 T3 不再需要 T5 的 `Clock` 与 T7 的产物矩阵，**步序不可行从根上消失，且零加边、零移文件**（比原计划的「把两个叶子提到第一波」更省）。③ **对账器文件的归属**——T8 · T9 · T15 · T16 各补 `tests/parity/GRID-WIRING.md` 与 `parity.test.ts` 两条 `Modify`，接线格的写点不再没有落点。④ 去掉一条字面计数（`reviews` 改按 `TargetType` 类型派生）。波次零变：19 任务 / 13 波 / 宽 1·3·2·3·1·1·2·1·1·1·1·1·1 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-25） |

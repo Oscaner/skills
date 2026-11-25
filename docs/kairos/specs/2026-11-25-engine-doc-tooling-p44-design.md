@@ -1,7 +1,7 @@
 ---
 title: '引擎接手面收口 — Phase Spec'
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p44-design'
 program: 2026-10-10-engine-doc-tooling
@@ -18,7 +18,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 A「接手
 
 实测（github#520）：一条 P39 的 fix 记录，`pid` 早已不在，它指向的 plan 不在树上，它 slug 的 workspace 目录也不存在。带 `--recover` 的评审被 doc-contract 拒，记录原样留下；修好文档后再带 `--recover` 才被释放。释放之后仍带着这个 flag 再发一次，引擎回「`--recover` has nothing to take over …」——那一次它说的是对的，因为记录已经释放。
 
-成因不是记账，是**授权面**。`face/cli.ts#Cli` 的派发路径顺序是：`vet()`（九门，含 doc-contract）→ `structureRefusal(preflight)` → `structure === null` 时才判 `#recoverRun`。in-flight 门在 `--recover` 下对 stale 记录**放过**（`session/preflight.ts#PreFlight.#inFlightRefusal` 在 `alive === false ∧ recover` 时返回 null），可后续任何一门拒绝就让 `#recoverRun` 整段不执行，`foldAbort` 也就没跑。
+成因不是记账，是**授权面**。`face/cli.ts#Cli` 的派发路径顺序是：`vet()`（九门，含 doc-contract）→ `structureRefusal(preflight)` → `structure === null` 时才判 `#recoverRun`。in-flight 门在 `--recover` 下对 stale 记录**放过**（`session/preflight.ts#PreFlight.#inFlightRefusal` 对 stale 记录 + `recover` 返回 null——这是一条**充分条件**而不是全部：stale 形态不止一种，另外两种同样被放过，读数面见 §2.1），可后续任何一门拒绝就让 `#recoverRun` 整段不执行，`foldAbort` 也就没跑。
 
 两类事实因此被混在一处：in-flight 记录说的是**这棵树**有没有人拿着；doc-contract 说的是**这份文档**能不能派发。后者拒绝前者，等于让「文档不合格」变成「树仍然被持」。这不是保守，是把清理权交给了与它无关的判决。
 
@@ -30,7 +30,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 A「接手
 
 #### 2.1 leg ① 绑 in-flight 门
 
-`#recoverRun` 的两条腿授权条件不同，把它们拆开：**leg ①**（abort 腿：接手被杀轮次的记录，`face/lifecycle.ts#CliLifecycle.foldAbort`）的授权条件是 **in-flight 门自己的放过判定**——门判 stale（`alive === false`）且本次调用带 `--recover`，这条腿就成立，与后续门是否拒绝无关。
+`#recoverRun` 的两条腿授权条件不同，把它们拆开：**leg ①**（abort 腿：接手被杀轮次的记录，`face/lifecycle.ts#CliLifecycle.foldAbort`）的授权条件是 **in-flight 门自己的放过判定**——门判 stale（`session/inflight.ts#InFlight.staleState()` 非 null，含三种形态：持有者已死的可读记录、带锁的 corrupt 记录、只剩锁而无记录的残迹）且本次调用带 `--recover`，这条腿就成立，与后续门是否拒绝无关。三种形态里只有第一种带 `alive` 这个事实，另两种**没有 `alive` 可读**，而 `#inFlightRefusal` 对它们同样返回 null——把授权写成 `alive === false` 会让这两条接手路径在实现里失掉。
 
 判据形态：授权就是 in-flight 门自己的放过判定，由两条已读事实合成——`session/preflight.ts#PreFlightVerdict.checked` 里存在 `in-flight:` 行，且 `session/inflight.ts#InFlight.staleState()` 非 null（`face/cli.ts#Cli.#recoverRun` 的那次调用已经得出 stale）。两格各证明什么按代码读：`PreFlight.#inFlightRow` 在 `#inFlightRefusal` 之前就把行推进 `checked`，而拒绝沿用累积的那一份 `checked`，所以这行证明的是 **tree-clean 已过**，不是「in-flight 门没有拒绝」——被这门自己拒的判决照样带着它（`session/__tests__/preflight.test.ts` 就在 `gate === "in-flight"` 的拒绝上断言这一行存在）。不新增判定，也不再从「整段结构腿是否通过」反推。
 
@@ -146,7 +146,7 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 - **D103 的前提与 P44 行同一批改真**：D103 与宪章的 P44 Phase-inventory 行都把「同一句验收尾在多份 spec 里各住一份」当成退役的前提，而这条读数没有一种读法复现（§8.1 已把它写成条件：phase-spec 的验收尾是每个相位按同一骨架写下的同一句，按构造重复，门因此只能接受改写措辞）。两处同批换成那句条件句，读数从决策面退出；宪章面由编排器回填，本 spec 只登记这一批。
 - **源码注释同批改真**（名册在源码面的转述，漏一处就留一条死指称）：`contract/invariants.ts` 的模块头名册行（`the shape gate (P41)` 那一行）去该 id；`contract/rules.ts` 的注册表注释（`the variable classes · single-home · the record face's date shape`）去该 id；`face/cli.ts#Cli.#contract` 的字段注释去掉「strategies hold their own state」那半句；`face/cli.ts#Cli.#beginCommand` 的两处同批改写——方法文档注释里的「the judgment instance's own right-domain corpus are dropped here」与行内那条「strategies hold their own state (the `single-home` corpus per root)」，后者现在的判由是重建 `#contract`。
 - **明示豁免与测试面收口**：`session/graph.ts` 的「Edge judgment is single-homed here」是散文用法（说的是边的判决住在一处，不指规则 id），**不改**；`__tests__/support/memory-fs.ts` 的模块头把「P41 T4's single-home pairs」列为测试侧 `DocFs` 的消费者，同批改写（去掉该条，只留另两条夹具）；测试面另有三处随规则退出——`contract/__tests__/shape-rules.test.ts` 的模块头注释与 `SHAPE_RULE_IDS` 同批、`contract/__tests__/charter-self-repair.test.ts` 的该族臂与模块头一并收口、`contract/__tests__/selector-coverage.test.ts` 的模块头与邻域种植注释改指 `contract/invariants.ts#CrossDocChainInvariant`。
-- **零残留 pin 的扫描面与图案**：图案取规则 id 的连字符形 `single-home`，扫描面取 `contract/` 与 `face/` 两个目录的源码；`__tests__/` 只留负向断言——测试面点名该 id 来断言它缺席，是 pin 的正常形态；`single-homed` 与普通英语的「single home」用法（`session/graph.ts` · `face/host.ts` · `infra/config.ts` 等处）不在图案内，也不在扫描面内。
+- **零残留 pin 的扫描面与图案**：图案取规则 id 的连字符形 `single-home`，扫描面取 `contract/` 与 `face/` 两个目录的源码；`__tests__/` 只留负向断言——测试面点名该 id 来断言它缺席，是 pin 的正常形态；`single-homed` 与普通英语的「single home」用法不产生命中：图案是**带词边界的 kebab 形**（`(?<![\w-])single-home(?![\w-])`），词尾带 `-d` 或拆成两个词都不匹配，这正是 pin 自己的成对臂所断言的那条读数。这些散文用法**并非住在扫描面之外**——`face/host.ts` · `face/dispatch-values.ts` · `contract/skill-anatomy.ts` 都住在 `contract/` 与 `face/` 之内（`session/graph.ts` · `infra/config.ts` 才在面外）；把它们写成「不在扫描面内」会让后来者以为在 `face/host.ts` 里写该 id 不会变红。
 - **`#contract` 的重建随语料退役**：`SingleHomeInvariant.#domains` 是这一族唯一的按命令状态；退役后 `Contract` 的每个字段都是构造期从声明表派生的只读值（`#strategies` · `#registry` · `#projector` · `#translator` · `#rowSource`），重建与不重建得到同一个判断面。`#beginCommand` 因此不再重建 `#contract`，字段注释改成「命令边界不重建」的那一句——保留下来的重建只剩一条为已删语料写的理由。
 - **留**：`spec-consistency` 的 lens 问句行留下，本 spec §4.2 那一句扩写是它唯一的改动——重复判据的**危害是漂移**，那条问句直接判漂移（"Do two places state the same fact differently…"），比判「文本像不像」更贴。
 - **约定**：`AGENTS.md` 的「One home per rule」保持为写作约定（从第二处链接过去），不设门。
@@ -211,3 +211,4 @@ supersede 戳与 `N+1` 派发仍守 `structure === null`。它们改的是**文�
 | v0.8 | 2026-11-25 | 四轮 phase-spec 评审整改（F1–F5，另三条笔记同批）：§3.1 的收尾句改成「与真残骸共用 `targetGone` 同一句、四个观测面不借 `stealable`」，与 §3.2 的 `stealable` 边界同向；§3.2 的第四态行补上接管指令——两个子句格只说目标事实，整行仍带 `--recover` 的接管句，`words.guard.test.ts` 的两条断言随行形状成立；变更史的 v0.4 行算术改成树上的行数（与 §8.2 及宪章的 P44 行同数）；§8.2 补零残留 pin 的扫描面与图案、`session/graph.ts` 的明示豁免与测试面收口，验收格同步；§8.1 与开篇把那个 spec 计数换成按构造重复的条件（读数与指称物脆钩这一类，本条自己先退出）；验收格把「活 holder 两条路径」拆开（活记录到不了后续门）、三条配对臂补上镜像方向，「两张表唯一的分歧」改成这一态上的分歧 | Oscaner M. · Claude（kairos:cdd-fix） |
 | v0.9 | 2026-11-25 | 需求面回填 ⑦（用户补入 · 计划期 backfill-design）：新增 §9「轮次的写权边界」——`render/templates.ts#CLAUSES` 加 `cl:own-document`（一轮只写 findings 点名的文档），与 `cl:plan-freeze` 的分工写在同一处；验收格与约束格各增一条，`$version` 随提示字节递增 | Oscaner M. · Claude（kairos:cdd-plan 计划期回填） |
 | v0.10 | 2026-11-25 | 五轮 phase-spec 评审整改（F1–F3）：§9.2 的 `cl:own-document` 把写面按模式点名——implement 轮取 brief 里 `### Task N:` 的任务文件（它没有 `findings`，写权不能只挂在 findings 上），fix · docs-fix 轮取 finding 画面里的代码文件，验收格把 implement 那一半补成成对臂；§2.1 的 `in-flight:` 行改成证「tree-clean 已过」（`PreFlight.#inFlightRow` 在 `#inFlightRefusal` 之前推进 `checked`，拒绝沿用累积那一份），不再说成「in-flight 门没有拒绝」；§8.2 登记 D103 与宪章 P44 行的退役前提同批改真——读数换成 §8.1 的条件句 | Oscaner M. · Claude（kairos:cdd-fix） |
+| v0.11 | 2026-11-25 | 六轮 phase-spec 评审整改（F1 · F2）：§2.1 的 leg ① 改写成 in-flight 门自己的放过面——`InFlight.staleState()` 非 null 的三种形态（已死的可读记录 · 带锁的 corrupt 记录 · 只剩锁的残迹）∧ `--recover`，不再收窄成 `alive === false`；§1.1 的 `#inFlightRefusal` 括注改成充分条件；§8.2 的零残留 pin 删去「也不在扫描面内」，改写成真正的机制——图案是带词边界的 kebab 形，散文用法住在扫描面之内而不匹配 | Oscaner M. · Claude（kairos:cdd-fix） |

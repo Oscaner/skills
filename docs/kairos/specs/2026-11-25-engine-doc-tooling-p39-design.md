@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.6
+version: v0.7
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -110,7 +110,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 钉那份日期的家只有一处：日期从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面把它取成系统时钟当天（`face/artifacts.ts#Artifacts.#today` 自己的注释就写明骨架不带日期参数面），旗标、环境变量与夹具缝都不通到它，而 §5 不许为它新开一条。所以四族骨架的字节格走装配器入口、在进程内同时驱动两棵树，同传一个冻结的日期——这个日期是语料的常量，录制基线与判比取同一个值，基线才跨天稳定——`date:` 行照常逐字节比，不屏蔽也不归一：被屏蔽掉的那一格正好是字节面存在的理由。必须真起进程的格（`init` 的 PATH 替身）产出的字节里没有日期，于是没有一格依赖运行当天；`schema get` 的壳面（回显路径与退出码）仍在起进程的那组格里比，它同样不带日期。
 
-对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。这个家今天不被任何工程收集——引擎的 vitest include 是 `src-next/**/__tests__/**/*.test.ts`，引擎 `tsconfig.json` 只含 `src-next`，根 `typecheck` 链也只点名三个既有工程——所以落对账器的那一波必须同批把 `tests/parity/**/*.test.ts` 加进 `packages/cdd-engine/vitest.config.ts` 的 include，为 `packages/cdd-engine/tests/parity` 建一份自己的 tsconfig 工程并同批挂进根 `typecheck` 链；执行它的命令是 `pnpm -C packages/cdd-engine exec vitest run tests/parity`。翻面（§3.3）同批删掉这处 include 与该工程——它们与对账器同生同死。
+对账器与它的语料有自己的家：`packages/cdd-engine/tests/parity/`，在 `src/` 之外；基线从 live 树录制一次落在 `packages/cdd-engine/tests/parity/baseline/`，从旧测试提取的夹具落在 `packages/cdd-engine/tests/parity/fixtures/`，两者随对账器一同销毁。这个家落在任何一个被收集的执行面之外，也不在任何 tsconfig 工程里：引擎的 vitest include 只收两棵树各自的 `__tests__` 树，引擎 `tsconfig.json` 只含 `src-next` 与这份 vitest 配置，根 `typecheck` 链只点名它自己已有的那几份工程。所以落对账器的那一波守的是一条条件，不是今天的快照：它把 `tests/parity/**/*.test.ts` **追加**进 `packages/cdd-engine/vitest.config.ts` 当下的 include 行——既有条目全部保留——并为 `packages/cdd-engine/tests/parity` 建一份自己的 tsconfig 工程挂进根 `typecheck` 链，同样是追加而非重写；执行它的命令是 `pnpm -C packages/cdd-engine exec vitest run tests/parity`。翻面（§3.3）同批删掉这处 include 与该工程——它们与对账器同生同死。
 
 #### 2.4 对账器只在测试面
 
@@ -124,7 +124,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 3.1 双向 import 禁门
 
-`src/` 不得 import `src-next/`，`src-next/` 不得 import `src/`，两条各一条可红断言。这是「不要混」从口号变成判据的唯一形态——没有它，两棵树会在某次顺手 import 里悄悄合流，翻面时才发现新树挂着一根旧树的脐带。两条断言的域是**产品文件**：`src/**` 与 `src-next/**` 各自去掉 `__tests__`；`src/` 的测试面（含 §2.4 的对账器）允许同时读两棵树，它是这套禁令的正控——不允许测试面同时看两边，「测试面之外零混」这句话本身就无判。
+`src/` 不得 import `src-next/`，`src-next/` 不得 import `src/`，两条各一条可红断言。这是「不要混」从口号变成判据的唯一形态——没有它，两棵树会在某次顺手 import 里悄悄合流，翻面时才发现新树挂着一根旧树的脐带。两条断言的域是**产品文件**：`src/**` 与 `src-next/**` 各自去掉 `__tests__`。两棵树各自的测试面都在域外，允许同时读两棵树；§2.4 的对账器连测试面都不在树内——它的家在 `packages/cdd-engine/tests/parity/`（§2.3），两棵树之外。它同时读两边仍合法，正是这套禁令的正控：不允许域外同时看两边，「测试面之外零混」这句话本身就无判。
 
 #### 3.2 `src/` 自第一波就绿
 
@@ -165,6 +165,8 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 在册的四条范围由本节取代，依据是 D104：① 的「按层级搬文件」被「在新树重建」取代；② 的「拆到 200 行以内」降为诊断（判深度）；③ 的「能力分包仅在方向立后引入」由四切片直接落实，不再需要独立一条；④ 的守恒面保留，但证明工具从 pin 改为对账器——pin 已随 P43 整条退役。
 
+**D104 ④ 的冻结面在本相位收窄到一条具名例外。** D104 ④ 与 Phase inventory P39 的 Scope 格写的是「`src-next/` 冻结零改动直到被整体替换」，而本相位对旧树唯一被允许的改动是 `src-next/__tests__/zero-dep.test.ts` 的 cutover 终态 pin：它的前提（退役平面不在包根）正是 D104 要在 `src/` 重建的那个名字，所以 `RETIRED_PLANES` 里 `src` 那一条腿随第一波退役，`config` 腿与该文件里「`src-next` 内零模块说明符指向退役平面」那条断言保持生效，其余旧树字节零改动。登记面的这两格与本节同批对齐。
+
 依赖面：`P37 -> P39` 的硬边理由已随 D101 作废，前序相位全部交付，今天的阻塞是零；执行序排末位不变。
 
 ### Acceptance criteria
@@ -197,3 +199,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.4 | 2026-11-25 | 评审轮三（F1–F4）落地：翻面的手维护文档清单补齐 `README.zh-CN.md` 与 `packages/cdd-engine/README.zh-CN.md` 两份镜像（§3.3 · §3.4 · Acceptance #4）· 语料面写实为旧测试的整个夹具面，非树输入（`init` 的 PATH 替身与注入 runner、`issue render` 的 stdin JSON、骨架的注入日期）一并点名，§5 的禁令限定为「不超过旧测试已带的臂」· 形状规则改 pin `contract/rules.ts#RULE_REGISTRY`，路径文法作它消费的对象（§1.2 · §2.1 #6）· `src/` 测试 include 的家与波次写实，编译臂配一条测试臂（§3.2） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.5 | 2026-11-25 | 评审轮四（F1）落地：§2.3 补上骨架 `date:` 行的钉法——日期只从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面取自系统时钟且无旗标 / 环境变量 / 夹具缝可达，故四族骨架按装配器入口在进程内同传一个冻结日期驱动两棵树，`date:` 行逐字节比而不屏蔽，需真起进程的格产出的字节不含日期 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.6 | 2026-11-25 | 开发期漂移回填（第一波 implement 撞出）：旧树的 cutover 终态 pin `src-next/__tests__/zero-dep.test.ts` 断言退役平面 `src` 与 `config` 不在包根，而本相位按 D104 在 `src/` 重建。Constraints 补一条把作废面收窄到 `src` 那一条腿（`config` 腿与零说明符断言保留），并声明它是本相位唯一被允许的旧树改动、与第一波同批落地 | Oscaner M. · Claude（kairos:cdd-dev 编排器回填 · 2026-11-25） |
+| v0.7 | 2026-11-25 | 评审轮五（F1–F3）落地：§2.3 把对账器落户的前提从「今天的 include 只有一条、`typecheck` 链只点名三个工程」这一快照改写成一条条件——把 `tests/parity/**/*.test.ts` 追加进 `packages/cdd-engine/vitest.config.ts` 当下的 include、把一份独立 tsconfig 工程追加进根 `typecheck` 链，既有条目全部保留，散文里不写计数也不写既有模式字面 · §3.1 删掉「`src/` 的测试面含 §2.4 的对账器」这处与 §2.3 冲突的家，改述为两棵树的测试面都在禁门域外、对账器另住在 `packages/cdd-engine/tests/parity/` · §6 补一句把 D104 ④ 与 P39 登记格的「`src-next/` 冻结零改动」收窄到 `zero-dep.test.ts` 的 `src` 腿这一条具名例外（`config` 腿与零说明符断言保留） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |

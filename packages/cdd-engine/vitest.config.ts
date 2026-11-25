@@ -18,9 +18,10 @@ export default defineConfig({
     maxConcurrency: 2,
     testTimeout: 20000,
     coverage: { provider: "v8" },
-    // Post-cutover (T15): the src-next/ tree is the engine's single active plane — the
-    // old src/ project died with the cutover, so the suite is one project over the new
-    // tree's colocated tests (src-next/**/__tests__/**/*.test.ts).
-    include: ["src-next/**/__tests__/**/*.test.ts"],
+    // Two trees coexist while the new tree is rebuilt: src-next/ still ships and src/ is
+    // the one being re-derived from it. Both are collected, because a tree no project runs
+    // is a tree with no judge — its first real test run would come at the cutover, where
+    // every failure reads as a cutover defect instead of the wave that introduced it.
+    include: ["src-next/**/__tests__/**/*.test.ts", "src/**/__tests__/**/*.test.ts"],
   },
 });

@@ -163,8 +163,8 @@ export class TaskGraph {
         {
           kind: "missing-edge",
           task: id,
-          message: `task ${id} declares no DependsOn edge`,
-          fix: "add a `#### DependsOn` section (`none` = the explicit no-dependency declaration)",
+          message: `task ${id} declares no **DependsOn** edge`,
+          fix: "add a - **DependsOn**: line (`none` = the explicit no-dependency declaration)",
         },
       ];
     }
@@ -176,7 +176,7 @@ export class TaskGraph {
         kind: "missing-id",
         task: id,
         message: `task ${id} depends on unregistered task ${missing.join(", ")}`,
-        fix: `set DependsOn to a task id present in the plan (${missing.join(", ")} is not)`,
+        fix: `set **DependsOn** to a task id present in the plan (${missing.join(", ")} is not)`,
       });
     }
     if (deps.includes(id)) {
@@ -184,7 +184,7 @@ export class TaskGraph {
         kind: "self-loop",
         task: id,
         message: `task ${id} depends on itself`,
-        fix: `a task may never depend on its own number — drop ${id} from the block's DependsOn`,
+        fix: `a task may never depend on its own number — drop ${id} from the block's **DependsOn**`,
       });
     }
     return issues;

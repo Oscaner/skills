@@ -810,6 +810,16 @@ export const landingDiff = (
   };
 };
 
+/** The reconciler's two injected seams — both defaults are the declared tables, and both
+ *  are parameters so a pin can hand it a variant: a tree that answers other bytes, and a
+ *  registration table missing one row ("absence must be named"). */
+export interface ReconcileSeams {
+  /** The tree whose cells are read; the registered one by default. */
+  readonly newTree?: NewTree;
+  /** The kind → registration-wave table; the declared one by default. */
+  readonly waves?: ReadonlyMap<string, string>;
+}
+
 /**
  * Reconcile one scenario against its recording: for every applicable cell whose producer
  * has landed, read the SAME probe on the NEW tree and compare the projection with the
@@ -820,8 +830,10 @@ export const reconcile = async (
   scenario: Scenario,
   baseline: Baseline,
   roster: Roster,
-  newTree: NewTree = NEW_TREE,
+  seams: ReconcileSeams = {},
 ): Promise<Reconciliation> => {
+  const newTree = seams.newTree ?? NEW_TREE;
+  const waves = seams.waves ?? REGISTRATION_WAVES;
   const diffs: Diff[] = [];
   const gaps: string[] = [];
   const deferred: string[] = [];
@@ -873,8 +885,8 @@ export const reconcile = async (
       next = await newTree.read(probe, scenario.frozenDate);
     } catch (raw) {
       if (!(raw instanceof NewTreeAbsent)) throw raw;
-      const wave = registrationWaveOf(raw.kind);
-      if (wave === undefined) {
+      const wave = registrationWaveOf(raw.kind, waves);
+      if (wave === null) {
         missing.push(`${cell.id}: the new tree has no "${raw.kind}" driver — ${row.task} wires it`);
       } else {
         // The kind is declared: counted with its wave, never a diff and never a hole.

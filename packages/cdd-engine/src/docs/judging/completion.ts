@@ -8,8 +8,11 @@
 // the sentence a refusal prints.
 //
 // The two arms the phase pins:
-//   · `implement` is done only when the group produced at least one commit — a zero-commit
-//     implement round is a violation, whatever its draft says;
+//   · `implement` is done when the group produced at least one commit — a zero-commit
+//     implement round is a violation, whatever its draft says — OR when the round is a
+//     VERIFICATION wave with green evidence (P30 §2.4): a wave whose every task declares an
+//     empty `Files` changes no file by design, so its green evidence IS its completion and a
+//     `committed nothing` refusal there would be a cross-attempt false negative;
 //   · `review` is done when its carrier's `findings` is an ARRAY — an EMPTY array is a valid
 //     APPROVED conclusion, so emptiness is never a violation while an absent carrier or a
 //     non-array `findings` is.
@@ -30,6 +33,16 @@ export interface CompletionFacts {
   readonly commits: number;
   /** The round's carrier `findings` array, or null when the round persisted no carrier. */
   readonly findings: readonly unknown[] | null;
+  /** The task ids the round's line declares — the wave's members. Empty for a line that
+   *  groups no task (a branch round), which is never a verification wave. */
+  readonly waveTasks: readonly number[];
+  /** The plan tasks whose `Files` declaration names no path. FACTS ONLY: the plan read that
+   *  fills this set belongs to the caller, which also owns the wave-key read that gives
+   *  `waveTasks` its members. */
+  readonly emptyFileTasks: ReadonlySet<number>;
+  /** Whether this round's test evidence already passed its own schema check — the gate that
+   *  judged it is the caller's, so the criterion never re-reads an evidence file. */
+  readonly evidenceOk: boolean;
 }
 
 /** One criterion's verdict: done, or the violation a refusal prints. */
@@ -42,10 +55,32 @@ export interface CompletionCriterion {
   judge(facts: CompletionFacts): CompletionVerdict;
 }
 
-/** The implement criterion — a round is done when its group committed something. */
+/** The implement criterion — a round is done when its group committed something, or when a
+ *  VERIFICATION wave's evidence is green. A verification wave is one whose EVERY member
+ *  declares an empty `Files`; a member set that is merely a subset of the wave does not
+ *  qualify (the wave would still have changed files), and neither does a line that declares
+ *  no member at all ("every member" is vacuously true over an empty set, so the empty set is
+ *  refused first). */
 export class CommitsCriterion implements CompletionCriterion {
+  /** Whether this round is a verification wave: it declares at least one member and every
+   *  member's `Files` declaration names no path. */
+  static isVerificationWave(facts: CompletionFacts): boolean {
+    if (facts.waveTasks.length === 0) return false;
+    return facts.waveTasks.every((id) => facts.emptyFileTasks.has(id));
+  }
+
   judge(facts: CompletionFacts): CompletionVerdict {
     if (facts.commits > 0) return { kind: "done" };
+    if (CommitsCriterion.isVerificationWave(facts)) {
+      // The two refusals name DIFFERENT gaps: a wave that declares no file changes and owes
+      // evidence is not the same defect as a wave that simply produced nothing.
+      if (facts.evidenceOk) return { kind: "done" };
+      return {
+        kind: "violation",
+        message:
+          "the wave declares no file changes on every task, but this round's test evidence is not green — a verification wave still owes green evidence",
+      };
+    }
     return {
       kind: "violation",
       message:

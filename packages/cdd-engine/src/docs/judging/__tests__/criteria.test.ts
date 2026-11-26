@@ -8,11 +8,11 @@
 // follows the graph's own decomposition) · the task graph's four edge-failure classes and its
 // wave decomposition / frontier.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CompletionCriteria } from "../completion.ts";
+import { CompletionCriteria, type CompletionFacts } from "../completion.ts";
 import {
   CRITERIA,
   CRITERIA_BODIES,
@@ -27,6 +27,41 @@ import { MAX_TASKS_PER_WAVE, WaveWidth } from "../wave-width.ts";
 
 /** The `src`-relative judging directory this file pins. */
 const JUDGING_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/** The `src`-relative `docs/` slice root — the whole product surface a criterion's home is
+ *  judged over, not the one file that happens to hold the literal today. */
+const DOCS_DIR = path.dirname(JUDGING_DIR);
+
+/** The `docs/` product scan: which non-test modules carry one literal. A `__tests__`
+ *  directory is the test surface and stays outside the scan; the pin judges where the
+ *  product stores a sentence, never where a test quotes it. */
+class ProductScan {
+  readonly #root: string;
+
+  constructor(root: string) {
+    this.#root = root;
+  }
+
+  /** The `root`-relative paths of the `.ts` modules under it whose text mentions `needle`. */
+  filesMentioning(needle: string): string[] {
+    const found: string[] = [];
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const child = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "__tests__") walk(child);
+          continue;
+        }
+        if (!entry.name.endsWith(".ts")) continue;
+        if (readFileSync(child, "utf8").includes(needle)) {
+          found.push(path.relative(this.#root, child));
+        }
+      }
+    };
+    walk(this.#root);
+    return found.sort();
+  }
+}
 
 /** One plan body with one `### Task N:` block per entry, `deps` written as its DependsOn line. */
 const planOf = (tasks: readonly { id: number; deps?: string }[]): string =>
@@ -97,15 +132,15 @@ describe("the lens question table", () => {
   it("gives the referential question exactly one home in the tree", () => {
     // The `spec-consistency` row carries the referential reading ("when a document gives a
     // reading … which items does it count"), and copying that sentence anywhere else is a
-    // second spelling of one criterion. The scan is the pin: one file, one occurrence.
+    // second spelling of one criterion. The scan is the pin: the whole `docs/` product
+    // surface, one occurrence. Restricting it to `criteria.ts` would restate the literal it
+    // already holds instead of judging where else it landed.
     const literal = new LensQuestions().of("spec", "consistency").question;
     const marker = "which items does it count";
     expect(literal).toContain(marker);
-    const files = ["criteria.ts"];
-    const hits = files.filter((file) =>
-      readFileSync(path.join(JUDGING_DIR, file), "utf8").includes(marker),
-    );
-    expect(hits).toEqual(["criteria.ts"]);
+    expect(new ProductScan(DOCS_DIR).filesMentioning(marker)).toEqual([
+      path.join("judging", "criteria.ts"),
+    ]);
     // …and the row's own question carries it exactly once.
     expect(literal.split(marker).length - 1).toBe(1);
   });
@@ -133,24 +168,65 @@ describe("the lens question table", () => {
 });
 
 describe("the completion criteria", () => {
+  /** A round's fact record — a plain implement round unless a case overrides a cell. */
+  const factsOf = (over: Partial<CompletionFacts> = {}): CompletionFacts => ({
+    commits: 0,
+    findings: null,
+    waveTasks: [],
+    emptyFileTasks: new Set(),
+    evidenceOk: false,
+    ...over,
+  });
+
   it("fails an implement round that committed nothing", () => {
-    expect(CompletionCriteria.judge("implement", { commits: 0, findings: null })).toMatchObject({
+    expect(CompletionCriteria.judge("implement", factsOf())).toMatchObject({
       kind: "violation",
     });
-    expect(CompletionCriteria.judge("implement", { commits: 2, findings: null })).toEqual({
+    expect(CompletionCriteria.judge("implement", factsOf({ commits: 2 }))).toEqual({
       kind: "done",
     });
   });
 
+  it("finishes a zero-diff verification wave on its green evidence", () => {
+    // A verification wave declares an empty `Files` on EVERY task, so it changes nothing by
+    // design and commits nothing — its green evidence is the round's completion. Every other
+    // zero-commit round keeps the `committed nothing` refusal (P30 §2.4).
+    const verification = { waveTasks: [1, 2], emptyFileTasks: new Set([1, 2]) };
+    expect(
+      CompletionCriteria.judge("implement", factsOf({ ...verification, evidenceOk: true })),
+    ).toEqual({ kind: "done" });
+    expect(
+      CompletionCriteria.judge("implement", factsOf({ ...verification, evidenceOk: false })),
+    ).toEqual({
+      kind: "violation",
+      message: expect.stringContaining("a verification wave still owes green evidence"),
+    });
+    // A wave whose empty-`Files` set is a mere SUBSET of its own task ids is not a
+    // verification wave, and a wave key that names no task is never one (the vacuous read).
+    expect(
+      CompletionCriteria.judge(
+        "implement",
+        factsOf({ waveTasks: [1, 2], emptyFileTasks: new Set([1]), evidenceOk: true }),
+      ),
+    ).toEqual({ kind: "violation", message: expect.stringContaining("committed nothing") });
+    expect(
+      CompletionCriteria.judge("implement", factsOf({ waveTasks: [], evidenceOk: true })),
+    ).toEqual({ kind: "violation", message: expect.stringContaining("committed nothing") });
+    // Commits decide first: a wave that also committed is done on its commits.
+    expect(
+      CompletionCriteria.judge("implement", factsOf({ commits: 1, evidenceOk: false })),
+    ).toEqual({ kind: "done" });
+  });
+
   it("accepts an EMPTY findings array as the review's APPROVED conclusion", () => {
-    expect(CompletionCriteria.judge("review", { commits: 0, findings: [] })).toEqual({
+    expect(CompletionCriteria.judge("review", factsOf({ findings: [] }))).toEqual({
       kind: "done",
     });
-    expect(CompletionCriteria.judge("review", { commits: 0, findings: [{}] })).toEqual({
+    expect(CompletionCriteria.judge("review", factsOf({ findings: [{}] }))).toEqual({
       kind: "done",
     });
     // An absent carrier is the violation — "no findings" and "nobody looked" differ.
-    expect(CompletionCriteria.judge("review", { commits: 0, findings: null })).toMatchObject({
+    expect(CompletionCriteria.judge("review", factsOf({ findings: null }))).toMatchObject({
       kind: "violation",
     });
   });
@@ -226,6 +302,39 @@ describe("the task graph", () => {
       ].join("\n"),
     );
     expect(edgeLess.validate().map((issue) => issue.kind)).toContain("missing-edge");
+  });
+
+  it("spells every issue sentence the blocked face prints, byte for byte", () => {
+    // `detailLine` is the ONE author of the CDD_BLOCKED detail row, and the corpus records no
+    // graph-issue refusal — so this pin is the only thing standing between the message cell
+    // and a silent reword that no byte face would catch.
+    const lines = (graph: TaskGraph): readonly string[] =>
+      graph.validate().map((issue) => TaskGraph.detailLine(issue));
+    expect(
+      lines(
+        TaskGraph.parse(
+          ["---", "title: 'x'", "doc-type: plan", "---", "", "### Task 1: t", ""].join("\n"),
+        ),
+      ),
+    ).toEqual(["missing-edge@T1: task 1 declares no **DependsOn** edge"]);
+    expect(lines(TaskGraph.parse(planOf([{ id: 1, deps: "9" }])))).toEqual([
+      "missing-id@T1: task 1 depends on unregistered task 9",
+    ]);
+    expect(lines(TaskGraph.parse(planOf([{ id: 1, deps: "1" }])))).toEqual([
+      "self-loop@T1: task 1 depends on itself",
+    ]);
+    expect(
+      lines(
+        TaskGraph.parse(
+          planOf([
+            { id: 1, deps: "2" },
+            { id: 2, deps: "1" },
+          ]),
+        ),
+      ),
+    ).toEqual([
+      "cycle@T1: a directed dependency cycle closes over task 1: task dependencies must form a DAG",
+    ]);
   });
 
   it("derives waves topologically and moves the frontier with the done set", () => {

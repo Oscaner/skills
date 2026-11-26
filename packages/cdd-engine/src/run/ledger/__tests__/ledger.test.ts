@@ -461,6 +461,25 @@ describe("the observation set", () => {
     expect(second?.carrier).toBe("");
   });
 
+  it("folds a WAVE line the same way for the carrier accessor and the observation set", () => {
+    // The line-word → `(type, key)` fold has one home: a wave line resolves against the
+    // `wave` artifact type, a document line against its own word. The two readers therefore
+    // answer one path — and the wave arm is the one a second spelling would break silently,
+    // because there the type is not the line word.
+    const { ledger, workspace } = fixture();
+    ledger.recordRound("tasks-1,2", { op: "review", cycle: 1, attempt: 1 });
+    workspace.writeJson("tasks-1,2-review-1.c1.json", { findings: [] });
+    workspace.writeJson("tasks-1,2-review-1.c1.rulings.json", {
+      carrier: "tasks-1,2-review-1.c1.json",
+      rulings: [],
+    });
+    const record = ledger.rounds("tasks-1,2")[0] as RoundRecord;
+    const [observed] = ledger.observedArtifacts();
+    expect(observed?.carrier).toBe(ledger.carrierPathOf("wave", "1,2", record));
+    expect(observed?.carrier).toBe(".kairos/cdd/p9/tasks-1,2-review-1.c1.json");
+    expect(observed?.read.kind).toBe("ok");
+  });
+
   it("never enters a sidecar no record claims — the contract contradicts nothing, it just records", () => {
     const { ledger, workspace } = fixture();
     // A review round on disk with no record: its sidecar stays an orphan observation.

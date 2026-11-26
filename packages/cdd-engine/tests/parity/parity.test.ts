@@ -393,7 +393,7 @@ describe("the reconciliation", () => {
       CORPUS,
       baselineOf(cell.id, "the old tree's bytes"),
       rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      NewTree.of([["entry", driver]]),
+      { newTree: NewTree.of([["entry", driver]]) },
     );
     expect(answer.diffs).toHaveLength(1);
     expect(answer.diffs[0]?.actual).toBe(projectionOf(cell, FAKE_READING));
@@ -415,7 +415,7 @@ describe("the reconciliation", () => {
         producer: "surface/commands/implement.ts#ImplementCommand",
         route: cell.route,
       }),
-      NewTree.unwired(),
+      { newTree: NewTree.unwired() },
     );
     expect(answer.missing).toContain(
       `${cell.id}: recorded as not-applicable, but the route is resolvable`,
@@ -439,13 +439,37 @@ describe("the reconciliation", () => {
       CORPUS,
       stitched,
       rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      NEW_TREE,
+      { newTree: NEW_TREE },
     );
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
     expect(answer.deferred).toEqual([
       `${cell.id}: the "entry" driver is registered by ${REGISTRATION_WAVES.get("entry")}`,
     ]);
+  });
+
+  it("holes the same cell when the row that declares its wave is deleted", async () => {
+    // The wall arm of the deferral rule: delete the row (the brief's own step) and the very
+    // cell above must read MISSING, naming the task that owes the driver — the absence is
+    // named, never counted as a deferral to a wave that does not exist.
+    const cell = sampleCell();
+    const recorded = readBaseline(BASELINE_FILE);
+    if (recorded === null) throw new Error("the corpus has never been recorded");
+    const stitched: Baseline = {
+      ...recorded,
+      cells: { ...recorded.cells, [cell.id]: { state: "recorded", value: "the old tree's bytes" } },
+    };
+    const undeclared = new Map([...REGISTRATION_WAVES].filter(([kind]) => kind !== "entry"));
+    const answer = await reconcile(
+      CORPUS,
+      stitched,
+      rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
+      { waves: undeclared },
+    );
+    expect(answer.deferred).toEqual([]);
+    expect(answer.missing).toContain(
+      `${cell.id}: the new tree has no "entry" driver — T16 wires it`,
+    );
   });
 
   it("refuses a recording taken under another frozen date", async () => {
@@ -458,7 +482,7 @@ describe("the reconciliation", () => {
       CORPUS,
       stale,
       rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      NewTree.unwired(),
+      { newTree: NewTree.unwired() },
     );
     expect(answer.missing.some((entry) => entry.includes("2000-01-01"))).toBe(true);
   });

@@ -491,8 +491,7 @@ export class Ledger {
     for (const row of this.read()?.lines ?? []) {
       for (const record of row.rounds ?? []) {
         if (record.op !== "review") continue;
-        const { kind, key } = RoundIdentity.splitLineWord(row.key);
-        const type = kind === "wave" ? "wave" : row.key;
+        const { type, key } = this.#targetOf(row.key);
         const carrier = this.carrierPathOf(type, key, record);
         observations.push({
           line: row.key,
@@ -555,13 +554,21 @@ export class Ledger {
     );
   }
 
+  /** One line word folded to the carrier pair's `(type, key)` — a wave line resolves against
+   *  the single `wave` artifact type, every other line against its own word. THE one home of
+   *  that fold: the carrier accessor and the orphan face both read it, so adding a line kind
+   *  or renaming the wave prefix moves both, together. */
+  #targetOf(word: string): { readonly type: string; readonly key: string } {
+    const { kind, key } = RoundIdentity.splitLineWord(word);
+    return { type: kind === "wave" ? "wave" : word, key };
+  }
+
   /** Whether a record claims one attributed carrier name — the identity tier first (the
    *  record's own `(op, cycle, attempt)` on the same line), the recorded-path tier second
    *  (a record whose own carrier path carries this base name). */
   #claimed(document: LedgerDocument | null, attributed: ArtifactIdentity, name: string): boolean {
     const round = attributed.round;
-    const { kind: lineKind, key } = RoundIdentity.splitLineWord(round.line);
-    const type = lineKind === "wave" ? "wave" : round.line;
+    const { type, key } = this.#targetOf(round.line);
     return (Ledger.rowOf(document, round.line)?.rounds ?? []).some((record) => {
       if (
         record.op === round.op &&

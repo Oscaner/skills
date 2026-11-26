@@ -140,16 +140,27 @@ describe("the plan source", () => {
     expect(plansOf(repo).readFor("nobody")).toEqual({ kind: "absent", slug: "nobody" });
   });
 
-  it("reads an argv coordinate verbatim, and declares a read failure at that coordinate", () => {
+  it("reads an argv coordinate at its repo-relative form, for both spellings", () => {
     const repo = tempRepo("vcs-plan-path-");
     seed(repo, "notes.md", "hello\n");
     const source = plansOf(repo);
-    expect(source.readPath("notes.md" as RepoPath)).toEqual({
+    expect(source.readPath("notes.md")).toEqual({
       kind: "text",
       target: "notes.md",
       value: "hello\n",
     });
-    expect(source.readPath("ghost.md" as RepoPath)).toEqual({
+    // An absolute argv path denotes the SAME coordinate — the root's conversion pair is
+    // the one read-in point, so the printed failure coordinate never goes absolute.
+    expect(source.readPath(path.join(repo, "notes.md"))).toEqual({
+      kind: "text",
+      target: "notes.md",
+      value: "hello\n",
+    });
+    expect(source.readPath("ghost.md")).toEqual({
+      kind: "read-failure",
+      target: "ghost.md",
+    });
+    expect(source.readPath(path.join(repo, "ghost.md"))).toEqual({
       kind: "read-failure",
       target: "ghost.md",
     });

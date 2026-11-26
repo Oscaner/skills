@@ -14,7 +14,8 @@
 //     recognized (zero hard-coded branches);
 //   · the `SKILL.md` anatomy contract is one declaration, readable as data;
 //   · the four parse faces extract what the grammar holds (a task block, a design group,
-//     a phase row) and nothing more.
+//     a phase row) and nothing more — including the rows a blank line detaches from
+//     their table, which mdast reports as no table node at all.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -122,6 +123,31 @@ const OVERALL_BODY = [
   "## Change history",
   "| Version | date | summary | author |",
   "| --- | --- | --- | --- |",
+].join("\n");
+
+/** An overall body whose inventories are SPLIT by an interior blank line — the shape the
+ *  repository's own Phase / Issue inventories are written in, plus a fenced sample that
+ *  shows the row shape and is therefore never data. */
+const SPLIT_OVERALL_BODY = [
+  "# Overall",
+  "",
+  "## Issue inventory",
+  "| Phase | Issue (ref) | Title summary |",
+  "| --- | --- | --- |",
+  "| P1 | none | first |",
+  "",
+  "| P2 | none | second |",
+  "```",
+  "| P9 | none | sample prose |",
+  "```",
+  "| P3 | none | escaped \\| pipe |",
+  "",
+  "## Phase inventory",
+  "| Phase | Design spec | Implementation plan | Dependency |",
+  "| --- | --- | --- | --- |",
+  "| P1 | [spec](docs/kairos/specs/p1.md) | [plan](docs/kairos/plans/p1.md) | none |",
+  "",
+  "| P2 | [spec](docs/kairos/specs/p2.md) | [plan](docs/kairos/plans/p2.md) | P1 |",
 ].join("\n");
 
 describe("the document identity", () => {
@@ -281,6 +307,27 @@ describe("the parse faces", () => {
         dependencyCell: "none",
       },
     ]);
+  });
+
+  it("reads a section table split by an interior blank line as ONE record", () => {
+    // mdast reports no table node for a run a blank line detaches (it carries no
+    // delimiter row), so the run would be dropped silently; the section span is the
+    // read's boundary and its rows are read off the line face instead.
+    const parsed = new OverallParser("overall").parse(MarkdownTree.parse(SPLIT_OVERALL_BODY));
+    expect(parsed.tables["Issue inventory"].headerRow).toEqual([
+      "Phase",
+      "Issue (ref)",
+      "Title summary",
+    ]);
+    expect(parsed.tables["Issue inventory"].rows).toEqual([
+      ["P1", "none", "first"],
+      // The fenced sample between the runs is prose, not a row.
+      ["P2", "none", "second"],
+      ["P3", "none", "escaped | pipe"],
+    ]);
+    // The chain's anchor set is read through the same record — a split inventory still
+    // answers every phase, not only the rows above the blank line.
+    expect(parsed.chain.phases.map((phase) => phase.id)).toEqual(["P1", "P2"]);
   });
 
   it("composes the four parsers by the one document-type tuple", () => {

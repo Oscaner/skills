@@ -23,7 +23,7 @@
 import type { FrontMatter } from "../grammar/frontmatter.ts";
 import type { MarkdownTree } from "../grammar/markdown-tree.ts";
 import { TaskBlocks } from "../grammar/task-blocks.ts";
-import type { TaskBlock } from "../grammar/types.ts";
+import type { TableRecord, TableRow, TaskBlock } from "../grammar/types.ts";
 import { type DocSlices, type ElementSlice, Projector } from "./project.ts";
 import { declaredRegistries } from "./registry.ts";
 import type { DocType, ElementLocation, ElementRegistry } from "./types.ts";
@@ -199,6 +199,12 @@ export class DocSyntaxError extends Error {
  * has no validate / audit / detect member.
  */
 export abstract class DocParser<P extends ParsedDoc> {
+  /** A line shaped like a table row (`| a | b |`) — the detached run's row face. */
+  static readonly LOOSE_ROW = /^\|.*\|$/;
+
+  /** A GFM delimiter row (`|---|---|`) — a row separator, never a data row. */
+  static readonly DELIMITER_ROW = /^\|?[\s:|-]*-[\s:|-]*\|?$/;
+
   /** The document type the parser binds. */
   readonly key: DocType;
   /** The declared registry of this document type. */
@@ -247,9 +253,11 @@ export abstract class DocParser<P extends ParsedDoc> {
   /** The parsed table of one declared table section (empty when the section or its table
    *  is absent) — the ONE table-section read all four document types expose. A section's
    *  table may be split by interior blank lines (the repository's own inventories are):
-   *  the section span is the boundary, so its first headed table plus the headerless
-   *  continuation runs read as ONE record, while a separately-headed table stays its own
-   *  read and is never blended in. */
+   *  the section span is the boundary, so its first headed table, its headerless
+   *  continuation runs and the runs a blank line detaches (read off the section's line
+   *  face, because mdast reports no table node for a run without a delimiter row) read as
+   *  ONE record, while a separately-headed table stays its own read and is never blended
+   *  in. */
   protected tableSection(tree: MarkdownTree, anchor: string): ParsedTable {
     for (const section of tree.sections()) {
       if (!this.#declaredSection(section.text)) continue;
@@ -265,6 +273,7 @@ export abstract class DocParser<P extends ParsedDoc> {
         ...tables
           .filter((table) => table !== base && table.header === null)
           .flatMap((table) => table.body),
+        ...DocParser.#detachedRowsOf(tree, section.line, end, tables),
       ].sort((left, right) => left.from - right.from);
       return {
         heading: section.text,
@@ -273,6 +282,59 @@ export abstract class DocParser<P extends ParsedDoc> {
       };
     }
     return { heading: "", headerRow: null, rows: [] };
+  }
+
+  /** The section's bare `| a | b |` rows that no mdast table covers — a GFM table ends at
+   *  a blank line and a continuation run carries no delimiter row, so mdast reads the run
+   *  as a paragraph and the section's rows after it would be lost. The section span is the
+   *  read's boundary: the run becomes headerless rows. A line an mdast table spans is
+   *  skipped (no row is read twice) and a line a fenced block covers is skipped (a table
+   *  shape shown as sample prose is never data). */
+  static #detachedRowsOf(
+    tree: MarkdownTree,
+    from: number,
+    to: number,
+    tables: readonly TableRecord[],
+  ): readonly TableRow[] {
+    const out: TableRow[] = [];
+    for (let line = from + 1; line <= to; line += 1) {
+      const text = tree.document.line(line).trim();
+      if (tables.some((table) => line >= table.from && line <= table.to)) continue;
+      if (tree.isCodeLine(line)) continue;
+      if (!DocParser.LOOSE_ROW.test(text)) continue;
+      if (DocParser.DELIMITER_ROW.test(text)) continue;
+      out.push({ cells: DocParser.#cellsOfLooseRow(text), line, from: line, to: line });
+    }
+    return out;
+  }
+
+  /** One bare row's cells — split on the unescaped `|` delimiters (a `\|` stays inside
+   *  its cell), the outer pipes stripped. The mdast-span cell read above cannot answer
+   *  this: a detached run carries no mdast node to take a span from. */
+  static #cellsOfLooseRow(text: string): readonly string[] {
+    const cells: string[] = [];
+    let current = "";
+    let escaped = false;
+    for (const character of text.replace(/^\|/, "").replace(/\|$/, "")) {
+      if (escaped) {
+        current += character;
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        current += character;
+        continue;
+      }
+      if (character !== "|") {
+        current += character;
+        continue;
+      }
+      cells.push(current);
+      current = "";
+    }
+    cells.push(current);
+    return cells.map((cell) => cell.replace(/\\\|/g, "|").trim());
   }
 
   /** The slice of one registered anchor — the locating pattern's single lookup. */

@@ -9,7 +9,10 @@
 //     same slug is `ambiguous` — it carries the found set, because answering "no plan"
 //     about a set of two is the one licence an identity read does not hold.
 //   · `readPath(target)` — the argv face. The caller already spelled the path; it is
-//     read verbatim, so a mistyped path is a read failure at that exact coordinate.
+//     read at the coordinate that spelling denotes, so a mistyped path is a read failure
+//     at that exact coordinate. The literal is normalized through the root first: the
+//     coordinate a consumer prints is repo-relative whether the caller spelled a
+//     relative or an absolute path.
 //
 // This file reads FILES. Whether the bytes are a plan — the front-matter head, the task
 // blocks, the graph — is the document slice's judgment (`docs/`), and it stays there:
@@ -71,16 +74,20 @@ export class PlanSource {
     return this.readPath(candidates[0]!);
   }
 
-  /** The argv face — read the coordinate the caller spelled, verbatim. */
-  readPath(target: RepoPath): PlanText {
+  /** The argv face — read the coordinate the caller spelled. The literal is a user
+   *  input, so it enters through the ONE conversion pair: an absolute path and a
+   *  caller-relative one denote the same repo-relative coordinate, and that coordinate
+   *  is what the read answers (the printed failure coordinate follows it). */
+  readPath(target: string): PlanText {
+    const rel = this.#root.relativize(target);
     try {
       return {
         kind: "text",
-        target,
-        value: readFileSync(this.#root.resolve(target), "utf8"),
+        target: rel,
+        value: readFileSync(this.#root.resolve(rel), "utf8"),
       };
     } catch {
-      return { kind: "read-failure", target };
+      return { kind: "read-failure", target: rel };
     }
   }
 

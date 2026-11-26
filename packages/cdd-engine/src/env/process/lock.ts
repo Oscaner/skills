@@ -11,8 +11,11 @@
 // 1 ms of lock-touch churn for a whole dispatch). "Never steal automatically" is
 // guaranteed by the caller's record + liveness criterion, never by the lock's duration:
 // the lock is only mutual exclusion, and a lock left behind by a killed process is the
-// caller's takeover decision.
+// caller's takeover decision — expressed through `discardCarrier()`, so a dead holder's
+// carrier is cleared by the SINGLE holder of the library rather than by a consumer that
+// reaches past this class to delete a lock directory.
 
+import { rmSync } from "node:fs";
 import lockfile from "proper-lockfile";
 
 /** The holder facts a refused acquisition reports — the caller's own record, read at
@@ -72,6 +75,27 @@ export class Lock {
   /** The guarded file's path — the caller's own coordinate, echoed for its report. */
   get target(): string {
     return this.#target;
+  }
+
+  /** The library's carrier for one guarded file — the directory `proper-lockfile`
+   *  creates beside it (`realpath: false`, so the carrier sits at `<target>.lock`). */
+  static carrierOf(target: string): string {
+    return `${target}.lock`;
+  }
+
+  /** Clear the carrier a DEAD holder left behind — the explicit takeover face. The
+   *  liveness judgment that licenses a takeover belongs to the caller's own record, so
+   *  this class only removes the carrier: no sample, no verdict, no reading of who held
+   *  it. It refuses while THIS instance holds the lock (removing a carrier it holds would
+   *  break its own exclusion) and fails open like `release`: cleanup never decides a
+   *  round's fate — the next `acquire()` answers the standing state either way. */
+  discardCarrier(): void {
+    if (this.#unlock !== null) return;
+    try {
+      rmSync(Lock.carrierOf(this.#target), { recursive: true, force: true });
+    } catch {
+      // Fail-open — see above.
+    }
   }
 
   /** Take the lock. One attempt, no retry: a dispatch that finds the tree held must

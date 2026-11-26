@@ -312,6 +312,9 @@ export interface ProjectedRegistries {
  * derivation from the injected registries; construction is cheap and the
  * instance is stateless after construction, so sharing one instance across the
  * consumers (the parsers, the contract, the lint, the graph) composes safely.
+ *
+ * Rule zero (over the 200-line class limit): the six faces are ONE derivation chain and
+ * a split would move surface area without removing a variation.
  */
 export class Projector {
   /** The declared registries every projection derives from — the construction input. */

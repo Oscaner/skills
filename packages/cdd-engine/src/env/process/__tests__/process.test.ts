@@ -3,19 +3,28 @@
 //   · the process facts read a GROUP as one fact — a wrapper and the child it spawned
 //     are one dispatch, not two — and an exited process reads as gone;
 //   · the host is detected at most once per environment (a counting probe);
-//   · the lock refuses a second holder by naming the standing one, and a released lock
-//     is acquirable again;
+//   · the lock refuses a second holder by naming the standing one, a released lock is
+//     acquirable again, and a carrier a killed holder left behind is cleared by the
+//     lock's own takeover face (never by a consumer deleting the lock directory);
 //   · the host contract keeps the marker environment keys in ONE place, and both slash
 //     forms of a reference key are derivable from the key;
 //   · the clock is the only system-time reader in `src/**`, and its two formatting faces
 //     answer the local day and the UTC ISO form of one epoch independently;
 //   · the child seam never judges liveness: a child with no observer runs to its own
-//     exit, and a child the injected judge stops is killed as a GROUP (no member
-//     survives);
+//     exit, and a child the injected judge stops is killed as a GROUP — the fixture's own
+//     grandchild does not survive, so a bare direct-child kill cannot pass the pin;
 //   · `env/**` reaches none of the other three slices (import-face assertion).
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -136,6 +145,26 @@ describe("the lock", () => {
     await second.release();
     expect(readdirSync(repo).filter((name) => name.endsWith(".lock"))).toEqual([]);
   });
+
+  it("clears a dead holder's carrier, so a killed dispatch does not wedge the tree", async () => {
+    const repo = tempDir("proc-lock-stale-");
+    const target = path.join(repo, "in-flight.json");
+    // What a SIGKILLed dispatch leaves behind: the lock directory with no holder and no
+    // exit hook left to remove it.
+    mkdirSync(Lock.carrierOf(target), { recursive: true });
+    const lock = new Lock({ target, holderOf: () => HOLDER });
+    // Without a takeover face the tree would be refused for the whole stale window.
+    expect((await lock.acquire()).kind).toBe("held");
+    lock.discardCarrier();
+    expect(readdirSync(repo).filter((name) => name.endsWith(".lock"))).toEqual([]);
+    expect(await lock.acquire()).toEqual({ kind: "acquired" });
+    // The face refuses while THIS instance holds the lock: removing a carrier it holds
+    // would break its own exclusion, so a second instance still reads the tree as held.
+    lock.discardCarrier();
+    expect(readdirSync(repo).filter((name) => name.endsWith(".lock"))).not.toEqual([]);
+    expect((await new Lock({ target }).acquire()).kind).toBe("held");
+    await lock.release();
+  });
 });
 
 describe("the host contract", () => {
@@ -195,19 +224,34 @@ describe("the child seam", () => {
   });
 
   it("stops the whole GROUP when the injected judge calls kill", async () => {
+    const marker = path.join(tempDir("proc-kill-"), "grandchild.pid");
     let pgid = 0;
+    let grandchild = 0;
+    let delivered: boolean | null = null;
     const outcome = await new Terminator().run({
-      ...childRun("setInterval(() => {}, 1000)"),
+      ...childRun(GROUP_SCRIPT, { PROC_PIN_MARKER: marker }),
       observe: (child) => {
         pgid = child.pgid;
-        expect(child.kill()).toBe(true);
+        // The judge decides WHEN; the grandchild must exist before the kill, so the
+        // fixture waits for it on its own bounded clock (mdast-free, table-free: the
+        // child's own published pid).
+        void (async () => {
+          grandchild = await waitForGrandchild(marker);
+          delivered = child.kill();
+        })();
       },
     });
+    // The fixture really carried a descendant: without one the pin could not tell a
+    // group kill from a plain direct-child kill.
+    expect(grandchild).toBeGreaterThan(0);
+    expect(delivered).toBe(true);
     expect(outcome.facts.stopped).toBe(true);
     expect(outcome.code).toBeNull();
-    // No member of the killed group survives — the group is one fact and it is gone.
+    // No member of the killed group survives — the grandchild's pid is the arm a bare
+    // direct-child kill would leave standing.
     const survivors = await survivorsOf(pgid);
     expect(survivors).toEqual([]);
+    expect((await ProcessFacts.snapshot()).some((row) => row.pid === grandchild)).toBe(false);
   }, 20_000);
 });
 
@@ -219,13 +263,43 @@ describe("the segment boundary", () => {
 });
 
 /** One child run over the current node binary — the test's own command. */
-const childRun = (script: string): ChildRun => ({
+const childRun = (script: string, env: Readonly<Record<string, string>> = {}): ChildRun => ({
   command: process.execPath,
   args: ["-e", script],
   cwd: process.cwd(),
-  env: {},
+  env,
   budgetMs: 15_000,
 });
+
+/** The group-kill fixture's child: spawn a grandchild in its own group, publish that
+ *  grandchild's pid, then live on — one descendant the group kill must reach. */
+const GROUP_SCRIPT = [
+  "const { spawn } = require('node:child_process');",
+  "const { writeFileSync } = require('node:fs');",
+  "const kid = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+  "writeFileSync(process.env.PROC_PIN_MARKER, String(kid.pid));",
+  "setInterval(() => {}, 1000);",
+].join("\n");
+
+/** The grandchild's pid, read from the marker the child publishes, once the process table
+ *  carries it too — a bounded poll (the spawn and the table are two clocks). */
+const waitForGrandchild = async (marker: string): Promise<number> => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const pid = readPendingPid(marker);
+    if (pid > 0 && (await ProcessFacts.snapshot()).some((row) => row.pid === pid)) return pid;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return 0;
+};
+
+/** The pid a marker file holds, or 0 while it does not exist yet. */
+const readPendingPid = (marker: string): number => {
+  try {
+    return Number.parseInt(readFileSync(marker, "utf8").trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+};
 
 /** The live members of one process group, polled for a bounded number of turns — a
  *  killed group's members are reaped asynchronously, so one read would race the kill. */

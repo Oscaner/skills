@@ -37,6 +37,7 @@ import type {
   Frame,
   FrameFacts,
   FrameRequest,
+  FrameScene,
   ReadFailure,
   Usage,
 } from "./advance/frame.ts";
@@ -75,6 +76,7 @@ export {
   type FrameOutcome,
   type FrameReads,
   type FrameRequest,
+  type FrameScene,
   type ReadFailure,
   type Usage,
   type UsageReason,
@@ -441,9 +443,12 @@ export class Run {
   }
 
   /** One dispatch step. The scene assembly happens ONCE here: the shell hands the argv-side
-   *  input in, and the frame's two declared failures go back unchanged. */
+   *  input in, and the frame's usage / read-failure values go back unchanged. A line whose rounds
+   *  lie on the closure side holds no dispatchable frame — that member is translated HERE,
+   *  at the dispatch entry, so the board (a pure read) still reports the same tree. */
   async advance(request: FrameRequest): Promise<AdvanceOutcome> {
     const assembled = this.#frame.of(request);
+    if (assembled.kind === "closed-line") return Run.#noFrame(request);
     if (assembled.kind === "usage") return assembled;
     if (assembled.kind === "read-failure") return assembled;
     return this.#lifecycle.advance(assembled);
@@ -454,6 +459,7 @@ export class Run {
    *  settle, no brief landing, no lock, no spawn, no ledger write. */
   async previewOf(request: FrameRequest): Promise<PreviewOutcome> {
     const assembled = this.#frame.of(request);
+    if (assembled.kind === "closed-line") return Run.#noFrame(request);
     if (assembled.kind === "usage") return assembled;
     if (assembled.kind === "read-failure") return assembled;
     const frame = assembled;
@@ -497,16 +503,18 @@ export class Run {
       };
     }
     if (assembled.kind === "usage") return assembled;
-    const frame = assembled;
+    // A closed line is a perfectly good board: the SCENE is all the board reads, and the
+    // dispatch cells (phase, round, attempt) are the dispatch entry's own.
+    const scene = assembled.kind === "closed-line" ? assembled.scene : assembled;
     const holding = await this.inflight.inspect();
     const documents = this.#ledger.read();
     return {
       kind: "board",
-      rows: this.#rowsOf(frame, holding),
+      rows: this.#rowsOf(scene, holding),
       facts: {
         orphans: this.#ledger.orphanHandoffs(),
         crashed: this.#ledger.crashedOf(this.#ledger.nodeRecordsOf(documents)),
-        refusal: this.#refusal.read(frame.slug),
+        refusal: this.#refusal.read(scene.slug),
       },
       observed: this.#ledger.observedArtifacts(),
     };
@@ -514,10 +522,10 @@ export class Run {
 
   /** The board's rows: the occupancy, the ONE next hop, every document line and every wave
    *  line — each cell a fact, none a judgment. */
-  #rowsOf(frame: FrameFacts, holding: InFlightState): readonly BoardRow[] {
+  #rowsOf(scene: FrameScene, holding: InFlightState): readonly BoardRow[] {
     const rows: BoardRow[] = [
       { kind: "in-flight", state: holding },
-      { kind: "next", hop: this.#pipeline.hopOf(frame.pipeline) },
+      { kind: "next", hop: this.#pipeline.hopOf(scene.pipeline) },
     ];
     for (const line of this.#ledger.docLines()) {
       rows.push({
@@ -545,6 +553,12 @@ export class Run {
    *  no second table is needed. */
   static #docTypeOf(line: string): TargetType {
     return line as TargetType;
+  }
+
+  /** The one usage member the DISPATCH entries answer for a line that holds no open round —
+   *  the fill value is the command word the caller typed. */
+  static #noFrame(request: FrameRequest): Usage {
+    return { kind: "usage", reason: { kind: "no-frame", command: request.command } };
   }
 
   /** The tree's refusal as THIS workspace sees it — the phase's own standing refusal, or

@@ -28,6 +28,12 @@
 //     the dispatch segment's checked read (a digest mismatch throws there), so a tampered
 //     carrier is never judged as if the round had produced those bytes.
 //
+//   · THE REVIEWED VERSION IS BOUND TO ITS OWN LINE. A review round's input is bound at the
+//     booking, under the LINE's word (never the document path — the ledger keys a row by the
+//     line, and a path-keyed row would answer a line that is not a target type at all). Each
+//     line kind has ONE cell: a document line records `doc_hash`, a wave line records the
+//     `brief` projection that landed for that dispatch. A work round binds nothing.
+//
 //   · THE LINE LEG RUNS BEFORE THE LANDING. The wave gate is the task face's own pre-flight:
 //     a request its five rows refuse is never dispatched, and the refusal rides the same
 //     read-only `checked` rows a preview reports for the same tree. The applicability is the
@@ -54,6 +60,7 @@ import type {
   PreFlightVerdict,
 } from "../gate/preflight.ts";
 import type { RoundRecord, RoundRecordInit, RoundViolation } from "../ledger/ledger.ts";
+import { ReviewedIdentity } from "../ledger/reviewed.ts";
 import type { FrameFacts, UsageReason } from "./frame.ts";
 import type { CarriedFacts } from "./line-phase.ts";
 import { NextRoutes, type RoundFacts, type Route } from "./next.ts";
@@ -123,12 +130,24 @@ export interface BriefLanding {
   readonly content: string;
 }
 
+/** The landed brief — the repository coordinate the write face answered and the bytes it
+ *  wrote. A review round binds those bytes as the version it reviewed, so the landing is
+ *  handed to the booking rather than re-rendered there. */
+interface LandedBrief {
+  readonly path: string;
+  readonly content: string;
+}
+
 /** The lifecycle's write face over the fact layer — the events one step lands, each through
  *  the ledger's ONE writer. */
 export interface LifecycleLedger {
   recordRound(line: string, init: RoundRecordInit): RoundRecord;
   closeWave(line: string, planTasks: readonly number[]): void;
   recordDocReview(line: string, content: string): void;
+  /** Record the version a WAVE line reviewed — its task-only brief projection. Each line kind
+   *  has ONE reviewed cell: a document line's version is the ledger's own `doc_hash`
+   *  (`recordDocReview`), a wave line's is this `brief` identity, and no line writes both. */
+  recordReviewed(line: string, reviewed: ReviewedIdentity): void;
 }
 
 /** The step's reads and side-effect seams — every one of them is a fact the composition root
@@ -262,23 +281,25 @@ export class Lifecycle {
     }
     const landing = await this.#land(frame);
     if (landing.kind === "write-failure") return landing;
-    return this.#dispatch(frame, landing, verdict);
+    return this.#dispatch(frame, landing.landed, verdict);
   }
 
   /** Land the brief, or answer its declared failure — the ONE write before the child exists. */
-  async #land(frame: FrameFacts): Promise<{ kind: "landed"; path: string } | AdvanceOutcomeFail> {
+  async #land(
+    frame: FrameFacts,
+  ): Promise<{ kind: "landed"; landed: LandedBrief } | AdvanceOutcomeFail> {
     const brief = this.#reads.brief(frame);
     const outcome = this.#reads.writeText(brief.name, brief.content);
     if (outcome.kind === "write-failure") {
       return { kind: "write-failure", target: String(outcome.target) };
     }
-    return { kind: "landed", path: String(outcome.target) };
+    return { kind: "landed", landed: { path: String(outcome.target), content: brief.content } };
   }
 
   /** Dispatch inside the tree's occupancy, then book and route the round. */
   async #dispatch(
     frame: FrameFacts,
-    landing: { kind: "landed"; path: string },
+    landed: LandedBrief,
     verdict: PreFlightVerdict,
   ): Promise<AdvanceOutcome> {
     const record = await this.#inflight.recordOf({
@@ -294,7 +315,7 @@ export class Lifecycle {
     });
     const occupancy = await this.#inflight.occupy(
       record,
-      () => this.#child.dispatch(this.#reads.dispatchFrame(frame, landing.path)),
+      () => this.#child.dispatch(this.#reads.dispatchFrame(frame, landed.path)),
       {
         ending: (outcome) =>
           outcome.code === 0 && outcome.termination === null ? "normal" : "abnormal",
@@ -305,7 +326,7 @@ export class Lifecycle {
       return { kind: "held", state, checked: verdict.checked };
     }
     const carried = await this.#reads.carried(frame);
-    const booked = this.#book(frame, carried, {
+    const booked = this.#book(frame, carried, landed, {
       findings: Lifecycle.#baselineOf(verdict.findings ?? []),
       code: occupancy.value.code,
       termination: occupancy.value.termination,
@@ -317,7 +338,7 @@ export class Lifecycle {
         code: occupancy.value.code,
         log: String(occupancy.value.log),
         termination: occupancy.value.termination,
-        brief: landing.path,
+        brief: landed.path,
         round: booked.round,
         route: booked.route,
       },
@@ -333,6 +354,7 @@ export class Lifecycle {
   #book(
     frame: FrameFacts,
     carried: CarriedFacts,
+    landed: LandedBrief,
     dispatch: {
       readonly findings: readonly RoundFinding[];
       readonly code: number | null;
@@ -354,7 +376,9 @@ export class Lifecycle {
       },
       violations,
     });
-    const route = this.#routes.routeOf(this.#roundFactsOf(frame, carried, []));
+    const route = this.#routes.routeOf(
+      this.#roundFactsOf(frame, carried, this.#readyBatchOf(frame)),
+    );
     if (
       NextRoutes.routeClosed(route) &&
       round.verdict.targetAction &&
@@ -362,11 +386,35 @@ export class Lifecycle {
     ) {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
-    if (frame.phase === "review" || frame.phase === "branch-review") {
-      const text = frame.doc === null ? null : this.#reads.docText(frame);
-      if (frame.doc !== null && text !== null) this.#ledger.recordDocReview(frame.doc, text);
-    }
+    this.#bindReviewed(frame, landed);
     return { round, route };
+  }
+
+  /** Bind the version this round reviewed to its OWN line — the one written fact a drift
+   *  reopen reads back. A review round's input is its judged document on every face but the
+   *  task-graph one, whose input is the task-only brief projection that just landed; a work
+   *  round concluded about no bytes, so it binds nothing. */
+  #bindReviewed(frame: FrameFacts, landed: LandedBrief): void {
+    if (frame.phase !== "review" && frame.phase !== "branch-review") return;
+    if (TargetFaces.advancesBatch(frame.type)) {
+      const brief = ReviewedIdentity.record("brief", landed.path, landed.content);
+      this.#ledger.recordReviewed(frame.key, brief);
+      return;
+    }
+    const text = frame.doc === null ? null : this.#reads.docText(frame);
+    if (frame.doc === null || text === null) return;
+    this.#ledger.recordDocReview(frame.key, text);
+  }
+
+  /** The ready batch a closure reads — the plan's next open wave once THIS round's wave is
+   *  done: the wave gate's OWN frontier derivation over the closure set plus this round's
+   *  tasks (no second decomposition, no second sort). Empty off the batch faces, where the
+   *  closure answers `done` because no batch continues the run. */
+  #readyBatchOf(frame: FrameFacts): readonly number[] {
+    if (!TargetFaces.advancesBatch(frame.type) || frame.graph === null) return [];
+    const closed = new Set(this.#waveInput(frame).closed);
+    for (const task of frame.tasks) closed.add(task);
+    return this.#waveGate.derivedWave(frame.graph, closed);
   }
 
   /** The judge round's capsule summary — the ONE composition of the downgrade note. A work
@@ -477,11 +525,20 @@ export class Lifecycle {
     return {
       phase: frame.phase,
       status: carried.status,
-      findings: carried.findings,
+      findings: this.#judgedFindingsOf(frame, carried),
       consecutiveBlockers: this.#reads.blockerRun(frame),
       readyBatch,
       ...(carried.requesting === undefined ? {} : { requesting: carried.requesting }),
     };
+  }
+
+  /** The findings the count table judges: a judge round's own carrier, or — on the FIX face —
+   *  the SOURCE review's input findings (C5-1). A work carrier declares no `findings` slot, so
+   *  reading the fix carrier's own field would judge an empty set and close a line whose
+   *  blockers were never re-reviewed. */
+  #judgedFindingsOf(frame: FrameFacts, carried: CarriedFacts): readonly RoundFinding[] | null {
+    if (frame.phase !== "fix") return carried.findings;
+    return this.#reads.requesting(frame).findings;
   }
 
   /** The wave gate's verb of one frame — the branch face's review rides `review`. */

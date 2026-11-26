@@ -12,7 +12,10 @@
 //   · a failure is a DECLARED value, never a throw and never a sentence: `read-failure`
 //     carries the coordinate and `usage` carries one member of the closed union this file
 //     owns (`UsageReason`). The bytes a consumer prints for a member belong to the render
-//     face, and this file spells none of them;
+//     face, and this file spells none of them. A line that holds NO open round is not a
+//     usage: the assembly answers `closed-line` with the scene it read, and whether that is
+//     a refusal (the dispatch entry: `no-frame`) or a perfectly good board is the CALLER's
+//     judgment — the scene carries no phase, so no reader can mistake a read for a dispatch;
 //   · `--tasks` is the ONE usage member this assembly can reach. Every other flag's value
 //     domain is refused at the parse layer (a declared flag with a declared domain), so the
 //     parse layer's refusals are not members of this union.
@@ -145,16 +148,15 @@ export interface FrameOptions {
   readonly lines: FrameLines;
 }
 
-/** One assembled round's facts — everything a dispatch needs and nothing it must re-derive. */
-export interface FrameFacts {
-  /** The success discriminator — the outcome union's own tag. */
-  readonly kind: "frame";
+/** The SCENE's facts — everything the assembly reads, and nothing that depends on which
+ *  phase the line is at. The phase cells live on `FrameFacts` alone, so a scene is a value
+ *  every reader (the board included) can hold while only a dispatchable round names a
+ *  round. */
+export interface FrameScene {
   /** The command word the caller typed. */
   readonly command: string;
   /** Whether the explicit takeover flag was given. */
   readonly recover: boolean;
-  /** The dispatch phase this frame runs. */
-  readonly phase: RoundPhase;
   /** The target type. */
   readonly type: TargetType;
   /** The phase's workspace identity. */
@@ -183,16 +185,31 @@ export interface FrameFacts {
   readonly overall: string | null;
   /** The pipeline frontier's four declared cells. */
   readonly pipeline: PipelineInput;
-  /** The round number this frame dispatches under. */
-  readonly round: number;
-  /** The attempt on that round. */
-  readonly attempt: number;
   /** The phase's workspace directory and id — the dispatch's own coordinates. */
   readonly workspace: { readonly dir: string; readonly id: string };
 }
 
-/** What one assembly answered: a frame, or one of the two declared failures. */
-export type FrameOutcome = FrameFacts | Usage | ReadFailure;
+/** One assembled round's facts — everything a dispatch needs and nothing it must re-derive. */
+export interface FrameFacts extends FrameScene {
+  /** The success discriminator — the outcome union's own tag. */
+  readonly kind: "frame";
+  /** The dispatch phase this frame runs; a line holding no open round has no frame. */
+  readonly phase: RoundPhase;
+  /** The round number this frame dispatches under. */
+  readonly round: number;
+  /** The attempt on that round. */
+  readonly attempt: number;
+}
+
+/** What one assembly answered: a dispatchable frame, the scene of a line that holds no open
+ *  round, or one of the two declared failures. */
+export type FrameOutcome =
+  | FrameFacts
+  /** The line's rounds lie on the closure side — the scene stands, no round is dispatchable.
+   *  The dispatch entry answers `usage`/`no-frame` for it; the board answers a board. */
+  | { readonly kind: "closed-line"; readonly scene: FrameScene }
+  | Usage
+  | ReadFailure;
 
 /** The graph construction's one guarded entry — a plan whose block grammar breaks yields no
  *  graph, and the frame then declares no task set (the plan read's own failure belongs to the
@@ -208,6 +225,11 @@ const graphOf = (text: string): TaskGraph | null => {
 /**
  * Frame — the scene assembly. Invariant: one argv-side input assembles one frame from
  * injected readers, and every failure is a declared value (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because it is ONE
+ * assembly — the slug judgment, the plan read, the identity chain, the target, the pipeline
+ * cells and the round's dispatch cells are read in a single pass from a single argv-side
+ * input; a split would let a caller assemble half a frame and dispatch it.
  */
 export class Frame {
   readonly #reads: FrameReads;
@@ -245,16 +267,9 @@ export class Frame {
     const doc = Frame.#judgedDocOf(request, identity.doc, planPath);
     const target = this.#targetOf(request.type, doc, planPath, taskIds.ids);
     const key = this.#keyOf(request.type, taskIds.ids);
-    const phase = this.#phaseOf(request.type, key);
-    if (phase === null) {
-      return { kind: "usage", reason: { kind: "no-frame", command: request.command } };
-    }
-    const round = this.#roundOf(key, phase);
-    return {
-      kind: "frame",
+    const scene: FrameScene = {
       command: request.command,
       recover: request.recover === true,
-      phase,
       type: request.type,
       slug: slug.slug,
       key,
@@ -277,9 +292,19 @@ export class Frame {
         planPath: planPath === null ? null : String(planPath),
         graph,
       },
+      workspace: { dir: slug.slug, id: slug.slug },
+    };
+    // The phase is a DISPATCH cell: a line whose rounds lie on the closure side has none, and
+    // the scene answers unchanged so a read (the board) still reports it.
+    const phase = this.#roundPhaseOf(request.type, key);
+    if (phase === null) return { kind: "closed-line", scene };
+    const round = this.#roundOf(key, phase);
+    return {
+      ...scene,
+      kind: "frame",
+      phase,
       round,
       attempt: this.#lines.attemptOf(key, Frame.#opOfPhase(phase), round),
-      workspace: { dir: slug.slug, id: slug.slug },
     };
   }
 
@@ -434,8 +459,10 @@ export class Frame {
     return RoundIdentity.lineWordOf(type, tasks.join(","));
   }
 
-  /** The phase this frame runs — read off the ONE line walk. */
-  #phaseOf(type: TargetType, key: string): RoundPhase | null {
+  /** The phase this frame runs — read off the ONE line walk; null when the line holds no
+   *  open round (its rounds lie on the closure side), which the assembly answers as the
+   *  scene alone. */
+  #roundPhaseOf(type: TargetType, key: string): RoundPhase | null {
     if (type === "wave") {
       return this.#lines.walk.wavePhaseOf(RoundIdentity.splitLineWord(key).key);
     }

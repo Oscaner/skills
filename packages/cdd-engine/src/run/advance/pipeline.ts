@@ -76,6 +76,10 @@ export interface PipelineOptions {
 /**
  * Pipeline — the pipeline frontier and its hop assembly. Invariant: every face cell is a
  * reading of the line facts and the four rules only order them (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because the four rules
+ * order ONE set of per-face readings — splitting the readings from the ordering would let a
+ * caller apply the rules to a second, staler set of faces than the one it just read.
  */
 export class Pipeline {
   readonly #lines: LinePhase;

@@ -10,7 +10,9 @@
 //
 // A round's FACTS (its findings and its work status) arrive through an injected carrier
 // read: reading a carrier is the dispatch segment's checked read, and a second read here
-// would be a second chance to judge tampered bytes.
+// would be a second chance to judge tampered bytes. The fix face's findings are the SOURCE
+// review's, never the fix carrier's (C5-1: a work carrier declares no findings slot), so the
+// same checked read answers the review record of the fix round's own cycle.
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
@@ -19,7 +21,7 @@ import type { RoundPhase } from "../dispatch/child.ts";
 import type { RoundFinding } from "../dispatch/handoff.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { RoundRecord } from "../ledger/ledger.ts";
-import type { Drift, ReviewedIdentity } from "../ledger/reviewed.ts";
+import type { Drift } from "../ledger/reviewed.ts";
 import { type FixRequest, NextRoutes, type Route } from "./next.ts";
 import { TargetFaces, type TargetType } from "./target-faces.ts";
 
@@ -37,9 +39,9 @@ export type LineState =
 export interface LineReads {
   /** One line's rounds, in `(cycle, attempt)` order. */
   rounds(key: string): readonly RoundRecord[];
-  /** The version one line reviewed. */
-  reviewedOf(key: string): ReviewedIdentity | null;
-  /** The recorded version against the document's CURRENT bytes. */
+  /** The recorded version against the document's CURRENT bytes. `null` when the line
+   *  recorded none (only present facts land), so this read is also the "was it reviewed at
+   *  all" cell. */
   docDriftOf(key: string, content: string): Drift | null;
 }
 
@@ -88,6 +90,11 @@ export interface LinePhaseOptions {
  * LinePhase — one single-target line's phase facts. Invariant: closure, hop and phase are one
  * walk over the ledger's rounds (see the file's header), and the reopen is the ONE drift
  * judgment every reader shares.
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because every member is a
+ * read of the SAME one line walk — the document line and the wave line are two faces of one
+ * ledger projection, and splitting them would let a caller hold two walks of one ledger that
+ * can disagree about the same round.
  */
 export class LinePhase {
   readonly #facts: LineReads;
@@ -161,10 +168,11 @@ export class LinePhase {
 
   /** Whether the document's movement reopens the line onto its review lead — the ONE
    *  drift-reopen judgment. Drift never outranks a pending fix: only an EXIT-side route can
-   *  be replaced, because only it predates the movement of the bytes the line reviewed. */
+   *  be replaced, because only it predates the movement of the bytes the line reviewed. The
+   *  recorded version is the doc line's own `doc_hash` cell, which `docDriftOf` answers
+   *  `null` for when nothing was recorded — absence needs no second guard here. */
   reopenedAt(key: string, type: TargetType, doc: string | null): boolean {
     if (doc === null) return false;
-    if (this.#facts.reviewedOf(key) === null) return false;
     const content = this.#text(doc);
     if (content === null) return false;
     if (this.#facts.docDriftOf(key, content) !== "drift") return false;
@@ -282,11 +290,24 @@ export class LinePhase {
     return this.#routes.routeOf({
       phase: record.op,
       status: carried.status,
-      findings: carried.findings,
+      findings: record.op === "fix" ? this.#sourceFindingsOf(key, record) : carried.findings,
       consecutiveBlockers: record.op === "fix" ? this.blockerRunOf(key, type, record.cycle) : 0,
+      // A line-internal route's closure answer is `done` by declaration: this route judges
+      // whether THE LINE's hop is exhausted, and the batch continuation is the booking's own
+      // frontier read (`Lifecycle#readyBatchOf`), never a second wave decomposition here.
       readyBatch: [],
       ...(carried.requesting === undefined ? {} : { requesting: carried.requesting }),
     });
+  }
+
+  /** The SOURCE review's findings for a fix round — C5-1: a work carrier declares no findings
+   *  slot, and the re-review decision is about what the fix was told to fix. The source is the
+   *  review of the same cycle on the same line (a fix round's cycle is its review's). */
+  #sourceFindingsOf(key: string, record: RoundRecord): readonly RoundFinding[] | null {
+    const source = this.#facts
+      .rounds(key)
+      .find((candidate) => candidate.op === "review" && candidate.cycle === record.cycle);
+    return source === undefined ? null : (this.#carried(source).findings ?? null);
   }
 
   /** The latest COMPLETED round of one mode — a failed round consumed its cycle but is not

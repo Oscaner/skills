@@ -402,8 +402,21 @@ const fixture = (): Fixture => {
     carried: async (facts) =>
       carriedByKey.get(`${opOf(facts.phase)}:${facts.round}`) ?? { findings: null, status: null },
     priorFindings: () => prior.findings,
-    planTasks: () => [],
-    docText: () => null,
+    planTasks: () => {
+      try {
+        return [...TaskGraph.parse(readFileSync(path.join(repo, PLAN_REL), "utf8")).nodes()];
+      } catch {
+        return [];
+      }
+    },
+    docText: (facts) => {
+      if (facts.doc === null) return null;
+      try {
+        return readFileSync(path.join(repo, facts.doc), "utf8");
+      } catch {
+        return null;
+      }
+    },
     stale: () => false,
     reopenRequested: () => false,
     requesting: () => requesting,
@@ -604,6 +617,23 @@ describe("the frontier is the ledger's projection", () => {
     expect(rounds.map((record) => record.op)).toEqual(["implement", "review"]);
     expect(rounds.map((record) => record.attempt)).toEqual([1, 1]);
   });
+
+  it("answers the next ready batch from a closure, not the run's exhaustion", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx, [
+      { id: 1, dependsOn: "none" },
+      { id: 2, dependsOn: "1" },
+    ]);
+    fx.carriedByKey.set("implement:1", { findings: [], status: null });
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    expect((await fx.run.advance(waveRequest({ tasks: "1" }))).kind).toBe("dispatch");
+    const reviewed = await fx.run.advance(waveRequest({ command: "review", tasks: "1" }));
+    expect(reviewed.kind).toBe("dispatch");
+    if (reviewed.kind !== "dispatch") return;
+    // One wave of two closes: the closure names the ready batch, never `done`.
+    expect(reviewed.result.route).toEqual({ kind: "next-wave", tasks: "2" });
+    expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([1, 2]);
+  });
 });
 
 describe("the declared failures", () => {
@@ -642,14 +672,52 @@ describe("the declared failures", () => {
     oneTaskPlan(fx);
     const missing = await fx.run.advance(waveRequest({ plan: `${PLAN_REL}.nope` }));
     expect(missing).toEqual({ kind: "read-failure", target: `${PLAN_REL}.nope` });
-    // A closed line holds no dispatchable frame: a clean review closes the wave, so the line's
-    // phase reads null and the frame answers the `no-frame` member.
+    // A closed line holds no dispatchable frame: a clean review closes the wave, so the
+    // assembly answers the SCENE alone and the dispatch entry names the member (the board
+    // reads the same scene — pinned in the closed-line case below).
     fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "implement", cycle: 1 });
     fx.carriedByKey.set("implement:1", { findings: [], status: null });
     fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "review", cycle: 1 });
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     const closed = await fx.run.advance(waveRequest());
     expect(closed).toEqual({ kind: "usage", reason: { kind: "no-frame", command: "implement" } });
+  });
+
+  it("answers a closed plan line and a closed wave line as boards", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // A closed WAVE line: one implement plus one clean review, hand-written so the case drives
+    // only the closed-line read (the booking's own write is pinned above).
+    const waveLine = RoundIdentity.lineWordOf("wave", "1");
+    fx.ledger.recordRound(waveLine, { op: "implement", cycle: 1 });
+    fx.carriedByKey.set("implement:1", { findings: [], status: null });
+    fx.ledger.recordRound(waveLine, { op: "review", cycle: 1 });
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    const waveBoard = await fx.run.boardOf(waveRequest({ command: "board" }));
+    expect(waveBoard.kind).toBe("board");
+    if (waveBoard.kind !== "board") return;
+    expect(waveBoard.rows.find((row) => row.kind === "wave")).toMatchObject({
+      line: waveLine,
+      phase: null,
+      closed: true,
+    });
+    // The dispatch entry still names the member for the same tree — the board never does.
+    expect(await fx.run.advance(waveRequest())).toEqual({
+      kind: "usage",
+      reason: { kind: "no-frame", command: "implement" },
+    });
+    // A closed PLAN line, driven through a REAL dispatch so its row and its closing read are
+    // the step's own.
+    const planRequest = { command: "review", type: "plan" as const, plan: PLAN_REL };
+    expect((await fx.run.advance(planRequest)).kind).toBe("dispatch");
+    const planBoard = await fx.run.boardOf(planRequest);
+    expect(planBoard.kind).toBe("board");
+    if (planBoard.kind !== "board") return;
+    expect(planBoard.rows.find((row) => row.kind === "doc")?.state).toBe("closed");
+    expect(await fx.run.advance(planRequest)).toEqual({
+      kind: "usage",
+      reason: { kind: "no-frame", command: "review" },
+    });
   });
 
   it("names the unknown task from the plan, not from a literal list", async () => {
@@ -875,7 +943,6 @@ describe("the six hop cells", () => {
             carrierDigest: null,
           },
         ],
-        reviewedOf: () => null,
         docDriftOf: () => null,
       },
       carried: () => ({
@@ -987,20 +1054,39 @@ describe("the wave gate", () => {
 });
 
 describe("the drift reopen and the closure terminal", () => {
-  it("reopens a reviewed document that moved outside the round", () => {
+  it("reopens a reviewed document that moved outside the round", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
-    writeDoc(fx.repo, SPEC_REL, { title: "spec", docType: "phase-spec", slug: SLUG }, "# spec\n");
+    // The reviewed version is bound by a REAL dispatch: the review round's booking writes the
+    // document line's own cell, under that line's word.
+    const reviewed = await fx.run.advance({
+      command: "review",
+      type: "phase-spec",
+      spec: SPEC_REL,
+    });
+    expect(reviewed.kind).toBe("dispatch");
+    expect(fx.ledger.docLines().map((line) => line.line)).toEqual(["phase-spec"]);
     const content = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
-    const specLine = "phase-spec";
-    fx.ledger.recordRound(specLine, { op: "review", cycle: 1 });
-    fx.carriedByKey.set("review:1", { findings: [], status: null });
-    fx.ledger.recordDocReview(specLine, content);
-    fx.ledger.recordReviewed(specLine, ReviewedIdentity.record("document", SPEC_REL, content));
-    expect(fx.lines.stateOf(specLine, "phase-spec", SPEC_REL)).toBe("closed");
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(content));
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
     writeFileSync(path.join(fx.repo, SPEC_REL), `${content}\nagain\n`, "utf8");
-    expect(fx.lines.reopenedAt(specLine, "phase-spec", SPEC_REL)).toBe(true);
-    expect(fx.lines.stateOf(specLine, "phase-spec", SPEC_REL)).toBe("reopened");
+    expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(true);
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
+  });
+
+  it("binds a wave review to its brief projection, never to the plan's bytes", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("implement:1", { findings: [], status: null });
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    const reviewed = await fx.run.advance(waveRequest({ command: "review" }));
+    expect(reviewed.kind).toBe("dispatch");
+    const waveLine = RoundIdentity.lineWordOf("wave", "1");
+    const bound = fx.ledger.reviewedOf(waveLine);
+    expect(bound?.kind).toBe("brief");
+    // The document cell stays empty on the task-graph face: one line kind, one reviewed cell.
+    expect(fx.ledger.docHashOf(waveLine)).toBeNull();
   });
 
   it("closes a zero-blocker fix round instead of naming another review", () => {
@@ -1227,6 +1313,28 @@ describe("the fix completion judgment", () => {
     expect(fx.lines.wavePhaseOf("1")).toBe("fix");
   });
 
+  it("books the source review's blockers as the re-review hop, and closes no wave", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    const waveLine = fixableWave(fx);
+    // The fix carrier declares no findings slot; the blockers the hop judges are the SOURCE
+    // review's input findings.
+    fx.requesting.findings = [{ severity: "blocker", summary: "the only row", id: "F1" }];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
+    expect(outcome.kind).toBe("dispatch");
+    if (outcome.kind !== "dispatch") return;
+    // The dispositions cover the request, so the round completed — and still owes a re-review.
+    expect(outcome.result.round.verdict.targetAction).toBe(true);
+    expect(outcome.result.route).toEqual({ kind: "review" });
+    expect(fx.ledger.planTasksOf(waveLine)).toBeNull();
+    expect(fx.lines.waveClosedAt("1")).toBe(false);
+  });
+
   it("books a covering round as complete, with the criterion's soft observations", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
@@ -1262,7 +1370,6 @@ describe("the soft cap's counter", () => {
     new LinePhase({
       facts: {
         rounds: (key) => (key === "branch" ? reviews(count) : []),
-        reviewedOf: () => null,
         docDriftOf: () => null,
       },
       carried: (record) => ({
@@ -1416,10 +1523,11 @@ describe("the target table", () => {
     expect(fx.ledger.planTasksOf("branch")).toBeNull();
     expect(fx.ledger.planTasksOf("phase-spec")).toBeNull();
 
-    // The row that DOES advance a batch: the same step closes the wave line.
+    // The row that DOES advance a batch: the same step closes the wave line and records the
+    // plan's own task snapshot (the fixture's one-task plan).
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
-    expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([]);
+    expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([1]);
   });
 
   it("changes the dispatch when the row changes, with no lifecycle edit", async () => {

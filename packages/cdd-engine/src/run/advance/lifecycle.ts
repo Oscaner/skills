@@ -6,7 +6,7 @@
 // target type's difference never appears here as a branch — it is the `target-faces` row the
 // step reads.
 //
-// Three anchor points this file owns, and no other caller may move them:
+// Four anchor points this file owns, and no other caller may move them:
 //
 //   · THE SETTLE POINT. `PreFlight#settle` is called exactly once per step, AFTER `vet`
 //     returns and BEFORE the takeover authorization is consulted. The order is the whole
@@ -28,15 +28,22 @@
 //     the dispatch segment's checked read (a digest mismatch throws there), so a tampered
 //     carrier is never judged as if the round had produced those bytes.
 //
+//   · THE LINE LEG RUNS BEFORE THE LANDING. The wave gate is the task face's own pre-flight:
+//     a request its five rows refuse is never dispatched, and the refusal rides the same
+//     read-only `checked` rows a preview reports for the same tree. The applicability is the
+//     target row's audit cell, never a type word, so a doc or branch face is not judged by a
+//     task gate at all.
+//
 // Failure values are declared and nothing here spells a sentence: a refusal is the gate's
 // verdict, a hold is the in-flight record's state, and a usage is the frame's own union.
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import { CompletionCriteria, type CompletionFacts } from "../../docs/judging/completion.ts";
 import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
-import type { Child, DispatchFrame } from "../dispatch/child.ts";
+import type { Child, DispatchFrame, TerminationCause } from "../dispatch/child.ts";
 import { Handoff, type RoundFinding } from "../dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "../dispatch/inflight.ts";
 import type { Authority } from "../gate/authority.ts";
@@ -50,6 +57,8 @@ import type { RoundRecord, RoundRecordInit, RoundViolation } from "../ledger/led
 import type { FrameFacts, UsageReason } from "./frame.ts";
 import type { CarriedFacts } from "./line-phase.ts";
 import { NextRoutes, type RoundFacts, type Route } from "./next.ts";
+import { TargetFaces } from "./target-faces.ts";
+import type { WaveGate, WaveInput, WaveVerdict } from "./wave.ts";
 
 /** The dispatch's own result, as the step reports it — the child's exit, the log's
  *  coordinate and how the round ended. */
@@ -83,10 +92,18 @@ export type AdvanceOutcome =
       readonly capsule: CapsuleFacts;
       readonly checked: readonly CheckedRow[];
     }
-  /** The structural leg or the wave gate refused before the dispatch. */
+  /** The structural leg refused before the dispatch. */
   | {
       readonly kind: "blocked";
+      readonly leg: "structure";
       readonly verdict: PreFlightVerdict;
+      readonly checked: readonly CheckedRow[];
+    }
+  /** The wave gate refused before the dispatch — the task face's own line leg. */
+  | {
+      readonly kind: "blocked";
+      readonly leg: "line";
+      readonly verdict: WaveVerdict;
       readonly checked: readonly CheckedRow[];
     }
   /** The in-flight gate holds the tree — the record's own state value rides along. */
@@ -141,6 +158,21 @@ export interface LifecycleReads {
   readonly stale: (frame: FrameFacts, holding: InFlightState) => boolean;
   /** Whether the drifted line asks for a reopen — the takeover's second leg's factual cell. */
   readonly reopenRequested: (frame: FrameFacts) => boolean;
+  /** The requesting review's carrier, as a fix round reads it: the findings its dispositions
+   *  must cover and the two coordinates the fix hop carries. Empty off the fix face. */
+  readonly requesting: (frame: FrameFacts) => {
+    readonly findings: readonly RoundFinding[];
+    readonly reviews?: string;
+    readonly rulings?: string;
+  };
+  /** The commits the round's group produced since its baseline. */
+  readonly commits: (frame: FrameFacts) => number;
+  /** The group's dispatch baseline — the HEAD a zero-commit refusal names; null when the
+   *  group carries none. */
+  readonly groupBase: (frame: FrameFacts) => string | null;
+  /** The consecutive-blocker run the round at `frame.round` closes — the soft cap's ONE
+   *  counter, read off the line's completed review rounds. */
+  readonly blockerRun: (frame: FrameFacts) => number;
 }
 
 /** The construction facts. */
@@ -151,11 +183,21 @@ export interface LifecycleOptions {
   readonly child: Child;
   readonly ledger: LifecycleLedger;
   readonly reads: LifecycleReads;
+  /** The wave gate — the task face's line leg, judged by this step and reported by a
+   *  preview from the SAME verdict. */
+  readonly waveGate: WaveGate;
+  /** The wave gate's input for one frame (the plan's graph, the closed set, the wave rows and
+   *  the phase read). */
+  readonly waveInput: (frame: FrameFacts) => WaveInput;
 }
 
 /**
  * Lifecycle — one dispatch step. Invariant: one call consumes at most one attempt, books at
  * most one round and moves the frontier at most one cell (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because its members ARE
+ * the one step's order — gate, settle, line leg, landing, dispatch, verdict, booking, route;
+ * splitting it would let a caller run a prefix of the step and book a round it never judged.
  */
 export class Lifecycle {
   readonly #gate: PreFlight;
@@ -164,6 +206,8 @@ export class Lifecycle {
   readonly #child: Child;
   readonly #ledger: LifecycleLedger;
   readonly #reads: LifecycleReads;
+  readonly #waveGate: WaveGate;
+  readonly #waveInput: (frame: FrameFacts) => WaveInput;
   readonly #routes = new NextRoutes();
 
   constructor(opts: LifecycleOptions) {
@@ -173,6 +217,21 @@ export class Lifecycle {
     this.#child = opts.child;
     this.#ledger = opts.ledger;
     this.#reads = opts.reads;
+    this.#waveGate = opts.waveGate;
+    this.#waveInput = opts.waveInput;
+  }
+
+  /** The line leg's judgment for one frame, or null when the frame's row audits no task
+   *  graph (the wave gate is the task face's own pre-flight). ONE producer: `advance` refuses
+   *  on it and a preview reports the same verdict, so the two entries never give two
+   *  conclusions for one tree. */
+  waveVerdictOf(frame: FrameFacts): WaveVerdict | null {
+    if (!TargetFaces.isTaskGraph(frame.type)) return null;
+    return this.#waveGate.vet(
+      new Set(frame.tasks),
+      Lifecycle.#waveVerbOf(frame),
+      this.#waveInput(frame),
+    );
   }
 
   /** Run one step of one dispatch. */
@@ -192,8 +251,14 @@ export class Lifecycle {
         reopenRequested: this.#reads.reopenRequested(frame),
       });
       if (authorization.kind === "blocked") {
-        return { kind: "blocked", verdict, checked: verdict.checked };
+        return { kind: "blocked", leg: "structure", verdict, checked: verdict.checked };
       }
+    }
+    // The line leg, on the same read-only `checked` rows: a request the wave gate refuses is
+    // never dispatched, and the response is the same refusal a preview answers.
+    const wave = this.waveVerdictOf(frame);
+    if (wave !== null && !wave.ok) {
+      return { kind: "blocked", leg: "line", verdict: wave, checked: verdict.checked };
     }
     const landing = await this.#land(frame);
     if (landing.kind === "write-failure") return landing;
@@ -220,7 +285,7 @@ export class Lifecycle {
       pid: process.pid,
       command: frame.command,
       slug: frame.slug,
-      wave: frame.type === "wave" ? frame.tasks.join(",") : null,
+      wave: TargetFaces.advancesBatch(frame.type) ? frame.tasks.join(",") : null,
       phase: frame.phase,
       cycle: frame.round,
       attempt: frame.attempt,
@@ -240,7 +305,11 @@ export class Lifecycle {
       return { kind: "held", state, checked: verdict.checked };
     }
     const carried = await this.#reads.carried(frame);
-    const booked = this.#book(frame, carried, Lifecycle.#baselineOf(verdict.findings ?? []));
+    const booked = this.#book(frame, carried, {
+      findings: Lifecycle.#baselineOf(verdict.findings ?? []),
+      code: occupancy.value.code,
+      termination: occupancy.value.termination,
+    });
     const capsule = this.#capsuleOf(frame, carried);
     return {
       kind: "dispatch",
@@ -259,22 +328,38 @@ export class Lifecycle {
 
   /** Book the round and its line's derived facts. The route is read AFTER the booking, so a
    *  closing round answers the closure the ledger now records rather than the state before
-   *  it. */
+   *  it. The VERDICT is derived here, from the dispatch's own result and the round's graded
+   *  entries — a round that withheld its target action is never booked as completed. */
   #book(
     frame: FrameFacts,
     carried: CarriedFacts,
-    gateFindings: readonly RoundFinding[],
+    dispatch: {
+      readonly findings: readonly RoundFinding[];
+      readonly code: number | null;
+      readonly termination: TerminationCause | null;
+    },
   ): { round: RoundRecord; route: Route | null } {
-    const violations = Lifecycle.#violationsOf(carried, gateFindings);
+    const violations = [
+      ...Lifecycle.#violationsOf(carried, dispatch.findings),
+      ...Lifecycle.#dispatchViolationsOf(dispatch),
+      ...this.#completionOf(frame, carried),
+    ];
     const round = this.#ledger.recordRound(frame.key, {
       op: Lifecycle.#opOf(frame.phase),
       cycle: frame.round,
       attempt: frame.attempt,
-      ...(carried.status === null ? {} : {}),
+      verdict: {
+        treeClean: true,
+        targetAction: !violations.some((violation) => violation.grade === "hard"),
+      },
       violations,
     });
-    const route = this.#routes.routeOf(Lifecycle.#roundFactsOf(frame, carried, []));
-    if (NextRoutes.routeClosed(route) && frame.type === "wave") {
+    const route = this.#routes.routeOf(this.#roundFactsOf(frame, carried, []));
+    if (
+      NextRoutes.routeClosed(route) &&
+      round.verdict.targetAction &&
+      TargetFaces.advancesBatch(frame.type)
+    ) {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
     if (frame.phase === "review" || frame.phase === "branch-review") {
@@ -325,8 +410,66 @@ export class Lifecycle {
     return violations;
   }
 
+  /** The dispatch's own hard facts: a child that exited non-zero never produced its target
+   *  action, and a round cut short by a termination cause carries that cause as its entry.
+   *  Both withhold the completion verdict, so neither is a silent absence. */
+  static #dispatchViolationsOf(dispatch: {
+    readonly code: number | null;
+    readonly termination: TerminationCause | null;
+  }): readonly RoundViolation[] {
+    const violations: RoundViolation[] = [];
+    if (dispatch.code !== 0) {
+      violations.push({ grade: "hard", cause: "child-exit", message: "" });
+    }
+    if (dispatch.termination !== null) {
+      violations.push({ grade: "hard", cause: dispatch.termination, message: "" });
+    }
+    return violations;
+  }
+
+  /** The `fix` round's completion judgment — the facts this segment assembles (the requesting
+   *  review's carrier, the round's own dispositions, the commit count and the group baseline)
+   *  and `docs/judging/completion.ts` judges. A callback answers at most one refusal plus the
+   *  soft observations; every other verb has no row here, and its own criterion is the
+   *  dispatch side's to run. */
+  #completionOf(frame: FrameFacts, carried: CarriedFacts): readonly RoundViolation[] {
+    if (frame.phase !== "fix") return [];
+    const requesting = this.#reads.requesting(frame);
+    const dispositions = carried.dispositions ?? null;
+    const facts: CompletionFacts = {
+      commits: this.#reads.commits(frame),
+      groupBase: this.#reads.groupBase(frame),
+      carrierWritten: dispositions !== null,
+      findings: carried.findings,
+      // The verb's discriminating cells: a fix round owns no wave and no evidence gate, so
+      // the criterion reads neither (the two cells keep their declared empty values).
+      waveTasks: [],
+      emptyFileTasks: new Set<number>(),
+      evidenceOk: false,
+      dispositions,
+      requested: requesting.findings,
+      matchedBySummary: Lifecycle.#pairedBySummary(requesting.findings),
+    };
+    const verdict = CompletionCriteria.judge("fix", facts);
+    if (verdict.kind === "violation") {
+      return [{ grade: "hard", cause: "contract-violation", message: verdict.message }];
+    }
+    return verdict.observations.map((observation) => ({
+      grade: "soft" as const,
+      cause: "contract-violation",
+      message: observation.message,
+    }));
+  }
+
+  /** Whether the requesting carrier carried no finding id, so the dispositions pair by
+   *  summary — a bookkeeping fact, never a gate. */
+  static #pairedBySummary(requested: readonly RoundFinding[]): boolean {
+    if (requested.length === 0) return false;
+    return requested.every((finding) => (finding.id ?? "").trim().length === 0);
+  }
+
   /** The round facts the count table reads. */
-  static #roundFactsOf(
+  #roundFactsOf(
     frame: FrameFacts,
     carried: CarriedFacts,
     readyBatch: readonly number[],
@@ -335,14 +478,19 @@ export class Lifecycle {
       phase: frame.phase,
       status: carried.status,
       findings: carried.findings,
-      consecutiveBlockers: Lifecycle.#blockersOf(carried.findings),
+      consecutiveBlockers: this.#reads.blockerRun(frame),
       readyBatch,
+      ...(carried.requesting === undefined ? {} : { requesting: carried.requesting }),
     };
   }
 
-  /** The consecutive-blocker run a fix round closes — the soft cap's cell. */
-  static #blockersOf(findings: readonly RoundFinding[] | null): number {
-    return (findings ?? []).filter((finding) => finding.severity === "blocker").length;
+  /** The wave gate's verb of one frame — the branch face's review rides `review`. */
+  static #waveVerbOf(frame: FrameFacts): "implement" | "review" | "fix" {
+    if (frame.phase === "branch-review") return "review";
+    if (frame.phase === "implement" || frame.phase === "review" || frame.phase === "fix") {
+      return frame.phase;
+    }
+    return "review";
   }
 
   /** The ledger op one phase word books under. */
@@ -356,7 +504,7 @@ export class Lifecycle {
   static #refused(verdict: PreFlightVerdict, holding: InFlightState): AdvanceOutcome {
     if (verdict.gate === "in-flight")
       return { kind: "held", state: holding, checked: verdict.checked };
-    return { kind: "blocked", verdict, checked: verdict.checked };
+    return { kind: "blocked", leg: "structure", verdict, checked: verdict.checked };
   }
 }
 

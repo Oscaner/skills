@@ -44,6 +44,7 @@ import {
   CompletionCriteria,
   type CompletionFacts,
   DispositionsCriterion,
+  FIX_ZERO_COMMITS,
   type Finding,
   type JudgeInput,
   type LedgerFacts,
@@ -81,10 +82,11 @@ import {
   NextRoutes,
   PIPELINE_NEXT,
   REVIEW_CYCLE_CAP,
+  SOFT_CAP_SUGGESTION,
   WAVE_GATE_REASON,
 } from "../next.ts";
 import { Pipeline } from "../pipeline.ts";
-import { TargetFaces } from "../target-faces.ts";
+import { TARGET_FACES, TargetFaces } from "../target-faces.ts";
 import { WaveGate, type WaveInput } from "../wave.ts";
 
 /** This segment's directory and product modules. */
@@ -280,6 +282,13 @@ interface Fixture {
   readonly writes: { count: number; fail: boolean };
   readonly carriedByKey: Map<string, CarriedFacts>;
   readonly prior: { findings: readonly RoundFinding[] };
+  readonly requesting: {
+    findings: readonly RoundFinding[];
+    reviews?: string;
+    rulings?: string;
+  };
+  readonly commits: { count: number };
+  readonly groupBase: { value: string | null };
   readonly lifecycle: Lifecycle;
   readonly options: RunOptions;
   readonly waveInputOf: (frame: FrameFacts) => WaveInput;
@@ -308,6 +317,13 @@ const fixture = (): Fixture => {
   const ledger = new Ledger({ workspace, names: () => [] });
   const carriedByKey = new Map<string, CarriedFacts>();
   const prior: { findings: readonly RoundFinding[] } = { findings: [] };
+  const requesting: {
+    findings: readonly RoundFinding[];
+    reviews?: string;
+    rulings?: string;
+  } = { findings: [] };
+  const commits = { count: 1 };
+  const groupBase: { value: string | null } = { value: "base" };
   const lines = new LinePhase({
     facts: ledger,
     carried: (record) =>
@@ -339,7 +355,6 @@ const fixture = (): Fixture => {
         1,
     },
   });
-  const waveGate = new WaveGate();
   const runner = new FakeRunner();
   const child = new Child({ runner, clock });
   const inflight = new InFlight({
@@ -391,7 +406,18 @@ const fixture = (): Fixture => {
     docText: () => null,
     stale: () => false,
     reopenRequested: () => false,
+    requesting: () => requesting,
+    commits: () => commits.count,
+    groupBase: () => groupBase.value,
+    blockerRun: (facts) => lines.blockerRunOf(facts.key, facts.type, facts.round),
   };
+  const waveGate = new WaveGate();
+  const waveInputOf = (facts: FrameFacts): WaveInput => ({
+    graph: facts.graph ?? TaskGraph.parse(""),
+    closed: pipeline.closedTasks(),
+    waves: ledger.waveLines(),
+    phaseOf: (key) => lines.wavePhaseOf(key),
+  });
   const lifecycle = new Lifecycle({
     gate,
     authority: new Authority(),
@@ -399,12 +425,8 @@ const fixture = (): Fixture => {
     child,
     ledger,
     reads,
-  });
-  const waveInputOf = (facts: FrameFacts): WaveInput => ({
-    graph: facts.graph ?? TaskGraph.parse(""),
-    closed: pipeline.closedTasks(),
-    waves: ledger.waveLines(),
-    phaseOf: (key) => lines.wavePhaseOf(key),
+    waveGate,
+    waveInput: waveInputOf,
   });
   const options: RunOptions = {
     workspace,
@@ -416,10 +438,8 @@ const fixture = (): Fixture => {
     lines,
     frame,
     pipeline,
-    waveGate,
     lifecycle,
     stepReads: reads,
-    waveInputOf,
     briefName: () => "brief.md",
     host: () => "pi",
   };
@@ -438,6 +458,9 @@ const fixture = (): Fixture => {
     writes,
     carriedByKey,
     prior,
+    requesting,
+    commits,
+    groupBase,
     lifecycle,
     options,
     waveInputOf,
@@ -469,6 +492,23 @@ const waveRequest = (over: Partial<FrameRequest> = {}): FrameRequest => ({
   plan: PLAN_REL,
   ...over,
 });
+
+/** A wave line at the fix hop: one completed implement plus `reviews` completed reviews, each
+ *  carrying one blocker — the shape `Frame#of` reads as the fix phase (round = the newest
+ *  review's cycle). */
+const fixableWave = (fx: Fixture, reviews = 1): string => {
+  const line = RoundIdentity.lineWordOf("wave", "1");
+  fx.ledger.recordRound(line, { op: "implement", cycle: 1 });
+  fx.carriedByKey.set("implement:1", { findings: [], status: null });
+  for (let cycle = 1; cycle <= reviews; cycle += 1) {
+    fx.carriedByKey.set(`review:${cycle}`, {
+      findings: [{ severity: "blocker", summary: "row" }],
+      status: null,
+    });
+    fx.ledger.recordRound(line, { op: "review", cycle });
+  }
+  return line;
+};
 
 afterEach(() => {
   for (const directory of created.splice(0)) rmSync(directory, { recursive: true, force: true });
@@ -654,7 +694,10 @@ describe("the pre-dispatch refusals", () => {
     expect(blockedDispatch.kind).toBe("blocked");
     if (blockedPreview.kind !== "blocked" || blockedDispatch.kind !== "blocked") return;
     expect(blockedDispatch.checked).toEqual(blockedPreview.checked);
-    expect(blockedDispatch.verdict.gate).toBe("tree-clean");
+    expect(blockedDispatch.leg).toBe("structure");
+    if (blockedDispatch.leg === "structure") {
+      expect(blockedDispatch.verdict.gate).toBe("tree-clean");
+    }
   });
 
   it("answers a held tree from both entries with one kind", async () => {
@@ -792,9 +835,57 @@ describe("the six hop cells", () => {
       reason: "face-closed",
       route: null,
     });
+  });
+
+  it("hands the fix hop the requesting carrier's own coordinates, and invents none", () => {
+    const requesting = {
+      reviews: "docs/kairos/plans/p9-review-1.json",
+      rulings: "docs/kairos/plans/p9-review-1.rulings.json",
+    };
+    const carried = routes.routeOf({
+      phase: "review",
+      status: null,
+      findings: [{ severity: "blocker", summary: "row" }],
+      consecutiveBlockers: 0,
+      readyBatch: [],
+      requesting,
+    });
+    expect(carried).toEqual({ kind: "fix", ...requesting });
+    // No carrier, no payload: the absent coordinate stays absent rather than invented.
     expect(
-      routes.message(closed, (entry) => (entry.kind === "literal" ? entry.literal : "")),
-    ).toContain("closed-line · next:");
+      routes.routeOf({
+        phase: "review",
+        status: null,
+        findings: [{ severity: "blocker", summary: "row" }],
+        consecutiveBlockers: 0,
+        readyBatch: [],
+      }),
+    ).toEqual({ kind: "fix" });
+    // The same payload leaves a LINE's route through its carried record, not a second read.
+    const line = new LinePhase({
+      facts: {
+        rounds: () => [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            verdict: { treeClean: true, targetAction: true },
+            violations: [],
+            carrierDigest: null,
+          },
+        ],
+        reviewedOf: () => null,
+        docDriftOf: () => null,
+      },
+      carried: () => ({
+        findings: [{ severity: "blocker", summary: "row" }],
+        status: null,
+        requesting,
+      }),
+      text: () => null,
+    });
+    expect(line.routeOf("branch", "branch")).toEqual({ kind: "fix", ...requesting });
   });
 
   it("reads the soft cap's threshold from the ONE constant", () => {
@@ -1076,6 +1167,154 @@ describe("the capsule summary", () => {
   });
 });
 
+describe("the booked verdict", () => {
+  it("withholds the target action from a round whose child exited non-zero", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    fx.runner.code = 1;
+    const failed = await fx.run.advance(waveRequest());
+    expect(failed.kind).toBe("dispatch");
+    if (failed.kind !== "dispatch") return;
+    expect(failed.result.code).toBe(1);
+    expect(failed.result.round.verdict).toEqual({ treeClean: true, targetAction: false });
+    const crashed = fx.ledger.crashedOf(fx.ledger.nodeRecordsOf(fx.ledger.read()));
+    expect(crashed.map((row) => row.cause)).toContain("child-exit");
+    // A failed round is no carrier: the line never reads as reviewed, let alone closed.
+    expect(fx.lines.waveClosedAt("1")).toBe(false);
+    expect(fx.lines.wavePhaseOf("1")).toBe("review");
+  });
+
+  it("withholds it from a carrier that concluded BLOCKED, under its own cause", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    fx.carriedByKey.set("review:1", { findings: [], status: "BLOCKED" });
+    const blocked = await fx.run.advance(waveRequest());
+    expect(blocked.kind).toBe("dispatch");
+    if (blocked.kind !== "dispatch") return;
+    expect(blocked.result.round.verdict.targetAction).toBe(false);
+    const crashed = fx.ledger.crashedOf(fx.ledger.nodeRecordsOf(fx.ledger.read()));
+    expect(crashed.map((row) => row.cause)).toContain("round-blocked");
+    expect(fx.lines.waveClosedAt("1")).toBe(false);
+  });
+});
+
+describe("the fix completion judgment", () => {
+  it("refuses a fix round whose dispositions miss a requested finding", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fixableWave(fx);
+    fx.requesting.findings = [
+      { severity: "blocker", summary: "the first thing", id: "F1" },
+      { severity: "blocker", summary: "the second thing", id: "F2" },
+    ];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: null,
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
+    expect(outcome.kind).toBe("dispatch");
+    if (outcome.kind !== "dispatch") return;
+    expect(outcome.result.round.verdict.targetAction).toBe(false);
+    const hard = outcome.result.round.violations.filter((row) => row.grade === "hard");
+    expect(hard.map((row) => row.message).join(" ")).toContain("F2: the second thing");
+    const crashed = fx.ledger.crashedOf(fx.ledger.nodeRecordsOf(fx.ledger.read()));
+    expect(crashed.some((row) => row.op === "fix")).toBe(true);
+    // The line still owes the fix: the failed round closes nothing.
+    expect(fx.lines.waveClosedAt("1")).toBe(false);
+    expect(fx.lines.wavePhaseOf("1")).toBe("fix");
+  });
+
+  it("books a covering round as complete, with the criterion's soft observations", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fixableWave(fx);
+    fx.requesting.findings = [{ severity: "blocker", summary: "the only thing", id: "F1" }];
+    fx.commits.count = 0;
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
+    expect(outcome.kind).toBe("dispatch");
+    if (outcome.kind !== "dispatch") return;
+    expect(outcome.result.round.verdict.targetAction).toBe(true);
+    expect(outcome.result.round.violations.map((row) => row.message)).toContain(FIX_ZERO_COMMITS);
+  });
+});
+
+describe("the soft cap's counter", () => {
+  const reviews = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      op: "review" as const,
+      cycle: index + 1,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      carrierDigest: null,
+    }));
+
+  const lineOf = (count: number, cleanCycle: number | null): LinePhase =>
+    new LinePhase({
+      facts: {
+        rounds: (key) => (key === "branch" ? reviews(count) : []),
+        reviewedOf: () => null,
+        docDriftOf: () => null,
+      },
+      carried: (record) => ({
+        findings:
+          record.cycle === cleanCycle ? [] : [{ severity: "blocker" as const, summary: "row" }],
+        status: null,
+      }),
+      text: () => null,
+    });
+
+  it("walks the line's completed reviews back from the fix round, not the round's own set", () => {
+    const run = REVIEW_CYCLE_CAP + 1;
+    expect(lineOf(run, null).blockerRunOf("branch", "branch", run)).toBe(run);
+    expect(lineOf(run, 41).blockerRunOf("branch", "branch", run)).toBe(run - 41);
+    expect(lineOf(run, run).blockerRunOf("branch", "branch", run)).toBe(0);
+    // The count the route reads: the cap's own threshold, crossed by the run alone.
+    const routes = new NextRoutes();
+    const capped = routes.routeOf({
+      phase: "fix",
+      status: null,
+      findings: [],
+      consecutiveBlockers: lineOf(run, null).blockerRunOf("branch", "branch", run),
+      readyBatch: [],
+    });
+    expect(capped).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
+    const open = routes.routeOf({
+      phase: "fix",
+      status: null,
+      findings: [],
+      consecutiveBlockers: lineOf(run, 41).blockerRunOf("branch", "branch", run),
+      readyBatch: [],
+    });
+    expect(open).toEqual({ kind: "done" });
+  });
+
+  it("feeds that run to the route a real fix round books", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fixableWave(fx, REVIEW_CYCLE_CAP + 1);
+    fx.carriedByKey.set(`fix:${REVIEW_CYCLE_CAP + 1}`, {
+      findings: [],
+      status: "APPROVED",
+      dispositions: {},
+    });
+    const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
+    expect(outcome.kind).toBe("dispatch");
+    if (outcome.kind !== "dispatch") return;
+    expect(outcome.result.round.cycle).toBe(REVIEW_CYCLE_CAP + 1);
+    expect(outcome.result.route).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
+  });
+});
+
 describe("the dry run", () => {
   it("runs three pure reads and suppresses every write, lock and spawn", async () => {
     const fx = fixture();
@@ -1092,19 +1331,40 @@ describe("the dry run", () => {
     expect(fx.lines.wavePhaseOf("1")).toBe("implement");
   });
 
-  it("refuses on the line leg where the real dispatch would, with the same rows", async () => {
+  it("refuses the same split tree on both entries, with the same rows", async () => {
     const fx = fixture();
     oneTaskPlan(fx, [
       { id: 1, dependsOn: "none" },
       { id: 2, dependsOn: "none" },
     ]);
     const refused = await fx.run.previewOf(waveRequest({ tasks: "1" }));
-    expect(refused.kind).toBe("refused");
     const dispatched = await fx.run.advance(waveRequest({ tasks: "1" }));
-    expect(dispatched.kind).toBe("dispatch");
-    if (refused.kind !== "refused" || dispatched.kind !== "dispatch") return;
+    // One conclusion for one tree: the dry run answers `refused` and the real dispatch
+    // answers `blocked` (the two faces' streams differ, the judgment does not) — neither
+    // spawns a child, neither books a round.
+    expect(refused.kind).toBe("refused");
+    expect(dispatched.kind).toBe("blocked");
+    if (refused.kind !== "refused" || dispatched.kind !== "blocked") return;
     expect(refused.verdict.reason).toBe(WAVE_GATE_REASON.split);
-    expect(refused.checked).toEqual(dispatched.checked);
+    expect(dispatched.leg).toBe("line");
+    if (dispatched.leg !== "line") return;
+    expect(dispatched.verdict.reason).toBe(refused.verdict.reason);
+    expect(dispatched.checked).toEqual(refused.checked);
+    expect(fx.runner.spawns).toBe(0);
+    expect(fx.ledger.rounds(RoundIdentity.lineWordOf("wave", "1"))).toEqual([]);
+  });
+
+  it("leaves a doc or branch face to its own leg, not to the wave gate", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // Neither face carries `--tasks`, so a wave gate applied here would read `split` on
+    // every request; both entries skip it on the row's audit cell.
+    expect(
+      (await fx.run.previewOf({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("pass");
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
   });
 
   it("answers the assembly failures with the same kind the dispatch does", async () => {
@@ -1123,14 +1383,70 @@ describe("the dry run", () => {
 });
 
 describe("the target table", () => {
-  it("drives the phase word from a row, not from a branch", () => {
+  it("drives two rows through one lifecycle: the review-lead phase and the batch cell", async () => {
+    // The cells the rows declare, in the table's own vocabulary.
     expect(TargetFaces.reviewLeadOf("branch")).toBe("branch-review");
     expect(TargetFaces.reviewLeadOf("phase-spec")).toBe("review");
     expect(TargetFaces.isDocShape("overall")).toBe(true);
     expect(TargetFaces.isDocShape("wave")).toBe(false);
+    expect(TargetFaces.isTaskGraph("wave")).toBe(true);
+    expect(TargetFaces.isTaskGraph("branch")).toBe(false);
+    expect(TargetFaces.advancesBatch("wave")).toBe(true);
+    expect(TargetFaces.advancesBatch("branch")).toBe(false);
     expect(TargetFaces.rows().length).toBe(6);
+
     const fx = fixture();
+    oneTaskPlan(fx);
+    const branch = fx.frame.of({ command: "review", type: "branch", plan: PLAN_REL });
+    const doc = fx.frame.of({ command: "review", type: "phase-spec", spec: SPEC_REL });
+    if (branch.kind !== "frame" || doc.kind !== "frame") throw new Error("no frame");
+    // The phase word each row selects, read off one assembly.
+    expect(branch.phase).toBe("branch-review");
+    expect(doc.phase).toBe("review");
     expect(fx.lines.phaseOf("branch", "branch")).toBe("branch-review");
     expect(fx.lines.phaseOf("phase-spec", "phase-spec")).toBe("review");
+
+    // The SAME step, driven by both rows: neither closes a wave line (no batch cell).
+    expect((await fx.run.advance({ command: "review", type: "branch", plan: PLAN_REL })).kind).toBe(
+      "dispatch",
+    );
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    expect(fx.ledger.planTasksOf("branch")).toBeNull();
+    expect(fx.ledger.planTasksOf("phase-spec")).toBeNull();
+
+    // The row that DOES advance a batch: the same step closes the wave line.
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([]);
+  });
+
+  it("changes the dispatch when the row changes, with no lifecycle edit", async () => {
+    // The cells are flipped in place for the length of this case: what the assertions
+    // measure is that the ROW — not a branch on the type word — selects the behaviour.
+    const wave = TARGET_FACES.wave;
+    const branch = TARGET_FACES.branch;
+    const waveBatch = wave.nextSemantics;
+    const branchLead = branch.product;
+    try {
+      (wave as { nextSemantics: { batch: boolean } }).nextSemantics = { batch: false };
+      const fx = fixture();
+      oneTaskPlan(fx);
+      expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+      expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+      // The same closing step, no batch cell: the wave line keeps no snapshot.
+      expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toBeNull();
+
+      (branch as { product: { reviewLead: string } }).product = { reviewLead: "review" };
+      const driven = fixture();
+      oneTaskPlan(driven);
+      const frame = driven.frame.of({ command: "review", type: "branch", plan: PLAN_REL });
+      if (frame.kind !== "frame") throw new Error("no frame");
+      expect(frame.phase).toBe("review");
+    } finally {
+      (wave as { nextSemantics: { batch: boolean } }).nextSemantics = waveBatch;
+      (branch as { product: { reviewLead: string } }).product = branchLead;
+    }
   });
 });

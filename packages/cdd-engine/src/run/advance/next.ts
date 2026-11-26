@@ -160,6 +160,16 @@ export type DispatchReason = (typeof DISPATCH_REASON)[keyof typeof DISPATCH_REAS
 /** The single-target line's two decision hops — the phases a route can name. */
 export type RouteHop = "review" | "fix";
 
+/** The requesting review's two carrier coordinates — what a `fix` hop hands the next round
+ *  (the carrier the dispositions read and the rulings sidecar it consumed). Read off the
+ *  review record's own identity by the caller, never re-spelled here. */
+export interface FixRequest {
+  /** The requesting carrier's path (the `--reviews` input). */
+  readonly reviews?: string;
+  /** The rulings sidecar the ledger resolved for that record. */
+  readonly rulings?: string;
+}
+
 /** The wave gate's five rows as a TYPED VIEW of the shared table's line leg. The token
  *  spellings live in the table only, so `wave.ts` carries no second copy. */
 export const WAVE_GATE_REASON = {
@@ -210,6 +220,8 @@ export interface NextHop {
  *  judgment: the findings and the status are the carrier's own, and the ready batch is the
  *  caller's frontier read. */
 export interface RoundFacts {
+  /** The requesting carrier a `fix` hop carries; absent when the round wrote none. */
+  readonly requesting?: FixRequest;
   /** The phase the round ran. A branch review reads as `branch-review`. */
   readonly phase: RoundOp | "branch-review";
   /** The work-plane conclusion carried by a work round (null on a judge round). */
@@ -251,7 +263,7 @@ export class NextRoutes {
     if (round.phase === "implement") return { kind: "review" };
     const findings = round.findings ?? [];
     if (round.phase === "review" || round.phase === "branch-review") {
-      return findings.length > 0 ? NextRoutes.#fixRoute() : this.#close(round.readyBatch);
+      return findings.length > 0 ? NextRoutes.#fixRoute(round) : this.#close(round.readyBatch);
     }
     if (NextRoutes.atSoftCap(round.consecutiveBlockers)) {
       return { kind: "soft-cap", message: SOFT_CAP_SUGGESTION };
@@ -309,14 +321,6 @@ export class NextRoutes {
     return NEXT_HOP_REASON.closedLine;
   }
 
-  /** The ONE rejection-message shape: a hop names its verb, a closed face names its handoff
-   *  station (the caller renders the entry), and neither renders an invented verb slot. */
-  message(hop: NextHop, station: (entry: PipelineEntry) => string): string {
-    if (hop.hop !== null) return `${hop.reason} · the next round is ${hop.hop}`;
-    if (hop.to !== null) return `${hop.reason} · next: ${station(hop.to)}`;
-    return hop.reason;
-  }
-
   /** Whether a route lies on the closure side — the ONE terminal predicate, read by the
    *  lifecycle's terminal marking and by every closure consumer. */
   static routeClosed(route: Route | null): boolean {
@@ -361,10 +365,17 @@ export class NextRoutes {
     return verdict === "blocked" || verdict === "terminal" ? null : verdict;
   }
 
-  /** The one-way fix hop. The path payload arrives from the caller's artifact read; this
-   *  table renders no name of its own. */
-  static #fixRoute(): Route {
-    return { kind: "fix" };
+  /** The one-way fix hop. The payload arrives from the caller's record read (the requesting
+   *  review's own carrier coordinates); this table renders no name of its own, and a cell the
+   *  caller could not resolve stays absent rather than invented. */
+  static #fixRoute(round: RoundFacts): Route {
+    const reviews = round.requesting?.reviews;
+    const rulings = round.requesting?.rulings;
+    return {
+      kind: "fix",
+      ...(reviews === undefined ? {} : { reviews }),
+      ...(rulings === undefined ? {} : { rulings }),
+    };
   }
 
   /** Whether one finding is a blocker — the C5-1 severity cell. */

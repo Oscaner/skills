@@ -14,12 +14,13 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import type { FixDisposition } from "../../docs/judging/completion.ts";
 import type { RoundPhase } from "../dispatch/child.ts";
 import type { RoundFinding } from "../dispatch/handoff.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { RoundRecord } from "../ledger/ledger.ts";
 import type { Drift, ReviewedIdentity } from "../ledger/reviewed.ts";
-import { NextRoutes, type Route } from "./next.ts";
+import { type FixRequest, NextRoutes, type Route } from "./next.ts";
 import { TargetFaces, type TargetType } from "./target-faces.ts";
 
 /** The three states of one line AS OF its identity document. */
@@ -52,6 +53,13 @@ export interface CarriedFacts {
   readonly findings: readonly RoundFinding[] | null;
   /** A work round's conclusion; null on a judge round. */
   readonly status: "APPROVED" | "BLOCKED" | null;
+  /** The carrier coordinates a `fix` hop hands the next round; absent when the round wrote
+   *  no carrier. */
+  readonly requesting?: FixRequest;
+  /** The fix round's disposition table, as its working carrier declares it; absent when the
+   *  carrier is not a work carrier or declares none. The SAME checked read answers it, so a
+   *  round's dispositions are never read twice. */
+  readonly dispositions?: Readonly<Record<string, FixDisposition>> | null;
 }
 
 /** The checked carrier read, injected — the dispatch segment's one read face. */
@@ -119,12 +127,12 @@ export class LinePhase {
     const lead = LinePhase.#latestCompleted(records, reviewLead);
     if (lead === null) return { kind: "review" };
     if (!LinePhase.#completedCycles(records, "fix").includes(lead.cycle)) {
-      const route = this.#roundRoute(type, lead.record);
+      const route = this.#roundRoute(key, type, lead.record);
       return route?.kind === "fix" ? route : null;
     }
     const fix = LinePhase.#latestCompleted(records, "fix");
     if (fix === null) return null;
-    const route = this.#roundRoute(type, fix.record);
+    const route = this.#roundRoute(key, type, fix.record);
     return route?.kind === "review" ? route : null;
   }
 
@@ -147,8 +155,8 @@ export class LinePhase {
     const fix = LinePhase.#completedCycles(records, "fix").includes(lead.cycle)
       ? LinePhase.#latestCompleted(records, "fix")
       : null;
-    if (fix === null) return NextRoutes.routeClosed(this.#roundRoute(type, lead.record));
-    return NextRoutes.routeClosed(this.#roundRoute(type, fix.record));
+    if (fix === null) return NextRoutes.routeClosed(this.#roundRoute(key, type, lead.record));
+    return NextRoutes.routeClosed(this.#roundRoute(key, type, fix.record));
   }
 
   /** Whether the document's movement reopens the line onto its review lead — the ONE
@@ -191,7 +199,7 @@ export class LinePhase {
       ? LinePhase.#latestCompleted(records, "fix")
       : null;
     const carried = fixCycle ?? lead;
-    const route = this.#roundRoute("wave", carried.record);
+    const route = this.#roundRoute(LinePhase.waveLineWord(key), "wave", carried.record);
     if (route === null) return null;
     if (route.kind === "review") return { kind: "review" };
     if (route.kind !== "fix") return null;
@@ -215,6 +223,27 @@ export class LinePhase {
     return LinePhase.#completedCycles(this.#facts.rounds(key), phase);
   }
 
+  /** The CONSECUTIVE blocker run a round at `cycle` closes — the soft cap's ONE counter. The
+   *  walk starts at `cycle` and goes back over the line's completed review-lead rounds while
+   *  each carries a blocker finding, stopping at the first clean round or unreadable carrier.
+   *  `key` is the ledger line word, so a wave line passes its own spine. */
+  blockerRunOf(key: string, type: TargetType, cycle: number): number {
+    const records = this.#facts.rounds(key);
+    const lead = LinePhase.#opOf(TargetFaces.reviewLeadOf(type));
+    let run = 0;
+    for (let at = cycle; at >= 1; at -= 1) {
+      const record = records.find(
+        (candidate) =>
+          candidate.op === lead && candidate.cycle === at && candidate.verdict.targetAction,
+      );
+      if (record === undefined) break;
+      const carried = this.#carried(record);
+      if ((carried.findings ?? []).filter(LinePhase.#blocker).length === 0) break;
+      run += 1;
+    }
+    return run;
+  }
+
   /** Whether a wave line ever recorded a round — the face-level ENTRY predicate's cell: a
    *  dispatched but refused round still entered the face, because the ledger books it. */
   waveRecordedAt(key: string): boolean {
@@ -229,7 +258,9 @@ export class LinePhase {
     const fixCycle = LinePhase.#completedCycles(records, "fix").includes(lead.cycle)
       ? LinePhase.#latestCompleted(records, "fix")
       : null;
-    return NextRoutes.routeClosed(this.#roundRoute("wave", (fixCycle ?? lead).record));
+    return NextRoutes.routeClosed(
+      this.#roundRoute(LinePhase.waveLineWord(key), "wave", (fixCycle ?? lead).record),
+    );
   }
 
   /** The ledger's line word of a wave task-group key — the wave's own spine, read from the
@@ -246,26 +277,16 @@ export class LinePhase {
 
   /** One round's C5 route through the carried facts — null when the round's carrier is
    *  unreadable (a round that cannot be read cannot be judged closed). */
-  #roundRoute(_type: TargetType, record: RoundRecord): Route | null {
+  #roundRoute(key: string, type: TargetType, record: RoundRecord): Route | null {
     const carried = this.#carried(record);
     return this.#routes.routeOf({
       phase: record.op,
       status: carried.status,
       findings: carried.findings,
-      consecutiveBlockers: this.#trailingBlockers(record),
+      consecutiveBlockers: record.op === "fix" ? this.blockerRunOf(key, type, record.cycle) : 0,
       readyBatch: [],
+      ...(carried.requesting === undefined ? {} : { requesting: carried.requesting }),
     });
-  }
-
-  /** The CONSECUTIVE blocker run this fix round belongs to — the soft cap's counter. The
-   *  count walks back over the line's fix rounds from this one while each carries a blocker
-   *  finding, so a clean round resets it and a re-attempt does not. */
-  #trailingBlockers(record: RoundRecord): number {
-    if (record.op !== "fix") return 0;
-    const carried = this.#carried(record);
-    const own = (carried.findings ?? []).filter(LinePhase.#blocker).length;
-    if (own === 0) return 0;
-    return own;
   }
 
   /** The latest COMPLETED round of one mode — a failed round consumed its cycle but is not

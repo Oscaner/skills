@@ -128,6 +128,18 @@ export class TargetFaces {
     return TargetFaces.rowOf(type).audit.kind === "doc-path";
   }
 
+  /** Whether a target type audits the TASK GRAPH — the row cell the wave gate's
+   *  applicability is read off, so no call site re-spells `type === "wave"`. */
+  static isTaskGraph(type: TargetType): boolean {
+    return TargetFaces.rowOf(type).audit.kind === "task-graph";
+  }
+
+  /** Whether a `next-wave` hop advances a task batch on this face — the lifecycle's
+   *  wave-close cell and its dispatch record read this, never the type word. */
+  static advancesBatch(type: TargetType): boolean {
+    return TargetFaces.rowOf(type).nextSemantics.batch;
+  }
+
   /** The review-lead round mode of a type's line. */
   static reviewLeadOf(type: TargetType): ReviewLead {
     return TargetFaces.rowOf(type).product.reviewLead;

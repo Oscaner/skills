@@ -45,7 +45,7 @@ import type { LinePhase, LineState } from "./advance/line-phase.ts";
 import type { NextHop } from "./advance/next.ts";
 import type { Pipeline } from "./advance/pipeline.ts";
 import type { TargetType } from "./advance/target-faces.ts";
-import type { WaveGate, WaveInput, WaveVerdict } from "./advance/wave.ts";
+import type { WaveVerdict } from "./advance/wave.ts";
 import type { Child, RoundPhase } from "./dispatch/child.ts";
 import type { InFlight, InFlightState } from "./dispatch/inflight.ts";
 import type { CheckedRow, PreFlight, PreFlightVerdict } from "./gate/preflight.ts";
@@ -364,16 +364,12 @@ export interface RunOptions extends LedgerOptions {
   readonly frame: Frame;
   /** The pipeline frontier and its one hop assembly. */
   readonly pipeline: Pipeline;
-  /** The wave gate — read by the task face's dispatch and by a preview. */
-  readonly waveGate: WaveGate;
-  /** The one dispatch step. */
+  /** The one dispatch step — it also OWNS the line leg (the wave gate), so a preview asks it
+   *  for the verdict the real dispatch refuses on instead of wiring a second gate. */
   readonly lifecycle: Lifecycle;
   /** The step's reads and side-effect seams — the SAME wiring a preview reads through, so a
    *  dry run and a real dispatch judge with one pre-flight context. */
   readonly stepReads: LifecycleReads;
-  /** The wave gate's input for one frame (the plan's graph, the closed set, the wave rows and
-   *  the phase read). */
-  readonly waveInputOf: (frame: FrameFacts) => WaveInput;
   /** The brief's workspace-relative name — the preview's brief cell, the same spelling the
    *  landing produces. */
   readonly briefName: (frame: FrameFacts) => string;
@@ -412,10 +408,8 @@ export class Run {
   readonly #lines: LinePhase;
   readonly #frame: Frame;
   readonly #pipeline: Pipeline;
-  readonly #waveGate: WaveGate;
   readonly #lifecycle: Lifecycle;
   readonly #stepReads: LifecycleReads;
-  readonly #waveInputOf: (frame: FrameFacts) => WaveInput;
   readonly #briefName: (frame: FrameFacts) => string;
   readonly #host: () => string;
 
@@ -429,10 +423,8 @@ export class Run {
     this.#lines = opts.lines;
     this.#frame = opts.frame;
     this.#pipeline = opts.pipeline;
-    this.#waveGate = opts.waveGate;
     this.#lifecycle = opts.lifecycle;
     this.#stepReads = opts.stepReads;
-    this.#waveInputOf = opts.waveInputOf;
     this.#briefName = opts.briefName;
     this.#host = opts.host;
   }
@@ -472,12 +464,9 @@ export class Run {
         ? { kind: "held", state: holding, checked: verdict.checked }
         : { kind: "blocked", verdict, checked: verdict.checked };
     }
-    const wave = this.#waveGate.vet(
-      new Set(frame.tasks),
-      Run.#waveVerbOf(frame),
-      this.#waveInputOf(frame),
-    );
-    if (!wave.ok) return { kind: "refused", verdict: wave, checked: verdict.checked };
+    const wave = this.#lifecycle.waveVerdictOf(frame);
+    if (wave !== null && !wave.ok)
+      return { kind: "refused", verdict: wave, checked: verdict.checked };
     return {
       kind: "pass",
       frame,
@@ -550,15 +539,6 @@ export class Run {
       });
     }
     return rows;
-  }
-
-  /** The wave gate's verb of one frame — the branch face's review rides `review`. */
-  static #waveVerbOf(frame: FrameFacts): "implement" | "review" | "fix" {
-    if (frame.phase === "branch-review") return "review";
-    if (frame.phase === "implement" || frame.phase === "review" || frame.phase === "fix") {
-      return frame.phase;
-    }
-    return "review";
   }
 
   /** A document line's target type — the line word IS the type word for a document line, so

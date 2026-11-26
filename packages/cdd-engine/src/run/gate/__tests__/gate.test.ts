@@ -18,7 +18,9 @@
 //   · the two yielding conditions — a face with no input face yields all four stations, and a
 //     refusal before them records none of them;
 //   · the checked face's readings — the plan-ahead count on the `plan-ledger` row, and a REAL
-//     `Documents` behind the gate rather than only the dictated double.
+//     `Documents` behind the gate rather than only the dictated double;
+//   · the segment boundary — no later `run/` segment and no consumer byte, read by resolving
+//     this segment's own specifiers (a spelling it never carries cannot be a guard).
 //
 // Every case drives a real `WorkspaceRoot` and a real `Ledger` over a temp git tree: "the
 // record lands through the workspace" and "no round moved" are only facts if the writes are
@@ -30,6 +32,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { specifiersIn } from "../../../../tests/support/module-specifiers.ts";
 import type { Finding, JudgeInput, LedgerFacts, RuleDeclaration } from "../../../docs/index.ts";
 import { Documents, RULE_REGISTRY, TaskGraph } from "../../../docs/index.ts";
 import type { RepoPath } from "../../../env/paths/root.ts";
@@ -55,6 +58,47 @@ import { Refusal } from "../refusal.ts";
 
 /** The `src`-relative directory this file pins. */
 const GATE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/** The engine package's `src` root — the base a gate specifier resolves under. */
+const SRC_DIR = path.resolve(GATE_DIR, "../..");
+
+/** The segments `run/gate` may never reach: the later `run/` segments and the consumer
+ *  surface. `run/ledger` is NOT among them — it is the one downward edge inside `run/` —
+ *  and neither are the cross-slice reads of `docs/` and `env/`, which are the reason this
+ *  segment exists rather than a second layer. */
+const FOREIGN_SEGMENTS = ["run/dispatch", "run/advance", "surface"] as const;
+
+/** The surface's diagnostic line as a renderer must SPELL it — the prefix opening a string
+ *  literal. A comment that merely names the prefix is prose, not a byte a consumer reads. */
+const CONSUMER_PREFIX = /["'`]cdd:\s/;
+
+/** A stream or console write of the segment's own — printing is the render face's job. */
+const WRITE_OF_ITS_OWN = /\b(?:process\.(?:stdout|stderr)|console\.\w+\()/;
+
+/** This segment's product modules — the judged domain (`__tests__/` is test surface, and a
+ *  directory name carries no `.ts` suffix). */
+const gateModules = (): string[] => readdirSync(GATE_DIR).filter((name) => name.endsWith(".ts"));
+
+/** The edges from one directory's text that land in a segment this one may not reach.
+ *  Specifiers are resolved against the text's OWN directory, which is what lets the ban
+ *  fail: every import here is relative, so a reach of any spelling
+ *  (`../dispatch/inflight.ts`) lands on a real path and is judged there.
+ *  Bare package specifiers resolve into no segment and contribute no edge. */
+const foreignEdges = (directory: string, text: string): string[] => {
+  const roots = FOREIGN_SEGMENTS.map((segment) => path.join(SRC_DIR, segment));
+  return specifiersIn(text)
+    .filter((specifier) => specifier.startsWith("."))
+    .filter((specifier) => {
+      const resolved = path.resolve(directory, specifier);
+      return roots.some((root) => resolved === root || resolved.startsWith(`${root}${path.sep}`));
+    });
+};
+
+/** Whether a text spells a consumer byte — the surface's line prefix or a write of its own.
+ *  `run/` publishes VALUES; the one line that reaches a consumer is rendered elsewhere, so
+ *  this segment answers `false` for every module it owns. */
+const spellsConsumerByte = (text: string): boolean =>
+  CONSUMER_PREFIX.test(text) || WRITE_OF_ITS_OWN.test(text);
 
 /** A fixed instant — the injected clock's one reading. */
 const FIXED_NOW = 1_700_000_000_000;
@@ -406,7 +450,7 @@ describe("the refusal's timestamp", () => {
   });
 
   it("reads no clock of its own anywhere in this segment", () => {
-    const files = readdirSync(GATE_DIR).filter((name) => name.endsWith(".ts"));
+    const files = gateModules();
     expect(files.length).toBeGreaterThan(2);
     for (const file of files) {
       const text = readFileSync(path.join(GATE_DIR, file), "utf8");
@@ -768,12 +812,40 @@ describe("the checked face's readings", () => {
 });
 
 describe("the segment boundary", () => {
-  it("imports no later run segment and spells no consumer byte", () => {
-    for (const file of readdirSync(GATE_DIR).filter((name) => name.endsWith(".ts"))) {
-      const text = readFileSync(path.join(GATE_DIR, file), "utf8");
-      for (const later of ["run/dispatch", "run/advance", "surface/"]) {
-        expect(text).not.toContain(`"${later}`);
-      }
+  it("imports no later run segment — every relative specifier resolved where the loader reads it", () => {
+    const modules = gateModules();
+    expect(modules.length).toBeGreaterThan(2);
+    for (const name of modules) {
+      const text = readFileSync(path.join(GATE_DIR, name), "utf8");
+      expect(foreignEdges(GATE_DIR, text)).toEqual([]);
     }
+  });
+
+  it("sees a reach when there is one — the ban cannot pass on a spelling mismatch", () => {
+    // The violation arm: the plausible later move once the occupancy reading is reachable
+    // from the gate. A quote-prefix needle (`"run/dispatch`) reads `false` on exactly this
+    // import — no relative specifier spells the tree path, which is why the verdict resolves.
+    const reach = 'import type { InFlight } from "../dispatch/inflight.ts";';
+    expect(foreignEdges(GATE_DIR, reach)).toEqual(["../dispatch/inflight.ts"]);
+    // The neighbour arm: the one downward edge inside `run/`, and a cross-slice read.
+    const allowed = [
+      'import { Ledger } from "../ledger/ledger.ts";',
+      'import { Documents } from "../../docs/index.ts";',
+    ].join("\n");
+    expect(foreignEdges(GATE_DIR, allowed)).toEqual([]);
+    // Prose is not an edge: a comment quoting the ban is no reach at all.
+    expect(foreignEdges(GATE_DIR, '// never import "../dispatch/inflight.ts" here')).toEqual([]);
+  });
+
+  it("spells no consumer byte — the diagnostic line belongs to the render face", () => {
+    const modules = gateModules();
+    expect(modules.length).toBeGreaterThan(2);
+    for (const name of modules) {
+      const text = readFileSync(path.join(GATE_DIR, name), "utf8");
+      expect(spellsConsumerByte(text)).toBe(false);
+    }
+    // The needle is the surface's own line, so a segment that printed it answers `true`.
+    const published = 'io.stderr("cdd: the refusal record was not published — EACCES")';
+    expect(spellsConsumerByte(published)).toBe(true);
   });
 });

@@ -149,11 +149,18 @@ describe("the document review line", () => {
     const first = ledger.docLines()[0];
     expect(first?.docHash).toBe(ReviewedIdentity.hashOf("the body as reviewed"));
     expect(first?.batch).toBe(1);
-    ledger.recordDocReview("phase-spec", "the body as reviewed");
-    expect(ledger.docLines()[0]?.batch).toBe(2);
+    // The SECOND review hands over DIFFERENT bytes: `doc_hash` is the newest reviewed
+    // version (each review rewrites it, frozen between reviews), so the drift read answers
+    // against v2 — a write-once cell would keep answering against v1.
+    ledger.recordDocReview("phase-spec", "the body as re-reviewed");
+    const second = ledger.docLines()[0];
+    expect(second?.batch).toBe(2);
+    expect(second?.docHash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
+    expect(ledger.docDriftOf("phase-spec", "the body as re-reviewed")).toBe("same");
+    expect(ledger.docDriftOf("phase-spec", "the body as reviewed")).toBe("drift");
     // The row's own persisted cell IS the digest — one fact, one home.
     const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
-    expect(raw.lines[0].doc_hash).toBe(ReviewedIdentity.hashOf("the body as reviewed"));
+    expect(raw.lines[0].doc_hash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
   });
 
   it("answers `same` for the reviewed bytes and `drift` once the document moved", () => {

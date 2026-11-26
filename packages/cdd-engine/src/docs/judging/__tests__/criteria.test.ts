@@ -12,7 +12,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CompletionCriteria, type CompletionFacts } from "../completion.ts";
+import {
+  CompletionCriteria,
+  type CompletionFacts,
+  IMPLEMENT_CARRIER_ABSENT,
+  IMPLEMENT_VERIFICATION_WAVE,
+} from "../completion.ts";
 import {
   CRITERIA,
   CRITERIA_BODIES,
@@ -28,13 +33,14 @@ import { MAX_TASKS_PER_WAVE, WaveWidth } from "../wave-width.ts";
 /** The `src`-relative judging directory this file pins. */
 const JUDGING_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The `src`-relative `docs/` slice root — the whole product surface a criterion's home is
- *  judged over, not the one file that happens to hold the literal today. */
-const DOCS_DIR = path.dirname(JUDGING_DIR);
+/** The `src`-relative product root — the whole tree a criterion's home is judged over, not
+ *  the one slice that happens to hold the literal today. A cross-slice copy (`run/`,
+ *  `surface/`, `env/`) is the likeliest second spelling, so the scan starts at `src`. */
+const SRC_DIR = path.resolve(JUDGING_DIR, "../..");
 
-/** The `docs/` product scan: which non-test modules carry one literal. A `__tests__`
- *  directory is the test surface and stays outside the scan; the pin judges where the
- *  product stores a sentence, never where a test quotes it. */
+/** The product scan: which non-test modules carry one literal. A `__tests__` directory is
+ *  the test surface and stays outside the scan; the pin judges where the product stores a
+ *  sentence, never where a test quotes it. */
 class ProductScan {
   readonly #root: string;
 
@@ -132,14 +138,15 @@ describe("the lens question table", () => {
   it("gives the referential question exactly one home in the tree", () => {
     // The `spec-consistency` row carries the referential reading ("when a document gives a
     // reading … which items does it count"), and copying that sentence anywhere else is a
-    // second spelling of one criterion. The scan is the pin: the whole `docs/` product
-    // surface, one occurrence. Restricting it to `criteria.ts` would restate the literal it
-    // already holds instead of judging where else it landed.
+    // second spelling of one criterion. The scan is the pin: the whole `src` product tree,
+    // one occurrence. Restricting it to `criteria.ts` (or to its own slice) would restate
+    // the literal it already holds instead of judging where else it landed — and a
+    // prompt renderer composing a review prompt is the copy the title forbids.
     const literal = new LensQuestions().of("spec", "consistency").question;
     const marker = "which items does it count";
     expect(literal).toContain(marker);
-    expect(new ProductScan(DOCS_DIR).filesMentioning(marker)).toEqual([
-      path.join("judging", "criteria.ts"),
+    expect(new ProductScan(SRC_DIR).filesMentioning(marker)).toEqual([
+      path.join("docs", "judging", "criteria.ts"),
     ]);
     // …and the row's own question carries it exactly once.
     expect(literal.split(marker).length - 1).toBe(1);
@@ -168,9 +175,16 @@ describe("the lens question table", () => {
 });
 
 describe("the completion criteria", () => {
-  /** A round's fact record — a plain implement round unless a case overrides a cell. */
+  /** The group's dispatch baseline every case measures against — the sha a zero-commit
+   *  refusal has to name. */
+  const BASELINE = "4f1c2ab";
+
+  /** A round's fact record — a plain implement round that wrote its carrier unless a case
+   *  overrides a cell. */
   const factsOf = (over: Partial<CompletionFacts> = {}): CompletionFacts => ({
     commits: 0,
+    groupBase: BASELINE,
+    carrierWritten: true,
     findings: null,
     waveTasks: [],
     emptyFileTasks: new Set(),
@@ -178,12 +192,33 @@ describe("the completion criteria", () => {
     ...over,
   });
 
-  it("fails an implement round that committed nothing", () => {
-    expect(CompletionCriteria.judge("implement", factsOf())).toMatchObject({
+  it("fails an implement round that committed nothing, naming its baseline", () => {
+    // Byte-exact: the refusal prints the group's baseline sha, so an operator reads which
+    // HEAD the round left untouched.
+    expect(CompletionCriteria.judge("implement", factsOf())).toEqual({
       kind: "violation",
+      message: `the group committed nothing since its baseline ${BASELINE}`,
     });
     expect(CompletionCriteria.judge("implement", factsOf({ commits: 2 }))).toEqual({
       kind: "done",
+      observations: [],
+    });
+    // A group with no baseline has no HEAD to measure against — refusing is the only
+    // honest answer (an unmeasurable round must not read as an empty one).
+    expect(CompletionCriteria.judge("implement", factsOf({ groupBase: null }))).toEqual({
+      kind: "violation",
+      message: expect.stringContaining("carries no dispatch baseline"),
+    });
+  });
+
+  it("books a committed implement round's absent carrier instead of gating it", () => {
+    // An implement round is judged by its COMMITS: a round that wrote no handoff draft
+    // still concludes, and the missing carrier lands as a soft observation.
+    expect(
+      CompletionCriteria.judge("implement", factsOf({ commits: 1, carrierWritten: false })),
+    ).toEqual({
+      kind: "done",
+      observations: [{ grade: "soft", message: IMPLEMENT_CARRIER_ABSENT }],
     });
   });
 
@@ -194,7 +229,24 @@ describe("the completion criteria", () => {
     const verification = { waveTasks: [1, 2], emptyFileTasks: new Set([1, 2]) };
     expect(
       CompletionCriteria.judge("implement", factsOf({ ...verification, evidenceOk: true })),
-    ).toEqual({ kind: "done" });
+    ).toEqual({
+      kind: "done",
+      observations: [{ grade: "soft", message: IMPLEMENT_VERIFICATION_WAVE }],
+    });
+    // The verification booking sits before the absent-carrier booking — one order, so a
+    // completed round's observation list is the same on every read.
+    expect(
+      CompletionCriteria.judge(
+        "implement",
+        factsOf({ ...verification, evidenceOk: true, carrierWritten: false }),
+      ),
+    ).toEqual({
+      kind: "done",
+      observations: [
+        { grade: "soft", message: IMPLEMENT_VERIFICATION_WAVE },
+        { grade: "soft", message: IMPLEMENT_CARRIER_ABSENT },
+      ],
+    });
     expect(
       CompletionCriteria.judge("implement", factsOf({ ...verification, evidenceOk: false })),
     ).toEqual({
@@ -215,23 +267,29 @@ describe("the completion criteria", () => {
     // Commits decide first: a wave that also committed is done on its commits.
     expect(
       CompletionCriteria.judge("implement", factsOf({ commits: 1, evidenceOk: false })),
-    ).toEqual({ kind: "done" });
+    ).toEqual({ kind: "done", observations: [] });
   });
 
   it("accepts an EMPTY findings array as the review's APPROVED conclusion", () => {
     expect(CompletionCriteria.judge("review", factsOf({ findings: [] }))).toEqual({
       kind: "done",
+      observations: [],
     });
     expect(CompletionCriteria.judge("review", factsOf({ findings: [{}] }))).toEqual({
       kind: "done",
+      observations: [],
     });
     // An absent carrier is the violation — "no findings" and "nobody looked" differ.
-    expect(CompletionCriteria.judge("review", factsOf({ findings: null }))).toMatchObject({
+    expect(CompletionCriteria.judge("review", factsOf({ findings: null }))).toEqual({
       kind: "violation",
+      message: "the review round persisted no judge carrier",
     });
   });
 
   it("throws at lookup for a verb with no criterion", () => {
+    // `fix` is unported: its dispositions judgment needs a carrier read `docs/` never
+    // performs, so the throw — not a silent `done` — is the pinned behaviour until that
+    // criterion lands with the lifecycle that books a round.
     expect(() => CompletionCriteria.of("fix")).toThrow(/no completion criterion/);
   });
 });

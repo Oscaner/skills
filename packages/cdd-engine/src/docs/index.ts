@@ -120,9 +120,12 @@ export {
   CompletionCriteria,
   type CompletionCriterion,
   type CompletionFacts,
+  type CompletionObservation,
   type CompletionVerb,
   type CompletionVerdict,
   FindingsCriterion,
+  IMPLEMENT_CARRIER_ABSENT,
+  IMPLEMENT_VERIFICATION_WAVE,
 } from "./judging/completion.ts";
 export {
   CALIBRATION_TAIL,

@@ -14,9 +14,10 @@
 //   · a wave line's plan-task snapshot is a HISTORICAL fact: it is written once at the
 //     closure point and never re-derived (a plan that later gains tasks must not erase the
 //     append-vs-stall evidence), and an unclosed wave line answers no snapshot;
-//   · a document line remembers the version it reviewed (`doc_hash`, immutable once
-//     written) and the number of review batches it took; the drift read compares that
-//     recorded version against the document's current bytes;
+//   · a document line remembers the version its LATEST review read (`doc_hash`, rewritten
+//     by that review and frozen between reviews) and the number of review batches it took;
+//     the drift read compares the recorded version against the document's current bytes, so
+//     a drift read always answers against the newest reviewed version, never the first;
 //   · an artifact's path is a FUNCTION of its record's identity — never a stored cell — so
 //     `carrierPathOf` is the only accessor of that fact;
 //   · the observation set is a RECORD sequence, not a listing of the workspace: a sidecar
@@ -394,7 +395,9 @@ export class Ledger {
 
   /** Record one document review batch: the version it read (`doc_hash`) and the increment
    *  of the line's batch counter. A document's SECOND review is batch 2 — the counter is
-   *  the line's own history, never a re-derivation from its rounds. */
+   *  the line's own history, never a re-derivation from its rounds. `doc_hash` is the
+   *  LATEST reviewed version: each review overwrites it, so the drift read always compares
+   *  against the newest review rather than the first one. */
   recordDocReview(line: string, content: string): void {
     const document = this.read() ?? this.empty();
     const hash = ReviewedIdentity.hashOf(content);

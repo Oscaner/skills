@@ -15,7 +15,8 @@
 //     being the most recent non-empty finding set;
 //   · the liveness judge — a growing leg alone is progress, two flat legs are a stall, and
 //     an unreadable leg keeps its last readable tick (so it still authorizes a stall);
-//   · the watch — one stall verdict per dispatch and the last sample staying the stall;
+//   · the watch — one stall verdict per dispatch, the last sample staying the stall, and
+//     the first tick taken inside the dispatch's own wiring (never the caller's);
 //   · the value assembly — one basis, one composition, byte-stable twice;
 //   · the budget and the three termination causes — the seam's facts as the cause they
 //     name;
@@ -159,7 +160,7 @@ class NoDocuments {
 
 /** One fixture: a temp repo, its workspace family, the refusal fact, the lock and the
  *  in-flight record — every collaborator CONSTRUCTED, as the composition root will. */
-const fixture = (opts: { readonly runner?: ChildRunner } = {}) => {
+const fixture = (opts: { readonly runner?: ChildRunner; readonly reads?: LivenessReads } = {}) => {
   const repo = tempRepo();
   const basis = new RepoRoot(repo);
   const clock = new Clock(() => FIXED_NOW);
@@ -175,7 +176,7 @@ const fixture = (opts: { readonly runner?: ChildRunner } = {}) => {
     starts: { startOf: async () => null },
   });
   const runner = opts.runner ?? new StubRunner(async () => childOutcome());
-  const child = new Child({ runner, clock, reads: flatReads });
+  const child = new Child({ runner, clock, reads: opts.reads ?? flatReads });
   const workspace = root.at(SLUG).ensure();
   const frame: DispatchFrame = {
     command: "cdd-implement",
@@ -902,6 +903,34 @@ describe("the budget and the three termination causes", () => {
     expect(Child.causeOf({ overBudget: false, stopped: true, signal: "SIGTERM" })).toBe("stalled");
     expect(Child.causeOf({ overBudget: false, stopped: false, signal: "SIGKILL" })).toBe("signal");
     expect(Child.causeOf({ overBudget: false, stopped: false, signal: null })).toBeNull();
+  });
+
+  it("takes the first liveness tick inside `#watch` — the cadence is not the caller's to start", async () => {
+    // `Child#watch` starts the cadence itself, and `start()` takes its first tick before
+    // returning, so a leg is read by the time the seam's `observe` call comes back. Start
+    // the cadence AFTER handing the watch out instead and the round is never sampled: no
+    // tick rules `stalled`, the kill trigger never fires, and a hung round ends at the
+    // wall-clock ceiling recorded as `over-budget`.
+    let reads = 0;
+    const countingReads: LivenessReads = {
+      sizeOf: () => {
+        reads += 1;
+        return 0;
+      },
+      cpuOf: () => {
+        reads += 1;
+        return 0;
+      },
+    };
+    let readsAtHandover = -1;
+    const runner = new StubRunner(async (run) => {
+      run.observe?.({ pgid: 4242, kill: () => false });
+      readsAtHandover = reads;
+      return childOutcome();
+    });
+    const { child, frame } = fixture({ runner, reads: countingReads });
+    await child.dispatch(frame);
+    expect(readsAtHandover).toBeGreaterThan(0);
   });
 
   it("answers the outcome's three cells from one dispatch", async () => {

@@ -222,8 +222,10 @@ export class Child {
         opts.handle.kill();
       },
     });
-    // The watch is returned BEFORE `start()` so the caller can stop a cadence whose first
-    // tick already ruled `stalled` (start() answers nothing; the tick's own flag ends it).
+    // The cadence starts HERE, not at the caller: `start()` takes the first tick (seeding
+    // the idle clock from the spawn instant) and arms the interval, and a first tick that
+    // already ruled `stalled` ends the cadence on its own. The `finally`'s `stop()` is a
+    // belt-and-braces timer clear for the normal paths, never that stall's terminator.
     watch.start();
     return watch;
   }

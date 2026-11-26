@@ -2,7 +2,8 @@
 // The word table's pins, one group per fact it owns:
 //
 //   · the refusal sets — the four stations ARE the gate's own set (members of its row set,
-//     never a set beside it) and every named reason has its row;
+//     never a set beside it), every named reason has its row, and the two rows that ARE an
+//     in-flight word (`held`, `corrupt-record`) reference the family rather than repeat it;
 //   · the `checked:` face — the five in-flight state rows, and the fourth state NOT among
 //     them (it renders through the in-flight family instead);
 //   · the capsule — three slots, the two line labels, the fixed slot order, and the
@@ -97,6 +98,17 @@ describe("the refusal sets", () => {
     for (const reason of PRE_FLIGHT_REASONS) {
       expect(WORDS.refusal.reasons[reason].trim().length).toBeGreaterThan(0);
     }
+  });
+
+  it("spells the held refusal's detail as the held report, never a second sentence", () => {
+    // The gate's `held` refusal carries the in-flight report filled from the record's OWN
+    // cells — the recorded `f8.blocked.message` line is that report, and the parity pin
+    // (`tests/parity/parity.test.ts`, the refusal face) measures it against the family's
+    // template. So this row is the template, not a paraphrase: a sentence of its own here
+    // would print without the holder's pid, command and uptime, a byte no face produces.
+    expect(WORDS.refusal.reasons.held).toBe(WORDS.inFlight.held);
+    // Same rule for the other in-flight-backed reason: the gate answers the family's row.
+    expect(WORDS.refusal.reasons["corrupt-record"]).toBe(WORDS.inFlight.corruptLocked);
   });
 
   it("declares the blocked anchor and the station join once", () => {

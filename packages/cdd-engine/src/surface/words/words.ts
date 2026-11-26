@@ -10,8 +10,10 @@
 //   · `capsule`  — the capsule's stations, slots and status vocabulary;
 //   · `refusal`  — the `CDD_BLOCKED:` face: the anchor, the four refusal stations (the
 //                  gate's own `RowStation` SET, keyed by that type so a station the gate
-//                  adopts cannot be missing here), the five refusal reasons, and the
-//                  `refused:` row the board and the preview share;
+//                  adopts cannot be missing here), the five refusal reasons (two of them
+//                  references into the in-flight family — the held report and the
+//                  corrupt-lock sentence), and the `refused:` row the board and the
+//                  preview share;
 //   · `checked`  — the `checked:` face's heading, the per-rule result words and one skip row
 //                  per declared yield reason;
 //   · `inFlight` — the held report, the takeover hints, the fourth state's clause cells, the
@@ -138,7 +140,10 @@ export interface RefusalWords {
   /** The four pre-dispatch stations' own words, keyed by the gate's set: a station the gate
    *  adopts must be named here or the table does not type-check. */
   readonly stations: Readonly<Record<RowStation, string>>;
-  /** The five named reasons' words, keyed by the gate's own reason set. */
+  /** The five named reasons' words, keyed by the gate's own reason set. The `held` row is
+   *  the in-flight report's TEMPLATE — a renderer fills it through `Words#inFlightHeld` and
+   *  never prints it raw — and `corrupt-record` is the in-flight family's corrupt-lock
+   *  sentence: one fact, one spelling, so both rows reference the family. */
   readonly reasons: Readonly<Record<PreFlightReason, string>>;
   /** The `refused:` row's token — the board and the preview share it. */
   readonly token: string;
@@ -292,6 +297,43 @@ export interface ArtifactWords {
  *  the re-grade note. */
 export const FIX_DISPOSITIONS_SUMMARY = "fixed {fixed} · rejected {rejected}";
 
+// ---------------------------------------------------------------------------
+// the in-flight family
+// ---------------------------------------------------------------------------
+
+/** The in-flight family — declared ahead of the table because two of its rows ARE other
+ *  facts' words: the gate's `held` refusal carries the held report (filled from the
+ *  record's own cells), and its `corrupt-record` refusal carries the corrupt-lock
+ *  sentence. Referencing them keeps one spelling per fact; a row repeated here would be a
+ *  second sentence no face could print. */
+const IN_FLIGHT = {
+  held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
+  stealable:
+    "the holding process is gone — re-run the same command with --recover to take the in-flight record over",
+  targetGone: {
+    lead: "the dispatch's target is gone —",
+    cells: {
+      plan: "the plan the record names is not on this tree",
+      workspace: "the record's workspace directory is not on this tree",
+    },
+    separator: " · ",
+    takeover: "re-run the same command with --recover to take the in-flight record over",
+  },
+  corruptLocked:
+    "the in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over",
+  corruptUnlocked:
+    "the in-flight record is unreadable and no lock is left behind — re-run with --recover to take it over",
+  lockHeld:
+    "held by pid {pid} · command: {command} · started: {startedAt} · wave: {wave} · slug: {slug}",
+  lockOnly: "held by an unreadable in-flight record — the lock is still on disk",
+  free: "free — no dispatch holds this tree",
+  recovery: [
+    "look at the working tree first",
+    "commit the changes that work",
+    "discard the ones that are broken",
+  ],
+} as const;
+
 /** The one word table. */
 export const WORDS = {
   capsule: {
@@ -330,13 +372,16 @@ export const WORDS = {
       "dispatch-input": "dispatch-input",
       artifact: "artifact",
     },
-    /** The five named reasons — each row is the sentence the reason stands for. */
+    /** The five named reasons — each row is the sentence the reason stands for. Two rows are
+     *  NOT a sentence but the in-flight family's own word: `held` is the held report's
+     *  template (the gate's detail for that reason is the report filled from the record's
+     *  cells, so a sentence here would print without the holder's pid, command and uptime)
+     *  and `corrupt-record` is the corrupt-lock sentence verbatim. */
     reasons: {
       "dirty-tree":
         "the working tree is dirty — commit or discard your changes (recovery is the orchestrator's job; the engine only refuses — it never stashes, makes a temporary commit, or resumes a dirty tree), then re-run the same command",
-      held: "a dispatch is already in flight — the tree's in-flight record names a live holder",
-      "corrupt-record":
-        "the in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over",
+      held: IN_FLIGHT.held,
+      "corrupt-record": IN_FLIGHT.corruptLocked,
       graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
       "doc-contract":
         "the target document fails the doc-contract — fix its structural findings first",
@@ -388,33 +433,7 @@ export const WORDS = {
       corruptUnlocked: "unreadable record — no lock behind",
     },
   },
-  inFlight: {
-    held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
-    stealable:
-      "the holding process is gone — re-run the same command with --recover to take the in-flight record over",
-    targetGone: {
-      lead: "the dispatch's target is gone —",
-      cells: {
-        plan: "the plan the record names is not on this tree",
-        workspace: "the record's workspace directory is not on this tree",
-      },
-      separator: " · ",
-      takeover: "re-run the same command with --recover to take the in-flight record over",
-    },
-    corruptLocked:
-      "the in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over",
-    corruptUnlocked:
-      "the in-flight record is unreadable and no lock is left behind — re-run with --recover to take it over",
-    lockHeld:
-      "held by pid {pid} · command: {command} · started: {startedAt} · wave: {wave} · slug: {slug}",
-    lockOnly: "held by an unreadable in-flight record — the lock is still on disk",
-    free: "free — no dispatch holds this tree",
-    recovery: [
-      "look at the working tree first",
-      "commit the changes that work",
-      "discard the ones that are broken",
-    ],
-  },
+  inFlight: IN_FLIGHT,
   summary: {
     fixDispositions: FIX_DISPOSITIONS_SUMMARY,
   },
@@ -584,7 +603,9 @@ export class Words {
     return WORDS.refusal.stations[station];
   }
 
-  /** One named refusal reason's sentence. */
+  /** One named refusal reason's word. `held` answers the held report's template (the
+   *  caller fills it through `inFlightHeld`) and `corrupt-record` the corrupt-lock
+   *  sentence — neither is a second spelling of the in-flight row. */
   refusalReason(reason: PreFlightReason): string {
     return WORDS.refusal.reasons[reason];
   }

@@ -443,9 +443,15 @@ describe("the reconciliation", () => {
     );
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
-    expect(answer.deferred).toEqual([
+    // The sample cell is counted WITH its wave — and every other deferral on the tree is a
+    // wired cell whose own kind declares one, so the count is read off the corpus instead of
+    // pinning "exactly one deferral" (each landed producer adds its cells to this set).
+    expect(answer.deferred).toContain(
       `${cell.id}: the "entry" driver is registered by ${REGISTRATION_WAVES.get("entry")}`,
-    ]);
+    );
+    for (const entry of answer.deferred) {
+      expect(entry).toMatch(/^.+: the ".+" driver is registered by T\d+$/);
+    }
   });
 
   it("holes the same cell when the row that declares its wave is deleted", async () => {
@@ -466,7 +472,8 @@ describe("the reconciliation", () => {
       rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
       { waves: undeclared },
     );
-    expect(answer.deferred).toEqual([]);
+    // This cell is no longer a deferral: its kind declares no wave, so the absence is named.
+    expect(answer.deferred.some((entry) => entry.startsWith(`${cell.id}:`))).toBe(false);
     expect(answer.missing).toContain(
       `${cell.id}: the new tree has no "entry" driver — T16 wires it`,
     );

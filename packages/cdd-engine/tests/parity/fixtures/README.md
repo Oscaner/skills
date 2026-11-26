@@ -5,23 +5,61 @@ sets and materialized into a fresh git-initialised temp tree per probe: the engi
 resolves its root from the git top level, so a fixture is a real repository, never a
 mocked path.
 
-Seven TREE shapes (one per fixture declaration in `trees.ts`) and three NON-TREE
-fixtures (`non-tree.ts`): the `init` `PATH` stand-in plus its injected step runner, the
+Seven TREE shapes (one per declaration in `trees.ts`) and three NON-TREE fixtures
+(`non-tree.ts`): the `init` `PATH` stand-in plus its injected step runner, the
 `issue render` stdin findings body, and the frozen run date the skeleton assembler takes
 as a constructor argument.
+
+## The shapes and their knobs
+
+A shape is the tree's KIND; `TreeOptions` is the state that kind carries, so a cell that
+needs a wider wave or a half-written ledger does not invent an eighth shape:
+
+| knob | what it sets |
+| --- | --- |
+| `tasks` | the plan's width — how many task blocks it declares |
+| `chain` | whether task N depends on task N−1 (one task per derived layer) or every task stands alone (one wide layer) |
+| `rounds` | how far the open wave's row has advanced: `none` (dispatched, no round yet) · `implement` · `review` · `closed` |
+| `snapshot` | whether a closed row keeps its plan-task set — the wave gate's append exemption reads it |
+| `holder` | the two in-flight shapes' holder facts; `"live"` asks the harness to resolve this process |
+| `corruptLock` | plants the corrupt in-flight record WITH its lock left behind (the third holding shape) |
+
+The three cause fixtures the refusal cells need are shapes with knobs, never new shapes:
+a wide wave is `wave` + `tasks: 4`; a split is `wave` + `tasks: 2` requested as one task;
+a chained plan is `wave` + `chain: true`; a half-closed batch is `wave` + `rounds:
+"closed"` + `snapshot: false`.
+
+## What the recordings normalize
+
+Two families of byte cannot be equal across two materializations of the same fixture, and
+the recorder spells them as corpus constants rather than dropping the cell:
+
+- the fixture's OWN root — a diagnostic that prints the resolved absolute path (a carrier
+  mismatch, an artifact report) records it as `<repo>`;
+- the corpus's own runtime facts — a holder's `pid`, its `started:` instant and its
+  `running for` uptime are facts about the process the corpus started, so they record as
+  `<pid>` / `<startedAt>` / `<uptime>`; a `recorded=` digest is the engine's memory of a
+  carrier whose bytes carry a write instant, so it records as `<digest>`. The judgment
+  around them — `alive` / `gone`, the takeover hint, the target-gone sentence, the
+  `current=` digest of the bytes the corpus itself plants — stays in the byte.
+
+`f3.skeleton-landing` records the landing FACT (`target-written`), not a byte string: the
+CLI face reads the skeleton's `date:` from the system clock and has no seam for it, so a
+cross-day byte baseline for that cell would be a lie. Its content face is
+`f3.skeleton.*`, recorded in-process under the corpus's frozen date.
 
 Each shape's reading through the old entry is recorded below. A reading is evidence, not
 an expectation: the expectations are the bytes in `baseline/src-next.json`.
 
 ### `empty`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 2)
 
 ```
 cdd board: no docs match --plan docs/kairos/plans/p9.md
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 2)
 
 ```
 Usage: cdd implement [options]
@@ -30,51 +68,60 @@ error: cannot read file: docs/kairos/plans/p9.md
 
 ### `wave`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
   in-flight: free — no dispatch holds this tree
+  overall  p9-overall.md   v1.0 · Approved
+  spec     p9-design.md    v1.0 · Draft
+  plan     p9.md           v1.0
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 0)
 
 ```
-cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md
-checked:
-  tree-clean
+cdd implement: preview (no repo changes)
+  step:        implement round 1 — wave 1
+  reads:       .kairos/cdd/p9/tasks-1-brief.md (would re-render from the current plan)
+  would write: .kairos/cdd/p9/tasks-1-implement-1.json · .kairos/cdd/p9/tasks-1-implement-1-report.md · .kairos/cdd/p9/tasks-1-implement-1-test-evidence.json
+  would record: progress.waves["1"].rounds += { op: implement, cycle: 1, attempt: 1 }
+  child:       pi -p --mode text
 ```
 
 ### `inflight`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
-  in-flight: pid 17161 · op: implement · cycle: 1 · attempt: 1 · slug: p9 · wave: 1
+  in-flight: pid <pid> · op: implement · cycle: 1 · attempt: 1 · slug: p9 · wave: 1
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 1)
 
 ```
 cdd implement: preview (no repo changes)
-  lock: held by pid 17161 · command: cdd implement --tasks 1 --plan p9.md · started: 2026-11-26T02:30:38.000Z · wave: 1 · slug: p9
+  lock: held by pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · wave: 1 · slug: p9
 checked:
+  tree-clean
+  in-flight: held — pid <pid>
 ```
 
 ### `refused`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
   in-flight: free — no dispatch holds this tree
+  refused: implement 1·a1 graph · task 1 depends on a task the plan does not declare
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 0)
 
 ```
 cdd implement: preview (no repo changes)
@@ -84,15 +131,18 @@ cdd implement: preview (no repo changes)
 
 ### `doc-drift`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
   in-flight: free — no dispatch holds this tree
+  overall  p9-overall.md   v1.0 · Approved
+  spec     p9-design.md    v1.0 · Draft
+  plan     p9.md           v1.0
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 1)
 
 ```
 cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md
@@ -102,33 +152,36 @@ checked:
 
 ### `stale-holder`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
-  in-flight: pid 1 · op: implement · cycle: 1 · attempt: 1 · slug: p9 · wave: 1 — the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over
+  in-flight: pid <pid> · op: implement · cycle: 1 · attempt: 1 · slug: p9 · wave: 1
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 1)
 
 ```
 cdd implement: preview (no repo changes)
-  lock: held by pid 1 · command: cdd implement --tasks 1 --plan p9.md · started: 1970-01-01T00:00:00.000Z · wave: 1 · slug: p9
+  lock: held by pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · wave: 1 · slug: p9
 the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over
 ```
 
 ### `branch-closed`
 
-`cdd board --plan docs/kairos/plans/p9.md`
+`cdd board --plan docs/kairos/plans/p9.md` (exit 0)
 
 ```
 cdd board: p9
 
   in-flight: free — no dispatch holds this tree
+  overall  p9-overall.md   v1.0 · Approved
+  spec     p9-design.md    v1.0 · Draft
+  plan     p9.md           v1.0
 ```
 
-`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run`
+`cdd implement --tasks 1 --plan docs/kairos/plans/p9.md --dry-run` (exit 1)
 
 ```
 cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md
@@ -136,3 +189,8 @@ checked:
   tree-clean
 ```
 
+Closure and the wave gate's causes are read off the same declarations: a `closed` row
+needs its review CARRIER on disk (the closure judge reads the round's own carrier bytes,
+so a row without one is an open verdict whatever its records say), and a closed row
+WITHOUT its plan-task snapshot is the shape that makes a mixed batch block
+(`waveProgress` in `trees.ts` plants both).

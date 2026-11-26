@@ -21,24 +21,26 @@ import type { StepRunner } from "../../../src-next/face/init.ts";
 export const FROZEN_DATE = "2026-01-01";
 
 /** The findings JSON `cdd issue render` reads from stdin — the renderer's input
- *  contract in its smallest legal shape (one review round with one finding). */
+ *  contract in its smallest legal shape (one finding of every declared segment, plus
+ *  the three `related` arms). */
 export const ISSUE_FINDINGS = {
-  title: "parity corpus finding",
-  rounds: [
+  harness: "claude",
+  findings: [
     {
-      round: 1,
-      op: "review",
-      verdict: "CHANGES_REQUESTED",
-      findings: [
-        {
-          severity: "warn",
-          axis: "standards",
-          anchor: "packages/cdd-engine/src/bin.ts#main",
-          message: "the parity corpus records this finding verbatim",
-        },
-      ],
+      type: "bug",
+      lang: "en",
+      context: "the parity corpus records this context verbatim",
+      problem: "the renderer's input contract has a declared shape",
+      impact: "a cell that fed it the wrong shape would record the refusal instead",
+      suggestedFix: "keep the fixture on the renderer's declared contract",
+      meta: { skill: "cdd-dev", step: "implement" },
     },
   ],
+  related: {
+    open: [{ issue: 1, component: "cdd-engine", reason: "the same corpus cell" }],
+    closed: [{ issue: 9 }],
+    program: { issue: 2 },
+  },
 } as const;
 
 /** The stdin body the renderer reads — the fixture's byte form. */

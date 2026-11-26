@@ -36,7 +36,7 @@ const ENGINE_ROOT = path.resolve(PARITY_ROOT, "../..");
 const REPO_ROOT = path.resolve(ENGINE_ROOT, "../..");
 
 /** One cell the corpus always records — the smallest read face, so a case can name it. */
-const SAMPLE_CELL = "f1.base-get.failure.stderr";
+const SAMPLE_CELL = "f1.base-get.refusal.absent.stderr";
 
 describe("the corpus is on the tree", () => {
   it("registers the seven tree shapes, the three non-tree fixtures and the frozen date", () => {
@@ -83,6 +83,33 @@ describe("the wiring roster", () => {
     for (const cell of inapplicable) {
       expect(roster.rowOf(cell.id)?.route).toBe("not-applicable");
       expect(roster.rowOf(cell.id)?.task).toBe("—");
+    }
+  });
+
+  it("carries the route and the wiring the grid itself declares — one declaration, one rendering", () => {
+    for (const cell of CELLS) {
+      const row = roster.rowOf(cell.id);
+      if (row === null) throw new Error(`${cell.id}: no roster row`);
+      expect(row.route).toBe(cell.route);
+      if (!cell.applicable) continue;
+      expect(row.task).toBe(cell.task);
+      expect(row.producer).toBe(cell.producer);
+    }
+  });
+
+  it("declares the refusal route per cause — the five wave-gate reasons and the four stations", () => {
+    const causes = CELLS.map((cell) => cell.unit).filter((unit) => unit.includes(".refusal."));
+    for (const cause of [
+      "mixed-batch",
+      "wave-too-wide",
+      "too-many-tasks",
+      "split",
+      "wrong-phase",
+    ]) {
+      expect(causes.some((unit) => unit.endsWith(`.${cause}`))).toBe(true);
+    }
+    for (const station of ["no-host", "carrier", "dispatch-input", "artifact"]) {
+      expect(causes.some((unit) => unit.endsWith(`.${station}`))).toBe(true);
     }
   });
 });

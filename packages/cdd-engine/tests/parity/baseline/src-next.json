@@ -5,71 +5,155 @@
   "cells": {
     "f1.implement.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: APPROVED · handoff: .kairos/cdd/p9/tasks-1-implement-1.c1.json\nnext: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nreason: task-open\n"
     },
     "f1.implement.normal.stderr": {
       "state": "gap",
-      "value": "cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
     },
     "f1.implement.normal.exit-code": {
       "state": "gap",
-      "value": "1"
+      "value": "0"
     },
-    "f1.implement.refusal.stdout": {
+    "f1.implement.refusal.wrong-phase.stdout": {
       "state": "gap",
       "value": ""
     },
-    "f1.implement.refusal.stderr": {
+    "f1.implement.refusal.wrong-phase.stderr": {
       "state": "gap",
-      "value": "Usage: cdd implement [options]\nerror: cannot read file: docs/kairos/plans/p9.md\n"
+      "value": "cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
     },
-    "f1.implement.refusal.exit-code": {
+    "f1.implement.refusal.wrong-phase.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": "1"
+    },
+    "f1.implement.refusal.split.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.split.stderr": {
+      "state": "gap",
+      "value": "cdd implement: cannot dispatch a implement round — split · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  graph: docs/kairos/plans/p9.md\n  \n  wave board:\n    W1  T1▶ · T2▶   ← in-flight\n  \n  progress: ✔ done · ▶ current wave · ○ pending\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 2 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.implement.refusal.split.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.implement.refusal.wave-too-wide.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.wave-too-wide.stderr": {
+      "state": "gap",
+      "value": "cdd implement: cannot dispatch a implement round — wave-too-wide · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 4 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.implement.refusal.wave-too-wide.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.implement.refusal.too-many-tasks.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.too-many-tasks.stderr": {
+      "state": "gap",
+      "value": "cdd implement: cannot dispatch a implement round — too-many-tasks · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 5 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.implement.refusal.too-many-tasks.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.implement.refusal.mixed-batch.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.mixed-batch.stderr": {
+      "state": "gap",
+      "value": "cdd implement: cannot dispatch a implement round — mixed-batch · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.implement.refusal.mixed-batch.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.implement.refusal.in-flight.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.in-flight.stderr": {
+      "state": "gap",
+      "value": "CDD_BLOCKED: in-flight · a dispatch is already in flight — pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · running for <uptime> · wave: 1 · slug: p9\nchecked:\n  tree-clean\n  in-flight: held — pid <pid>\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+    },
+    "f1.implement.refusal.in-flight.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.implement.refusal.no-host.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.implement.refusal.no-host.stderr": {
+      "state": "gap",
+      "value": "CDD_BLOCKED: no-host · no host harness detected (run cdd from within a supported harness)\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.implement.refusal.no-host.exit-code": {
+      "state": "gap",
+      "value": "1"
     },
     "f1.implement.failure.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: BLOCKED\n"
     },
     "f1.implement.failure.stderr": {
       "state": "gap",
-      "value": "Usage: cdd implement [options]\nerror: cdd implement: task 9 not found in the plan\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
     },
     "f1.implement.failure.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": "1"
     },
     "f1.review.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: APPROVED · handoff: .kairos/cdd/p9/phase-spec-review-1.c1.json\nnext: review --type plan --plan docs/kairos/plans/p9.md\nreason: task-open\n"
     },
     "f1.review.normal.stderr": {
       "state": "gap",
-      "value": "CDD_BLOCKED: doc-contract · the target document fails the doc-contract — fix its structural findings first\n  presence@## Change history: missing required element: ## Change history\n  presence@**Consumes**: task 1 carries no **Consumes** field\n  presence@**Produces**: task 1 carries no **Produces** field\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  presence: failed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: info (plan layers: unavailable)\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
     "f1.review.normal.exit-code": {
       "state": "gap",
-      "value": "1"
+      "value": "0"
     },
-    "f1.review.refusal.stdout": {
+    "f1.review.refusal.dispatch-input.stdout": {
       "state": "gap",
       "value": ""
     },
-    "f1.review.refusal.stderr": {
+    "f1.review.refusal.dispatch-input.stderr": {
       "state": "gap",
-      "value": "CDD_BLOCKED: the target document docs/kairos/plans/p9.md is unreadable — its declared `slug:` is the workspace key\n"
+      "value": "CDD_BLOCKED: dispatch-input · review · BASE_BRANCH · empty-value\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
     },
-    "f1.review.refusal.exit-code": {
+    "f1.review.refusal.dispatch-input.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.review.refusal.unreadable-document.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.review.refusal.unreadable-document.stderr": {
+      "state": "gap",
+      "value": "CDD_BLOCKED: the target document docs/kairos/specs/p9-design.md is unreadable — its declared `slug:` is the workspace key\n"
+    },
+    "f1.review.refusal.unreadable-document.exit-code": {
       "state": "gap",
       "value": "1"
     },
     "f1.review.failure.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: BLOCKED\n"
     },
     "f1.review.failure.stderr": {
       "state": "gap",
-      "value": "CDD_BLOCKED: doc-contract · the target document fails the doc-contract — fix its structural findings first\n  presence@## Change history: missing required element: ## Change history\n  presence@**Consumes**: task 1 carries no **Consumes** field\n  presence@**Produces**: task 1 carries no **Produces** field\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  presence: failed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: info (plan layers: unavailable)\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
     "f1.review.failure.exit-code": {
       "state": "gap",
@@ -77,39 +161,51 @@
     },
     "f1.fix.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: APPROVED · handoff: .kairos/cdd/p9/phase-spec-fix-1.c1.json\nnext: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nreason: task-open\n"
     },
     "f1.fix.normal.stderr": {
       "state": "gap",
-      "value": "CDD_BLOCKED: doc-contract · the target document fails the doc-contract — fix its structural findings first\n  presence@## Change history: missing required element: ## Change history\n  presence@**Consumes**: task 1 carries no **Consumes** field\n  presence@**Produces**: task 1 carries no **Produces** field\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  presence: failed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: info (plan layers: unavailable)\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
     "f1.fix.normal.exit-code": {
       "state": "gap",
-      "value": "1"
+      "value": "0"
     },
-    "f1.fix.refusal.stdout": {
+    "f1.fix.refusal.carrier.stdout": {
       "state": "gap",
       "value": ""
     },
-    "f1.fix.refusal.stderr": {
+    "f1.fix.refusal.carrier.stderr": {
       "state": "gap",
-      "value": "CDD_BLOCKED: the target document docs/kairos/plans/p9.md is unreadable — its declared `slug:` is the workspace key\n"
+      "value": "CDD_BLOCKED: carrier · carrier-mismatch · line=<repo>/.kairos/cdd/p9/phase-spec-review-1.c1.json · recorded=<digest> · current=f3f1d860\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
-    "f1.fix.refusal.exit-code": {
+    "f1.fix.refusal.carrier.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f1.fix.refusal.artifact.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.fix.refusal.artifact.stderr": {
+      "state": "gap",
+      "value": "CDD_BLOCKED: artifact · artifact-identity · the round's `rulings` sidecar sits off its rendered name\n  derived:  .kairos/cdd/p9/phase-spec-review-1.c1.rulings.json\n  found:    .kairos/cdd/p9/phase-spec-review-1.rulings.json\n  identity: line=phase-spec · op=review · cycle=1 · attempt=1\n  repair:   rename the found file to the derived name — the engine never moves,\n            rewrites or deletes an artifact; the workspace is yours\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+    },
+    "f1.fix.refusal.artifact.exit-code": {
       "state": "gap",
       "value": "1"
     },
     "f1.fix.failure.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "status: BLOCKED\n"
     },
     "f1.fix.failure.stderr": {
       "state": "gap",
-      "value": "error: --plan required when --type wave\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  doc-contract\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: passed\n  change-history-version-unique: passed\n  change-history-row-shape: passed\n  change-history-header-columns: passed\n  change-history-latest-matches-front-matter: passed\n  change-history-newest-last: passed\n  task-id-unique: passed\n  phase-id-unique: passed\n  domain: passed\n  crosslink: passed\n  section-order: passed\n  front-matter-version-in-lineage: passed\n  continuity: passed\n  residue: passed\n  hollow: passed\n  link-shape: passed\n  file-existence: passed\n  sibling-scan: passed\n  slug-ref: passed\n  cross-doc-chain: passed\n  section-scoped-domain: passed\n  change-history-row-not-in-other-table: passed\n  list-marker-not-doubled: passed\n  wave-width-at-most-three: passed\n  single-create: passed\n  dangling-task-ref: passed\n  depends-on-cycle: passed\n  phase-design-spec-is-phase-spec: passed\n  line-coordinate: passed\n  live-arithmetic: passed\n  change-history-date-shape: passed\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
     "f1.fix.failure.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": "1"
     },
     "f1.base-set.normal.stdout": {
       "state": "gap",
@@ -141,35 +237,47 @@
     },
     "f1.base-set.failure.stderr": {
       "state": "gap",
-      "value": "error: required option '--base <branch>' not specified\n"
+      "value": ""
     },
     "f1.base-set.failure.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": ""
     },
     "f1.base-get.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "{\n  \"base\": \"develop\",\n  \"source\": \"plan-field\",\n  \"plan\": \"docs/kairos/plans/p9.md\",\n  \"recordedAt\": \"2026-01-01T00:00:00.000Z\"\n}\n"
     },
     "f1.base-get.normal.stderr": {
       "state": "gap",
-      "value": "error: required option '--plan <path>' not specified\n"
+      "value": ""
     },
     "f1.base-get.normal.exit-code": {
       "state": "gap",
+      "value": "0"
+    },
+    "f1.base-get.refusal.absent.stdout": {
+      "state": "gap",
+      "value": ""
+    },
+    "f1.base-get.refusal.absent.stderr": {
+      "state": "gap",
+      "value": "cdd base get: missing or corrupt base artifact at .kairos/cdd/p9/base.json\n"
+    },
+    "f1.base-get.refusal.absent.exit-code": {
+      "state": "gap",
       "value": "2"
     },
-    "f1.base-get.refusal.stdout": {
+    "f1.base-get.refusal.corrupt.stdout": {
       "state": "gap",
       "value": ""
     },
-    "f1.base-get.refusal.stderr": {
+    "f1.base-get.refusal.corrupt.stderr": {
       "state": "gap",
-      "value": ""
+      "value": "cdd base get: missing or corrupt base artifact at .kairos/cdd/p9/base.json\n"
     },
-    "f1.base-get.refusal.exit-code": {
+    "f1.base-get.refusal.corrupt.exit-code": {
       "state": "gap",
-      "value": ""
+      "value": "2"
     },
     "f1.base-get.failure.stdout": {
       "state": "gap",
@@ -177,11 +285,11 @@
     },
     "f1.base-get.failure.stderr": {
       "state": "gap",
-      "value": "error: required option '--plan <path>' not specified\n"
+      "value": ""
     },
     "f1.base-get.failure.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": ""
     },
     "f1.schema-get.normal.stdout": {
       "state": "gap",
@@ -213,23 +321,23 @@
     },
     "f1.schema-get.failure.stderr": {
       "state": "gap",
-      "value": "CDD_WARN: path is outside the repository: ../../../../../../../nonexistent-parity/target.md\nUsage: cdd schema get [options] <type> [target]\nerror: cannot write file: ../../../../../../../nonexistent-parity/target.md\n"
+      "value": ""
     },
     "f1.schema-get.failure.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": ""
     },
     "f1.issue-render.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "# CDD aggregate issue\n\n- Harness: claude\n\n## Context\n\nthe parity corpus records this context verbatim\n\n## Problem\n\nthe renderer's input contract has a declared shape\n\n## Impact\n\na cell that fed it the wrong shape would record the refusal instead\n\n## Suggested fix\n\nkeep the fixture on the renderer's declared contract\n\n- Skill: cdd-dev\n- Step: implement\n\n## Dedup\n- Dedup → #1 (open)：cdd-engine · the same corpus cell\n\n## Related\n- Regression / follow-up of #9 (closed)\n- Program: #2\n"
     },
     "f1.issue-render.normal.stderr": {
       "state": "gap",
-      "value": "cdd issue render: invalid input:\n  harness: non-empty string required\n  findings: non-empty array of findings required\n"
+      "value": ""
     },
     "f1.issue-render.normal.exit-code": {
       "state": "gap",
-      "value": "1"
+      "value": "0"
     },
     "f1.issue-render.refusal.stdout": {
       "state": "gap",
@@ -257,7 +365,7 @@
     },
     "f1.board.normal.stdout": {
       "state": "gap",
-      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0\n  spec     p9-design.md    v0.1\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
     },
     "f1.board.normal.stderr": {
       "state": "gap",
@@ -267,21 +375,21 @@
       "state": "gap",
       "value": "0"
     },
-    "f1.board.refusal.stdout": {
+    "f1.board.refusal.carrier.stdout": {
       "state": "gap",
       "value": ""
     },
-    "f1.board.refusal.stderr": {
+    "f1.board.refusal.carrier.stderr": {
       "state": "gap",
-      "value": "cdd board: no docs match --plan docs/kairos/plans/p9.md\n"
+      "value": "CDD_BLOCKED: carrier-mismatch · line=<repo>/.kairos/cdd/p9/phase-spec-review-1.c1.json · recorded=<digest> · current=f3f1d860\n"
     },
-    "f1.board.refusal.exit-code": {
+    "f1.board.refusal.carrier.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": "1"
     },
     "f1.board.failure.stdout": {
       "state": "gap",
-      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0\n  spec     p9-design.md    v0.1\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+      "value": ""
     },
     "f1.board.failure.stderr": {
       "state": "gap",
@@ -289,11 +397,11 @@
     },
     "f1.board.failure.exit-code": {
       "state": "gap",
-      "value": "0"
+      "value": ""
     },
     "f1.init.normal.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "init[1/6] claude · superpowers · plugin marketplace add obra/superpowers-marketplace\ninit[2/6] claude · superpowers · plugin install superpowers@superpowers-marketplace\ninit[3/6] claude · mattpocock-skills · plugin marketplace add mattpocock/skills\ninit[4/6] claude · mattpocock-skills · plugin install mattpocock-skills@mattpocock\ninit[5/6] claude · kairos · plugin marketplace add oscaner/skills\ninit[6/6] claude · kairos · plugin install kairos@oscaner-skills\ninit: 6 steps ok (claude · install)\n"
     },
     "f1.init.normal.stderr": {
       "state": "gap",
@@ -309,15 +417,15 @@
     },
     "f1.init.refusal.stderr": {
       "state": "gap",
-      "value": "error: required option '--harness <claude|pi>' not specified\n"
+      "value": ""
     },
     "f1.init.refusal.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": ""
     },
     "f1.init.failure.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "init[1/6] claude · superpowers · plugin marketplace add obra/superpowers-marketplace\n"
     },
     "f1.init.failure.stderr": {
       "state": "gap",
@@ -413,15 +521,15 @@
     },
     "f3.skeleton-landing.stdout": {
       "state": "gap",
-      "value": "target-refused"
+      "value": "target-written"
     },
     "f3.skeleton-landing.stderr": {
       "state": "gap",
-      "value": "target-refused"
+      "value": "target-written"
     },
     "f3.skeleton-landing.exit-code": {
       "state": "gap",
-      "value": "target-refused"
+      "value": "target-written"
     },
     "f4.prompt.implement.stdout": {
       "state": "gap",
@@ -557,7 +665,7 @@
     },
     "f6.board.unexpanded.stdout": {
       "state": "gap",
-      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0\n  spec     p9-design.md    v0.1\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
     },
     "f6.board.unexpanded.stderr": {
       "state": "gap",
@@ -569,7 +677,7 @@
     },
     "f6.board.expanded.stdout": {
       "state": "gap",
-      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0\n  spec     p9-design.md    v0.1\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
     },
     "f6.board.expanded.stderr": {
       "state": "gap",
@@ -581,111 +689,123 @@
     },
     "f7.preview.passing.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "cdd implement: preview (no repo changes)\n  step:        implement round 1 — wave 1\n  reads:       .kairos/cdd/p9/tasks-1-brief.md (would re-render from the current plan)\n  would write: .kairos/cdd/p9/tasks-1-implement-1.json · .kairos/cdd/p9/tasks-1-implement-1-report.md · .kairos/cdd/p9/tasks-1-implement-1-test-evidence.json\n  would record: progress.waves[\"1\"].rounds += { op: implement, cycle: 1, attempt: 1 }\n  child:       pi -p --mode text\n"
     },
     "f7.preview.passing.stderr": {
       "state": "gap",
-      "value": "cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
     },
     "f7.preview.passing.exit-code": {
       "state": "gap",
-      "value": "1"
+      "value": "0"
     },
-    "f7.preview.holding-absent.stdout": {
+    "f7.preview.holding-live.stdout": {
+      "state": "gap",
+      "value": "cdd implement: preview (no repo changes)\n  lock: held by pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · wave: 1 · slug: p9\nchecked:\n  tree-clean\n  in-flight: held — pid <pid>\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+    },
+    "f7.preview.holding-live.stderr": {
       "state": "gap",
       "value": ""
     },
-    "f7.preview.holding-absent.stderr": {
-      "state": "gap",
-      "value": "cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
-    },
-    "f7.preview.holding-absent.exit-code": {
+    "f7.preview.holding-live.exit-code": {
       "state": "gap",
       "value": "1"
     },
-    "f7.preview.holding-held.stdout": {
+    "f7.preview.holding-dead.stdout": {
       "state": "gap",
-      "value": "cdd implement: preview (no repo changes)\n  lock: held by pid 7464 · command: cdd implement --tasks 1 --plan p9.md · started: 2026-11-26T02:29:46.000Z · wave: 1 · slug: p9\nchecked:\n  tree-clean\n  in-flight: held — pid 7464\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
+      "value": "cdd implement: preview (no repo changes)\n  lock: held by pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · wave: 1 · slug: p9\nthe dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over\nchecked:\n  tree-clean\n  in-flight: the dispatch's target is gone — the plan the record names is not on this tree — re-run the same command with --recover to take the in-flight record over\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
-    "f7.preview.holding-held.stderr": {
+    "f7.preview.holding-dead.stderr": {
       "state": "gap",
       "value": ""
     },
-    "f7.preview.holding-held.exit-code": {
+    "f7.preview.holding-dead.exit-code": {
       "state": "gap",
       "value": "1"
     },
     "f7.preview.holding-corrupt.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "cdd implement: preview (no repo changes)\n  lock: held by an unreadable in-flight record — the lock is still on disk\nthe in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over\nchecked:\n  tree-clean\n  in-flight: unreadable record — lock on disk\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)\n"
     },
     "f7.preview.holding-corrupt.stderr": {
       "state": "gap",
-      "value": "Usage: cdd implement [options]\nerror: cannot read file: docs/kairos/plans/p9.md\n"
+      "value": ""
     },
     "f7.preview.holding-corrupt.exit-code": {
       "state": "gap",
-      "value": "2"
+      "value": "1"
     },
-    "f7.preview.blocking.stdout": {
+    "f7.preview.init.stdout": {
       "state": "gap",
-      "value": "cdd implement: preview (no repo changes)\n  step:        implement round 1 — wave 1\n  reads:       .kairos/cdd/p9/tasks-1-brief.md (would re-render from the current plan)\n  would write: .kairos/cdd/p9/tasks-1-implement-1.json · .kairos/cdd/p9/tasks-1-implement-1-report.md · .kairos/cdd/p9/tasks-1-implement-1-test-evidence.json\n  would record: progress.waves[\"1\"].rounds += { op: implement, cycle: 1, attempt: 1 }\n  child:       pi -p --mode text\n"
+      "value": "would run: claude plugin marketplace add obra/superpowers-marketplace\nwould run: claude plugin install superpowers@superpowers-marketplace\nwould run: claude plugin marketplace add mattpocock/skills\nwould run: claude plugin install mattpocock-skills@mattpocock\nwould run: claude plugin marketplace add oscaner/skills\nwould run: claude plugin install kairos@oscaner-skills\ninit: 6 steps (claude · install) — dry run, nothing executed\n"
     },
-    "f7.preview.blocking.stderr": {
+    "f7.preview.init.stderr": {
       "state": "gap",
-      "value": "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+      "value": ""
     },
-    "f7.preview.blocking.exit-code": {
+    "f7.preview.init.exit-code": {
       "state": "gap",
       "value": "0"
     },
-    "f8.blocked.message.stdout": {
+    "f7.preview.blocking.stdout": {
+      "state": "gap",
+      "value": "cdd implement: preview (no repo changes)\n  refused:  no-host · no host harness detected (run cdd from within a supported harness)\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 1 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f7.preview.blocking.stderr": {
       "state": "gap",
       "value": ""
+    },
+    "f7.preview.blocking.exit-code": {
+      "state": "gap",
+      "value": "1"
+    },
+    "f8.blocked.message.stdout": {
+      "state": "gap",
+      "value": "CDD_BLOCKED: in-flight · a dispatch is already in flight — pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · running for <uptime> · wave: 1 · slug: p9"
     },
     "f8.blocked.message.stderr": {
       "state": "gap",
-      "value": ""
+      "value": "CDD_BLOCKED: in-flight · a dispatch is already in flight — pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · running for <uptime> · wave: 1 · slug: p9"
     },
     "f8.blocked.message.exit-code": {
       "state": "gap",
-      "value": ""
+      "value": "CDD_BLOCKED: in-flight · a dispatch is already in flight — pid <pid> · command: cdd implement --tasks 1 --plan p9.md · started: <startedAt> · running for <uptime> · wave: 1 · slug: p9"
     },
     "f8.blocked.checked.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "checked:\n  tree-clean\n  in-flight: held — pid <pid>\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     },
     "f8.blocked.checked.stderr": {
       "state": "gap",
-      "value": ""
+      "value": "checked:\n  tree-clean\n  in-flight: held — pid <pid>\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     },
     "f8.blocked.checked.exit-code": {
       "state": "gap",
-      "value": ""
+      "value": "checked:\n  tree-clean\n  in-flight: held — pid <pid>\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     },
     "f8.blocked.station.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "in-flight"
     },
     "f8.blocked.station.stderr": {
       "state": "gap",
-      "value": ""
+      "value": "in-flight"
     },
     "f8.blocked.station.exit-code": {
       "state": "gap",
-      "value": ""
+      "value": "in-flight"
     },
     "f8.blocked.yielding.stdout": {
       "state": "gap",
-      "value": ""
+      "value": "  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     },
     "f8.blocked.yielding.stderr": {
       "state": "gap",
-      "value": ""
+      "value": "  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     },
     "f8.blocked.yielding.exit-code": {
       "state": "gap",
-      "value": ""
+      "value": "  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n  planned-tasks-vs-recorded-tasks: skipped (no ledger facts)"
     }
   }
 }

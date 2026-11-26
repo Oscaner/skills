@@ -28,7 +28,7 @@
 // again (they must differ). A harness that cannot fail is only running itself.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,8 +39,9 @@ import { Words } from "../../src-next/face/words.ts";
 import { ProcessFacts } from "../../src-next/infra/proc.ts";
 import { SkeletonAssembler } from "../../src-next/render/skeleton.ts";
 import { TEMPLATE_PROMPT } from "../../src-next/render/templates.ts";
+import type { DispatchOutcome } from "../../src-next/session/run.ts";
 import { FROZEN_DATE, plantPathStandIn, RecordingStepRunner } from "./fixtures/non-tree.ts";
-import { materialize, treeFixture } from "./fixtures/trees.ts";
+import { type HolderFacts, materialize, treeFixture } from "./fixtures/trees.ts";
 import { CELLS, type Cell, cellId, GRID, type Probe } from "./grid.ts";
 
 /** This directory — the corpus's home. */
@@ -237,12 +238,31 @@ export class Recorder {
 /** The probe executor — one fresh fixture, one run, one reading. */
 // biome-ignore lint/complexity/noStaticOnlyClass: a single imperative seam around the two old-tree entries; there is no per-instance state.
 export class ProbeRunner {
-  /** Run one probe against a fresh materialization of its fixture. */
+  /** Run one probe against a fresh materialization of its fixture. A probe that needs a
+   *  prior round on record runs its `before` steps first, in the SAME tree, and the
+   *  observed run is the last one — the shape the old suite's E2E cases build, not a
+   *  second corpus arm. */
   static async run(probe: Probe): Promise<Reading> {
     if (probe.render !== undefined) return RenderProbe.run(probe.render);
-    const repo = materialize(treeFixture(probe.fixture, await ProbeRunner.#holder(probe)));
+    const repo = materialize(
+      treeFixture(probe.fixture, { ...probe.options, holder: await ProbeRunner.#holder(probe) }),
+    );
     try {
-      return await CliProbe.run(repo, probe);
+      for (const step of probe.before ?? []) {
+        if (step.argv !== undefined) {
+          // A prior step is a ROUND by definition: it always gets the injected
+          // dispatch seam, whatever the observed command declares (a `board` run
+          // dispatches nothing itself but still needs its history recorded
+          // hermetically — the production seam would spawn a real child).
+          await CliProbe.run(
+            repo,
+            { ...probe, argv: step.argv, before: undefined, dispatch: true },
+            step.verdict,
+          );
+        }
+        if (step.write !== undefined) CliProbe.write(repo, step.write.path, step.write.text);
+      }
+      return await CliProbe.run(repo, probe, probe.verdict);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -250,27 +270,53 @@ export class ProbeRunner {
 
   /** The holder a fixture plants: the live one (this process, so the record reads as a
    *  standing dispatch) or the probe's own facts (a dead holder, for the stale shape). */
-  static async #holder(probe: Probe): Promise<Probe["holder"]> {
-    if (probe.holder !== undefined) return probe.holder;
-    if (probe.fixture !== "inflight") return undefined;
+  static async #holder(probe: Probe): Promise<HolderFacts | undefined> {
+    const declared = probe.options?.holder;
+    if (declared !== undefined && declared !== "live") return declared;
+    if (declared !== "live" && probe.fixture !== "inflight") return undefined;
     return { pid: process.pid, startedAt: (await ProcessFacts.startOf(process.pid)) ?? 0 };
   }
 }
 
+/** One dispatch conclusion — the round's own verdict, which the corpus records as the
+ *  command's failure face when it is `BLOCKED`. */
+/** The blocker a review or fix round carries when its conclusion is not `APPROVED`. */
+const PENDING_FINDINGS = [
+  { id: "F1", severity: "blocker", summary: "the guard is missing" },
+] as const;
+
+const verdictOf = (verdict: string | undefined): DispatchOutcome => {
+  if (verdict === "BLOCKED") return { status: "BLOCKED", findings: [...PENDING_FINDINGS] };
+  if (verdict === "CHANGES_REQUESTED")
+    return { status: "CHANGES_REQUESTED", findings: [...PENDING_FINDINGS] };
+  return { status: "APPROVED", findings: [] };
+};
+
 /** The captured io of one probe run. */
 class Capture {
-  stdout = "";
-  stderr = "";
+  readonly out: string[] = [];
+  readonly err: string[] = [];
+
+  /** The captured standard output so far. */
+  get stdout(): string {
+    return this.out.join("");
+  }
+
+  /** The captured standard error so far. */
+  get stderr(): string {
+    return this.err.join("");
+  }
+
+  /** Append to the captured standard output (the `init` step header's writer). */
+  write(text: string): void {
+    this.out.push(text);
+  }
 
   /** The io seam the old CLI writes through. */
   io(): { stdout: (text: string) => void; stderr: (text: string) => void } {
     return {
-      stdout: (text: string) => {
-        this.stdout += text;
-      },
-      stderr: (text: string) => {
-        this.stderr += text;
-      },
+      stdout: (text: string) => this.out.push(text),
+      stderr: (text: string) => this.err.push(text),
     };
   }
 }
@@ -281,40 +327,93 @@ class Capture {
 export class CliProbe {
   /** Run the old CLI in `repo` and capture its three streams. The old CLI resolves
    *  the repository root from the working directory, so the fixture is entered and
-   *  always left again. */
-  static async run(repo: string, probe: Probe): Promise<Reading> {
+   *  always left again. A probe that declares `hostless` runs with the harness markers
+   *  removed — the `no-host` station's own fixture. */
+  static async run(
+    repo: string,
+    probe: Probe,
+    verdict: string | undefined = undefined,
+  ): Promise<Reading> {
     const before = process.cwd();
     const capture = new Capture();
     const runner =
       probe.failingRunner === true ? RecordingStepRunner.failing() : new RecordingStepRunner();
+    const saved = probe.hostless === true ? CliProbe.#hostless() : null;
     process.chdir(repo);
     try {
       if (probe.standIn === true) plantPathStandIn(repo);
-      const exitCode = await OldCli.run(repo, probe, capture, runner);
-      return { stdout: capture.stdout, stderr: capture.stderr, exitCode };
+      const exitCode = await OldCli.run(repo, probe, capture, runner, verdict);
+      // The fixture's own root is the corpus's bookkeeping, not the engine's byte: a
+      // diagnostic that names the resolved path (a carrier mismatch, an artifact
+      // report) is compared with the materialization spelled as one constant, so two
+      // runs in two temp trees are the same recording.
+      return {
+        stdout: normalizeReading(capture.stdout, repo),
+        stderr: normalizeReading(capture.stderr, repo),
+        exitCode,
+      };
     } finally {
       process.chdir(before);
+      if (saved !== null) CliProbe.#restore(saved);
+    }
+  }
+
+  /** Plant one file inside the materialized tree — how a probe whose fixture needs a
+   *  round's own bytes on disk (a tampered carrier, a misplaced sidecar) builds them. */
+  static write(repo: string, rel: string, text: string): void {
+    const target = path.join(repo, rel);
+    mkdirSync(path.dirname(target), { recursive: true });
+    // A round carrier is sealed read-only when the engine lands it; a tamper is an
+    // explicit act, so the fixture opens the mode first.
+    if (existsSync(target)) chmodSync(target, 0o644);
+    writeFileSync(target, text, "utf8");
+  }
+
+  /** Remove every harness marker from the environment, remembering what stood there. */
+  static #hostless(): ReadonlyMap<string, string | undefined> {
+    const saved = new Map<string, string | undefined>();
+    for (const key of HOST_MARKERS) {
+      saved.set(key, process.env[key]);
+      delete process.env[key];
+    }
+    return saved;
+  }
+
+  /** Put the environment back the way the probe found it. */
+  static #restore(saved: ReadonlyMap<string, string | undefined>): void {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   }
 }
+
+/** The harness markers the host detection reads — the `no-host` station's whole input. */
+const HOST_MARKERS: readonly string[] = ["CLAUDE_CODE_SESSION_ID", "AI_AGENT"];
 
 /** The old entry's one call — kept as its own seam so the synchronous reading and the
  *  asynchronous CLI call do not tangle. */
 // biome-ignore lint/complexity/noStaticOnlyClass: one awaited call into the old entry.
 export class OldCli {
-  /** Run argv through `Cli.create` with the fixture's injected seams. */
+  /** Run argv through `Cli.create` with the fixture's injected seams. The dispatch
+   *  seam answers the probe's own verdict (`APPROVED` when it does not name one), so a
+   *  probe can record a round's BLOCKED conclusion — the command's failure route. */
   static async run(
     _repo: string,
     probe: Probe,
     capture: Capture,
     runner: RecordingStepRunner | null,
+    verdict: string | undefined = undefined,
   ): Promise<number> {
     const { Cli } = await import("../../src-next/face/cli.ts");
     const cli = Cli.create({
       io: capture.io(),
-      dispatch: probe.dispatch === true ? async () => ({ status: "APPROVED", findings: [] }) : null,
+      dispatch: probe.dispatch === true ? async () => verdictOf(verdict) : null,
       stdinRead: () => probe.stdin ?? "",
       initRunner: runner ?? new RecordingStepRunner(),
+      // The step header must land on the captured stream, never on the process's own
+      // fd: the corpus compares the byte the engine writes, not a side channel.
+      initHeader: (line: string) => capture.write(`${line}\n`),
     });
     return cli.runArgv(probe.argv);
   }
@@ -500,6 +599,37 @@ export const applicableCellCount = (): number => CELLS.filter((cell) => cell.app
 
 /** The cell id form, re-exported for the test's report lines. */
 export { cellId };
+
+/** The one spelling a materialized tree's own root takes in a recording. */
+export const REPO_TOKEN = "<repo>";
+
+/** The facts the corpus cannot pin, and the constants that stand in for them.
+ *
+ *  A holder record's pid, its start instant and its uptime are facts about the process
+ *  the corpus itself started: two trees driven by two fixtures can never print the same
+ *  numbers, so the recording spells them as corpus constants. Everything the numbers
+ *  surround — `alive` / `gone`, the takeover hint, the target-gone sentence — stays in
+ *  the byte, so a liveness judgment that drifts still shows.
+ *
+ *  A `recorded=` digest is the record's own memory of a carrier the ENGINE wrote, and
+ *  those bytes carry a write instant: the digest changes whenever the tree is
+ *  materialized again. Only the recorded side is unpinnable — the `current=` side
+ *  digests the tampered bytes the corpus itself plants, so it stays a pinned byte and
+ *  the mismatch fact itself is never masked. */
+const UNPINNED: readonly (readonly [RegExp, string])[] = [
+  [/\bpid \d+/g, "pid <pid>"],
+  [/\bstarted: \d{4}-\d\d-\d\dT[\d:.]+Z/g, "started: <startedAt>"],
+  [/\brunning for \d+m/g, "running for <uptime>"],
+  [/\brecorded=[0-9a-f]{8}/g, "recorded=<digest>"],
+];
+
+/** Replace the fixture's absolute root and the corpus's own runtime facts with the
+ *  corpus constants. The engine's own decisions stay in the byte. */
+export const normalizeReading = (text: string, repo: string): string =>
+  UNPINNED.reduce(
+    (carried, [pattern, token]) => carried.replace(pattern, token),
+    repo === "" ? text : text.split(repo).join(REPO_TOKEN),
+  );
 
 /** One temp directory helper used by the fixtures' README readings. */
 export const repoReadings = (argv: readonly string[], repo: string): string => {

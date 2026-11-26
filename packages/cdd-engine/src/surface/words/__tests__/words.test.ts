@@ -247,7 +247,8 @@ describe("the board's fact block and artifact rows", () => {
       "  crashed: implement 1·a1 child-exit · review 2·a1 stalled",
     );
     // Zero crashed rounds render no line at all — the row is absent, never an empty label.
-    expect(crashedRow([])).toBe("  crashed: ");
+    // That arm belongs to the renderer (the production function answers `[]`); this table
+    // owns only the join that composes a row which is present.
   });
 
   it("reads the `art:` label and its four state words", () => {

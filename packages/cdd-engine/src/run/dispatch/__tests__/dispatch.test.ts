@@ -512,13 +512,31 @@ describe("the handoff read-back", () => {
     expect(Handoff.conclusionOf([])).toBe("APPROVED");
   });
 
-  it("refuses a draft on disk that is not JSON, carrying the parser's own code", () => {
+  it("refuses a draft on disk that is not JSON, carrying the parser's own codes", () => {
     const read = Handoff.read('{"status": ', "work");
-    expect(read).toEqual({ kind: "malformed", code: "SyntaxError" });
+    expect(read).toEqual({ kind: "malformed", codes: ["ValueExpected", "CloseBraceExpected"] });
     const violation = Handoff.violationOf(read);
     expect(violation?.grade).toBe("hard");
     expect(violation?.cause).toBe(CONTRACT_VIOLATION);
-    expect(violation?.message).toBe("the handoff draft is not JSON (SyntaxError)");
+    expect(violation?.message).toBe(
+      "the handoff draft is not JSON (ValueExpected, CloseBraceExpected)",
+    );
+  });
+
+  it("tolerates the child's draft dialect — a trailing comma or a comment is not a refusal", () => {
+    // The draft is written by a child model from prose: a trailing comma in the `notes`
+    // array (or a stray comment) is a routine slip, and the round it belongs to is whole.
+    // The leniency is the reason a slip costs nothing here, while the arm above stays a
+    // real break — the two arms differ by the parser's error list, never by a wrapper.
+    const comma = Handoff.read('{"status":"APPROVED","artifacts":{},"notes":["a","b",]}', "work");
+    expect(comma.kind).toBe("compliant");
+    expect(Handoff.violationOf(comma)).toBeNull();
+    if (comma.kind !== "compliant") return;
+    // …and the notes the child wrote survive into the draft the carrier is built from.
+    expect(comma.draft.notes).toEqual(["a", "b"]);
+    const commented = Handoff.read('{\n  // the round\'s note\n  "findings": []\n}', "judge");
+    expect(commented.kind).toBe("compliant");
+    expect(Handoff.violationOf(commented)).toBeNull();
   });
 
   it("refuses a draft that parses but breaks the contract, carrying the problem list", () => {

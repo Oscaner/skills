@@ -12,7 +12,7 @@
 //     round owes the findings its criterion reads), so this module answers a value and
 //     nothing throws;
 //   · malformed — on disk and not JSON. A refusal whose detail carries the parser's own
-//     error code;
+//     error codes;
 //   · breached — parses and does not conform. A refusal whose detail carries the problem
 //     list.
 // The two refusal arms share ONE cause word (`CONTRACT_VIOLATION`): the termination causes
@@ -46,6 +46,7 @@
 // Module-level exports are types, the declared key sets and the class — zero
 // behaviour-carrying bare functions.
 
+import { type ParseError, parse, printParseErrorCode } from "jsonc-parser";
 import type { RoundOp } from "../ledger/identity.ts";
 import type { RoundViolation } from "../ledger/ledger.ts";
 
@@ -76,6 +77,14 @@ export const PLANE_REQUIRED: Readonly<Record<HandoffPlane, readonly HandoffKey[]
 
 /** The one cause word both refusal arms carry. */
 export const CONTRACT_VIOLATION = "contract-violation";
+
+/** The draft's parse dialect — the LENIENT one, scoped to this face alone. A draft is
+ *  written by a child model from prose, so a trailing comma or a comment is a routine
+ *  slip; the strict `JSON.parse` would veto a whole round on one comma. jsonc-parser still
+ *  reports a real break (a missing brace, a stray symbol), so a corrupt draft stays
+ *  fail-loud. Engine-authored files never come through here: their bytes are
+ *  `JSON.stringify` output, where leniency would only mask a real engine bug. */
+const LENIENT = { allowTrailingComma: true, disallowComments: false } as const;
 
 /** The work plane's declared conclusions. */
 export const WORK_STATUSES = ["APPROVED", "BLOCKED"] as const;
@@ -114,7 +123,7 @@ export interface JudgedRecord {
  *  slots DROPPED in place on the two non-absent arms. */
 export type HandoffRead =
   | { readonly kind: "absent" }
-  | { readonly kind: "malformed"; readonly code: string }
+  | { readonly kind: "malformed"; readonly codes: readonly string[] }
   | {
       readonly kind: "compliant";
       readonly draft: Record<string, unknown>;
@@ -157,15 +166,16 @@ export class Handoff {
   }
 
   /** Read one draft: `text` is the file's bytes, null when the file was never written. The
-   *  walk is TIERED — a decorative slot that breaks its own declaration is dropped and
-   *  reported beside the problems, and only an owed slot's mismatch refuses the draft. */
+   *  bytes are parsed in the LENIENT draft dialect (trailing commas and comments are
+   *  tolerated, a real break is `malformed` carrying the parser's error codes). The walk
+   *  is TIERED — a decorative slot that breaks its own declaration is dropped and reported
+   *  beside the problems, and only an owed slot's mismatch refuses the draft. */
   static read(text: string | null, plane: HandoffPlane): HandoffRead {
     if (text === null) return { kind: "absent" };
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch (raw) {
-      return { kind: "malformed", code: raw instanceof Error ? raw.name : "SyntaxError" };
+    const errors: ParseError[] = [];
+    const value: unknown = parse(text, errors, LENIENT);
+    if (errors.length > 0) {
+      return { kind: "malformed", codes: errors.map((error) => printParseErrorCode(error.error)) };
     }
     const out: CheckOut = { problems: [], dropped: [] };
     Handoff.#check(value, plane, out);
@@ -187,7 +197,7 @@ export class Handoff {
       return {
         grade: "hard",
         cause: CONTRACT_VIOLATION,
-        message: `the handoff draft is not JSON (${read.code})`,
+        message: `the handoff draft is not JSON (${read.codes.join(", ")})`,
       };
     }
     return {

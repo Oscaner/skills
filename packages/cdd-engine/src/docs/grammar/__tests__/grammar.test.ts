@@ -1,0 +1,298 @@
+// packages/cdd-engine/src/docs/grammar/__tests__/grammar.test.ts
+// The grammar's pins:
+//   · fence awareness — a `## Heading` and a table inside a fenced block are sample
+//     prose, not structure, while the same shapes outside it are structure;
+//   · index determinism — one text parses to the same headings and the same table cell
+//     sets twice, and the fenced table never enters;
+//   · front matter — a legal block reads its key set, an illegal one throws a failure
+//     that carries the line it broke on;
+//   · the record face — `## Change history` and the YAML head are outside the reviewed
+//     body, while a fenced sample of that heading stays inside it;
+//   · the injected read face — two readers over one coordinate read two documents, and
+//     `docs/**` imports no `node:fs` and no `judging/`;
+//   · home-driven extraction — moving an element's declared home moves the result;
+//   · task blocks — a `DependsOn` line reads its id list, `none` reads empty, and a
+//     dependency cycle is read out.
+
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import type { RepoPath } from "../../../env/paths/root.ts";
+import { Documents } from "../../index.ts";
+import { docBodyOf } from "../doc-body.ts";
+import { type HomeElement, HomeExtractor } from "../extract.ts";
+import { FrontMatterError, frontmatterOf } from "../frontmatter.ts";
+import { MarkdownDocument } from "../markdown-document.ts";
+import { MarkdownTree } from "../markdown-tree.ts";
+import { TaskBlocks } from "../task-blocks.ts";
+
+/** The docs slice's root — the import-face scan's basis. */
+const DOCS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+/** One fixture document: a head, a fenced block that quotes structure and a table, an
+ *  accepted-shape table, and the registration section. */
+const DOC = [
+  "---",
+  "title: Fixture",
+  "doc-type: phase-spec",
+  "slug: fixture",
+  "version: v0.1",
+  "---",
+  "",
+  "## Design",
+  "",
+  "A paragraph citing `the-anchor` inline.",
+  "",
+  "```md",
+  "## Fenced heading",
+  "",
+  "| fenced-a | fenced-b |",
+  "| --- | --- |",
+  "| fenced-c | fenced-d |",
+  "```",
+  "",
+  "## Acceptance criteria",
+  "",
+  "| rule | verdict |",
+  "| --- | --- |",
+  "| one | green |",
+  "",
+  "## Change history",
+  "",
+  "| Version | date |",
+  "| --- | --- |",
+  "| v0.1 | 2026-01-01 |",
+  "",
+].join("\n");
+
+/** A plan carrying two mutually dependent tasks and one task with no dependency. */
+const PLAN = [
+  "## Constraints",
+  "",
+  "- keep it small",
+  "",
+  "### Task 1: one",
+  "",
+  "#### Objective",
+  "",
+  "objective one",
+  "",
+  "#### DependsOn",
+  "",
+  "2",
+  "",
+  "### Task 2: two",
+  "",
+  "#### DependsOn",
+  "",
+  "1（and some prose）",
+  "",
+  "### Task 3: three",
+  "",
+  "#### DependsOn",
+  "",
+  "none",
+  "",
+].join("\n");
+
+/** A fake reader over one fixed text. */
+const readerOf = (text: string) => {
+  return (target: RepoPath) => ({ kind: "text" as const, target, value: text });
+};
+
+describe("fence awareness", () => {
+  it("keeps a fenced `## Heading` out of the heading tree and the same shape outside it in", () => {
+    const tree = MarkdownTree.parse(DOC);
+    const headings = tree.headings().map((heading) => heading.text);
+    expect(headings).toContain("## Design");
+    expect(headings).toContain("## Acceptance criteria");
+    expect(headings).not.toContain("## Fenced heading");
+    // The nesting answers the same fact: three rank-2 sections, no fourth from the fence.
+    expect(tree.branches().length).toBe(3);
+    expect(tree.isCodeLine(13)).toBe(true);
+  });
+});
+
+describe("the document index", () => {
+  it("parses one text to the same headings and table cells twice, with the fenced table excluded", () => {
+    const first = MarkdownDocument.parse(DOC);
+    const second = MarkdownDocument.parse(DOC);
+    expect(first.headings().map((heading) => heading.text)).toEqual(
+      second.headings().map((heading) => heading.text),
+    );
+    expect(first.tables().map((table) => table.body.map((row) => row.cells))).toEqual(
+      second.tables().map((table) => table.body.map((row) => row.cells)),
+    );
+    // Two real tables are indexed (acceptance criteria and change history); the fenced
+    // one is sample prose, so no cell of it reaches the index.
+    const cells = first.tables().flatMap((table) => table.body.flatMap((row) => row.cells));
+    expect(cells).toEqual(["one", "green", "v0.1", "2026-01-01"]);
+    expect(cells.some((cell) => cell.startsWith("fenced"))).toBe(false);
+  });
+
+  it("removes the inline-code spans from a line's bare view", () => {
+    const index = MarkdownDocument.parse(DOC);
+    expect(index.bareOf(10)).not.toContain("`the-anchor`");
+    expect(index.line(10)).toContain("`the-anchor`");
+  });
+});
+
+describe("front matter", () => {
+  it("reads the declared key set of a legal block", () => {
+    const { head, body } = frontmatterOf(DOC);
+    expect(head.keys()).toEqual(["title", "doc-type", "slug", "version"]);
+    expect(head.slug).toBe("fixture");
+    expect(head.docType).toBe("phase-spec");
+    expect(body).toContain("## Design");
+    expect(body).not.toContain("doc-type: phase-spec");
+    // A value outside the scalar set is not a head value.
+    expect(head.value("title")).toBe("Fixture");
+  });
+
+  it("throws a positioned failure on an illegal block", () => {
+    const broken = ["---", "title: Fixture", "slug: [unclosed", "---", "", "## Design", ""].join(
+      "\n",
+    );
+    let thrown: unknown;
+    try {
+      frontmatterOf(broken);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(FrontMatterError);
+    const failure = thrown as FrontMatterError;
+    expect(failure.line).toBeGreaterThan(0);
+    expect(failure.message).toContain(`line ${failure.line}`);
+  });
+});
+
+describe("the record face", () => {
+  it("drops the head and the change-history section from the reviewed body", () => {
+    const body = docBodyOf(DOC);
+    expect(body).not.toContain("doc-type: phase-spec");
+    expect(body).not.toContain("## Change history");
+    expect(body).not.toContain("| v0.1 | 2026-01-01 |");
+    expect(body).toContain("## Design");
+    expect(body).toContain("## Acceptance criteria");
+  });
+
+  it("keeps a fenced sample of the registration heading inside the body", () => {
+    const fenced = [
+      "## Design",
+      "",
+      "```md",
+      "## Change history",
+      "```",
+      "",
+      "## Change history",
+      "",
+      "| v0.1 |",
+      "",
+    ].join("\n");
+    const body = docBodyOf(fenced);
+    expect(body).toContain("```md\n## Change history\n```");
+  });
+
+  it("returns a document with neither face verbatim", () => {
+    const plain = "## Design\n\nbody\n";
+    expect(docBodyOf(plain)).toBe(plain);
+  });
+});
+
+describe("the injected read face", () => {
+  it("reads two different documents through one coordinate, one per reader", () => {
+    const target = "docs/kairos/specs/fixture.md" as RepoPath;
+    const first = new Documents({ readText: readerOf(DOC) }).parse(target);
+    const second = new Documents({ readText: readerOf(PLAN) }).parse(target);
+    expect(first.kind).toBe("document");
+    expect(second.kind).toBe("document");
+    if (first.kind !== "document" || second.kind !== "document") throw new Error("unreachable");
+    expect(first.index.headings().length).not.toBe(second.index.headings().length);
+  });
+
+  it("returns the reader's failure unchanged, never an empty document", () => {
+    const target = "docs/kairos/specs/gone.md" as RepoPath;
+    const documents = new Documents({
+      readText: (asked) => ({ kind: "read-failure", target: asked }),
+    });
+    expect(documents.parse(target)).toEqual({ kind: "read-failure", target });
+  });
+
+  it("imports no `node:fs` and no `judging/` anywhere under `docs/`", () => {
+    const scan = new SliceScan(DOCS_ROOT);
+    expect(scan.filesImporting("node:fs")).toEqual([]);
+    expect(scan.filesImporting("judging")).toEqual([]);
+  });
+});
+
+describe("home-driven extraction", () => {
+  it("moves with the element's declared home", () => {
+    const tree = MarkdownTree.parse(DOC);
+    const elements: HomeElement[] = [
+      { anchor: "design", home: "design-body", heading: "Design" },
+      { anchor: "acceptance", home: "section", heading: "Acceptance criteria" },
+    ];
+    const extractor = new HomeExtractor(elements);
+    expect(extractor.extract(tree, ["design-body"])).toEqual({ design: ["## Design"] });
+    expect(extractor.extract(tree, ["section"])).toEqual({
+      acceptance: ["## Acceptance criteria"],
+    });
+    // The SAME element read through another home yields the other surface's anchors,
+    // which is the projection following the registry rather than a hard-coded list.
+    const moved = new HomeExtractor([{ ...elements[0]!, home: "section" }]);
+    expect(moved.extract(tree, ["section"])).toEqual({ design: ["## Design"] });
+    expect(moved.extract(tree, ["design-body"])).toEqual({});
+  });
+});
+
+describe("task blocks", () => {
+  it("reads a comma-set dependency line as ids, and `none` as the empty set", () => {
+    const blocks = TaskBlocks.parse(PLAN);
+    expect(blocks.blocks().map((block) => block.id)).toEqual([1, 2, 3]);
+    expect(blocks.dependsOn(2)).toEqual([1]);
+    expect(blocks.dependsOn(3)).toEqual([]);
+    const multi = TaskBlocks.parse(
+      ["### Task 9: nine", "", "#### DependsOn", "", "2, 3", ""].join("\n"),
+    );
+    expect(multi.dependsOn(9)).toEqual([2, 3]);
+  });
+
+  it("reads a dependency cycle out", () => {
+    const blocks = TaskBlocks.parse(PLAN);
+    expect(blocks.cycles()).toEqual([[1, 2]]);
+  });
+});
+
+/** The `docs/**` scan: which non-test modules carry one import specifier fragment. */
+class SliceScan {
+  readonly #root: string;
+
+  constructor(root: string) {
+    this.#root = root;
+  }
+
+  /** The repo-slice-relative paths whose non-test text mentions `needle`. */
+  filesImporting(needle: string): string[] {
+    const found: string[] = [];
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const child = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "__tests__") walk(child);
+          continue;
+        }
+        if (!entry.name.endsWith(".ts")) continue;
+        const text = readFileSync(child, "utf8");
+        const imports = text
+          .split("\n")
+          .filter((line) => line.startsWith("import ") || line.startsWith("} from "));
+        if (imports.some((line) => line.includes(needle))) {
+          found.push(path.relative(this.#root, child));
+        }
+      }
+    };
+    walk(this.#root);
+    return found.sort();
+  }
+}

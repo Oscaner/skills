@@ -14,7 +14,7 @@
 //     zero-clock face covers the three segments this task delivers (the clock's own
 //     reader, `env/process/clock.ts`, is outside them);
 //   · `ensure` publishes the keep-out marker and creates no slug directory;
-//   · `Env` exposes the two delivered segments and takes one options parameter.
+//   · `Env` exposes the four segments and takes one options parameter.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { Env } from "../../index.ts";
 import { type RepoPath, RepoRoot } from "../../paths/root.ts";
+import { Clock } from "../../process/clock.ts";
 import type { FileOps } from "../atomic.ts";
 import { BASE_ARTIFACT_FIELDS, BASE_SOURCES, BaseArtifact } from "../base-artifact.ts";
 import { WorkspaceRoot } from "../workspace.ts";
@@ -267,17 +268,22 @@ describe("the keep-out marker", () => {
 });
 
 describe("the env facade", () => {
-  it("exposes the two delivered segments and nothing else across instance and prototype", () => {
+  it("exposes the four segments and nothing else across instance and prototype", () => {
     const repo = tempRepo("env-facade-");
-    const env = new Env({ cwd: repo, now: () => FIXED_NOW, baseName: BASE_NAME });
+    const env = new Env({
+      cwd: repo,
+      clock: new Clock(() => FIXED_NOW),
+      baseName: BASE_NAME,
+    });
     const members = new Set([
       ...Object.keys(env),
       ...Object.getOwnPropertyNames(Object.getPrototypeOf(env)).filter(
         (name) => name !== "constructor",
       ),
     ]);
-    expect([...members].sort()).toEqual(["paths", "workspace"]);
+    expect([...members].sort()).toEqual(["paths", "process", "vcs", "workspace"]);
     expect(env.workspace.at("s").slug).toBe("s");
+    expect(env.process.clock.now()).toBe(FIXED_NOW);
     expect(Env.length).toBeLessThanOrEqual(1);
   });
 

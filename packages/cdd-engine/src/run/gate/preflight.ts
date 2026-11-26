@@ -28,10 +28,26 @@
 //
 // THE CHECKED FACE is data, not bytes: one row per gate and one per declared rule, each
 // carrying its reading as a value. The words a consumer prints for those readings belong to
-// the word table (`surface/words`), so this file spells no sentence. Two yield shapes are
+// the word table (`surface/words`), so this file spells no sentence. Three yield shapes are
 // distinct facts and stay distinct: a rule the CLOSED document exempted (`skipWhenClosed`
-// over the closure reading the document slice already owns) reads as a yield, and a row
-// that never ran because an earlier row refused is simply absent from the face.
+// over the closure reading the document slice already owns) reads as a yield, a rule whose
+// input face is absent reads as a yield, and a row that never ran because an earlier row
+// refused is simply absent from the face. The `plan-ledger` gate row carries the count of
+// plan tasks the ledger has not recorded yet (`LedgerTaskSetRule.planAhead`) — the old
+// seam's `plan-ahead: N` info line as a reading, so a plan that leads the ledger still has
+// a row of its own.
+//
+// JUDGING AND SETTLING ARE TWO STEPS. `vet` reads and judges only: it writes nothing, takes
+// no lock and spawns nothing, which is what makes a `--dry-run` preview a pure read (a
+// preview over a tree that carries a standing refusal must not delete the fact it was asked
+// to preview). `settle(verdict)` is the ONE write point — an approved verdict clears the
+// tree's record at the door, a refused one publishes it — and only the real dispatch path
+// calls it.
+//
+// The plan read is never judged here: a plan that cannot be read is the frame assembly's
+// declared `read-failure` value (`run/advance/frame.ts#Frame#of`, owned and pinned by T13),
+// so `PreFlightContext#graph` is `null` on a read that is not ready and the `graph` row is
+// not judged at all. The gate judges a plan read, it never produces one.
 //
 // The refusal record is `./refusal.ts` — one record, two expiry triggers (this gate's own
 // door when the structural leg does not refuse, and `InFlight#release`). Writing it is the
@@ -42,6 +58,7 @@
 // behaviour-carrying bare functions.
 
 import type {
+  Documents,
   Finding,
   JudgeInput,
   LedgerFacts,
@@ -49,9 +66,9 @@ import type {
   TargetType,
   TaskGraph,
 } from "../../docs/index.ts";
-import { TaskGraph as Graph } from "../../docs/index.ts";
+import { TaskGraph as Graph, LedgerTaskSetRule } from "../../docs/index.ts";
 import type { RoundOp } from "../ledger/identity.ts";
-import type { Refusal } from "./refusal.ts";
+import type { Refusal, RefusalBody, RefusalPublish } from "./refusal.ts";
 
 /** The structural legs, in judgment order — the gate's own half of the row set. */
 export type StructureRow = "tree-clean" | "in-flight" | "graph" | "plan-ledger" | "doc-contract";
@@ -138,15 +155,14 @@ export interface TreeRead {
   isClean(cwd: string): Promise<boolean>;
 }
 
-/** The document slice's three reads this gate is allowed — `docs/index.ts#Documents` in
- *  production. The gate judges no document itself: it hands the fact bundle in and reads
- *  the stamped findings back. */
-export interface DocJudgment {
-  judge(input: JudgeInput): readonly Finding[];
-  judgeLedger(input: JudgeInput, facts: LedgerFacts): readonly Finding[];
-  ruleRows(): readonly RuleDeclaration[];
-  closedAt(path: JudgeInput["path"]): boolean;
-}
+/** The document slice's reads this gate is allowed — a PROJECTION of the concrete
+ *  `Documents`, not a hand-written port. There is no second implementation in production
+ *  (the document slice is a sibling, not a boundary), so the projection's only job is to
+ *  narrow what the gate may call; deriving it from the class means a signature change in
+ *  `Documents` breaks here instead of drifting. A case that must dictate a finding nobody
+ *  can produce satisfies the same projection, and at least one case judges a REAL
+ *  `Documents` over the temp tree. */
+export type DocJudgment = Pick<Documents, "judge" | "judgeLedger" | "ruleRows" | "closedAt">;
 
 /** The held record's reading — the three states the dispatch face judged, with the record's
  *  identity cells and its own target facts. The gate re-derives neither liveness nor the
@@ -207,6 +223,9 @@ export type CheckedReading =
       readonly pid?: number;
       readonly targetGone?: readonly string[];
     }
+  /** The `plan-ledger` gate row — its own conclusion plus the plan-ahead count (the plan
+   *  tasks the ledger has not recorded yet; `0` when the ledger holds them all). */
+  | { readonly kind: "plan-ledger"; readonly ahead: number }
   | {
       readonly kind: "rule";
       readonly result: "passed" | "failed" | "warned";
@@ -242,6 +261,10 @@ export interface PreFlightVerdict {
   /** The approved gate's own document findings — the baseline a fix round's close-out leg
    *  compares against. Empty when the face judged no document. */
   readonly findings?: readonly Finding[];
+  /** The record this refusal would land, as the cells the write point needs — absent on an
+   *  approved verdict. `vet` assembles it and writes nothing; `settle` publishes it. Named
+   *  for the FACT, not for the `Refusal` collaborator that stores it. */
+  readonly record?: RefusalBody;
 }
 
 /** One dispatch's gate inputs. Everything here is a FACT already read (the tree's
@@ -320,7 +343,12 @@ type DocOutcome =
 
 /** The ledger row's outcome. */
 type LedgerOutcome =
-  | { readonly kind: "judged"; readonly findings: readonly Finding[] }
+  | {
+      readonly kind: "judged";
+      readonly findings: readonly Finding[];
+      /** The plan-ahead count the `plan-ledger` gate row reports. */
+      readonly ahead: number;
+    }
   | { readonly kind: "no-ledger-facts" };
 
 /** One row's judgment — the rows it ran, the checked rows it added, the outcomes the rule
@@ -333,10 +361,24 @@ interface RowStep {
   readonly refusal: RefusalSpec | null;
 }
 
+/** The face's running tally — the rows that ran, the checked rows they added, and the two
+ *  outcomes the rule rows quote. The refusal is handed this ONE bundle, so a row that needs
+ *  one more fact grows the bundle rather than the call signature. */
+interface FaceTally extends RowCarried {
+  readonly order: readonly PreFlightGateName[];
+  readonly checked: readonly CheckedRow[];
+}
+
 /**
  * PreFlight — the work tree's gate. Invariant: one `vet` call walks the face's row set in
- * judgment order, the first refusing row owns the verdict (and writes the ONE tree-level
- * refusal fact), and an approved call clears the record at the door. See the file's header.
+ * judgment order, the first refusing row owns the verdict, and the tree's ONE record is
+ * settled from that verdict by `settle` alone — never by the judgment. See the file's header.
+ *
+ * Rule zero (over the 200-line class limit): the class is one row dispatcher plus the row
+ * bodies it dispatches to, and every body reads the SAME carried bundle and the same four
+ * construction facts — the row order IS the invariant, so extracting a body into a
+ * collaborator would move surface area across a boundary without removing one variation.
+ * The moment a row needs a fact the others do not, that row becomes its own class.
  */
 export class PreFlight {
   readonly #repoRoot: string;
@@ -374,9 +416,11 @@ export class PreFlight {
     return (ROW_STATIONS as readonly string[]).includes(row);
   }
 
-  /** vet(context) — walk the face's rows in order. The structural legs judge in sequence and
-   *  the first violation refuses; the four stations judge TOGETHER, in one pass, so a
-   *  refused round is repaired once instead of one row per dispatch. */
+  /** vet(context) — walk the face's rows in order and answer the whole verdict. PURE: no
+   *  record is written and none cleared (that is `settle`'s one call), so a preview reads a
+   *  tree without changing it. The structural legs judge in sequence and the first violation
+   *  refuses; the four stations judge TOGETHER, in one pass, so a refused round is repaired
+   *  once instead of one row per dispatch. */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const order: PreFlightGateName[] = [];
     const checked: CheckedRow[] = [];
@@ -390,18 +434,28 @@ export class PreFlight {
       doc = step.doc;
       ledger = step.ledger;
       if (step.refusal !== null) {
-        return this.#refuse(ctx, step.refusal, order, checked, doc, ledger);
+        return this.#refuse(ctx, step.refusal, { order, checked, doc, ledger });
       }
     }
-    // The first expiry trigger: a dispatch the structural leg did not refuse clears the
-    // record at the door, BEFORE the takeover judge reads the tree it may hand over.
-    this.#refusal.clear();
     return {
       ok: true,
       order,
       checked: [...checked, ...this.#ruleRows(doc, ledger)],
       findings: doc.kind === "judged" ? doc.findings : [],
     };
+  }
+
+  /** settle(verdict) — the ONE write point of a judgment: a refused verdict publishes its
+   *  record (the publish is fail-open, so the verdict survives an unwritable tree), and an
+   *  approved one clears the tree's standing fact at the door. Called by the dispatch path
+   *  after `vet` and never by `previewOf`, which is why a `--dry-run` writes nothing. */
+  settle(verdict: PreFlightVerdict): RefusalPublish | null {
+    if (verdict.ok) {
+      this.#refusal.clear();
+      return null;
+    }
+    const record = verdict.record;
+    return record === undefined ? null : this.#refusal.write(record);
   }
 
   /** One row's judgment — what it read, what it refused (if anything) and the outcomes the
@@ -484,7 +538,9 @@ export class PreFlight {
   }
 
   /** `plan-ledger` — the plan/ledger agreement, judged by the document slice over the
-   *  injected fact bundle. A missing bundle is not a refusal: the rows render `skipped`. */
+   *  injected fact bundle. A missing bundle is not a refusal: the rows render `skipped`.
+   *  The same bundle answers the plan-ahead count the row reports, so the info fact and the
+   *  refusal read one bundle instead of two. */
   #planLedger(ctx: PreFlightContext, carried: RowCarried): RowStep {
     const target = ctx.planLedger;
     if (target === null) {
@@ -500,11 +556,12 @@ export class PreFlight {
     const details = findings.map(
       (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
     );
+    const ahead = LedgerTaskSetRule.planAhead(target.facts);
     return {
       ran: ["plan-ledger" as const],
-      checked: [{ row: "plan-ledger", reading: { kind: "ran" as const } }],
+      checked: [{ row: "plan-ledger", reading: { kind: "plan-ledger" as const, ahead } }],
       doc: carried.doc,
-      ledger: { kind: "judged" as const, findings },
+      ledger: { kind: "judged" as const, findings, ahead },
       refusal:
         details.length === 0
           ? null
@@ -624,34 +681,27 @@ export class PreFlight {
     return recover ? null : "held";
   }
 
-  /** Assemble the refusal verdict AND write the tree's one refusal fact. The record's
-   *  `detail` is the refusal's own conclusion; the round is untouched — nothing here writes
-   *  a ledger cell, which is the mechanical form of "a refusal books no round". */
-  #refuse(
-    ctx: PreFlightContext,
-    spec: RefusalSpec,
-    order: readonly PreFlightGateName[],
-    checked: readonly CheckedRow[],
-    doc: DocOutcome,
-    ledger: LedgerOutcome,
-  ): PreFlightVerdict {
-    this.#refusal.write({
-      slug: ctx.slug,
-      op: ctx.op,
-      type: ctx.type,
-      cycle: ctx.cycle,
-      attempt: ctx.attempt,
-      station: spec.gate,
-      detail: spec.detail,
-    });
+  /** Assemble the refusal verdict — the record's cells ride IN the verdict and are written
+   *  by `settle`, never here. The round is untouched: nothing in this method writes a ledger
+   *  cell, which is the mechanical form of "a refusal books no round". */
+  #refuse(ctx: PreFlightContext, spec: RefusalSpec, tally: FaceTally): PreFlightVerdict {
     return {
       ok: false,
       gate: spec.gate,
       ...(spec.reason === undefined ? {} : { reason: spec.reason }),
       ...(spec.details === undefined ? {} : { details: spec.details }),
       ...(spec.holding === undefined ? {} : { holding: spec.holding }),
-      order: [...order],
-      checked: [...checked, ...this.#ruleRows(doc, ledger)],
+      order: [...tally.order],
+      checked: [...tally.checked, ...this.#ruleRows(tally.doc, tally.ledger)],
+      record: {
+        slug: ctx.slug,
+        op: ctx.op,
+        type: ctx.type,
+        cycle: ctx.cycle,
+        attempt: ctx.attempt,
+        station: spec.gate,
+        detail: spec.detail,
+      },
     };
   }
 

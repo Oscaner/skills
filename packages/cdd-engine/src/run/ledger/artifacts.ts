@@ -15,6 +15,11 @@
 // The reverse direction (name → identity) is this file's `attribute`, and it is the ONLY
 // place a carrier name is parsed. A second grammar kept beside the renderer would be the
 // second spelling the ledger's invariant forbids.
+//
+// Not every artifact is a round's. The tree-level records — the refusal fact today, other
+// workspace-domain names as they land — belong to no coordinate, so they live in their own
+// table (`WORKSPACE_ARTIFACTS`) rather than as a kind rendered from a fabricated round: one
+// table, one spelling per name, and every tree-level reader derives its path from it.
 
 import {
   RoundIdentity as Identity,
@@ -36,6 +41,17 @@ export const ARTIFACT_KINDS = [
   "evidence",
   "rulings",
 ] as const satisfies readonly ArtifactKind[];
+
+/** The tree-level artifacts — the engine's own workspace-domain files, which no round
+ *  identity renders. Invariant: one name here, one home; a reader that spells the name
+ *  itself has taken a second home. */
+export const WORKSPACE_ARTIFACTS = {
+  /** The tree's one standing refusal fact (`run/gate/refusal.ts#Refusal`). */
+  refusal: "refusal.json",
+} as const;
+
+/** The workspace-level artifact names, as a closed set. */
+export type WorkspaceArtifact = keyof typeof WORKSPACE_ARTIFACTS;
 
 /** The line words the name grammar reads back — the waves' spine and the five fixed
  *  words. The document words come before nothing else that could swallow them, so

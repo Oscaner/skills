@@ -482,6 +482,8 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 - Create: `packages/cdd-engine/src/run/gate/authority.ts`
 - Create: `packages/cdd-engine/src/run/gate/__tests__/gate.test.ts`
 - Modify: `packages/cdd-engine/src/run/index.ts`
+- Modify: `packages/cdd-engine/src/run/ledger/artifacts.ts`（树级产物名字表的一行：拒绝事实的拼写，本片读它、不另拼）
+- Modify: `packages/cdd-engine/src/docs/index.ts`（只加一条导出：`LedgerTaskSetRule`，`checked:` 面的 ahead 计数取自它自己的 `planAhead`）
 - Modify: `packages/cdd-engine/tests/parity/grid.ts`（本片各格的名册行）
 - Modify: `packages/cdd-engine/tests/parity/baseline/`（重录产物：本片落地的 producer 把它名下的格从 GAP 推进到已接线）
 - Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
@@ -491,10 +493,14 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 - 旧树的 `session/preflight.ts`（`PreFlightGateName` · `DISPATCH_ROWS` · 让位条件）· `session/refusal.ts`（`PreFlightRefusal` · `RefusalState`）· `session/dispatch-authority.ts` · `face/cli.ts#Cli.#recoverRun` 的三 leg 授权面 · `contract/preflight-rows.ts#RowStation`（四个站名——它们是门行集的成员，不是与行集并列的第二组）（读行为）
 - T9 落点 `docs/judging/task-graph.ts#TaskGraph`（`#validate()` 与静态 `detailLine()`）：`graph` 腿判的是注入的 plan read 交上来的那个图，门 `new` 不出第二份边规则，只读失败集
 - T10 落点 `docs/judging/closure.ts#ClosedDocument`：`checked:` 面的让位行读它——已闭合文档上带 `skipWhenClosed` 的声明读作让位，门只拼那一行
+- T10 落点 `docs/judging/invariants.ts#LedgerTaskSetRule.planAhead`：`plan-ledger` 行的 ahead 计数取自它（旧缝的 `plan-ahead: N` 信息行就是它渲染的；本片只取值，不算第二份计划差）
+- 计划读的失败不进门（具名指路，不是缺行）：读不到的计划由 T13 的 `Frame#of` 在场景装配那一层交回声明值 `{kind: "read-failure", target}`（同一个入口的 pin 已在 T13 的失败变体一步里），门只判已经就绪的图——`graph: null` 就是该行不判；旧缝以 `doc-contract` 拒绝的那一路因此换了层、换成一个声明值，本片不新增行、不另判读
 
 #### Produces
-- `PreFlight#vet(context)` → 逐行读数与整段裁决；行集从 `PreFlightGateName` 的闭集派生：结构腿（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`）与 `RowStation` 的四个站名（`no-host` · `carrier` · `dispatch-input` · `artifact`）是同一个行集的两部分——站名是行集的成员，不是与之并列的另一组；某个面命中多少行是该面的函数（plan · wave · branch 三个面各不相同），不写常数；让位条件按既有两处（那一行的读值取 T10 的 `docs/judging/closure.ts#ClosedDocument`，门只拼行、不另算闭包）；`graph` 腿唯一的判定来源是 T9 的 `TaskGraph#validate()`（失败集逐条经 `detailLine()` 拼成 detail），门里不重算边
-- `RefusalState`：树上至多一条拒绝事实、两个到期触发点（结构腿不拒绝时的门口清理 · `InFlight#release`）；拒绝事实盖的 `at` 时间戳经注入的 `Clock`（T5 落点 `env/process/clock.ts`）取——本片零 `Date.now()`、零无参 `new Date()`
+- `PreFlight#vet(context)` → 逐行读数与整段裁决；行集从 `PreFlightGateName` 的闭集派生：结构腿（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`）与 `RowStation` 的四个站名（`no-host` · `carrier` · `dispatch-input` · `artifact`）是同一个行集的两部分——站名是行集的成员，不是与之并列的另一组；某个面命中多少行是该面的函数（plan · wave · branch 三个面各不相同），不写常数；让位条件按既有两处（那一行的读值取 T10 的 `docs/judging/closure.ts#ClosedDocument`，门只拼行、不另算闭包）；`graph` 腿唯一的判定来源是 T9 的 `TaskGraph#validate()`（失败集逐条经 `detailLine()` 拼成 detail），门里不重算边；`plan-ledger` 行的读数带 ahead 计数（取自 T10 的 `LedgerTaskSetRule.planAhead`），于是旧缝那条计划领先账本的信息行在新树上仍有一格
+- `PreFlight#vet` **只判不写**：零记录写、零清理、零取锁、零 spawn，裁决里带的是那条拒绝记录的八个格子（`slug` · `op` · `type` · `cycle` · `attempt` · `station` · `detail`，`at` 由写定点盖）而不是写下的字节；落定的唯一一点是 `PreFlight#settle(verdict)`——裁决通过时清门口的树级事实，拒绝时把裁决自带的那条记录落地。`--dry-run` 的 `previewOf` 只调 `vet`（T13 的三件纯读因此成立：判过的树不被改动、站着的拒绝事实留在原处）
+- `RefusalState`：树上至多一条拒绝事实、两个到期触发点（`PreFlight#settle` 的门口清理 · `InFlight#release`，后者的 pin 归 T12——本片只把清法交给释放点）；拒绝事实盖的 `at` 时间戳经注入的 `Clock`（T5 落点 `env/process/clock.ts`）取——本片零 `Date.now()`、零无参 `new Date()`
+- `Refusal#write` 的失败臂是**声明值**（fail-open）：树拒绝写（只读检出、root 自有的 CI mount）时裁决与站名照旧返回，写定点交回 `not-published` 与原因，那一行 `cdd: the refusal record was not published — <reason>` 的字节归 `surface`（本片不印，也不改裁决）；记录的名字与拼写取 T7 产物矩阵的树级行（`run/ledger/artifacts.ts#WORKSPACE_ARTIFACTS`），站名词表按运行时读 `PRE_FLIGHT_GATE_NAMES`——两个词表各一个家，本文件零第二拼写、零构造注入
 - `authority`：三条 leg 各自的授权条件（leg ① = in-flight 门放过 ∧ 记录 stale；legs ②③ = 结构腿通过）
 
 #### Steps
@@ -503,7 +509,7 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 - 写「拒绝不写轮次」的 pin — checkable: 任一行拒绝后账本轮次数不变、树上多一条拒绝事实
 - 写拒绝事实时间戳的 pin — checkable: 注入固定时钟 ⇒ 落地的 `at` 就是那个时刻；`run/gate/**` 的非测试文件里零 `Date.now()` · 零无参 `new Date()`（T5 的那条全树时钟 pin 在这一片上逐文件可核）
 - 写至多一条的 pin — checkable: 连续两次拒绝 ⇒ 树上仍只有一条（后者不覆盖前者或按旧行为拒绝，pin 钉住那一种）
-- 写两个到期触发点的 pin — checkable: 九行全过 ⇒ 事实被清；`InFlight#release` ⇒ 事实被清；其它路径不清
+- 写两个到期触发点中门口那一个的 pin — checkable: 九行全过的裁决经 `settle` ⇒ 事实被清；同一条裁决只经 `vet`（预览）⇒ 事实仍站着、树上零写；树拒绝写 ⇒ 裁决与站名照旧返回、`settle` 交回 `not-published`；`clear` 幂等且 fail-open；其它路径（一次读 · 一次判断）都不清。`InFlight#release` 那一支是第二个到期点，pin 归 T12（具名延后，见 T12 Steps）
 - 写三 leg 授权的 pin — checkable: 活 holder + `--recover` ⇒ leg ① 不成立（flag 不越过活着）；stale 记录 + doc-contract 拒绝 ⇒ leg ① 仍成立（记录关于树）；legs ②③ 在结构腿拒绝时不成立
 - 写让位条件的 pin — checkable: 无输入面的 wave 派发 ⇒ 四行一起让位；在四行之前被拒 ⇒ 四行不记
 - 写门面格的接入 — checkable: 名册挂给本片的两格（`f8.blocked.station` · `f8.blocked.yielding`）在本片 producer 落地后派生成已接线（`seam` 的注册波是 T16，本片不注册 driver——这两格在本波之前是 GAP，本波起读作**具名延后**并点名 T16，既不是缺格也不是差异）；把本片 producer 的导出名改掉而名册不改 ⇒ 该格派生成 GAP，录制件仍写着已接线所以对账器报缺格，于是逐波判据红；`pnpm -C packages/cdd-engine exec vitest run src/run tests/parity` 绿
@@ -512,7 +518,7 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-六组 pin 齐（行集派生与 `graph` 腿只读 T9 的失败集 · 拒绝不写轮次 · 至多一条 · 两个到期点 · 三 leg 授权 · 两处让位）；`run/gate` 在 `run/` 内的边只向下依赖 `run/ledger`（跨片读 `docs/` 的判据是它存在的理由，不是第二层）；拒绝事实的路径取 T7 的产物矩阵（`run/ledger/artifacts.ts#ArtifactIdentity` 的名字与拼写，依赖边 7）——`env.workspace` 只按注入的拼写落地，不持矩阵；名册挂给本片的格在本波派生成已接线（`seam` 的注册波是 T16，本片不注册 driver），两格因此读作具名延后并点名 T16，不是缺格也不是差异；对账器里那些既已接线又不在延后档的格零差异。
+六组 pin 齐（行集派生与 `graph` 腿只读 T9 的失败集 · 拒绝不写轮次 · 至多一条 · 门口这一到期点（释放点在 T12）· 三 leg 授权 · 两处让位）；`run/gate` 在 `run/` 内的边只向下依赖 `run/ledger`（跨片读 `docs/` 的判据是它存在的理由，不是第二层）；拒绝事实的路径取 T7 的产物矩阵（`run/ledger/artifacts.ts#ArtifactIdentity` 的名字与拼写，依赖边 7）——`env.workspace` 只按注入的拼写落地，不持矩阵；名册挂给本片的格在本波派生成已接线（`seam` 的注册波是 T16，本片不注册 driver），两格因此读作具名延后并点名 T16，不是缺格也不是差异；对账器里那些既已接线又不在延后档的格零差异。
 
 #### DependsOn
 7, 10
@@ -534,13 +540,14 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 
 #### Consumes
 - 旧树的 `face/lifecycle.ts`（预算 · stall 判官 · 终止面的三档结论）· `face/dispatch-values.ts`（预帧值装配：身份 · 场景 · 快照三格）· `contract/liveness-signal.ts`（两条活性腿与四态判官）· `session/inflight.ts`（记录与四态判定；锁的持有者是 T5 交付的 `env/process/lock.ts`，in-flight 只经它取锁）· `session/handoff-schema.ts`（含结论派生三路）· `session/carrier-integrity.ts` · `contract/preflight-rows.ts` · `contract/context-declarations.ts`（读行为）· T10 落点 `docs/judging/closure.ts#ClosedDocument`（旧树 `face/lifecycle.ts` 的那一次闭包读：一次派发只构造一份，门口让位行与它共用）；spawn 与杀本身不在这里——由 `env/process/child-runner.ts`（T5）提供
+- T11 落点 `run/gate/refusal.ts#Refusal`（注入实例）：本片认领拒绝事实的第二个到期触发点——一次正常收工的释放使树级拒绝事实到期（旧树 `session/refusal.ts#RefusalState` 的同一行为）
 
 #### Produces
 - `child`：`Child.dispatch(frame)` → `DispatchOutcome`（退出码 · 日志路径 · 终止因）· 预算四键——起进程经注入的 `ChildRunner`，本任务不持信号
 - `values`：`DispatchValues`（身份 · 场景 · 快照三格扁平事实 → 扁平记录）——预帧的一道装配，相对化只发生一处，四个行与渲染面读同一份；身份格里的 brief 仓库相对路径有两种填法、同一份拼写：派发路径由派发面（T13 的 `Lifecycle`）在落地那一刻交回，预览路径由注入的 brief 面的 `briefOf(request)` 回的名字取（T7 产物矩阵的 `brief` 行是那条拼写的单源，零渲染、零落盘）；本模块不拼、不落盘、不渲染
 - `liveness`：活性判官（轮日志增长与进程组 CPU 两条腿，四态；每轮一个实例，不可读期保留上一次读数而不是清零）
 - `handoff`：手交契约（键集）与读回（失败分型：缺失 / 畸形 / 违约）· 结论派生三路——findings 里有 blocker ⇒ `CHANGES_REQUESTED`，只有 warn ⇒ `REVIEW_FIX`，findings 为空 ⇒ `APPROVED` · 降档判定的两读——`HandoffSchema#downgrades(prior, current)`（降了档而本轮未写 `regrade` 理由的那些行）与 `#regradeReasons(prior, current)`（同一判断里写了理由的那半边，按载体行序）是**一个判断的两个分区**：显示面据此印 mark 与理由，不重判哪一行降了档；`prior` 是最近一条 findings 非空的评审记录（中间的干净记录不重置参照），`id` 是引擎写的行号、永不作为配对键
-- `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）；记录里的起跑时刻先取进程表、答不出时回落注入的 `Clock`（T5 落点 `env/process/clock.ts`，旧树 `face/lifecycle.ts#recordOf` 的 `Date.now()` 那一处按注入时钟改写）——本片零 `Date.now()`、零无参 `new Date()`
+- `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）；记录里的起跑时刻先取进程表、答不出时回落注入的 `Clock`（T5 落点 `env/process/clock.ts`，旧树 `face/lifecycle.ts#recordOf` 的 `Date.now()` 那一处按注入时钟改写）——本片零 `Date.now()`、零无参 `new Date()`；`#release` 在释放记录的同时经注入的 `Refusal#clear` 让一个已失效的树级拒绝事实到期（那棵树已经收工，前置拒绝不再成立），而读与判断都不清
 - `__tests__/handoff-plane.guard.test.ts`：手交面守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
@@ -554,11 +561,12 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 - 写预帧值的 pin — checkable: 同一份扁平事实两次装配字节相同；快照的相对化只发生一次
 - 写预算与终止的 pin — checkable: 超预算 ⇒ `over-budget`；无活动 ⇒ `stalled`；收到信号 ⇒ `signal`（三档取自 `TerminationCause`）
 - 写「拒绝不消费 attempt」的 pin — checkable: 派发前拒绝 ⇒ 账本轮次数与 attempt 都不前进
+- 写释放点清拒绝事实的 pin — checkable: 一次正常收工（`InFlight#release`）经注入的 `Refusal` ⇒ 树级拒绝事实被清（读回 `absent`）；未释放 ⇒ 事实仍站着；释放两次 ⇒ 不抛（幂等、fail-open）；只有释放这一条路径清（一次读、一次 `#inspect` 都不清）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 · 三档终止 · 拒绝不消费 attempt）；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
+pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 · 三档终止 · 拒绝不消费 attempt · 释放点清拒绝事实）；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
 
 #### DependsOn
 11

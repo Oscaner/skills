@@ -1,17 +1,24 @@
 // packages/cdd-engine/src/run/gate/__tests__/gate.test.ts
-// The gate's pins — six groups, one per fact the gate owns:
+// The gate's pins, one group per fact the gate owns:
 //
 //   · the row set — one closed vocabulary derived from ONE declaration, the four stations as
-//     MEMBERS of it, and each face's row count as that face's own function;
+//     MEMBERS of it, each face's row count as that face's own function, and the record's name
+//     derived from the artifact matrix;
 //   · the `graph` leg — the injected graph's own failure set, never a second edge rule;
 //   · "a refusal books no round" — the ledger is not this gate's collaborator;
 //   · the refusal's timestamp — the injected clock, and zero clock reads in this segment;
 //   · at most one refusal — two refusals leave one fact;
-//   · the two expiry triggers — the door's clear and the release point's clear, and no other
-//     path clearing;
+//   · judging and settling — `vet` writes nothing (a preview leaves a standing record
+//     standing) and `settle` is the ONE write point (approval clears, refusal publishes);
+//   · a record the tree refuses — the publish is fail-open: the verdict, its station and the
+//     failure value survive an unwritable root;
+//   · the door's expiry — the door's clear, the read that does not clear, and the idempotent
+//     fail-open call (the release point's clearance belongs to `InFlight#release`, T12);
 //   · the three takeover legs — each one's own authorization condition;
 //   · the two yielding conditions — a face with no input face yields all four stations, and a
-//     refusal before them records none of them.
+//     refusal before them records none of them;
+//   · the checked face's readings — the plan-ahead count on the `plan-ledger` row, and a REAL
+//     `Documents` behind the gate rather than only the dictated double.
 //
 // Every case drives a real `WorkspaceRoot` and a real `Ledger` over a temp git tree: "the
 // record lands through the workspace" and "no round moved" are only facts if the writes are
@@ -24,11 +31,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Finding, JudgeInput, LedgerFacts, RuleDeclaration } from "../../../docs/index.ts";
-import { RULE_REGISTRY, TaskGraph } from "../../../docs/index.ts";
+import { Documents, RULE_REGISTRY, TaskGraph } from "../../../docs/index.ts";
 import type { RepoPath } from "../../../env/paths/root.ts";
 import { RepoRoot } from "../../../env/paths/root.ts";
 import { Clock } from "../../../env/process/clock.ts";
-import { WorkspaceRoot } from "../../../env/workspace/workspace.ts";
+import type { FileOps } from "../../../env/workspace/atomic.ts";
+import { NodeFileOps, WorkspaceRoot } from "../../../env/workspace/workspace.ts";
+import { WORKSPACE_ARTIFACTS } from "../../ledger/artifacts.ts";
 import { Ledger } from "../../ledger/ledger.ts";
 import { Authority } from "../authority.ts";
 import {
@@ -49,6 +58,9 @@ const GATE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 /** A fixed instant — the injected clock's one reading. */
 const FIXED_NOW = 1_700_000_000_000;
+
+/** The day a real skeleton would render under — the document slice's construction fact. */
+const FIXED_TODAY = "2026-11-25";
 
 /** The phase workspace slug every case dispatches on. */
 const SLUG = "p9";
@@ -78,7 +90,8 @@ const finding = (kind: string, severity: "block" | "warn" = "block"): Finding =>
 });
 
 /** The document judgment stand-in — the gate reads the document slice through this face, so a
- *  case dictates the findings, the closure and the table without parsing a document. */
+ *  case dictates the findings, the closure and the table without parsing a document. It is a
+ *  DOUBLE for cases whose fact nobody can produce; the real `Documents` is pinned below. */
 class FakeJudgment implements DocJudgment {
   doc: readonly Finding[] = [];
   ledger: readonly Finding[] = [];
@@ -101,20 +114,41 @@ class FakeJudgment implements DocJudgment {
   }
 }
 
+/** A syscall layout whose record write is refused — a read-only checkout, a root-owned CI
+ *  mount. Everything else still goes through the real layout, so the rest of the workspace
+ *  behaves. */
+class ReadOnlyRecordOps implements FileOps {
+  readonly #inner = new NodeFileOps();
+
+  write(file: string, text: string): void {
+    if (file.includes(Refusal.FILE)) throw new Error("EACCES: permission denied");
+    this.#inner.write(file, text);
+  }
+
+  rename(from: string, to: string): void {
+    this.#inner.rename(from, to);
+  }
+
+  remove(file: string): void {
+    this.#inner.remove(file);
+  }
+
+  exists(file: string): boolean {
+    return this.#inner.exists(file);
+  }
+}
+
 /** One fixture: a temp repo, its workspace family, the gate and the real ledger beside it. */
-const fixture = (opts: { readonly clean?: boolean } = {}) => {
+const fixture = (opts: { readonly clean?: boolean; readonly ops?: FileOps } = {}) => {
   const repo = tempRepo();
   const root = new WorkspaceRoot({
     basis: RepoRoot.of(repo),
     now: () => FIXED_NOW,
     baseName: "base.json",
+    ...(opts.ops === undefined ? {} : { ops: opts.ops }),
   });
   const clock = new Clock(() => FIXED_NOW);
-  const refusal = new Refusal({
-    root,
-    clock,
-    stations: new Set<string>(PRE_FLIGHT_GATE_NAMES),
-  });
+  const refusal = new Refusal({ root, clock });
   const docs = new FakeJudgment();
   const tree = { clean: opts.clean ?? true };
   const gate = new PreFlight({
@@ -183,6 +217,33 @@ const planText = (edges: Readonly<Record<number, string>>): string =>
   Object.entries(edges)
     .map(([id, dependsOn]) => taskBlock(Number(id), dependsOn))
     .join("\n");
+
+/** One plan/ledger bundle: the plan tasks and the ones the ledger already recorded. */
+const ledgerTarget = (opts: {
+  readonly planTasks: readonly number[];
+  readonly recordedTasks: readonly number[];
+  readonly layers: readonly (readonly number[])[];
+}) => ({
+  input: { docKey: "plan", path: DOC_REL, content: "body" } as JudgeInput,
+  facts: {
+    planTasks: [...opts.planTasks],
+    recordedTasks: [...opts.recordedTasks],
+    closedWaves: [],
+    openWaves: [],
+    snapshots: [],
+    layers: [...opts.layers],
+  } as LedgerFacts,
+});
+
+/** A plan dispatch whose every applicable row passes — the approved verdict's own shape. */
+const approvedPlanContext = (target: ReturnType<typeof ledgerTarget>): PreFlightContext =>
+  contextOf({
+    type: "plan",
+    graph: TaskGraph.parse(planText({ 1: "none" })),
+    planLedger: target,
+    doc: { docKey: "plan", path: DOC_REL, content: "body", taskLayers: [[1]] },
+    rows: [],
+  });
 
 /** The checked rows of one label — the derivation every row-set assertion reads. */
 const rowsLabelled = (verdict: PreFlightVerdict, label: string): readonly CheckedRow[] =>
@@ -263,6 +324,14 @@ describe("the gate row set", () => {
     expect([...seen].sort()).toEqual([...PRE_FLIGHT_REASONS].sort());
   });
 
+  it("takes the record's name from the artifact matrix, not a second spelling", () => {
+    // One home for a tree-level name: the matrix row IS the name, and the record's own
+    // constant is derived from it — a rename in the matrix moves the record with it.
+    expect(Refusal.FILE).toBe(WORKSPACE_ARTIFACTS.refusal);
+    const names = Object.values(WORKSPACE_ARTIFACTS);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   it("refuses a record whose station names no row of the set", () => {
     const { refusal, root } = fixture();
     refusal.write({
@@ -317,6 +386,7 @@ describe("a refusal books no round", () => {
     expect(ledger.read()).toBeNull();
     const verdict = await gate.vet(contextOf());
     expect(verdict.ok).toBe(false);
+    expect(gate.settle(verdict)?.kind).toBe("published");
     // The record states the refusal and the coordinate it WOULD have consumed…
     const state = refusal.readRaw();
     expect(state.kind).toBe("standing");
@@ -330,7 +400,7 @@ describe("a refusal books no round", () => {
 describe("the refusal's timestamp", () => {
   it("takes `at` from the injected clock", async () => {
     const { gate, refusal, clock } = fixture({ clean: false });
-    await gate.vet(contextOf());
+    gate.settle(await gate.vet(contextOf()));
     const state = refusal.readRaw();
     expect(state.kind === "standing" ? state.facts.at : null).toBe(clock.isoOf(FIXED_NOW));
   });
@@ -349,8 +419,8 @@ describe("the refusal's timestamp", () => {
 describe("at most one refusal", () => {
   it("keeps ONE fact across two refusals, the second replacing the first", async () => {
     const { gate, refusal, root } = fixture({ clean: false });
-    await gate.vet(contextOf({ type: "wave" }));
-    await gate.vet(contextOf({ type: "phase-spec", doc: null }));
+    gate.settle(await gate.vet(contextOf({ type: "wave" })));
+    gate.settle(await gate.vet(contextOf({ type: "phase-spec", doc: null })));
     const state = refusal.readRaw();
     expect(state.kind).toBe("standing");
     expect(state.kind === "standing" ? state.facts.station : null).toBe("tree-clean");
@@ -361,48 +431,80 @@ describe("at most one refusal", () => {
   });
 });
 
-describe("the two expiry triggers", () => {
-  it("clears the fact at the door when every row passes", async () => {
-    // The same workspace, one refusal first: the record stands before the clean run.
-    const clean = fixture();
-    clean.tree.clean = false;
-    await clean.gate.vet(contextOf());
-    expect(clean.refusal.readRaw().kind).toBe("standing");
-    // Now every applicable row passes on the plan face.
-    clean.tree.clean = true;
-    clean.docs.doc = [];
-    const verdict = await clean.gate.vet(
-      contextOf({
-        type: "plan",
-        graph: TaskGraph.parse(planText({ 1: "none" })),
-        planLedger: {
-          input: { docKey: "plan", path: DOC_REL, content: "body" },
-          facts: {
-            planTasks: [1],
-            recordedTasks: [],
-            closedWaves: [],
-            openWaves: [],
-            snapshots: [],
-            layers: [[1]],
-          },
-        },
-        doc: { docKey: "plan", path: DOC_REL, content: "body", taskLayers: [[1]] },
-        rows: [],
-      }),
+describe("judging and settling", () => {
+  it("leaves a standing record standing when a preview only judges the tree", async () => {
+    const { gate, refusal, tree } = fixture({ clean: false });
+    gate.settle(await gate.vet(contextOf()));
+    expect(refusal.readRaw().kind).toBe("standing");
+    // The tree is clean again and the same dispatch would pass: the PREVIEW judges it and
+    // writes nothing, so the fact the tree actually holds still stands.
+    tree.clean = true;
+    const preview = await gate.vet(
+      approvedPlanContext(ledgerTarget({ planTasks: [1], recordedTasks: [], layers: [[1]] })),
     );
-    expect(verdict.ok).toBe(true);
-    expect(clean.refusal.readRaw()).toEqual({ kind: "absent" });
-    expect(clean.refusal.read(SLUG)).toEqual({ kind: "absent" });
+    expect(preview.ok).toBe(true);
+    expect(refusal.readRaw().kind).toBe("standing");
   });
 
-  it("clears the fact at the release point — and no other path clears", async () => {
+  it("clears the fact at the door when a dispatch settles an approved verdict", async () => {
+    const { gate, refusal, tree } = fixture({ clean: false });
+    gate.settle(await gate.vet(contextOf()));
+    expect(refusal.readRaw().kind).toBe("standing");
+    tree.clean = true;
+    const approved = await gate.vet(
+      approvedPlanContext(ledgerTarget({ planTasks: [1], recordedTasks: [], layers: [[1]] })),
+    );
+    expect(approved.ok).toBe(true);
+    expect(gate.settle(approved)).toBeNull();
+    expect(refusal.readRaw()).toEqual({ kind: "absent" });
+    expect(refusal.read(SLUG)).toEqual({ kind: "absent" });
+  });
+
+  it("records no refusal while judging and publishes it only at the settle", async () => {
     const { gate, refusal } = fixture({ clean: false });
-    await gate.vet(contextOf());
+    const verdict = await gate.vet(contextOf());
+    expect(verdict.ok).toBe(false);
+    // The verdict carries the cells the write point needs…
+    expect(verdict.record).toEqual({
+      slug: SLUG,
+      op: "implement",
+      type: "wave",
+      cycle: 1,
+      attempt: 1,
+      station: "tree-clean",
+      detail: "dirty-tree",
+    });
+    // …and nothing has landed yet.
+    expect(refusal.readRaw()).toEqual({ kind: "absent" });
+    expect(gate.settle(verdict)?.kind).toBe("published");
+    expect(refusal.readRaw().kind).toBe("standing");
+  });
+});
+
+describe("a record the tree refuses", () => {
+  it("keeps the verdict and names the station when the publish fails", async () => {
+    const { gate, refusal } = fixture({ clean: false, ops: new ReadOnlyRecordOps() });
+    const verdict = await gate.vet(contextOf());
+    expect(verdict.ok).toBe(false);
+    expect(verdict.gate).toBe("tree-clean");
+    // The publish is an OBSERVATION: the verdict survives it and the failure is a value.
+    const publish = gate.settle(verdict);
+    expect(publish?.kind).toBe("not-published");
+    expect(publish?.facts.station).toBe("tree-clean");
+    expect(publish?.kind === "not-published" ? publish.reason : "").toContain("EACCES");
+    expect(refusal.readRaw()).toEqual({ kind: "absent" });
+  });
+});
+
+describe("the door's expiry", () => {
+  it("reads the fact without clearing it, and clears an absent record without throwing", async () => {
+    const { gate, refusal } = fixture({ clean: false });
+    gate.settle(await gate.vet(contextOf()));
     // A read does not clear, and neither does a second look at the record.
     expect(refusal.read(SLUG).kind).toBe("standing");
     expect(refusal.readRaw().kind).toBe("standing");
-    // The release point's clearance is `Refusal#clear` — the same call `InFlight#release`
-    // makes when a dispatch finishes normally.
+    // The release point's clearance (`InFlight#release`, T12) is the same idempotent,
+    // fail-open call the door makes: an absent record is not an error.
     refusal.clear();
     expect(refusal.readRaw()).toEqual({ kind: "absent" });
     refusal.clear();
@@ -411,7 +513,7 @@ describe("the two expiry triggers", () => {
 
   it("reads another workspace's standing record as absent, and the tree's read as standing", async () => {
     const { gate, refusal } = fixture({ clean: false });
-    await gate.vet(contextOf({ slug: "other" }));
+    gate.settle(await gate.vet(contextOf({ slug: "other" })));
     expect(refusal.read(SLUG)).toEqual({ kind: "absent" });
     expect(refusal.readRaw().kind).toBe("standing");
   });
@@ -555,6 +657,7 @@ describe("the two yielding conditions", () => {
     // row's own conclusion.
     expect(verdict.reason).toBeUndefined();
     expect(verdict.details).toEqual(["the sidecar is misplaced"]);
+    gate.settle(verdict);
     // The recorded fact keeps the first row's conclusion, never the station head.
     const state = refusal.readRaw();
     expect(state.kind === "standing" ? state.facts.detail : null).toBe("no harness detected");
@@ -606,6 +709,61 @@ describe("the two yielding conditions", () => {
       (row) => row.reading.kind === "skipped" && row.reading.reason === "closed-document",
     );
     expect(yielded.map((row) => row.row).sort()).toEqual(exempt.map((row) => row.id).sort());
+  });
+});
+
+describe("the checked face's readings", () => {
+  it("reports the plan-ahead count on the plan-ledger row", async () => {
+    const { gate } = fixture();
+    const ahead = await gate.vet(
+      approvedPlanContext(ledgerTarget({ planTasks: [1, 2], recordedTasks: [1], layers: [[1]] })),
+    );
+    expect(ahead.ok).toBe(true);
+    expect(rowsLabelled(ahead, "plan-ledger")).toEqual([
+      { row: "plan-ledger", reading: { kind: "plan-ledger", ahead: 1 } },
+    ]);
+    // The neighbour arm: a ledger that holds every plan task reports nothing ahead.
+    const settled = await gate.vet(
+      approvedPlanContext(ledgerTarget({ planTasks: [1], recordedTasks: [1], layers: [[1]] })),
+    );
+    expect(rowsLabelled(settled, "plan-ledger")).toEqual([
+      { row: "plan-ledger", reading: { kind: "plan-ledger", ahead: 0 } },
+    ]);
+  });
+
+  it("judges a REAL Documents, not only the dictated double", async () => {
+    const repo = tempRepo();
+    const root = new WorkspaceRoot({
+      basis: RepoRoot.of(repo),
+      now: () => FIXED_NOW,
+      baseName: "base.json",
+    });
+    const docs = new Documents({
+      readText: (target) => ({ kind: "text", target, value: "body" }),
+      today: FIXED_TODAY,
+      textWriter: (target) => ({ kind: "written", target }),
+    });
+    const gate = new PreFlight({
+      repoRoot: repo,
+      tree: { isClean: async () => true },
+      docs,
+      refusal: new Refusal({ root, clock: new Clock(() => FIXED_NOW) }),
+    });
+    const verdict = await gate.vet(
+      contextOf({
+        type: "phase-spec",
+        doc: { docKey: "phase-spec", path: DOC_REL, content: "body" },
+        rows: [],
+      }),
+    );
+    // A `Documents` built without a document world refuses with its own ONE finding, and the
+    // gate reports that finding rather than a shape of its own.
+    expect(verdict.ok).toBe(false);
+    expect(verdict.gate).toBe("doc-contract");
+    expect(verdict.details?.[0]).toContain("no-world@world");
+    // The rule rows are the real registry's, so the checked face is the slice's own table.
+    const ruleIds = new Set(verdict.checked.map((row) => row.row));
+    for (const declaration of RULE_REGISTRY) expect(ruleIds).toContain(declaration.id);
   });
 });
 

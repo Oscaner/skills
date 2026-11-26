@@ -196,6 +196,7 @@ export {
   type LedgerFacts,
   type LedgerRule,
   LedgerRuleBase,
+  LedgerTaskSetRule,
   type ProseLine,
 } from "./judging/invariants.ts";
 export {

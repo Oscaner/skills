@@ -73,6 +73,7 @@ export {
   Refusal,
   type RefusalBody,
   type RefusalFacts,
+  type RefusalPublish,
   type RefusalState,
 } from "./gate/refusal.ts";
 export type {

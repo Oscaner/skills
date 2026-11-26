@@ -22,6 +22,13 @@
 // `clear()` is idempotent and FAIL-OPEN — a fact that outlives its expiry is the truthful
 // observation, while a cleanup that throws would kill the work it was clearing for.
 //
+// `write` is FAIL-OPEN in the same sense and for the same reason: the record OBSERVES a
+// refusal, it is never the refusal's precondition. A tree whose root refuses the write (a
+// read-only checkout, a root-owned CI mount) still gets the station and the exit code it
+// asked for, and the failure arrives as a DECLARED value (`not-published` plus the reason)
+// rather than as a throw out of the gate. Nothing here prints: the one diagnostic line
+// belongs to the render face, which reads this value.
+//
 // The landing shape is `env/workspace`'s own (a JSON child written through the injected
 // `FileOps` by the ONE atomic algorithm, read with a plain text read): the record's HOME is
 // the workspace family's root — a tree-level fact, not a slug-scoped artifact — and
@@ -32,8 +39,9 @@
 // clock through that seam and nowhere else, so a pinned clock pins the record.
 //
 // The station cell's vocabulary is the gate's row set (`./preflight.ts#PreFlightGateName`)
-// — a type-only edge inside this one segment, so the vocabulary keeps exactly one home and
-// the build carries no runtime cycle.
+// and the record's name is the artifact matrix's (`../ledger/artifacts.ts`): each fact keeps
+// its ONE home. `preflight.ts` imports this file's class TYPE-only, so reading the row set
+// at runtime here stays acyclic — the vocabulary is read, never restated.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -42,8 +50,9 @@ import { TARGET_TYPE_VALUES } from "../../docs/identity/types.ts";
 import type { Clock } from "../../env/process/clock.ts";
 import { Atomic } from "../../env/workspace/atomic.ts";
 import type { WorkspaceRoot } from "../../env/workspace/workspace.ts";
+import { WORKSPACE_ARTIFACTS } from "../ledger/artifacts.ts";
 import { ROUND_OPS, type RoundOp } from "../ledger/identity.ts";
-import type { PreFlightGateName } from "./preflight.ts";
+import { PRE_FLIGHT_GATE_NAMES, type PreFlightGateName } from "./preflight.ts";
 
 /** One recorded refusal — the whole fact, with no ninth cell and no second name for any of
  *  them. The keys are the FILE's contract (an engine artifact, not a consumer surface);
@@ -75,6 +84,13 @@ export interface RefusalFacts {
  *  injected clock at the write point, so no caller can spell it twice. */
 export type RefusalBody = Omit<RefusalFacts, "at">;
 
+/** One publish attempt — the facts the record was handed and whether the tree took them. A
+ *  tree that refuses the write answers `not-published` with the reason; the refusal itself
+ *  stands either way, so no caller's verdict depends on this value. */
+export type RefusalPublish =
+  | { readonly kind: "published"; readonly facts: RefusalFacts }
+  | { readonly kind: "not-published"; readonly facts: RefusalFacts; readonly reason: string };
+
 /** The three states of a judgment-time read of the record (the same tri-state the in-flight
  *  record answers: a corrupt record is never reported as "no record"). */
 export type RefusalState =
@@ -96,22 +112,17 @@ type FactsRead =
  */
 export class Refusal {
   /** The record's workspace-relative name — the tree-level sibling of the ledger's own
-   *  document, never a slug-scoped artifact. */
-  static readonly FILE = "refusal.json";
+   *  document, never a slug-scoped artifact. The SPELLING is the artifact matrix's
+   *  (`../ledger/artifacts.ts`), so a tree-level name has one home like every round name. */
+  static readonly FILE: string = WORKSPACE_ARTIFACTS.refusal;
 
   readonly #root: WorkspaceRoot;
   readonly #clock: Clock;
   readonly #atomic: Atomic;
-  /** The gate's row set — the vocabulary a record's `station` cell must belong to. Injected
-   *  because the row set has ONE home (`./preflight.ts#PreFlightGateName`) and this file
-   *  must not import it at runtime: the dependence runs gate → record, and an empty set
-   *  would refuse every station rather than accept any. */
-  readonly #stations: ReadonlySet<string>;
 
-  constructor(opts: { root: WorkspaceRoot; clock: Clock; stations: ReadonlySet<string> }) {
+  constructor(opts: { root: WorkspaceRoot; clock: Clock }) {
     this.#root = opts.root;
     this.#clock = opts.clock;
-    this.#stations = opts.stations;
     this.#atomic = new Atomic(opts.root.ops);
   }
 
@@ -122,12 +133,21 @@ export class Refusal {
 
   /** Publish the namespace keep-out marker, then overwrite the record atomically —
    *  overwrite, never append: one tree holds at most one refusal fact. The bytes carry
-   *  exactly one trailing newline (the repo's EOF rule). */
-  write(body: RefusalBody): RefusalFacts {
+   *  exactly one trailing newline (the repo's EOF rule). The whole publish is ONE
+   *  observation: a tree that refuses any part of it (`EACCES` on a read-only root,
+   *  `EISDIR` where the record should be) answers `not-published` with the reason and
+   *  leaves the caller's verdict untouched — rethrowing would trade the refusal's station
+   *  and exit code for a bare errno. */
+  write(body: RefusalBody): RefusalPublish {
     const facts: RefusalFacts = { at: this.#clock.isoOf(this.#clock.now()), ...body };
-    this.#root.ensure();
-    this.#atomic.write(this.path(), `${JSON.stringify(facts, null, 2)}\n`);
-    return facts;
+    try {
+      this.#root.ensure();
+      this.#atomic.write(this.path(), `${JSON.stringify(facts, null, 2)}\n`);
+      return { kind: "published", facts };
+    } catch (raw) {
+      const reason = raw instanceof Error ? raw.message : String(raw);
+      return { kind: "not-published", facts, reason };
+    }
   }
 
   /** Remove the record — idempotent and FAIL-OPEN: an absent record is not an error, and a
@@ -172,7 +192,7 @@ export class Refusal {
     } catch {
       return { kind: "corrupt", reason: "the refusal record is not JSON" };
     }
-    const read = Refusal.#factsOf(parsed, this.#stations);
+    const read = Refusal.#factsOf(parsed);
     return read.kind === "ok"
       ? { kind: "standing", facts: read.facts }
       : { kind: "corrupt", reason: read.reason };
@@ -185,7 +205,7 @@ export class Refusal {
    *  reader's good faith may stand in for the check. Each closed set is validated against
    *  the runtime table that already holds it — `TARGET_TYPE_VALUES` · `ROUND_OPS` · the gate
    *  row set — never a second spelling of any of the three. */
-  static #factsOf(value: unknown, stations: ReadonlySet<string>): FactsRead {
+  static #factsOf(value: unknown): FactsRead {
     const shapeless: FactsRead = {
       kind: "bad",
       reason: "the refusal record holds no refusal facts",
@@ -198,7 +218,7 @@ export class Refusal {
     for (const key of ["cycle", "attempt"] as const) {
       if (typeof record[key] !== "number" || !Number.isFinite(record[key])) return shapeless;
     }
-    const illegal = Refusal.#illegalWordOf(record, stations);
+    const illegal = Refusal.#illegalWordOf(record);
     if (illegal !== null) return { kind: "bad", reason: illegal };
     return {
       kind: "ok",
@@ -218,12 +238,11 @@ export class Refusal {
   /** The first closed-set cell whose word its own table does not declare, or null when all
    *  three stand — the reason names the damaging cell, so the reader is pointed at the
    *  hand-edited word instead of at the record as a whole. */
-  static #illegalWordOf(
-    record: Record<string, unknown>,
-    stations: ReadonlySet<string>,
-  ): string | null {
+  static #illegalWordOf(record: Record<string, unknown>): string | null {
     const { station, op, type } = record as { station: string; op: string; type: string };
-    if (!stations.has(station)) return "its `station` names no pre-flight row";
+    if (!(PRE_FLIGHT_GATE_NAMES as readonly string[]).includes(station)) {
+      return "its `station` names no pre-flight row";
+    }
     if (!(ROUND_OPS as readonly string[]).includes(op)) return "its `op` names no round verb";
     if (!(TARGET_TYPE_VALUES as readonly string[]).includes(type)) {
       return "its `type` names no target face";

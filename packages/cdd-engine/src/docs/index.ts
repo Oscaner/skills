@@ -151,9 +151,17 @@ export {
   type CompletionObservation,
   type CompletionVerb,
   type CompletionVerdict,
+  DispositionsCriterion,
+  FIX_EMPTY_INPUT,
+  FIX_LEGACY_INPUT,
+  FIX_ZERO_COMMITS,
   FindingsCriterion,
+  type FixDecision,
+  type FixDisposition,
+  type FixSummary,
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
+  type RequestedFinding,
 } from "./judging/completion.ts";
 export {
   CALIBRATION_TAIL,

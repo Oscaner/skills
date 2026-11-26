@@ -286,11 +286,15 @@ describe("the completion criteria", () => {
     });
   });
 
-  it("throws at lookup for a verb with no criterion", () => {
-    // `fix` is unported: its dispositions judgment needs a carrier read `docs/` never
-    // performs, so the throw — not a silent `done` — is the pinned behaviour until that
-    // criterion lands with the lifecycle that books a round.
-    expect(() => CompletionCriteria.of("fix")).toThrow(/no completion criterion/);
+  it("answers every declared verb, and throws at lookup for one outside the registry", () => {
+    // The three declared verbs each carry their own criterion. The throw is still the behaviour
+    // for a word outside them — a dispatch of an unported verb can never read as "done".
+    for (const verb of ["implement", "review", "fix"] as const) {
+      expect(() => CompletionCriteria.of(verb)).not.toThrow();
+    }
+    expect(() => CompletionCriteria.of("publish" as unknown as "fix")).toThrow(
+      /no completion criterion/,
+    );
   });
 });
 

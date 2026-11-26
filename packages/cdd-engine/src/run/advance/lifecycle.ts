@@ -18,9 +18,11 @@
 //     `previewOf` never comes here — a preview calls `vet` and stops, which is why
 //     `--dry-run` writes nothing.
 //
-//   · THE BRIEF LANDS BEFORE THE DISPATCH, ONCE. The rendered brief's bytes reach the
-//     dispatch's workspace through the injected write face, and the returned repository
-//     coordinate is what `INPUT_WAVE_BRIEF` prints. A failed write is the SAME shape as a
+//   · THE BRIEF LANDS BEFORE THE DISPATCH, ONCE, ON THE TASK FACE ALONE. The rendered
+//     brief's bytes reach the dispatch's workspace through the injected write face, and the
+//     returned repository coordinate is what `INPUT_WAVE_BRIEF` prints. The artifact is the
+//     target row's batch cell, so a doc or branch dispatch lands nothing — no brief on disk
+//     that no cell reads, and a preview names none. A failed write is the SAME shape as a
 //     failed skeleton landing: no child starts, no cycle and no attempt moves, and the
 //     declared value goes back untouched (its bytes belong to the render face).
 //
@@ -28,11 +30,14 @@
 //     the dispatch segment's checked read (a digest mismatch throws there), so a tampered
 //     carrier is never judged as if the round had produced those bytes.
 //
-//   · THE REVIEWED VERSION IS BOUND TO ITS OWN LINE. A review round's input is bound at the
-//     booking, under the LINE's word (never the document path — the ledger keys a row by the
-//     line, and a path-keyed row would answer a line that is not a target type at all). Each
-//     line kind has ONE cell: a document line records `doc_hash`, a wave line records the
-//     `brief` projection that landed for that dispatch. A work round binds nothing.
+//   · THE REVIEWED VERSION IS BOUND TO ITS OWN LINE, ON A COMPLETED ROUND. A round's input
+//     is bound at the booking, under the LINE's word (never the document path — the ledger keys
+//     a row by the line, and a path-keyed row would answer a line that is not a target type at
+//     all), and only when the booked verdict holds its target action. Each line kind has ONE
+//     cell: a document line records `doc_hash`, a wave line records the task-only `brief`
+//     projection that landed for that dispatch. `review` and `branch-review` bind the version
+//     they judged; `fix` binds the version it PRODUCED, so its own edits cannot reopen the line
+//     it just closed; an implement round binds nothing.
 //
 //   · THE LINE LEG RUNS BEFORE THE LANDING. The wave gate is the task face's own pre-flight:
 //     a request its five rows refuse is never dispatched, and the refusal rides the same
@@ -50,7 +55,7 @@ import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
 import type { Child, DispatchFrame, TerminationCause } from "../dispatch/child.ts";
-import { Handoff, type RoundFinding } from "../dispatch/handoff.ts";
+import { CONTRACT_VIOLATION, Handoff, type RoundFinding } from "../dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "../dispatch/inflight.ts";
 import type { Authority } from "../gate/authority.ts";
 import type {
@@ -76,7 +81,8 @@ export interface StepResult {
   readonly log: string;
   /** The termination cause, or null when the round ended by itself. */
   readonly termination: string | null;
-  /** The brief's landed repository coordinate — the value `INPUT_WAVE_BRIEF` prints. */
+  /** The brief's landed repository coordinate — the value `INPUT_WAVE_BRIEF` prints; empty
+   *  off the task face, where no brief lands. */
   readonly brief: string;
   /** The round this step booked. */
   readonly round: RoundRecord;
@@ -123,19 +129,27 @@ export type AdvanceOutcome =
   | { readonly kind: "read-failure"; readonly target: string }
   | { readonly kind: "write-failure"; readonly target: string };
 
-/** The brief landing: the workspace-relative name and the bytes the injected renderer
- *  produced (one render, zero second spelling of the name here). */
+/** The brief landing: the workspace-relative name, the bytes the injected renderer produced
+ *  (one render, zero second spelling of the name here) and the task-only PROJECTION those
+ *  bytes were rendered from. */
 export interface BriefLanding {
   readonly name: string;
   readonly content: string;
+  /** The task-only projection the brief was rendered from — the stable version a wave round
+   *  binds. The landed bytes also carry the round-context section, which changes with every
+   *  dispatch, so hashing THEM would read drift for every wave line after its next round.
+   *  Absent when the projection cannot be derived: present facts only, so the binding then
+   *  records nothing rather than a version no later round could match. */
+  readonly reviewed?: string;
 }
 
-/** The landed brief — the repository coordinate the write face answered and the bytes it
- *  wrote. A review round binds those bytes as the version it reviewed, so the landing is
- *  handed to the booking rather than re-rendered there. */
+/** The landed brief — the repository coordinate the write face answered and the projection the
+ *  round binds. A review round binds that projection as the version it reviewed, so the landing
+ *  is handed to the booking rather than re-rendered there; the landed BYTES are not a cell, so a
+ *  later round compares the projection instead of the round-context section that moved. */
 interface LandedBrief {
   readonly path: string;
-  readonly content: string;
+  readonly reviewed?: string;
 }
 
 /** The lifecycle's write face over the fact layer — the events one step lands, each through
@@ -158,7 +172,8 @@ export interface LifecycleReads {
   readonly preflight: (frame: FrameFacts, holding: InFlightState) => PreFlightContext;
   /** The child's frame — the argv, the environment and the log's coordinate. */
   readonly dispatchFrame: (frame: FrameFacts, briefPath: string) => DispatchFrame;
-  /** The brief's name and bytes. */
+  /** The brief's name, its bytes and the task-only projection the wave line's reviewed version
+   *  hashes (one render, three cells). */
   readonly brief: (frame: FrameFacts) => BriefLanding;
   /** The workspace's text write face (workspace basis). */
   readonly writeText: (name: string, content: string) => WriteOutcome;
@@ -284,16 +299,25 @@ export class Lifecycle {
     return this.#dispatch(frame, landing.landed, verdict);
   }
 
-  /** Land the brief, or answer its declared failure — the ONE write before the child exists. */
+  /** Land the brief, or answer its declared failure — the ONE write before the child exists.
+   *  The brief is the TASK face's artifact (the target row's batch cell), so a doc or branch
+   *  dispatch lands none: `INPUT_WAVE_BRIEF` stays empty there and a preview names no brief a
+   *  real dispatch would never write. */
   async #land(
     frame: FrameFacts,
   ): Promise<{ kind: "landed"; landed: LandedBrief } | AdvanceOutcomeFail> {
+    if (!TargetFaces.advancesBatch(frame.type)) {
+      return { kind: "landed", landed: { path: "" } };
+    }
     const brief = this.#reads.brief(frame);
     const outcome = this.#reads.writeText(brief.name, brief.content);
     if (outcome.kind === "write-failure") {
       return { kind: "write-failure", target: String(outcome.target) };
     }
-    return { kind: "landed", landed: { path: String(outcome.target), content: brief.content } };
+    return {
+      kind: "landed",
+      landed: { path: String(outcome.target), reviewed: brief.reviewed },
+    };
   }
 
   /** Dispatch inside the tree's occupancy, then book and route the round. */
@@ -386,19 +410,28 @@ export class Lifecycle {
     ) {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
-    this.#bindReviewed(frame, landed);
+    this.#bindReviewed(frame, landed, round.verdict.targetAction);
     return { round, route };
   }
 
   /** Bind the version this round reviewed to its OWN line — the one written fact a drift
-   *  reopen reads back. A review round's input is its judged document on every face but the
-   *  task-graph one, whose input is the task-only brief projection that just landed; a work
-   *  round concluded about no bytes, so it binds nothing. */
-  #bindReviewed(frame: FrameFacts, landed: LandedBrief): void {
-    if (frame.phase !== "review" && frame.phase !== "branch-review") return;
+   *  reopen reads back. The binding rides the BOOKED verdict (`targetAction`): a round that
+   *  withheld its target action reviewed or produced nothing, so it binds nothing. Each line
+   *  kind has ONE cell: a document line records `doc_hash`, a wave line records the task-only
+   *  `brief` projection that landed for that dispatch, and no line writes both. A `fix` is in
+   *  the set because it EDITS the document it judges — without its own binding a completed fix
+   *  would leave the pre-fix revision on record and its own bytes would read as an out-of-round
+   *  drift the moment it closed its line. A work round concluded about no bytes and binds
+   *  nothing. */
+  #bindReviewed(frame: FrameFacts, landed: LandedBrief, completed: boolean): void {
+    if (!completed) return;
+    if (Lifecycle.#opOf(frame.phase) === "implement") return;
     if (TargetFaces.advancesBatch(frame.type)) {
-      const brief = ReviewedIdentity.record("brief", landed.path, landed.content);
-      this.#ledger.recordReviewed(frame.key, brief);
+      if (landed.reviewed === undefined) return;
+      this.#ledger.recordReviewed(
+        frame.key,
+        ReviewedIdentity.record("brief", landed.path, landed.reviewed),
+      );
       return;
     }
     const text = frame.doc === null ? null : this.#reads.docText(frame);
@@ -475,38 +508,52 @@ export class Lifecycle {
     return violations;
   }
 
-  /** The `fix` round's completion judgment — the facts this segment assembles (the requesting
-   *  review's carrier, the round's own dispositions, the commit count and the group baseline)
-   *  and `docs/judging/completion.ts` judges. A callback answers at most one refusal plus the
-   *  soft observations; every other verb has no row here, and its own criterion is the
-   *  dispatch side's to run. */
+  /** The round's completion judgment — the frame's OWN verb, judged by that verb's criterion
+   *  in `docs/judging/completion.ts` over the facts this segment assembles. A callback answers
+   *  at most one refusal plus the soft observations, and the refusal is the hard entry that
+   *  withholds the booking's `targetAction`: a review round that persisted no judge carrier and
+   *  an implement round that committed nothing are refused here, never completed by omission. */
   #completionOf(frame: FrameFacts, carried: CarriedFacts): readonly RoundViolation[] {
-    if (frame.phase !== "fix") return [];
-    const requesting = this.#reads.requesting(frame);
-    const dispositions = carried.dispositions ?? null;
-    const facts: CompletionFacts = {
-      commits: this.#reads.commits(frame),
-      groupBase: this.#reads.groupBase(frame),
-      carrierWritten: dispositions !== null,
-      findings: carried.findings,
-      // The verb's discriminating cells: a fix round owns no wave and no evidence gate, so
-      // the criterion reads neither (the two cells keep their declared empty values).
-      waveTasks: [],
-      emptyFileTasks: new Set<number>(),
-      evidenceOk: false,
-      dispositions,
-      requested: requesting.findings,
-      matchedBySummary: Lifecycle.#pairedBySummary(requesting.findings),
-    };
-    const verdict = CompletionCriteria.judge("fix", facts);
+    const verdict = CompletionCriteria.judge(
+      Lifecycle.#opOf(frame.phase),
+      this.#completionFactsOf(frame, carried),
+    );
     if (verdict.kind === "violation") {
-      return [{ grade: "hard", cause: "contract-violation", message: verdict.message }];
+      return [{ grade: "hard", cause: CONTRACT_VIOLATION, message: verdict.message }];
     }
     return verdict.observations.map((observation) => ({
       grade: "soft" as const,
-      cause: "contract-violation",
+      cause: CONTRACT_VIOLATION,
       message: observation.message,
     }));
+  }
+
+  /** The facts the round's criterion reads — assembled HERE, the one place that holds the
+   *  ledger, the carrier read and the git read. The verb-specific cells are filled for the
+   *  verb that reads them: an implement round's commit and wave cells, a judge round's carrier
+   *  findings, a fix round's disposition table and the request it must cover. */
+  #completionFactsOf(frame: FrameFacts, carried: CarriedFacts): CompletionFacts {
+    const facts: CompletionFacts = {
+      commits: this.#reads.commits(frame),
+      groupBase: this.#reads.groupBase(frame),
+      carrierWritten: carried.status !== null || carried.findings !== null,
+      findings: carried.findings,
+      waveTasks: frame.tasks,
+      // The two VERIFICATION cells are the work plane's own facts — the plan's empty-`Files`
+      // read and the evidence gate — so they keep their declared empty values here: a wave that
+      // declares no file change is refused rather than completed on an absent fact, never
+      // approved on a gate this segment cannot see.
+      emptyFileTasks: new Set<number>(),
+      evidenceOk: false,
+    };
+    if (Lifecycle.#opOf(frame.phase) !== "fix") return facts;
+    const requesting = this.#reads.requesting(frame);
+    return {
+      ...facts,
+      dispositions: carried.dispositions ?? null,
+      requested: requesting.findings,
+      matchedBySummary: Lifecycle.#pairedBySummary(requesting.findings),
+    };
   }
 
   /** Whether the requesting carrier carried no finding id, so the dispositions pair by

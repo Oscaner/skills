@@ -45,7 +45,7 @@ import type { AdvanceOutcome, Lifecycle, LifecycleReads } from "./advance/lifecy
 import type { LinePhase, LineState } from "./advance/line-phase.ts";
 import type { NextHop } from "./advance/next.ts";
 import type { Pipeline } from "./advance/pipeline.ts";
-import type { TargetType } from "./advance/target-faces.ts";
+import { TargetFaces, type TargetType } from "./advance/target-faces.ts";
 import type { WaveVerdict } from "./advance/wave.ts";
 import type { Child, RoundPhase } from "./dispatch/child.ts";
 import type { InFlight, InFlightState } from "./dispatch/inflight.ts";
@@ -477,7 +477,9 @@ export class Run {
       kind: "pass",
       frame,
       host: this.#host(),
-      brief: this.#briefName(frame),
+      // The brief's cell follows the SAME target-row cell the landing reads: off the task
+      // face no brief lands, so a preview names none.
+      brief: TargetFaces.advancesBatch(frame.type) ? this.#briefName(frame) : "",
       checked: verdict.checked,
     };
   }
@@ -531,7 +533,11 @@ export class Run {
       rows.push({
         kind: "doc",
         line: line.line,
-        state: this.#lines.stateOf(line.line, Run.#docTypeOf(line.line), null),
+        state: this.#lines.stateOf(
+          line.line,
+          Run.#docTypeOf(line.line),
+          Run.#docRowDocOf(line.line, scene),
+        ),
         rounds: line.rounds.length,
         batch: line.batch,
       });
@@ -553,6 +559,15 @@ export class Run {
    *  no second table is needed. */
   static #docTypeOf(line: string): TargetType {
     return line as TargetType;
+  }
+
+  /** The document a board's doc row is judged at — the coordinate the SCENE holds for that
+   *  line's word: the plan is the plan line's own identity document, every other doc word is
+   *  the identity document the frame resolved. A row judged at no document can never answer
+   *  `reopened`, and would print `closed` on the same line whose `next:` row names that
+   *  line's reopen. */
+  static #docRowDocOf(line: string, scene: FrameScene): string | null {
+    return line === "plan" ? scene.pipeline.planPath : scene.pipeline.specPath;
   }
 
   /** The one usage member the DISPATCH entries answer for a line that holds no open round —

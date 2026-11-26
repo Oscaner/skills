@@ -7,6 +7,8 @@
 // belongs to the render face, so nothing here spells one. The drift-aware reopen is the ONE
 // judgment both the pipeline frontier and the dispatch gate read, and drift never outranks a
 // pending fix — a live hop keeps its round, so no face names a round another face refuses.
+// A wave line's drift compares the recorded version against TODAY's task-only projection, the
+// same bytes the binding hashed, so the landed brief's round-context section never reopens it.
 //
 // A round's FACTS (its findings and its work status) arrive through an injected carrier
 // read: reading a carrier is the dispatch segment's checked read, and a second read here
@@ -21,7 +23,7 @@ import type { RoundPhase } from "../dispatch/child.ts";
 import type { RoundFinding } from "../dispatch/handoff.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { RoundRecord } from "../ledger/ledger.ts";
-import type { Drift } from "../ledger/reviewed.ts";
+import type { Drift, ReviewedIdentity } from "../ledger/reviewed.ts";
 import { type FixRequest, NextRoutes, type Route } from "./next.ts";
 import { TargetFaces, type TargetType } from "./target-faces.ts";
 
@@ -43,6 +45,10 @@ export interface LineReads {
    *  recorded none (only present facts land), so this read is also the "was it reviewed at
    *  all" cell. */
   docDriftOf(key: string, content: string): Drift | null;
+  /** The version a line recorded, whatever its kind — the wave line's `brief` identity comes
+   *  from here, the document line's `doc_hash` from `docDriftOf`. `null` when none was
+   *  recorded. */
+  reviewedOf(key: string): ReviewedIdentity | null;
 }
 
 /** A document's current bytes, resolved by the caller's own read face; null when it cannot
@@ -80,10 +86,13 @@ export interface LinePhaseOptions {
   readonly facts: LineReads;
   readonly carried: CarriedRead;
   readonly text: DocumentText;
-  /** Whether a wave line's task-only brief projection moved past the one its review bound.
-   *  Injected because rendering that projection is the render face's, and this file holds no
-   *  byte. Absent → a wave line never reads as drifted. */
-  readonly briefDriftOf?: (waveKey: string) => boolean;
+  /** TODAY's task-only projection of a wave line, rendered by the render face — the SAME
+   *  projection a review bound (`Lifecycle` binds the landing's `reviewed` bytes, which the
+   *  brief renderer produces from the plan's task sections). Injected because rendering it is
+   *  the render face's, and because the landed brief itself is never the compared version: its
+   *  round-context section changes with every dispatch. Absent → a wave line reads no drift
+   *  evidence, never a fabricated one. */
+  readonly projection?: (waveKey: string) => string | null;
 }
 
 /**
@@ -101,13 +110,13 @@ export class LinePhase {
   readonly #carried: CarriedRead;
   readonly #text: DocumentText;
   readonly #routes = new NextRoutes();
-  readonly #briefDriftOf: (waveKey: string) => boolean;
+  readonly #projection: (waveKey: string) => string | null;
 
   constructor(opts: LinePhaseOptions) {
     this.#facts = opts.facts;
     this.#carried = opts.carried;
     this.#text = opts.text;
-    this.#briefDriftOf = opts.briefDriftOf ?? LinePhase.#neverDrifted;
+    this.#projection = opts.projection ?? LinePhase.#noProjection;
   }
 
   /** The line's identity cells: the stable ledger key and the judged document. A doc line
@@ -211,7 +220,21 @@ export class LinePhase {
     if (route === null) return null;
     if (route.kind === "review") return { kind: "review" };
     if (route.kind !== "fix") return null;
-    return this.#briefDriftOf(key) ? { kind: "review" } : route;
+    return this.briefDriftedAt(key) ? { kind: "review" } : route;
+  }
+
+  /** Whether a wave line's task-only projection moved past the version its review bound —
+   *  the ONE brief-drift read, shared by this line's route and the pipeline's hop. The
+   *  compared version is the PROJECTION, never the landed brief: the landed bytes carry the
+   *  round-context section, so comparing them would read drift for every wave line after its
+   *  next dispatch. No recorded identity or no projection means no drift evidence, so the
+   *  answer is "not drifted" — a false reopen costs a whole round. */
+  briefDriftedAt(key: string): boolean {
+    const recorded = this.#facts.reviewedOf(LinePhase.waveLineWord(key));
+    if (recorded === null || recorded.kind !== "brief") return false;
+    const projection = this.#projection(key);
+    if (projection === null) return false;
+    return recorded.driftFrom(projection) === "drift";
   }
 
   /** A wave line's open phase, read off the same one walk: the not-yet-implemented wave is
@@ -277,10 +300,10 @@ export class LinePhase {
     return RoundIdentity.lineWordOf("wave", key);
   }
 
-  /** The zero drift answer — a lifecycle built without the projection seam reads no wave
+  /** The zero drift answer — a line read built without the projection seam reads no wave
    *  line as drifted. */
-  static #neverDrifted(): boolean {
-    return false;
+  static #noProjection(): null {
+    return null;
   }
 
   /** One round's C5 route through the carried facts — null when the round's carrier is

@@ -63,14 +63,11 @@ export interface PipelineInput {
 export type DocClassRead = (target: RouteTarget) => DocClassVerdict;
 
 /** The pipeline's construction facts: the ONE line walk, the wave rows (the closed-task
- *  projection's input), the doc-class read and the brief-drift fact. */
+ *  projection's input) and the doc-class read. */
 export interface PipelineOptions {
   readonly lines: LinePhase;
   readonly waves: () => readonly WaveLine[];
   readonly docClassOf: DocClassRead;
-  /** The wave line's task-only brief drift — the reason cell's second source. Absent → no
-   *  wave line reads as drifted. */
-  readonly briefDriftOf?: (waveKey: string) => boolean;
 }
 
 /**
@@ -85,14 +82,12 @@ export class Pipeline {
   readonly #lines: LinePhase;
   readonly #waves: () => readonly WaveLine[];
   readonly #docClassOf: DocClassRead;
-  readonly #briefDriftOf: (waveKey: string) => boolean;
   readonly #routes = new NextRoutes();
 
   constructor(opts: PipelineOptions) {
     this.#lines = opts.lines;
     this.#waves = opts.waves;
     this.#docClassOf = opts.docClassOf;
-    this.#briefDriftOf = opts.briefDriftOf ?? Pipeline.#neverDrifted;
   }
 
   /** The ledger's closed task ids — the projection of the wave lines' closure side, read by
@@ -146,7 +141,7 @@ export class Pipeline {
       verdict: target === null ? "terminal" : this.#docClassOf(target),
       gate: {
         docDrift: Pipeline.#docDriftOf(target, this.#lines),
-        briefDrift: target?.type === "wave" ? this.#briefDriftOf(String(target.id)) : false,
+        briefDrift: target?.type === "wave" ? this.#lines.briefDriftedAt(String(target.id)) : false,
       },
       nextLineOpen: this.branchLineOpen(input.planPath),
     });
@@ -284,12 +279,6 @@ export class Pipeline {
   static #docDriftOf(target: RouteTarget | null, lines: LinePhase): boolean {
     if (target === null || target.type === "wave" || target.type === "branch") return false;
     return lines.reopenedAt(target.type, target.type, target.id);
-  }
-
-  /** The zero drift answer — a pipeline built without the projection seam reads no wave line
-   *  as drifted. */
-  static #neverDrifted(): boolean {
-    return false;
   }
 }
 

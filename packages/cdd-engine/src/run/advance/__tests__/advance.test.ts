@@ -68,7 +68,7 @@ import { InFlight } from "../../dispatch/inflight.ts";
 import { Authority } from "../../gate/authority.ts";
 import { type DocJudgment, PreFlight } from "../../gate/preflight.ts";
 import { Refusal } from "../../gate/refusal.ts";
-import { Run, type RunOptions } from "../../index.ts";
+import { type BoardRow, Run, type RunOptions } from "../../index.ts";
 import { CarrierLine } from "../../ledger/carrier-line.ts";
 import { RoundIdentity } from "../../ledger/identity.ts";
 import { Ledger } from "../../ledger/ledger.ts";
@@ -289,6 +289,9 @@ interface Fixture {
   };
   readonly commits: { count: number };
   readonly groupBase: { value: string | null };
+  /** The brief face's two renders: the landed bytes (which carry the round context) and the
+   *  task-only projection a wave round binds. */
+  readonly briefBytes: { content: string; reviewed: string };
   readonly lifecycle: Lifecycle;
   readonly options: RunOptions;
   readonly waveInputOf: (frame: FrameFacts) => WaveInput;
@@ -324,6 +327,7 @@ const fixture = (): Fixture => {
   } = { findings: [] };
   const commits = { count: 1 };
   const groupBase: { value: string | null } = { value: "base" };
+  const briefBytes = { content: "brief bytes\n", reviewed: "task body\n" };
   const lines = new LinePhase({
     facts: ledger,
     carried: (record) =>
@@ -335,6 +339,7 @@ const fixture = (): Fixture => {
         return null;
       }
     },
+    projection: () => briefBytes.reviewed,
   });
   const pipeline = new Pipeline({
     lines,
@@ -393,7 +398,7 @@ const fixture = (): Fixture => {
       phase: facts.phase,
       log: { file: path.join(root.path, "round.log"), path: "round.log" as RepoPath },
     }),
-    brief: () => ({ name: "brief.md", content: "brief bytes\n" }),
+    brief: () => ({ name: "brief.md", content: briefBytes.content, reviewed: briefBytes.reviewed }),
     writeText: (name, content) => {
       writes.count += 1;
       if (writes.fail) return { kind: "write-failure", target: name as RepoPath };
@@ -474,6 +479,7 @@ const fixture = (): Fixture => {
     requesting,
     commits,
     groupBase,
+    briefBytes,
     lifecycle,
     options,
     waveInputOf,
@@ -739,6 +745,26 @@ describe("the declared failures", () => {
     const known = await fx.run.advance(waveRequest({ tasks: "1,7" }));
     expect(known.kind).not.toBe("usage");
   });
+
+  it("reports a board's doc row at the document that row is judged at", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    const request = { command: "review", type: "phase-spec" as const, spec: SPEC_REL };
+    expect((await fx.run.advance(request)).kind).toBe("dispatch");
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
+    // The document moves OUTSIDE the round: the row and the board's `next:` row must agree.
+    const content = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    writeFileSync(path.join(fx.repo, SPEC_REL), `${content}\nmoved outside the round\n`, "utf8");
+    const board = await fx.run.boardOf({ command: "board", type: "plan", plan: PLAN_REL });
+    expect(board.kind).toBe("board");
+    if (board.kind !== "board") return;
+    const docRow = board.rows.find(
+      (row): row is Extract<BoardRow, { kind: "doc" }> =>
+        row.kind === "doc" && row.line === "phase-spec",
+    );
+    expect(docRow?.state).toBe("reopened");
+  });
 });
 
 describe("the pre-dispatch refusals", () => {
@@ -944,6 +970,7 @@ describe("the six hop cells", () => {
           },
         ],
         docDriftOf: () => null,
+        reviewedOf: () => null,
       },
       carried: () => ({
         findings: [{ severity: "blocker", summary: "row" }],
@@ -1057,6 +1084,9 @@ describe("the drift reopen and the closure terminal", () => {
   it("reopens a reviewed document that moved outside the round", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
+    // A review round is done when its carrier carries a findings array, so the fixture
+    // states the empty conclusion its carrier would hold.
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
     // The reviewed version is bound by a REAL dispatch: the review round's booking writes the
     // document line's own cell, under that line's word.
     const reviewed = await fx.run.advance({
@@ -1074,7 +1104,38 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
   });
 
-  it("binds a wave review to its brief projection, never to the plan's bytes", async () => {
+  it("binds a completed fix's revision, so its own edits never reopen the line", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // A warn-only review routes the fix hop; the fix edits the spec, covers the request and
+    // starts the re-review hop the same warn would have named.
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "warn", summary: "a warn", id: "F1" }],
+      status: null,
+    });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    const preFix = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    writeFileSync(path.join(fx.repo, SPEC_REL), `${preFix}\nthe fix's own edit\n`, "utf8");
+    const postFix = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    fx.requesting.findings = [{ severity: "warn", summary: "a warn", id: "F1" }];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
+    expect(fix.kind).toBe("dispatch");
+    if (fix.kind !== "dispatch") return;
+    expect(fix.result.round.verdict.targetAction).toBe(true);
+    // The binding moved with the round: the recorded version is the POST-fix revision, so the
+    // fix's own bytes are not a drift against the line it just concluded.
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(postFix));
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).not.toBe("reopened");
+  });
+
+  it("binds a wave review to its task-only projection, never to the landed bytes", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
     fx.carriedByKey.set("implement:1", { findings: [], status: null });
@@ -1085,8 +1146,35 @@ describe("the drift reopen and the closure terminal", () => {
     const waveLine = RoundIdentity.lineWordOf("wave", "1");
     const bound = fx.ledger.reviewedOf(waveLine);
     expect(bound?.kind).toBe("brief");
+    // The recorded version is the projection, not the landed brief: the landed bytes carry the
+    // round-context section, which changes with every dispatch.
+    expect(bound?.hash).toBe(ReviewedIdentity.hashOf("task body\n"));
+    expect(bound?.hash).not.toBe(ReviewedIdentity.hashOf(fx.briefBytes.content));
     // The document cell stays empty on the task-graph face: one line kind, one reviewed cell.
     expect(fx.ledger.docHashOf(waveLine)).toBeNull();
+  });
+
+  it("reads the wave's drift off that projection, so a round-context rewrite is no drift", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("implement:1", { findings: [], status: null });
+    // A blocker-carrying review leaves the wave owing a fix — the hop drift can reopen.
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "blocker", summary: "row", id: "F1" }],
+      status: null,
+    });
+    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    expect((await fx.run.advance(waveRequest({ command: "review" }))).kind).toBe("dispatch");
+    expect(fx.lines.waveRouteOf("1")).toEqual({ kind: "fix" });
+    // The next dispatch re-renders the brief with a different round-context section; the
+    // projection did not move, so the line is not drifted and keeps its fix hop.
+    fx.briefBytes.content = "brief bytes, a later round\n";
+    expect(fx.lines.briefDriftedAt("1")).toBe(false);
+    expect(fx.lines.waveRouteOf("1")).toEqual({ kind: "fix" });
+    // A projection that DID move reopens the line at its review hop.
+    fx.briefBytes.reviewed = "task body, amended\n";
+    expect(fx.lines.briefDriftedAt("1")).toBe(true);
+    expect(fx.lines.waveRouteOf("1")).toEqual({ kind: "review" });
   });
 
   it("closes a zero-blocker fix round instead of naming another review", () => {
@@ -1284,6 +1372,39 @@ describe("the booked verdict", () => {
     expect(crashed.map((row) => row.cause)).toContain("round-blocked");
     expect(fx.lines.waveClosedAt("1")).toBe(false);
   });
+
+  it("refuses a review round that persisted no judge carrier, and an implement round that committed nothing", async () => {
+    // A review whose child exited 0 but wrote no carrier concluded nothing: the criterion's
+    // refusal is the round's hard entry, and the wave is never closed on it.
+    const review = fixture();
+    oneTaskPlan(review);
+    review.carriedByKey.set("implement:1", { findings: [], status: null });
+    expect((await review.run.advance(waveRequest())).kind).toBe("dispatch");
+    const lost = await review.run.advance(waveRequest({ command: "review" }));
+    expect(lost.kind).toBe("dispatch");
+    if (lost.kind !== "dispatch") return;
+    expect(lost.result.round.verdict.targetAction).toBe(false);
+    expect(
+      lost.result.round.violations.filter((row) => row.grade === "hard").map((row) => row.message),
+    ).toContain("the review round persisted no judge carrier");
+    expect(review.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toBeNull();
+    expect(review.lines.waveClosedAt("1")).toBe(false);
+
+    // A zero-commit implement round is the same shape: the commit criterion refuses it, and
+    // the line stays at its implement hop.
+    const implement = fixture();
+    oneTaskPlan(implement);
+    implement.commits.count = 0;
+    const empty = await implement.run.advance(waveRequest());
+    expect(empty.kind).toBe("dispatch");
+    if (empty.kind !== "dispatch") return;
+    expect(empty.result.round.verdict.targetAction).toBe(false);
+    expect(
+      empty.result.round.violations.filter((row) => row.grade === "hard").map((row) => row.message),
+    ).toContain("the group committed nothing since its baseline base");
+    expect(implement.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toBeNull();
+    expect(implement.lines.wavePhaseOf("1")).toBe("implement");
+  });
 });
 
 describe("the fix completion judgment", () => {
@@ -1371,6 +1492,7 @@ describe("the soft cap's counter", () => {
       facts: {
         rounds: (key) => (key === "branch" ? reviews(count) : []),
         docDriftOf: () => null,
+        reviewedOf: () => null,
       },
       carried: (record) => ({
         findings:
@@ -1474,6 +1596,31 @@ describe("the dry run", () => {
     ).toBe("dispatch");
   });
 
+  it("keeps the brief landing on the task face alone", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    const request = { command: "review", type: "phase-spec" as const, spec: SPEC_REL };
+    // A preview names no brief a doc dispatch would never write, and a real doc dispatch
+    // writes none — `INPUT_WAVE_BRIEF` stays empty off the task face.
+    const preview = await fx.run.previewOf(request);
+    expect(preview.kind).toBe("pass");
+    if (preview.kind !== "pass") return;
+    expect(preview.brief).toBe("");
+    const dispatched = await fx.run.advance(request);
+    expect(dispatched.kind).toBe("dispatch");
+    if (dispatched.kind !== "dispatch") return;
+    expect(dispatched.result.brief).toBe("");
+    expect(fx.writes.count).toBe(0);
+    // A write face that answers the declared failure does not refuse a doc dispatch: no
+    // brief was ever going to land on that face.
+    const reprobe = fixture();
+    oneTaskPlan(reprobe);
+    reprobe.carriedByKey.set("review:1", { findings: [], status: null });
+    reprobe.writes.fail = true;
+    expect((await reprobe.run.advance(request)).kind).toBe("dispatch");
+  });
+
   it("answers the assembly failures with the same kind the dispatch does", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
@@ -1525,6 +1672,7 @@ describe("the target table", () => {
 
     // The row that DOES advance a batch: the same step closes the wave line and records the
     // plan's own task snapshot (the fixture's one-task plan).
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
     expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([1]);

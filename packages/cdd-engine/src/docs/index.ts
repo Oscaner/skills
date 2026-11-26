@@ -34,10 +34,12 @@
 //
 // Judging reads the repository through TWO injected seams and no third: the single-target
 // text reader (`parse`) and the document world (the indexed documents, one read face, an
-// existence probe, one directory listing and the three doc roots). The default world derives
-// from the reader alone — it answers the coordinate it was handed and indexes nothing — so a
-// caller that needs the chain, closure or sibling faces injects the real one at the
-// composition root; the degraded world refuses nothing and passes no shape rule.
+// existence probe, one directory listing, the three doc roots and the scan's completeness
+// fact). The default world derives from the reader alone — it answers the coordinate it was
+// handed and indexes nothing — so a `Documents` built without one refuses a doc judgment
+// with ONE `no-world` finding: a missing injection is a missing injection, never a clean
+// repository. The ledger entry judges its injected fact bundle and reads no document set,
+// so it is not refused. The composition root injects the real world (`env/` behind the port).
 
 import { DOC_ROOT_SEGMENTS } from "../env/paths/doc-roots.ts";
 import type { RepoPath } from "../env/paths/root.ts";
@@ -287,10 +289,10 @@ export interface DocumentsOptions {
   readonly today: string;
   /** The one text write face — `env.workspace#writeTextAt` in production. */
   readonly textWriter: TextWriter;
-  /** The document world the judgment reads through. Absent → a world derived from the
-   *  reader alone: it answers the coordinate it is handed and indexes nothing, so the chain,
-   *  closure and sibling faces see an empty repository. The composition root injects the
-   *  real one (`env/` behind this port). */
+  /** The document world the judgment reads through. Absent → the reader-only world, which
+   *  indexes nothing and reports itself incomplete: `judge` then refuses with one `no-world`
+   *  finding instead of reading the empty set as a clean repository. The composition root
+   *  injects the real one (`env/` behind this port). */
   readonly world?: DocumentWorld;
   /** The recognition rows the row source canonicalizes with — the word table's locale rows
    *  in production. Absent → no alias is recognized, which is the identity for an
@@ -314,6 +316,8 @@ export class Documents {
   readonly #criteria: ReviewCriteria = CRITERIA;
   readonly #skeleton: SkeletonAssembler;
   readonly #world: DocumentWorld;
+  /** Whether no world was injected — the construction fact `judge` refuses on. */
+  readonly #degraded: boolean;
   readonly #judge: Judge;
   /** The ONE closure reading of this slice — the judgment's exemption and the gate's
    *  `checked:` yield line read the same instance, so a document's closure is computed once. */
@@ -322,6 +326,7 @@ export class Documents {
 
   constructor(opts: DocumentsOptions) {
     this.#readText = opts.readText;
+    this.#degraded = opts.world === undefined;
     this.#world = opts.world ?? Documents.#readerWorld(opts.readText);
     this.#skeleton = new SkeletonAssembler({
       projection: this.#projector.skeleton(),
@@ -339,9 +344,10 @@ export class Documents {
   }
 
   /** The reader-only world — the default when no world is injected. It answers the one
-   *  coordinate the reader can read and holds no index, so a judgment that needs the document
-   *  set (the identity chain, the proven closure, the sibling scan) reads an empty set rather
-   *  than a fabricated one. */
+   *  coordinate the reader can read, holds no index and reports itself INCOMPLETE, so a
+   *  judgment that needs the document set reads an empty, undecided set rather than a clean
+   *  repository; `judge` refuses such an instance with one `no-world` finding before any rule
+   *  reads it. */
   static #readerWorld(readText: DocumentReader): DocumentWorld {
     const textOf = (rel: RepoPath): string | null => {
       const read = readText(rel);
@@ -357,6 +363,22 @@ export class Documents {
         specs: DOC_ROOT_SEGMENTS.specs as RepoPath,
         plans: DOC_ROOT_SEGMENTS.plans as RepoPath,
       }),
+      complete: () => false,
+    };
+  }
+
+  /** The refusal a missing world earns — the ONE finding outside the declared rule set that
+   *  this entry owns. It names the construction fact, never a repository defect: an empty
+   *  index is not evidence that a document has no identity pair. */
+  static #noWorld(path: RepoPath): Finding {
+    return {
+      path,
+      field: "world",
+      message:
+        "the judgment reads through no document world — a missing injection is not a clean repository",
+      fix: "construct Documents with the document world (the composition root fills it from the repository scan)",
+      kind: "no-world",
+      severity: "block",
     };
   }
 
@@ -423,9 +445,13 @@ export class Documents {
 
   /** One document's JUDGMENT — the declared rule rows applicable to its type, stamped by
    *  their own tier, with the proven-closure exemption applied. The closure is read HERE,
-   *  once, from the SAME reading the gate's `checked:` yield line asks (`closedAt`). */
+   *  once, from the SAME reading the gate's `checked:` yield line asks (`closedAt`). A
+   *  construction without a document world refuses with one `no-world` finding: the chain,
+   *  closure and sibling rules read that set, and an absent injection must not read as an
+   *  empty repository. */
   judge(input: JudgeInput): readonly Finding[] {
     this.registryOf(input.docKey);
+    if (this.#degraded) return [Documents.#noWorld(input.path)];
     return this.#judge.judge(input, this.closedAt(input.path));
   }
 

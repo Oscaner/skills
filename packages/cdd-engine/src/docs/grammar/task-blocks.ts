@@ -11,8 +11,11 @@
 // `DependsOn` is read as a single-line value: the ids before any parenthetical prose,
 // comma- or space-separated, with `none` and an empty value meaning "no edges". Cycles
 // are read out rather than rejected here — whether a cycle blocks a wave is the gate's
-// judgment, not the grammar's.
+// judgment, not the grammar's. A reserved section declared TWICE inside one block IS
+// rejected here: the section identity is the parse face's own invariant, loud at parse
+// time as a typed `DocSyntaxError` the judgment materializes as one finding.
 
+import { DocSyntaxError } from "./doc-syntax.ts";
 import { MarkdownDocument } from "./markdown-document.ts";
 import type { MarkdownTree } from "./markdown-tree.ts";
 import type { MdNode, TaskBlock, TaskSection, TaskValueEntry } from "./types.ts";
@@ -172,6 +175,7 @@ export class TaskBlocks {
       const sections = headingShape
         ? TaskBlocks.#headingSections(document, inner, boundary.line - 1)
         : TaskBlocks.#legacySections(document, start + 1, boundary.line - 1);
+      TaskBlocks.#assertReservedUnique(Number(match[1]), sections);
       blocks.push({
         id: Number(match[1]),
         heading: document.line(start),
@@ -181,6 +185,25 @@ export class TaskBlocks {
       });
     }
     return blocks;
+  }
+
+  /** Reject a duplicated reserved key inside one block — the section identity is the parse
+   *  face's own invariant, loud at parse time. The anchored field is the section heading
+   *  (`#### Key`), the same anchor both shapes write. */
+  static #assertReservedUnique(id: number, sections: readonly TaskSection[]): void {
+    const seen = new Set<string>();
+    for (const section of sections) {
+      if (!TaskBlockGrammar.RESERVED.includes(section.key)) continue;
+      const anchor = `#### ${section.key}`;
+      if (seen.has(section.key)) {
+        throw new DocSyntaxError(
+          anchor,
+          `task ${id} carries the reserved section "${anchor}" more than once`,
+          `keep one "${anchor}" section per task block — merge the duplicate bodies into the first one`,
+        );
+      }
+      seen.add(section.key);
+    }
   }
 
   /** The node index and line at which one block ends — the next top-level heading of

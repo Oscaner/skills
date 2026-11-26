@@ -1375,12 +1375,15 @@ export class LinkTargetShape {
     const trimmed = raw.trim();
     // The rejected collation tokens — whitespace, a markdown-link shell's brackets / parens
     // (`[label](path)`), stray angle brackets and the `://` URL scheme. The path separators
-    // `/` and `:` alone stay legal (a bare relative path carries both) — only the URL-scheme
-    // pairing rejects.
-    if (/[\s()[\]<>]|:\/\//.test(trimmed)) {
+    // `/` and `:` alone stay legal for a relative spelling (a bare relative path carries
+    // both) — only the URL-scheme pairing rejects. A LEADING `/` is rejected too: a chain
+    // target names a repository coordinate, so an absolute spelling is a shape defect and
+    // this face is its ONE owner (the resolution faces never probe an absolute path that
+    // happens to exist).
+    if (trimmed.startsWith("/") || /[\s()[\]<>]|:\/\//.test(trimmed)) {
       return new LinkTargetShape(
         null,
-        "the value must be a bare relative path (e.g. `docs/kairos/overalls/…-overall.md` or `xxx-overall.md`), not a markdown link or URL",
+        "the value must be a bare relative path (e.g. `docs/kairos/overalls/…-overall.md` or `xxx-overall.md`), not an absolute path, a markdown link or a URL",
       );
     }
     return new LinkTargetShape(trimmed, null);
@@ -1402,7 +1405,7 @@ export class FileExistenceInvariant extends Invariant {
       const resolved = FileExistenceInvariant.targetPath(ctx.path, shape.target, (rel) =>
         ctx.world.exists(rel),
       );
-      if (resolved !== null && ctx.world.exists(resolved)) continue;
+      if (ctx.world.exists(resolved)) continue;
       findings.push(
         this.finding(
           ctx,
@@ -1437,14 +1440,13 @@ export class FileExistenceInvariant extends Invariant {
    *  when it exists, else the doc-dir (file-relative) reading. `exists` is the caller's world
    *  probe — the resolution is the shared fact, the read is injected. When neither reading
    *  exists the doc-dir path is answered (the caller owns the truly-missing case). An
-   *  absolute target names no repository coordinate and answers null: the shape face owns
-   *  that spelling. */
+   *  absolute spelling never reaches this reading: `LinkTargetShape` rejects it as a shape
+   *  defect before any resolution. */
   static targetPath(
     docPath: RepoPath,
     target: string,
     exists: (rel: RepoPath) => boolean,
-  ): RepoPath | null {
-    if (path.posix.isAbsolute(target)) return null;
+  ): RepoPath {
     const fromRoot = PathShape.relOf(target);
     if (exists(fromRoot)) return fromRoot;
     return PathShape.relOf(path.posix.join(path.posix.dirname(docPath), target));
@@ -1573,7 +1575,6 @@ export class PhaseDesignSpecIsPhaseSpecInvariant extends Invariant {
     const resolved = FileExistenceInvariant.targetPath(ctx.path, shape.target, (rel) =>
       ctx.world.exists(rel),
     );
-    if (resolved === null) return undefined;
     const content = ctx.world.read(resolved);
     if (content === null) return undefined;
     return frontmatterOf(content).head.docType;
@@ -1659,6 +1660,10 @@ export class CrossDocChainInvariant extends Invariant {
     // An identity question, never a first pick: n ≥ 1 is an identity, so the chain never
     // claims "no identity document" over an ambiguous set.
     if (ctx.index.hasIdentity(slug)) return [];
+    // The index's silence is not the disk's: a scan that discarded a candidate (an
+    // unreadable document, one carrying no recognized doc type) cannot answer an absence,
+    // so this arm is silent over an incomplete scan — zero refusal, the undecided read.
+    if (!ctx.index.complete()) return [];
     return [
       this.finding(
         ctx,

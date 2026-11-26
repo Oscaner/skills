@@ -15,6 +15,14 @@
 //   · the two entry shapes — `judge` (doc scope) and `judgeLedger` (doc + ledger facts). A doc
 //     judgment never runs a ledger rule, and the ledger facts never ride the context.
 //
+// Two findings sit OUTSIDE the declared rule set, and both exist so a verdict can never be a
+// silent "clean":
+//   · `doc-syntax` — the parse face's own rejection (`DocSyntaxError`), materialized from the
+//     context construction alone;
+//   · `rule-fault` — one rule threw. The rules that already answered keep their findings and
+//     the broken rule refuses under its own name, so one fault neither discards a verdict nor
+//     lets the rest of the table go unrun.
+//
 // The strategy composition is DECLARED, not hard-coded: `policy()` walks the rule table's
 // doc-scope rows and instantiates each row's factory, and `ruleRows()` answers the SAME table
 // this instance judged through — one list, one source, zero re-copy.
@@ -24,7 +32,7 @@
 import type { RepoPath } from "../../env/paths/root.ts";
 import { MarkdownTree } from "../grammar/markdown-tree.ts";
 import { TaskBlocks } from "../grammar/task-blocks.ts";
-import { docTypeParsers, type ParsedDoc } from "../identity/doc-parse.ts";
+import { DocSyntaxError, docTypeParsers, type ParsedDoc } from "../identity/doc-parse.ts";
 import { Projector } from "../identity/project.ts";
 import { declaredRegistries } from "../identity/registry.ts";
 import { RowSource, type Translator } from "../identity/translate.ts";
@@ -109,7 +117,7 @@ export class Judge {
     this.#strategies = Judge.policy(this.#registry);
     this.#translator = opts.translator;
     this.#world = opts.world;
-    this.#index = new Index(opts.world.documents());
+    this.#index = new Index(opts.world.documents(), opts.world.complete());
   }
 
   /** The document index this instance judges through — the closure reading and the `checked:`
@@ -188,17 +196,76 @@ export class Judge {
     };
   }
 
+  /** The document-syntax face of a judgment — the parse face throws a typed
+   *  `DocSyntaxError`, and the judgment materializes exactly ONE finding bound to the judged
+   *  path (never a registered rule, never a new gate). The tier stamps itself because this
+   *  finding has no declaration: the parse face has always been a refusal, so it reads
+   *  `block`. Any OTHER throw from the same step is a programming break and rethrows — the
+   *  context construction is the only caught step, never a strategy. */
+  static #syntaxFinding(input: JudgeInput, error: unknown): Finding {
+    if (!(error instanceof DocSyntaxError)) throw error;
+    return {
+      path: input.path,
+      field: error.field,
+      message: error.message,
+      fix: error.fix,
+      kind: "doc-syntax",
+      severity: "block",
+    };
+  }
+
+  /** The coordinator's own attribution when one rule throws — the verdict is UNKNOWN, so it
+   *  refuses under the broken rule's id instead of reading as clean. The findings already
+   *  stamped stay in the answer, and the loop continues: one fault never silences the rest of
+   *  the table. */
+  static #faultFinding(input: JudgeInput, declaration: RuleDeclaration, error: unknown): Finding {
+    const detail = error instanceof Error ? error.message : String(error);
+    return {
+      path: input.path,
+      field: declaration.id,
+      message: `the rule ${declaration.id} broke while judging this document: ${detail} — the verdict is unknown, not clean`,
+      fix: `repair the rule ${declaration.id} (its own pin names the fixture that broke); every finding of this judgment is untrusted until it runs`,
+      kind: "rule-fault",
+      severity: "block",
+    };
+  }
+
+  /** Run one declared rule — the ONE containment seam both entries share. A `DocSyntaxError`
+   *  escaping a strategy is a programming break (the parse face's rejection is materialized at
+   *  the context construction, where it belongs) and rethrows; every other throw becomes one
+   *  `rule-fault` finding that names the declaration. */
+  static #contain(
+    input: JudgeInput,
+    declaration: RuleDeclaration,
+    findings: Finding[],
+    run: () => readonly FindingDraft[],
+  ): void {
+    try {
+      findings.push(...Judge.stamped(run(), declaration));
+    } catch (error) {
+      if (error instanceof DocSyntaxError) throw error;
+      findings.push(Judge.#faultFinding(input, declaration, error));
+    }
+  }
+
   /** judge(input, closed) — the doc-scope entry. `closed` is the caller's proven-closure fact:
    *  a closed document exempts every declaration carrying `skipWhenClosed`, and only those.
-   *  The strategy loop is deliberately NOT wrapped in a catch: a strategy that throws is a
-   *  programming break, and turning it into an empty verdict would answer "clean" for every
-   *  rule that never ran. */
+   *  The context construction is the ONE caught step (its `DocSyntaxError` becomes one
+   *  `doc-syntax` finding); each strategy is then judged independently, so a rule that throws
+   *  refuses under its own name without discarding the findings around it. */
   judge(input: JudgeInput, closed = false): readonly Finding[] {
-    const context = this.contextOf(input);
+    let context: JudgeContext;
+    try {
+      context = this.contextOf(input);
+    } catch (error) {
+      return [Judge.#syntaxFinding(input, error)];
+    }
     const findings: Finding[] = [];
     for (const binding of this.#strategies[input.docKey]) {
       if (closed && binding.declaration.skipWhenClosed) continue;
-      findings.push(...Judge.stamped(binding.strategy.evaluate(context), binding.declaration));
+      Judge.#contain(input, binding.declaration, findings, () =>
+        binding.strategy.evaluate(context),
+      );
     }
     return findings;
   }
@@ -206,9 +273,14 @@ export class Judge {
   /** judgeLedger(input, ledger) — the ledger-scope entry: the plan document under judgment
    *  plus the ledger fact bundle, judged by every `scope: "ledger"` declaration applicable to
    *  the input's doc type. Two arguments, one judgment — the doc-scope rules never run here
-   *  (and vice versa). */
+   *  (and vice versa); the containment seam is the same one. */
   judgeLedger(input: JudgeInput, ledger: LedgerFacts): readonly Finding[] {
-    const context = this.contextOf(input);
+    let context: JudgeContext;
+    try {
+      context = this.contextOf(input);
+    } catch (error) {
+      return [Judge.#syntaxFinding(input, error)];
+    }
     const findings: Finding[] = [];
     for (const declaration of this.#registry) {
       if (declaration.scope !== "ledger") continue;
@@ -216,7 +288,7 @@ export class Judge {
         continue;
       }
       const rule: LedgerRule = declaration.create();
-      findings.push(...Judge.stamped(rule.evaluate(context, ledger), declaration));
+      Judge.#contain(input, declaration, findings, () => rule.evaluate(context, ledger));
     }
     return findings;
   }

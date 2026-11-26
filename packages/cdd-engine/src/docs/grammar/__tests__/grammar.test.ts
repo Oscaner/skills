@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import type { RepoPath } from "../../../env/paths/root.ts";
 import { Documents } from "../../index.ts";
 import { docBodyOf } from "../doc-body.ts";
+import { DocSyntaxError } from "../doc-syntax.ts";
 import { type HomeElement, HomeExtractor } from "../extract.ts";
 import { FrontMatterError, frontmatterOf } from "../frontmatter.ts";
 import { MarkdownDocument } from "../markdown-document.ts";
@@ -351,6 +352,50 @@ describe("task blocks", () => {
   it("reads a dependency cycle out", () => {
     const blocks = TaskBlocks.parse(PLAN);
     expect(blocks.cycles()).toEqual([[1, 2]]);
+  });
+
+  it("refuses a reserved section appearing twice in one block", () => {
+    const content = [
+      "### Task 1: one",
+      "",
+      "#### Files",
+      "",
+      "a.ts",
+      "",
+      "#### Files",
+      "",
+      "b.ts",
+      "",
+    ].join("\n");
+    expect(() => TaskBlocks.parse(content)).toThrow(/#### Files/);
+  });
+
+  it("throws the typed rejection carrying the anchored field, the message and the fix", () => {
+    const content = [
+      "### Task 1: one",
+      "",
+      "#### DependsOn",
+      "",
+      "2, 3",
+      "",
+      "#### DependsOn",
+      "",
+      "4",
+      "",
+    ].join("\n");
+    let caught: unknown;
+    try {
+      TaskBlocks.parse(content);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(DocSyntaxError);
+    const syntax = caught as DocSyntaxError;
+    expect(syntax.field).toBe("#### DependsOn");
+    expect(syntax.message).toBe(
+      'task 1 carries the reserved section "#### DependsOn" more than once',
+    );
+    expect(syntax.fix.length).toBeGreaterThan(0);
   });
 });
 

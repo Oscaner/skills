@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { RepoPath } from "../../../env/paths/root.ts";
+import { FrontMatterError } from "../../grammar/frontmatter.ts";
 import { MarkdownTree } from "../../grammar/markdown-tree.ts";
 import { TaskBlocks } from "../../grammar/task-blocks.ts";
 import { declaredRegistries } from "../../identity/registry.ts";
@@ -27,6 +28,7 @@ import {
 } from "../closure.ts";
 import { displayReason, REGRADE_MARK, REGRADE_NOTE_SEPARATOR, regradeNote } from "../criteria.ts";
 import type { FindingDraft, InjectedGraphIssue, Invariant, LedgerFacts } from "../invariants.ts";
+import { LinkTargetShape } from "../invariants.ts";
 import { Judge, type JudgeInput } from "../judge.ts";
 import {
   type DocRuleDeclaration,
@@ -285,10 +287,13 @@ const CLEAN_INDEX: readonly IndexedDocument[] = [
   { rel: SINGLE_PATH, slug: "2026-01-15-fixture-single", docType: "single-spec" },
 ];
 
-/** One world over a file map — the read, existence, listing and index faces a judgment asks. */
+/** One world over a file map — the read, existence, listing, index and scan-completeness faces
+ *  a judgment asks. `complete` is the scan's own fact: false means the scan discarded a
+ *  candidate, so its silence about an identity is not the disk's. */
 const worldOf = (
   files: ReadonlyMap<string, string> = CLEAN_FILES,
   documents: readonly IndexedDocument[] = CLEAN_INDEX,
+  complete = true,
 ): DocumentWorld => ({
   documents: () => documents,
   read: (target) => files.get(target) ?? null,
@@ -298,6 +303,7 @@ const worldOf = (
       .filter((file) => file.startsWith(`${directory}/`))
       .map((file) => file.slice(directory.length + 1)),
   roots: () => ROOTS,
+  complete: () => complete,
 });
 
 /** A judgment over a doctored world and an injected rule table — the coordinator's own seam. */
@@ -305,11 +311,12 @@ const judgeOver = (opts: {
   registry?: readonly RuleDeclaration[];
   files?: ReadonlyMap<string, string>;
   documents?: readonly IndexedDocument[];
+  complete?: boolean;
 }): Judge =>
   new Judge({
     ...(opts.registry === undefined ? {} : { registry: opts.registry }),
     translator: new Translator([]),
-    world: worldOf(opts.files, opts.documents),
+    world: worldOf(opts.files, opts.documents, opts.complete ?? true),
   });
 
 /** The ONE row of a rule id — the single-rule registry a paired fixture judges through. */
@@ -748,7 +755,7 @@ class FirstRule {
   }
 }
 
-/** A strategy that throws — the coordinator's propagation pin. */
+/** A strategy that throws — the coordinator's containment pin. */
 class ThrowingRule {
   readonly name = "throwing-rule";
 
@@ -756,6 +763,22 @@ class ThrowingRule {
     throw new Error("a strategy broke");
   }
 }
+
+/** A ledger row whose rule throws — the second entry's containment pin over the same seam. */
+const throwingLedgerRow = (): RuleDeclaration => ({
+  scope: "ledger",
+  id: "throwing-ledger-rule",
+  docTypes: ["plan"],
+  severity: "block",
+  seat: ["ledger"],
+  skipWhenClosed: false,
+  create: () => ({
+    name: "throwing-ledger-rule",
+    evaluate: () => {
+      throw new Error("a ledger rule broke");
+    },
+  }),
+});
 
 /** One doctored declaration row over an arbitrary strategy. */
 const rowFor = (id: string, create: () => Invariant): RuleDeclaration => ({
@@ -807,12 +830,32 @@ describe("the judgment coordinator", () => {
     for (const finding of findings) expect(finding.severity).toBe("warn");
   });
 
-  it("propagates a throwing strategy instead of answering a clean verdict", () => {
+  it("keeps a throwing rule from swallowing the rules after it", () => {
     const registry: readonly RuleDeclaration[] = [
       rowFor("throwing-rule", () => new ThrowingRule() as unknown as Invariant),
+      rowOf("presence"),
     ];
     const judge = judgeOver({ registry });
-    expect(() => judge.judge(inputOf("plan", PLAN))).toThrow("a strategy broke");
+    const input = inputOf("plan", doctored(PLAN, [["#### Consumes\n\nnone\n\n", ""]]));
+    const findings = judge.judge(input);
+    // The broken rule refuses the verdict under its own name, and the next rule still answers.
+    expect(findings.map((finding) => finding.kind)).toEqual(["rule-fault", "presence"]);
+    expect(findings[0]?.field).toBe("throwing-rule");
+    expect(findings[0]?.severity).toBe("block");
+    expect(findings[0]?.message).toContain("throwing-rule");
+  });
+
+  it("contains a throwing ledger rule the same way", () => {
+    const ledgerRow = throwingLedgerRow();
+    const second = RULE_REGISTRY.find((row) => row.id === "planned-tasks-vs-recorded-tasks");
+    expect(second).toBeDefined();
+    const judge = judgeOver({ registry: [ledgerRow, ...(second === undefined ? [] : [second])] });
+    const findings = judge.judgeLedger(inputOf("plan", PLAN), { ...NO_LEDGER, recordedTasks: [9] });
+    expect(findings.map((finding) => finding.kind)).toEqual([
+      "rule-fault",
+      "planned-tasks-vs-recorded-tasks",
+    ]);
+    expect(findings[0]?.field).toBe("throwing-ledger-rule");
   });
 
   it("runs the ledger entry only over the ledger rows", () => {
@@ -830,6 +873,41 @@ describe("the judgment coordinator", () => {
   it("answers the table it judged through, and nothing else", () => {
     const judge = judgeOver({});
     expect(judge.ruleRows()).toBe(RULE_REGISTRY);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the document-syntax refusal
+// ---------------------------------------------------------------------------
+
+describe("the document-syntax refusal", () => {
+  /** One plan whose task block declares a reserved section twice — the parse face's own break. */
+  const DOUBLED = doctored(PLAN, [
+    ["#### Consumes", "#### Objective\n\na second objective\n\n#### Consumes"],
+  ]);
+
+  it("answers exactly one doc-syntax finding bound to the duplicated section", () => {
+    const findings = judgeOver({}).judge(inputOf("plan", DOUBLED));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("doc-syntax");
+    expect(findings[0]?.field).toBe("#### Objective");
+    expect(findings[0]?.message).toBe(
+      'task 1 carries the reserved section "#### Objective" more than once',
+    );
+    expect(findings[0]?.severity).toBe("block");
+    expect(findings[0]?.fix.length).toBeGreaterThan(0);
+  });
+
+  it("materializes the same one finding on the ledger entry", () => {
+    const findings = judgeOver({}).judgeLedger(inputOf("plan", DOUBLED), NO_LEDGER);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("doc-syntax");
+    expect(findings[0]?.field).toBe("#### Objective");
+  });
+
+  it("rethrows a break that is not the parse face's own rejection", () => {
+    const broken = doctored(PLAN, [["slug: 2026-01-15-fixture-design", "slug: [unclosed"]]);
+    expect(() => judgeOver({}).judge(inputOf("plan", broken))).toThrow(FrontMatterError);
   });
 });
 
@@ -1027,9 +1105,66 @@ const closureOver = (
   documents: readonly IndexedDocument[],
 ): ClosedDocument =>
   new ClosedDocument({
-    index: new DocumentIndex(documents),
+    // The closure reading is positive-only: an index's scan completeness never enters it.
+    index: new DocumentIndex(documents, true),
     read: (target) => files.get(target) ?? null,
   });
+
+describe("the identity chain over an incomplete scan", () => {
+  /** A plan whose own identity pair is on disk but absent from the index — the scan discarded
+   *  it, so the index's silence is not the disk's. */
+  const orphan = doctored(PLAN, [
+    ["slug: 2026-01-15-fixture-design", "slug: 2026-01-15-orphan-plan"],
+  ]);
+  const discarded = doctored(SPEC, [
+    ["slug: 2026-01-15-fixture-design", "slug: 2026-01-15-orphan-plan"],
+  ]);
+  const files = new Map(CLEAN_FILES);
+  files.set("docs/kairos/specs/discarded.md", discarded);
+
+  it("stays silent when the scan discarded a candidate", () => {
+    const judge = judgeOver({ registry: [rowOf("cross-doc-chain")], files, complete: false });
+    expect(judge.judge(inputOf("plan", orphan))).toEqual([]);
+  });
+
+  it("answers the absence over a clean scan", () => {
+    const judge = judgeOver({ registry: [rowOf("cross-doc-chain")], files, complete: true });
+    expect(judge.judge(inputOf("plan", orphan)).map((finding) => finding.kind)).toEqual([
+      "cross-doc-chain",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the absolute link target's one owner
+// ---------------------------------------------------------------------------
+
+describe("the absolute link target", () => {
+  const ABSOLUTE = "/Users/x/spec.md";
+  /** A charter whose Design-spec cell names an existing absolute file — a spelling defect the
+   *  shape face owns, never a missing file. */
+  const absolute = doctored(OVERALL, [
+    ["[spec](docs/kairos/specs/spec.md)", `[spec](${ABSOLUTE})`],
+  ]);
+  const files = new Map(CLEAN_FILES);
+  files.set(ABSOLUTE, SPEC);
+
+  it("is refused by the shape grammar, not probed as a location", () => {
+    expect(LinkTargetShape.of(ABSOLUTE).target).toBeNull();
+    expect(LinkTargetShape.of(ABSOLUTE).reason).toContain("bare relative path");
+    expect(LinkTargetShape.of("../specs/x.md").target).toBe("../specs/x.md");
+  });
+
+  it("is one finding on the shape face and silence on the resolution faces", () => {
+    const kinds = (id: string): readonly string[] =>
+      judgeOver({ registry: [rowOf(id)], files })
+        .judge(inputOf("overall", absolute))
+        .map((finding) => finding.kind);
+    expect(kinds("link-shape")).toEqual(["link-shape"]);
+    expect(kinds("file-existence")).toEqual([]);
+    expect(kinds("sibling-scan")).toEqual([]);
+  });
+});
 
 describe("the proven-closure reading", () => {
   const indexOf = (extra: IndexedDocument): readonly IndexedDocument[] => [extra, ...CLEAN_INDEX];
@@ -1128,6 +1263,43 @@ describe("the four clean fixtures under the shipped table", () => {
 });
 
 // ---------------------------------------------------------------------------
+// the default document world
+// ---------------------------------------------------------------------------
+
+/** One `Documents` with no world injected — the construction the type still invites. */
+const documentsWithoutWorld = (): Documents =>
+  new Documents({
+    readText: (target) => ({ kind: "read-failure", target }),
+    today: "2026-01-15",
+    textWriter: (target) => ({ kind: "written", target }),
+  });
+
+describe("the default document world", () => {
+  it("refuses one no-world finding instead of reading an empty repository", () => {
+    const findings = documentsWithoutWorld().judge(inputOf("plan", PLAN));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("no-world");
+    expect(findings[0]?.field).toBe("world");
+    expect(findings[0]?.severity).toBe("block");
+    expect(findings[0]?.message).toContain("document world");
+  });
+
+  it("judges the same plan clean once the world is injected", () => {
+    const documents = documentsWithoutWorld();
+    expect(documents.judge(inputOf("plan", PLAN)).map((finding) => finding.kind)).toEqual([
+      "no-world",
+    ]);
+    const withWorld = new Documents({
+      readText: (target) => ({ kind: "read-failure", target }),
+      today: "2026-01-15",
+      textWriter: (target) => ({ kind: "written", target }),
+      world: worldOf(),
+    });
+    expect(withWorld.judge(inputOf("plan", PLAN))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // the downgrade note's display face
 // ---------------------------------------------------------------------------
 
@@ -1154,19 +1326,56 @@ describe("the downgrade note", () => {
   it("composes in exactly one place — no second copy under src/", () => {
     const engineRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
     const sourceRoot = path.join(engineRoot, "src");
-    const offenders: string[] = [];
-    for (const file of productFiles(sourceRoot)) {
-      if (file.endsWith(path.join("judging", "criteria.ts"))) continue;
-      const text = readFileSync(file, "utf8");
-      if (
-        /export const (REGRADE_MARK|REGRADE_NOTE_SEPARATOR|regradeNote|displayReason)\b/.test(text)
-      ) {
-        offenders.push(file);
-      }
-    }
-    expect(offenders).toEqual([]);
+    const modules = productFiles(sourceRoot).map((file) => ({
+      rel: path.relative(sourceRoot, file),
+      text: readFileSync(file, "utf8"),
+    }));
+    expect(secondHomesOf(modules)).toEqual([]);
+  });
+
+  it("is red when a render site splices the mark instead of calling the one composition", () => {
+    const spliced = {
+      rel: "run/surface/board.ts",
+      text: 'const note = [REGRADE_MARK, REGRADE_NOTE_SEPARATOR, reason].join("");',
+    };
+    const folded = {
+      rel: "run/surface/capsule.ts",
+      text: 'import { displayReason } from "../../docs/judging/criteria.ts";',
+    };
+    const throughTheOneHome = {
+      rel: "run/surface/board.ts",
+      text: 'import { regradeNote } from "../../docs/judging/criteria.ts";\nconst note = regradeNote(1, reasons);',
+    };
+    const home = { rel: "docs/judging/criteria.ts", text: "export const REGRADE_MARK = `x`;" };
+    const barrel = {
+      rel: "docs/index.ts",
+      text: 'export { REGRADE_MARK, regradeNote } from "./judging/criteria.ts";',
+    };
+    expect(secondHomesOf([spliced, folded])).toEqual([
+      "run/surface/board.ts",
+      "run/surface/capsule.ts",
+    ]);
+    expect(secondHomesOf([throughTheOneHome, home, barrel])).toEqual([]);
   });
 });
+
+/** The note's composition tokens — a product module that mentions one of them builds its own
+ *  copy of the note. `regradeNote` is deliberately absent: it is the ONE entry a render site
+ *  calls, and its callers are not second homes. */
+const NOTE_TOKENS = /\b(REGRADE_MARK|REGRADE_NOTE_SEPARATOR|displayReason)\b/;
+
+/** The two modules allowed to mention those tokens: the ONE home, and the docs barrel that
+ *  re-exports the public surface. Every other product module composes through `regradeNote`. */
+const NOTE_HOMES: ReadonlySet<string> = new Set(["docs/judging/criteria.ts", "docs/index.ts"]);
+
+/** The product modules carrying a second copy of the note's composition — the one-home scan. */
+const secondHomesOf = (
+  modules: readonly { readonly rel: string; readonly text: string }[],
+): readonly string[] =>
+  modules
+    .filter((module) => !NOTE_HOMES.has(module.rel))
+    .filter((module) => NOTE_TOKENS.test(module.text))
+    .map((module) => module.rel);
 
 /** Every non-test TypeScript file under one root — the `src/**` scan basis. */
 const productFiles = (root: string): readonly string[] => {

@@ -69,6 +69,12 @@ export interface DocumentWorld {
   list(directory: RepoPath): readonly string[];
   /** The three doc roots the index scans, by key. */
   roots(): DocRootPaths;
+  /** Whether the scan that produced `documents()` discarded NOTHING — no candidate it could
+   *  not read, and none it indexed without a recognized doc type. An incomplete scan cannot
+   *  answer an absence: what is missing from `documents()` may be sitting on disk, so the
+   *  chain's "no identity document" arm stays silent over it. The composition root fills
+   *  this from its scan's own discard counts; a world that indexes nothing is not complete. */
+  complete(): boolean;
 }
 
 /** The document types that identify a program — every declared type except a plan, whose
@@ -94,14 +100,25 @@ export const docRootNamesOf = (roots: DocRootPaths): string =>
  */
 export class DocumentIndex {
   readonly #documents: readonly IndexedDocument[];
+  /** The scan's completeness fact, carried WITH the document set it qualifies: one scan, one
+   *  index, one answer to "can this index answer an absence?". */
+  readonly #complete: boolean;
 
-  constructor(documents: readonly IndexedDocument[]) {
+  constructor(documents: readonly IndexedDocument[], complete: boolean) {
     this.#documents = [...documents];
+    this.#complete = complete;
   }
 
   /** Every indexed document, in the scan's order. */
   documents(): readonly IndexedDocument[] {
     return this.#documents;
+  }
+
+  /** Whether the scan producing `documents()` discarded nothing — the fact a negative
+   *  identity answer depends on. A caller may assert "carries no identity document" only
+   *  when this is true; over an incomplete index the same fact is undecided, not false. */
+  complete(): boolean {
+    return this.#complete;
   }
 
   /** Every document declaring one slug — 0, 1 or n. */

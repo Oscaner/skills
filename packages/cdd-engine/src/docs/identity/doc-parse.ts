@@ -18,7 +18,9 @@
 //
 // `DocSyntaxError` is the parse face's own rejection: a structural break of a document's
 // OWN grammar carries the anchored field, the message and the fix, so the judgment face
-// materializes a finding from it without re-deriving any of the three from a string.
+// materializes a finding from it without re-deriving any of the three from a string. The
+// class is DECLARED in `grammar/doc-syntax.ts` — the grammar layer is its thrower — and
+// re-exported here, so the parse face and the public surface keep one home for it.
 
 import type { FrontMatter } from "../grammar/frontmatter.ts";
 import type { MarkdownTree } from "../grammar/markdown-tree.ts";
@@ -170,28 +172,8 @@ export interface SingleSpecParsed {
 /** The parsed-document union — one record per document type. */
 export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed | SingleSpecParsed;
 
-/**
- * DocSyntaxError — the document-syntax rejection. A structural break of a document's OWN
- * grammar (a reserved task section declared twice) is a value the judgment face turns
- * into a finding, never a bare `Error` a consumer has to interpret: the anchored field,
- * the message and the fix all ride the rejection.
- */
-export class DocSyntaxError extends Error {
-  /** The anchored field the break sits on. */
-  readonly field: string;
-  /** The one-line message — what is structurally wrong. */
-  readonly detail: string;
-  /** The actionable fix. */
-  readonly fix: string;
-
-  constructor(field: string, detail: string, fix: string) {
-    super(detail);
-    this.name = "DocSyntaxError";
-    this.field = field;
-    this.detail = detail;
-    this.fix = fix;
-  }
-}
+/** The parse face's rejection, re-exported from its one home (`grammar/doc-syntax.ts`). */
+export { DocSyntaxError } from "../grammar/doc-syntax.ts";
 
 /**
  * DocParser — the shared parse base. Invariant: every locating decision comes from the

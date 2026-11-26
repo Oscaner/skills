@@ -1398,11 +1398,7 @@ describe("the downgrade note", () => {
   it("is red when a render site splices the mark instead of calling the one composition", () => {
     const spliced = {
       rel: "run/surface/board.ts",
-      text: 'const note = [REGRADE_MARK, REGRADE_NOTE_SEPARATOR, reason].join("");',
-    };
-    const folded = {
-      rel: "run/surface/capsule.ts",
-      text: 'import { displayReason } from "../../docs/judging/criteria.ts";',
+      text: 'const note = [REGRADE_MARK, reason].join("; ");',
     };
     // The natural way to write one string: no export name is mentioned, the mark's sentence
     // and the separator are spelled into the template — a second home all the same.
@@ -1419,28 +1415,44 @@ describe("the downgrade note", () => {
       rel: "docs/index.ts",
       text: 'export { REGRADE_MARK, regradeNote } from "./judging/criteria.ts";',
     };
-    expect(secondHomesOf([spliced, folded])).toEqual([
-      "run/surface/board.ts",
-      "run/surface/capsule.ts",
-    ]);
+    expect(secondHomesOf([spliced])).toEqual(["run/surface/board.ts"]);
     expect(secondHomesOf([inlined])).toEqual(["run/surface/board.ts"]);
     expect(secondHomesOf([throughTheOneHome, home, barrel])).toEqual([]);
   });
+
+  it("is silent on a face that folds or joins a reason without composing the note", () => {
+    // The board's `notes +M` segment is the CHILD's observations, not the downgrade note: it
+    // joins them with the declared separator and folds each through the one fold. Both
+    // spellings the note is built from, and no note — the composition is not what it writes.
+    const childNotes = {
+      rel: "run/surface/board.ts",
+      text: [
+        'import { displayReason, REGRADE_NOTE_SEPARATOR } from "../docs/judging/criteria.ts";',
+        'const segment = notes.map((row) => REGRADE_NOTE_SEPARATOR + displayReason(row)).join("");',
+      ].join("\n"),
+    };
+    const folded = {
+      rel: "run/surface/capsule.ts",
+      text: 'import { displayReason } from "../../docs/judging/criteria.ts";',
+    };
+    expect(secondHomesOf([childNotes, folded])).toEqual([]);
+  });
 });
 
-/** The note's export names — a product module that mentions one of them builds its own copy
- *  of the composition. `regradeNote` is deliberately absent: it is the ONE entry a render site
- *  calls, and its callers are not second homes. */
-const NOTE_NAMES = /\b(REGRADE_MARK|REGRADE_NOTE_SEPARATOR|displayReason)\b/;
+/** The one name a note composition cannot be built without — the mark's sentence. Only this
+ *  entry is a needle: a module that names it either calls the one composition or builds a
+ *  copy. `regradeNote` is deliberately absent — it is the ONE entry a render site calls, so
+ *  its callers are not second homes. `displayReason` and `REGRADE_NOTE_SEPARATOR` are absent
+ *  for the same reason one step down: they are a FOLD and a JOIN, and faces that are not the
+ *  note write both. The board's `notes +M` segment is the child's observations joined with
+ *  the separator and folded row by row, so those two spellings name no second home. */
+const NOTE_NAMES = /\bREGRADE_MARK\b/;
 
-/** The note's declared VALUES carrying a letter — the mark's sentence names a copy the moment
- *  a module inlines it, which is exactly how a render site writes one string. The separator's
- *  `"; "` carries no letter and is punctuation the whole tree writes, so it names no copy on
- *  its own; both values are read off the one home rather than retyped here, so a change to
- *  the mark moves this scan with it. */
-const NOTE_VALUES: readonly string[] = [REGRADE_MARK, REGRADE_NOTE_SEPARATOR].filter((value) =>
-  /[A-Za-z]/.test(value),
-);
+/** The mark's declared VALUE — the second way a render site writes a copy: no export is named
+ *  and the sentence is spelled into a template. Read off the one home rather than retyped
+ *  here, so a change to the mark moves this scan with it. The separator's `"; "` carries no
+ *  letter and is punctuation the whole tree writes, so it is not a needle (see `NOTE_NAMES`). */
+const NOTE_VALUES: readonly string[] = [REGRADE_MARK].filter((value) => /[A-Za-z]/.test(value));
 
 /** One literal's regex source — the value is matched as the bytes it is, not as a pattern. */
 const literalOf = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

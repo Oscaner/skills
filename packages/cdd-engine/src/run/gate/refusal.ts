@@ -74,9 +74,23 @@ export interface RefusalFacts {
   /** Which row refused — the gate's own row set (nine values), so every refusal names a row
    *  the gate can actually judge. */
   readonly station: PreFlightGateName;
-  /** The row's conclusion as ONE line, never starting with the station word (the station is
-   *  already its own cell). The live verdict's continuation lines describe work this refusal
-   *  did not do, which is not a persistent fact of the tree. */
+  /** The row's conclusion as DATA — ONE line, never led by the station word (the station is
+   *  already its own cell). Three shapes, one per kind of row: the closed reason word when
+   *  the row concludes nothing more specific (`dirty-tree` · `held` · `corrupt-record`),
+   *  otherwise the row's FIRST finding line (`graph` · `plan-ledger` · `doc-contract`),
+   *  otherwise the station's own body. The derivation lives at the ONE assembly point
+   *  (`preflight.ts#PreFlight.#refuse`), so no row spells the cell twice.
+   *
+   *  A record holds the OBSERVATION, never the repair. The sentence a consumer prints for a
+   *  refusal — the "commit or discard … then re-run" instruction, the holder's pid · command
+   *  · started · uptime, the live verdict's continuation lines — describes work this refusal
+   *  did not do, which is not a persistent fact of the tree, and those bytes belong to the
+   *  render face (`surface/words` plus the board), never to this cell. The consequence is
+   *  named where it is decided: the board prints this cell verbatim, so a gate-written
+   *  record reads in the gate's vocabulary, and the holder facts the old seam folded into
+   *  the `in-flight` sentence remain on the board's own `in-flight:` row, which states them
+   *  once already. That is a DECLARED narrowing of one runtime row, carried by the plan's
+   *  task 11 and by the release note — never a silent one. */
   readonly detail: string;
 }
 

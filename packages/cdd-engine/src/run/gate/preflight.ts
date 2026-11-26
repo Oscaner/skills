@@ -52,7 +52,11 @@
 // The refusal record is `./refusal.ts` — one record, two expiry triggers (this gate's own
 // door when the structural leg does not refuse, and `InFlight#release`). Writing it is the
 // ONLY side effect of a refusal; the round is untouched, which is what "a refusal books no
-// round" means mechanically.
+// round" means mechanically. Its `detail` cell follows the same rule as the checked face
+// above — DATA, not bytes: the row's own conclusion in the gate's vocabulary (the closed
+// reason word, else the row's first finding line, else the station's body), derived at the
+// ONE assembly point so no row spells it twice. `RefusalFacts#detail` carries the contract;
+// the sentence any consumer prints is `surface`'s.
 //
 // Module-level exports are types / the declared vocabulary / the class — zero
 // behaviour-carrying bare functions.
@@ -325,8 +329,10 @@ interface RefusalSpec {
   readonly reason?: PreFlightReason;
   readonly details?: readonly string[];
   readonly holding?: InFlightReading;
-  /** The ONE line the record keeps: the refusal's own conclusion, never led by the row. */
-  readonly detail: string;
+  /** The record's conclusion when it is NONE of the three derived shapes — the station rows'
+   *  own body, and nothing else today. Absent everywhere else: `#refuse` derives the cell
+   *  once (`RefusalFacts#detail` states the contract). */
+  readonly detail?: string;
 }
 
 /** The document row's outcome, as the rule rows read it. */
@@ -490,7 +496,6 @@ export class PreFlight {
         : {
             gate: "tree-clean" as const,
             reason: "dirty-tree" as const,
-            detail: "dirty-tree",
           },
     };
   }
@@ -507,9 +512,7 @@ export class PreFlight {
       doc: carried.doc,
       ledger: carried.ledger,
       refusal:
-        reason === null
-          ? null
-          : { gate: "in-flight" as const, reason, detail: reason, holding: ctx.inflight },
+        reason === null ? null : { gate: "in-flight" as const, reason, holding: ctx.inflight },
     };
   }
 
@@ -532,7 +535,6 @@ export class PreFlight {
               gate: "graph" as const,
               reason: "graph" as const,
               details,
-              detail: details[0] ?? "graph",
             },
     };
   }
@@ -562,10 +564,7 @@ export class PreFlight {
       checked: [{ row: "plan-ledger", reading: { kind: "plan-ledger" as const, ahead } }],
       doc: carried.doc,
       ledger: { kind: "judged" as const, findings, ahead },
-      refusal:
-        details.length === 0
-          ? null
-          : { gate: "plan-ledger" as const, details, detail: details[0] ?? "plan-ledger" },
+      refusal: details.length === 0 ? null : { gate: "plan-ledger" as const, details },
     };
   }
 
@@ -606,7 +605,6 @@ export class PreFlight {
               gate: "doc-contract" as const,
               reason: "doc-contract" as const,
               details,
-              detail: details[0] ?? "doc-contract",
             },
     };
   }
@@ -700,9 +698,20 @@ export class PreFlight {
         cycle: ctx.cycle,
         attempt: ctx.attempt,
         station: spec.gate,
-        detail: spec.detail,
+        detail: PreFlight.#detailOf(spec),
       },
     };
+  }
+
+  /** The record's conclusion cell, derived ONCE: the row's first finding line when it has
+   *  one, else the closed reason word, else the station itself. Only a station row supplies
+   *  its own (`RefusalSpec#detail`) — its conclusion is the dispatch face's, not the gate's.
+   *  `RefusalFacts#detail` states the contract this derivation serves. */
+  static #detailOf(spec: RefusalSpec): string {
+    if (spec.detail !== undefined) return spec.detail;
+    const [first] = spec.details ?? [];
+    if (first !== undefined) return first;
+    return spec.reason ?? spec.gate;
   }
 
   /** The checked rows of the declared rule table — one row per declaration, rendered ONCE (a

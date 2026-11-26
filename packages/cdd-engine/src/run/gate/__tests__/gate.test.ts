@@ -10,6 +10,9 @@
 //   · at most one refusal — two refusals leave one fact;
 //   · judging and settling — `vet` writes nothing (a preview leaves a standing record
 //     standing) and `settle` is the ONE write point (approval clears, refusal publishes);
+//   · the record the gate writes — the ONE byte arm: every row group's refusal is settled and
+//     the file on disk is compared cell for cell with the verdict it came from, so the cell
+//     the board renders is judged at its writer and not only at a hand-planted fixture;
 //   · a record the tree refuses — the publish is fail-open: the verdict, its station and the
 //     failure value survive an unwritable root;
 //   · the door's expiry — the door's clear, the read that does not clear, and the idempotent
@@ -293,6 +296,85 @@ const approvedPlanContext = (target: ReturnType<typeof ledgerTarget>): PreFlight
 const rowsLabelled = (verdict: PreFlightVerdict, label: string): readonly CheckedRow[] =>
   verdict.checked.filter((row) => row.row === label);
 
+/** One row group's refusal as the writer's byte arm drives it: the fixture the case needs, the
+ *  dispatch it refuses, and the conclusion cell that row owes the record. */
+interface WrittenRefusal {
+  readonly label: string;
+  readonly fx: ReturnType<typeof fixture>;
+  readonly ctx: PreFlightContext;
+  readonly detail: string;
+}
+
+/** One refused dispatch per row GROUP — each structural leg's conclusion shape (a reason word
+ *  for `tree-clean` / `in-flight`, a finding line for `graph` / `plan-ledger` /
+ *  `doc-contract`) plus a station's own body. The two `in-flight` states are separate rows
+ *  because they are separate words.
+ *
+ *  The expected detail is SPELLED here rather than read back from the gate: a pin that
+ *  derives its own expectation cannot go red. Each string is the byte the plan names for that
+ *  row, so moving the derivation reds exactly one label. */
+const writtenRefusals = (): readonly WrittenRefusal[] => {
+  const clean = fixture({ clean: false });
+  const held = fixture();
+  const corrupt = fixture();
+  const looping = fixture();
+  const disagreeing = fixture();
+  disagreeing.docs.ledger = [finding("residue")];
+  const outOfOrder = fixture();
+  outOfOrder.docs.doc = [finding("section-order")];
+  const station = fixture();
+  return [
+    { label: "tree-clean", fx: clean, ctx: contextOf(), detail: "dirty-tree" },
+    {
+      label: "in-flight (held)",
+      fx: held,
+      ctx: contextOf({ inflight: { kind: "held", pid: 4242, alive: true, targetGone: [] } }),
+      detail: "held",
+    },
+    {
+      label: "in-flight (corrupt record)",
+      fx: corrupt,
+      ctx: contextOf({ inflight: { kind: "corrupt", locked: true } }),
+      detail: "corrupt-record",
+    },
+    {
+      label: "graph",
+      fx: looping,
+      ctx: contextOf({ graph: TaskGraph.parse(planText({ 1: "1", 2: "none" })) }),
+      detail: "self-loop@T1: task 1 depends on itself",
+    },
+    {
+      label: "plan-ledger",
+      fx: disagreeing,
+      ctx: contextOf({
+        planLedger: ledgerTarget({ planTasks: [1, 2], recordedTasks: [], layers: [[1], [2]] }),
+      }),
+      detail: "residue@residue: residue happened",
+    },
+    {
+      label: "doc-contract",
+      fx: outOfOrder,
+      ctx: contextOf({
+        type: "phase-spec",
+        doc: { docKey: "phase-spec", path: DOC_REL, content: "body" },
+        rows: [],
+      }),
+      detail: "section-order@section-order: section-order happened",
+    },
+    {
+      label: "no-host (a station)",
+      fx: station,
+      ctx: contextOf({
+        rows: [
+          { station: "no-host", detail: "no harness detected" },
+          { station: "artifact", detail: "the sidecar is misplaced" },
+        ],
+      }),
+      detail: "no harness detected",
+    },
+  ];
+};
+
 /** The skip reasons in one verdict's checked face. */
 const skipReasons = (verdict: PreFlightVerdict): readonly string[] =>
   verdict.checked.flatMap((row) => (row.reading.kind === "skipped" ? [row.reading.reason] : []));
@@ -522,6 +604,44 @@ describe("judging and settling", () => {
     expect(refusal.readRaw()).toEqual({ kind: "absent" });
     expect(gate.settle(verdict)?.kind).toBe("published");
     expect(refusal.readRaw().kind).toBe("standing");
+  });
+});
+
+describe("the record the gate writes", () => {
+  it("lands the cells the verdict carried, and every row's conclusion is its own", async () => {
+    for (const { label, fx, ctx, detail } of writtenRefusals()) {
+      const verdict = await fx.gate.vet(ctx);
+      expect(verdict.ok, label).toBe(false);
+      // The cell is the row's own conclusion in the gate's vocabulary — a reason word, the
+      // row's first finding line, or the station's body — never a rendered sentence.
+      expect(verdict.record?.detail, label).toBe(detail);
+      expect(fx.gate.settle(verdict)?.kind, label).toBe("published");
+
+      // Read the WRITER's byte, not the reader's value: the record on disk is what a later
+      // board renders, so the cell under judgment is the file's own.
+      const text = readFileSync(path.join(fx.root.path, Refusal.FILE), "utf8");
+      const facts = JSON.parse(text) as Record<string, unknown>;
+      expect(text, label).toBe(`${JSON.stringify(facts, null, 2)}\n`);
+
+      // Eight cells, one record, and the verdict's own record is what landed.
+      expect(Object.keys(facts).sort(), label).toEqual([
+        "at",
+        "attempt",
+        "cycle",
+        "detail",
+        "op",
+        "slug",
+        "station",
+        "type",
+      ]);
+      expect(facts, label).toEqual({ at: fx.clock.isoOf(FIXED_NOW), ...verdict.record });
+
+      // ONE line, and never opened by the station word: the station is already its own cell,
+      // so a sentence (or a row led by the station) would be the second spelling this cell
+      // exists to prevent.
+      expect(String(facts.detail).includes("\n"), label).toBe(false);
+      expect(String(facts.detail).startsWith(String(facts.station)), label).toBe(false);
+    }
   });
 });
 

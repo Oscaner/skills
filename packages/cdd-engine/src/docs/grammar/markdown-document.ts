@@ -29,6 +29,7 @@ import type {
   MdNode,
   SectionNode,
   TableRecord,
+  TableRow,
 } from "./types.ts";
 
 /**
@@ -41,6 +42,12 @@ import type {
  * without removing a single variation.
  */
 export class MarkdownDocument {
+  /** A line shaped like a table row (`| a | b |`) — a detached run's row face. */
+  static readonly DETACHED_ROW = /^\|.*\|$/;
+
+  /** A GFM delimiter row (`|---|---|`) — a row separator, never a data row. */
+  static readonly DELIMITER_ROW = /^\|?[\s:|-]*-[\s:|-]*\|?$/;
+
   /** The document's raw lines (1-based line n is index n-1). */
   readonly #lines: readonly string[];
   /** The mdast root. */
@@ -131,7 +138,8 @@ export class MarkdownDocument {
     return this.#frontMatterKeys;
   }
 
-  /** Every GFM table of the document, in document order. A table-like shape inside a
+  /** Every table of the document, in document order — the mdast GFM tables plus the
+   *  headerless records a blank line detaches from them. A table-like shape inside a
    *  fenced block is sample prose and appears in no record. */
   tables(): readonly TableRecord[] {
     return this.#tables;
@@ -216,10 +224,16 @@ export class MarkdownDocument {
     return out;
   }
 
-  /** The GFM tables, in document order — each row's cells read off the cell's own
-   *  source span, so an escaped `\|` and a backticked pipe stay inside their cell. */
+  /** The GFM tables PLUS the headerless runs a blank line detaches, in document order —
+   *  each row's cells read off the cell's own source span, so an escaped `\|` and a
+   *  backticked pipe stay inside their cell. A GFM table ends at a blank line and a
+   *  continuation run carries no delimiter row, so mdast reads the run as a paragraph and
+   *  the table's tail rows would be lost; a SECTION span is the table's real boundary
+   *  (the repository's own Phase / Issue inventories are written this way), so the run is
+   *  recovered here — on the face every table consumer reads — and never in one consumer's
+   *  own read. */
   #tablesOf(): readonly TableRecord[] {
-    const out: TableRecord[] = [];
+    const headed: TableRecord[] = [];
     for (const node of this.collect("table")) {
       const span = MarkdownDocument.spanOf(node);
       if (span === null) continue;
@@ -227,9 +241,78 @@ export class MarkdownDocument {
         .map((row) => this.#rowOf(row))
         .filter((row): row is NonNullable<typeof row> => row !== null);
       const [header, ...body] = rows;
-      out.push({ header: header ?? null, body, from: span.start, to: span.end });
+      headed.push({ header: header ?? null, body, from: span.start, to: span.end });
+    }
+    return [...headed, ...this.#detachedTablesOf(headed)].sort(
+      (left, right) => left.from - right.from,
+    );
+  }
+
+  /** The headerless records a blank line detaches from a table — one record per run of
+   *  bare `| a | b |` rows, bounded by the rank-2 section it sits in. A line an mdast table
+   *  spans is skipped (no row is read twice) and a line a fenced block covers is skipped (a
+   *  table shape shown as sample prose is never data); a line that is not a row ends the
+   *  run. */
+  #detachedTablesOf(tables: readonly TableRecord[]): readonly TableRecord[] {
+    const out: TableRecord[] = [];
+    const inTableSpan = (line: number): boolean =>
+      tables.some((table) => line >= table.from && line <= table.to);
+    for (const [index, heading] of this.#headings.entries()) {
+      if (heading.depth !== 2) continue;
+      const end = MarkdownDocument.#sectionEnd(this.#headings, index, this.#lines.length);
+      let run: TableRow[] = [];
+      const flush = (): void => {
+        const first = run[0];
+        const last = run[run.length - 1];
+        if (first === undefined || last === undefined) return;
+        out.push({ header: null, body: run, from: first.from, to: last.to });
+        run = [];
+      };
+      for (let line = heading.line + 1; line <= end; line += 1) {
+        const text = this.line(line).trim();
+        if (
+          inTableSpan(line) ||
+          this.#codeLines.has(line) ||
+          !MarkdownDocument.DETACHED_ROW.test(text)
+        ) {
+          flush();
+          continue;
+        }
+        if (MarkdownDocument.DELIMITER_ROW.test(text)) continue;
+        run.push({ cells: MarkdownDocument.#cellsOfDetachedRow(text), line, from: line, to: line });
+      }
+      flush();
     }
     return out;
+  }
+
+  /** One detached row's cells — split on the unescaped `|` delimiters (a `\|` stays inside
+   *  its cell), the outer pipes stripped. The mdast-span cell read above cannot answer
+   *  this: a detached run carries no mdast node to take a span from. */
+  static #cellsOfDetachedRow(text: string): readonly string[] {
+    const cells: string[] = [];
+    let current = "";
+    let escaped = false;
+    for (const character of text.replace(/^\|/, "").replace(/\|$/, "")) {
+      if (escaped) {
+        current += character;
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        current += character;
+        continue;
+      }
+      if (character !== "|") {
+        current += character;
+        continue;
+      }
+      cells.push(current);
+      current = "";
+    }
+    cells.push(current);
+    return cells.map((cell) => cell.replace(/\\\|/g, "|").trim());
   }
 
   /** One table row's cells. */

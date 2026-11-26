@@ -96,6 +96,31 @@ const PLAN = [
   "",
 ].join("\n");
 
+/** A document whose inventory is SPLIT by an interior blank line — the shape the
+ *  repository's own Phase / Issue inventories are written in — plus a fenced sample that
+ *  shows the row shape and is therefore never data. */
+const SPLIT = [
+  "# Overall",
+  "",
+  "## Issue inventory",
+  "| Phase | Issue (ref) | Title summary |",
+  "| --- | --- | --- |",
+  "| P1 | none | first |",
+  "",
+  "| P2 | none | second |",
+  "```",
+  "| P9 | none | sample prose |",
+  "```",
+  "| P3 | none | escaped \\| pipe |",
+  "| P4 | none | fourth |",
+  "",
+  "## Change history",
+  "| Version | date |",
+  "| --- | --- |",
+  "| v0.1 | 2026-01-01 |",
+  "",
+].join("\n");
+
 /** A fake reader over one fixed text. */
 const readerOf = (text: string) => {
   return (target: RepoPath) => ({ kind: "text" as const, target, value: text });
@@ -135,6 +160,32 @@ describe("the document index", () => {
     const index = MarkdownDocument.parse(DOC);
     expect(index.bareOf(10)).not.toContain("`the-anchor`");
     expect(index.line(10)).toContain("`the-anchor`");
+  });
+
+  it("recovers the rows a blank line detaches as headerless records on the face every consumer reads", () => {
+    // A GFM table ends at a blank line and a continuation run carries no delimiter row, so
+    // mdast reads the run as a paragraph; the section span is the table's real boundary.
+    // The recovery lives HERE, on the index every table consumer reads, so a second
+    // consumer cannot inherit the short table.
+    const index = MarkdownDocument.parse(SPLIT);
+    const records = index.tables();
+    expect(records.map((table) => table.header === null)).toEqual([false, true, true, false]);
+    // The section's whole row set, in document order, as any consumer of `tables()` sees it.
+    expect(records.flatMap((table) => table.body.map((row) => row.cells))).toEqual([
+      ["P1", "none", "first"],
+      ["P2", "none", "second"],
+      ["P3", "none", "escaped | pipe"],
+      ["P4", "none", "fourth"],
+      ["v0.1", "2026-01-01"],
+    ]);
+    // The fenced sample that shows the row shape is prose, never a row.
+    expect(records.flatMap((table) => table.body.flatMap((row) => row.cells))).not.toContain(
+      "sample prose",
+    );
+    // A detached record's span covers the run's own lines, so a scope test above it still
+    // finds every one of its rows.
+    expect(records[2]?.from).toBe(12);
+    expect(records[2]?.to).toBe(13);
   });
 });
 

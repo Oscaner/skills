@@ -1,11 +1,19 @@
 // packages/cdd-engine/src-next/__tests__/zero-dep.test.ts
 // P3.2 zero-dependency guard (T1 → cutover): during the two-tree coexistence window the
 // old tree (src) and the new tree (src-next) had to stay mutually import-free. The
-// cutover (T15) deleted the old tree — the guard now pins the post-cutover terminal
-// state: the retired planes of this package (the src and config planes) are absent from
-// disk, and no src-next module specifier may address them (a dangling reference into a
-// deleted plane is a hard violation of the plan's zero-residue constraint). The two-way
-// scan becomes one-way: src-next is the only live plane left.
+// cutover (T15) deleted the old tree — the guard pins the post-cutover terminal state: a
+// retired plane of this package is absent from disk, and no src-next module specifier may
+// address a retired plane (a dangling reference into a deleted plane is a hard violation
+// of the plan's zero-residue constraint). The two-way scan becomes one-way: src-next is
+// the only live plane left.
+//
+// One leg of the terminal pin is retired, and only that leg. The pin claimed the planes
+// named `src` and `config` are gone from the package root; P39 rebuilds a tree under the
+// `src` name, so that premise is the phase's own work and keeping it would red the build
+// for doing it. `config` stays absent — nothing recreates it — and so does the specifier
+// scan below: a src-next module reaching into `src/` is a violation whether or not that
+// directory exists. That scan, plus src/__tests__/tree-separation.test.ts, is what keeps
+// the two trees apart while they coexist.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -20,7 +28,10 @@ const PKG_ROOT = fileURLToPath(new URL("../../", import.meta.url)); // packages/
 // The bare dirnames (no trailing slash — a slash-prefixed form would itself trip the
 // cutover's zero-residue grep) are the only retired-plane tokens the guard names.
 type RetiredPlane = "src" | "config";
-const RETIRED_PLANES: readonly RetiredPlane[] = ["src", "config"];
+// The terminal pin's roster: the retired planes that must be absent from the package root.
+// `src` is deliberately not in it — P39 rebuilds that tree — while the discriminant above
+// keeps the name, so the specifier scan below still refuses a src-next reach into `src/`.
+const RETIRED_PLANES: readonly RetiredPlane[] = ["config"];
 
 /** Which retired plane a first path segment names, or null. */
 const retiredBySegment = (head: string | undefined): RetiredPlane | null =>
@@ -70,7 +81,7 @@ const addressedRetiredPlane = (specifier: string, importer: string): RetiredPlan
   return retiredByResolved(resolved);
 };
 
-it("the retired src and config planes are deleted from the package (the cutover terminal pin)", () => {
+it("the retired config plane is deleted from the package (the cutover terminal pin)", () => {
   const entries = readdirSync(PKG_ROOT);
   for (const name of RETIRED_PLANES) {
     expect(entries, `deleted plane ${name} must be absent from the package root`).not.toContain(

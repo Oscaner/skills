@@ -1,8 +1,9 @@
 // packages/cdd-engine/src/run/dispatch/__tests__/dispatch.test.ts
 // The dispatch segment's pins, one group per fact the segment owns:
 //
-//   · the occupancy — zero records before the child exists and no residue after it ends,
-//     whatever way the body ended (a failed spawn, a throwing body);
+//   · the occupancy — zero records before the child exists, no residue after a normal
+//     ending, and the record standing after an abnormal one (a cut-short round, a throwing
+//     body);
 //   · the record's three states — absent · held · corrupt, and a corrupt record with no
 //     lock behind it being displaced by the next acquisition;
 //   · the record's start instant — the process table's answer, the injected clock's only as
@@ -50,10 +51,11 @@ import { Lock } from "../../../env/process/lock.ts";
 import { WorkspaceRoot } from "../../../env/workspace/workspace.ts";
 import { PreFlight } from "../../gate/preflight.ts";
 import { Refusal } from "../../gate/refusal.ts";
+import { WORKSPACE_ARTIFACTS } from "../../ledger/artifacts.ts";
 import { Ledger } from "../../ledger/ledger.ts";
-import { BUDGET, Child, type DispatchFrame, ROUND_PHASES } from "../child.ts";
+import { BUDGET, Child, type DispatchFrame, type DispatchOutcome, ROUND_PHASES } from "../child.ts";
 import { CONTRACT_VIOLATION, Handoff, type RoundFinding } from "../handoff.ts";
-import { InFlight, type InFlightRecord, TARGET_FACTS } from "../inflight.ts";
+import { InFlight, type InFlightRecord, type RoundEnding, TARGET_FACTS } from "../inflight.ts";
 import {
   CpuAdvance,
   LIVENESS_SIGNALS,
@@ -109,6 +111,15 @@ const childOutcome = (over: Partial<ChildOutcome> = {}): ChildOutcome => ({
   facts: { overBudget: false, stopped: false, signal: null },
   ...over,
 });
+
+/** The ending judgment the dispatch face reads off an outcome — the rule T13 wires as the
+ *  caller of `occupy`: a round the engine CONCLUDED (the child exited on its own, or the
+ *  spawn never produced a process) removes the record, while a cut-short round keeps it as
+ *  the postmortem fact. */
+const endingOf = (outcome: DispatchOutcome): RoundEnding =>
+  outcome.termination !== null || (outcome.code !== null && outcome.code !== 0)
+    ? "abnormal"
+    : "normal";
 
 /** A scripted child seam — the ONE spawn point, stubbed per case. */
 class StubRunner implements ChildRunner {
@@ -268,27 +279,33 @@ afterEach(() => {
   }
 });
 
-describe("the occupancy — zero records before the child exists, no residue after it ends", () => {
-  it("publishes nothing until the child is dispatched, and removes the record at the end", async () => {
+describe("the occupancy — zero records before the child exists, no residue after a normal ending", () => {
+  it("publishes nothing until the child is dispatched, and the normal end removes the record", async () => {
     const { inflight, child, frame, record } = fixture();
     expect(existsSync(inflight.path())).toBe(false);
     const seen: string[] = [];
-    const occupancy = await inflight.occupy(record, async () => {
-      seen.push((await inflight.inspect()).kind);
-      return child.dispatch(frame);
-    });
+    const occupancy = await inflight.occupy(
+      record,
+      async () => {
+        seen.push((await inflight.inspect()).kind);
+        return child.dispatch(frame);
+      },
+      { ending: endingOf },
+    );
     expect(occupancy.kind).toBe("ran");
     expect(seen).toEqual(["held"]);
-    // No residue: neither the record nor the lock carrier survives the release.
+    // No residue: neither the record nor the lock carrier survives the normal ending.
     expect(existsSync(inflight.path())).toBe(false);
     expect(existsSync(Lock.carrierOf(inflight.path()))).toBe(false);
     expect((await inflight.inspect()).kind).toBe("absent");
   });
 
-  it("leaves no residue when the spawn fails at once", async () => {
+  it("leaves no residue when the spawn never produced a child — there is nothing to post-mortem", async () => {
     const runner = new StubRunner(async () => childOutcome({ code: null, stderr: "ENOENT" }));
     const { inflight, child, frame, record } = fixture({ runner });
-    const occupancy = await inflight.occupy(record, () => child.dispatch(frame));
+    const occupancy = await inflight.occupy(record, () => child.dispatch(frame), {
+      ending: endingOf,
+    });
     if (occupancy.kind !== "ran") throw new Error("the occupancy was refused");
     expect(occupancy.value.code).toBeNull();
     expect(occupancy.value.termination).toBeNull();
@@ -296,14 +313,69 @@ describe("the occupancy — zero records before the child exists, no residue aft
     expect(existsSync(Lock.carrierOf(inflight.path()))).toBe(false);
   });
 
-  it("releases the record when the body throws — the invariant survives a failure of our own", async () => {
+  it("keeps the record when the child is cut short, and drops the lock alone", async () => {
+    const runner = new StubRunner(async () =>
+      childOutcome({
+        code: null,
+        facts: { overBudget: false, stopped: true, signal: "SIGTERM" },
+      }),
+    );
+    const { inflight, child, frame, record } = fixture({ runner });
+    const occupancy = await inflight.occupy(record, () => child.dispatch(frame), {
+      ending: endingOf,
+    });
+    if (occupancy.kind !== "ran") throw new Error("the occupancy was refused");
+    expect(occupancy.value.termination).toBe("stalled");
+    expect(occupancy.value.code).toBeNull();
+    // The postmortem fact: the record stands, with the cells the two shipped readers need
+    // (the board's `in-flight:` row and the `--recover` abort fold).
+    const state = await inflight.inspect();
+    expect(state.kind).toBe("held");
+    if (state.kind !== "held") return;
+    expect(state.record.pid).toBe(process.pid);
+    expect(state.record.slug).toBe(SLUG);
+    expect(state.record.cycle).toBe(1);
+    expect(state.record.attempt).toBe(1);
+    // …while the lock, which is only mutual exclusion, is gone: no handle outlives its round.
+    expect(existsSync(Lock.carrierOf(inflight.path()))).toBe(false);
+  });
+
+  it("keeps the record when the body throws — and still drops the lock", async () => {
     const { inflight, record } = fixture();
     await expect(
-      inflight.occupy(record, async () => {
-        throw new Error("the body failed");
-      }),
+      inflight.occupy(
+        record,
+        async () => {
+          throw new Error("the body failed");
+        },
+        { ending: endingOf },
+      ),
     ).rejects.toThrow("the body failed");
-    expect(existsSync(inflight.path())).toBe(false);
+    // An ending nobody judged is the abnormal one: the record is the only fact left behind.
+    expect(existsSync(inflight.path())).toBe(true);
+    expect(existsSync(Lock.carrierOf(inflight.path()))).toBe(false);
+    expect((await inflight.inspect()).kind).toBe("held");
+  });
+
+  it("expires no refusal fact on the abnormal ending — only the normal end invalidates it", async () => {
+    const runner = new StubRunner(async () => childOutcome({ code: 137 }));
+    const { inflight, child, frame, record, refusal } = fixture({ runner });
+    refusal.write({
+      slug: SLUG,
+      op: "implement",
+      type: "wave",
+      cycle: 1,
+      attempt: 1,
+      station: "in-flight",
+      detail: "the tree refused",
+    });
+    const occupancy = await inflight.occupy(record, () => child.dispatch(frame), {
+      ending: endingOf,
+    });
+    if (occupancy.kind !== "ran") throw new Error("the occupancy was refused");
+    expect(occupancy.value.code).toBe(137);
+    expect(existsSync(inflight.path())).toBe(true);
+    expect(refusal.readRaw().kind).toBe("standing");
   });
 
   it("refuses to enter a tree a live holder occupies — the body never runs", async () => {
@@ -311,10 +383,14 @@ describe("the occupancy — zero records before the child exists, no residue aft
     const first = await inflight.acquire(record);
     expect(first.kind).toBe("acquired");
     let ran = false;
-    const refused = await inflight.occupy({ ...record, pid: process.pid + 1 }, async () => {
-      ran = true;
-      return "never";
-    });
+    const refused = await inflight.occupy(
+      { ...record, pid: process.pid + 1 },
+      async () => {
+        ran = true;
+        return "never";
+      },
+      { ending: () => "normal" },
+    );
     expect(refused.kind).toBe("held");
     expect(ran).toBe(false);
     await inflight.release();
@@ -374,18 +450,12 @@ describe("the record's three states", () => {
     await inflight.release();
   });
 
-  it("keeps the record's name in one home", () => {
-    // The tree-level name is this segment's fact; a second spelling under `src/` would be a
-    // second writer of the same file.
-    const hits: string[] = [];
-    for (const entry of readdirSync(SRC_DIR, { recursive: true, withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
-      const file = path.join(entry.parentPath, entry.name);
-      if (file === path.join(DISPATCH_DIR, "inflight.ts")) continue;
-      if (entry.parentPath.includes("__tests__")) continue;
-      if (readFileSync(file, "utf8").includes(InFlight.FILE)) hits.push(file);
-    }
-    expect(hits).toEqual([]);
+  it("takes the record's name from the artifact matrix, not a second spelling", () => {
+    // One home for a tree-level name: the matrix row IS the name, and the record's own
+    // constant is derived from it — a rename in the matrix moves the record with it.
+    expect(InFlight.FILE).toBe(WORKSPACE_ARTIFACTS.inFlight);
+    const names = Object.values(WORKSPACE_ARTIFACTS);
+    expect(new Set(names).size).toBe(names.length);
   });
 });
 
@@ -472,6 +542,36 @@ describe("the handoff read-back", () => {
     // …and the cause is not one of the three termination causes: those name cut-short
     // rounds, and none of them describes a draft's shape.
     expect(["over-budget", "stalled", "signal"]).not.toContain(CONTRACT_VIOLATION);
+  });
+
+  it("drops a decorative slot's mismatch and keeps the draft compliant", () => {
+    // Declared but not owed: a wrong value costs a field, never a round. The work plane's
+    // `notes` holding a string, and the judge plane's `artifacts` holding a list.
+    const work = Handoff.read('{"status":"APPROVED","artifacts":{},"notes":"none"}', "work");
+    expect(work.kind).toBe("compliant");
+    if (work.kind !== "compliant") return;
+    expect(work.dropped).toEqual(["notes"]);
+    expect(Handoff.violationOf(work)).toBeNull();
+    const judge = Handoff.read('{"findings":[],"artifacts":["notes.md"]}', "judge");
+    expect(judge.kind).toBe("compliant");
+    if (judge.kind !== "compliant") return;
+    expect(judge.dropped).toEqual(["artifacts"]);
+    // A bad ROW inside a decorative slot prunes the whole slot, reported once under the
+    // slot's own path — the materialize face drops everything the slot booked.
+    const rows = Handoff.read('{"findings":[],"notes":["ok",3]}', "judge");
+    expect(rows.kind).toBe("compliant");
+    if (rows.kind !== "compliant") return;
+    expect(rows.dropped).toEqual(["notes"]);
+  });
+
+  it("refuses an owed slot's mismatch — the refusal face is as wide as what the child owes", () => {
+    const read = Handoff.read('{"status":"DONE","artifacts":{},"notes":"none"}', "work");
+    expect(read.kind).toBe("breached");
+    if (read.kind !== "breached") return;
+    expect(read.problems).toEqual(["status: must be one of APPROVED | BLOCKED"]);
+    // The decorative slot is reported in the same read — as a drop, beside the refusal.
+    expect(read.dropped).toEqual(["notes"]);
+    expect(Handoff.violationOf(read)?.cause).toBe(CONTRACT_VIOLATION);
   });
 
   it("accepts a compliant draft and reads its findings", () => {

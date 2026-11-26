@@ -12,8 +12,10 @@
 //      carrier plane is `work` / `judge`, derived from the verb — never a per-family
 //      declaration);
 //   ④ the read-back and the writer judge the same fields the same way: a draft carrying
-//      every declared slot passes, an extra child slot is accepted and dropped rather than
-//      refused, and a missing REQUIRED slot is the one shape that refuses.
+//      every declared slot passes, an extra child slot is accepted (and dropped by the
+//      writer, which never walked it), an OWED slot's mismatch is the one shape that
+//      refuses, and a DECORATIVE slot's mismatch is dropped in place — a wrong value costs
+//      a field, never a round.
 //
 // The scan drops comments and the test plane: prose may name a retired symbol, code may
 // not. Zero module-level bare functions — the helpers below are `const` arrows.
@@ -76,13 +78,26 @@ describe("the handoff plane's declaration", () => {
     });
     const read = Handoff.read(workDraft, "work");
     expect(read.kind).toBe("compliant");
-    // An extra child slot is DROPPED by the writer, so the read-back accepts it too.
+    if (read.kind !== "compliant") return;
+    expect(read.dropped).toEqual([]);
+    // An extra child slot is not declared on this plane, so the walk never judges it and the
+    // writer drops it: the read-back accepts it with nothing to report.
     const extra = Handoff.read(
       `${JSON.stringify({ status: "APPROVED", artifacts: {}, findings: [] })}`,
       "work",
     );
     expect(extra.kind).toBe("compliant");
-    // …while a missing required slot is the one shape that refuses.
+    if (extra.kind !== "compliant") return;
+    expect(extra.dropped).toEqual([]);
+    // A DECORATIVE slot's mismatch is dropped in place — the draft still passes.
+    const decorative = Handoff.read(
+      `${JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: [] })}`,
+      "work",
+    );
+    expect(decorative.kind).toBe("compliant");
+    if (decorative.kind !== "compliant") return;
+    expect(decorative.dropped).toEqual(["dispositions"]);
+    // …while an OWED slot's mismatch is the one shape that refuses.
     const missing = Handoff.read("{}", "work");
     expect(missing.kind).toBe("breached");
     if (missing.kind !== "breached") return;

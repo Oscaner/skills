@@ -76,7 +76,7 @@ const OWNED_SENTENCES = (): readonly string[] => [
   WORDS.inFlight.corruptLocked,
   WORDS.checked.skipped["no-doc-target"],
   WORDS.checked.skipped["no-ledger-facts"],
-  WORDS.board.facts.unowned,
+  WORDS.board.facts.orphan.unowned,
   WORDS.board.titles.waveBoard,
   WORDS.refusal.corrupt,
   WORDS.summary.fixDispositions,
@@ -192,7 +192,7 @@ describe("one spelling only", () => {
   it("sees a second copy when there is one — the scan cannot pass on a spelling mismatch", () => {
     // The red arm: the very sentence, written into a renderer the way a hand-rolled board
     // would. The scan reads the code (comments are blanked), so a quoted literal is a hit.
-    const sentence = WORDS.board.facts.unowned;
+    const sentence = WORDS.board.facts.orphan.unowned;
     const renderer = [
       { path: "surface/render/board.ts", text: `rows.push(\`  orphan: \${name} — ${sentence}\`);` },
     ];
@@ -221,15 +221,33 @@ describe("one spelling only", () => {
 
 describe("the board's fact block and artifact rows", () => {
   it("reads every label of the tree fact block", () => {
-    expect(WORDS.board.facts).toEqual({
-      orphan: "orphan:",
-      crashed: "crashed:",
-      unowned: "no recorded round owns it",
-      separator: " · ",
-    });
+    expect(WORDS.board.facts.orphan.label).toBe("orphan:");
+    expect(WORDS.board.facts.orphan.unowned).toBe("no recorded round owns it");
+    expect(WORDS.board.facts.crashed.label).toBe("crashed:");
     expect(WORDS.board.reads.label).toBe("reads:");
     expect(WORDS.board.reads.orphanDrafts).toBe(" · orphan drafts: ");
-    expect(WORDS.board.reads.join).toBe(WORDS.board.facts.separator);
+    expect(WORDS.board.reads.join).toBe(" · ");
+  });
+
+  it("composes each row with its OWN join — the two shipped lines, byte for byte", () => {
+    // The two rows do not share a join: the orphan row separates its name from the sentence
+    // with an em dash, the crashed row joins its tokens with a middle dot. A table holding
+    // one join for both would render one of these two lines wrong.
+    const { orphan, crashed } = WORDS.board.facts;
+    expect(orphan.join).toBe(" — ");
+    expect(crashed.join).toBe(" · ");
+    const orphanRow = (name: string): string =>
+      `  ${orphan.label} ${name}${orphan.join}${orphan.unowned}`;
+    expect(orphanRow("tasks-1-1.json")).toBe(
+      "  orphan: tasks-1-1.json — no recorded round owns it",
+    );
+    const crashedRow = (tokens: readonly string[]): string =>
+      `  ${crashed.label} ${tokens.join(crashed.join)}`;
+    expect(crashedRow(["implement 1·a1 child-exit", "review 2·a1 stalled"])).toBe(
+      "  crashed: implement 1·a1 child-exit · review 2·a1 stalled",
+    );
+    // Zero crashed rounds render no line at all — the row is absent, never an empty label.
+    expect(crashedRow([])).toBe("  crashed: ");
   });
 
   it("reads the `art:` label and its four state words", () => {
@@ -261,6 +279,7 @@ describe("the board's fact block and artifact rows", () => {
   it("casts the artifact coordinate and the row's joins once", () => {
     expect(WORDS.artifacts.coordinate).toBe("c{cycle}·a{attempt}");
     expect(WORDS.artifacts.join).toBe(WORDS.capsule.separator);
+    expect(WORDS.board.facts.crashed.join).toBe(WORDS.capsule.separator);
     expect(WORDS.artifacts.gap).toBe("   ");
     expect(WORDS.artifacts.anomalyPrefix).toBe("! ");
   });

@@ -16,10 +16,11 @@
 // place a carrier name is parsed. A second grammar kept beside the renderer would be the
 // second spelling the ledger's invariant forbids.
 //
-// Not every artifact is a round's. The tree-level records — the refusal fact today, other
-// workspace-domain names as they land — belong to no coordinate, so they live in their own
-// table (`WORKSPACE_ARTIFACTS`) rather than as a kind rendered from a fabricated round: one
-// table, one spelling per name, and every tree-level reader derives its path from it.
+// Not every artifact is a round's. The tree-level records — the refusal fact and the
+// in-flight record, other workspace-domain names as they land — belong to no coordinate, so
+// they live in their own table (`WORKSPACE_ARTIFACTS`) rather than as a kind rendered from a
+// fabricated round: one table, one spelling per name, and every tree-level reader derives
+// its path from it.
 
 import {
   RoundIdentity as Identity,
@@ -48,6 +49,8 @@ export const ARTIFACT_KINDS = [
 export const WORKSPACE_ARTIFACTS = {
   /** The tree's one standing refusal fact (`run/gate/refusal.ts#Refusal`). */
   refusal: "refusal.json",
+  /** The tree's one occupancy record (`run/dispatch/inflight.ts#InFlight`). */
+  inFlight: "in-flight.json",
 } as const;
 
 /** The workspace-level artifact names, as a closed set. */

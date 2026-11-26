@@ -216,16 +216,26 @@ export interface InFlightWords {
 // board
 // ---------------------------------------------------------------------------
 
-/** The tree fact block and the preview's read row. */
+/** One tree-fact row of the board — its label and the join between its own cells. */
+export interface BoardFactRowWords {
+  /** The row's label, colon included (`orphan:`). */
+  readonly label: string;
+  /** The join between THIS row's cells. */
+  readonly join: string;
+}
+
+/** The tree fact block. The two rows do NOT share a join — the orphan row separates its
+ *  name from the sentence with an em dash and the crashed row joins its tokens with a
+ *  middle dot — so each row declares its own byte. One join for both would change one of
+ *  the two shipped board lines. */
 export interface BoardFactWords {
-  /** The orphan-draft row's label. */
-  readonly orphan: string;
-  /** The crashed-round row's label. */
-  readonly crashed: string;
-  /** The sentence an orphan draft's row ends with. */
-  readonly unowned: string;
-  /** The cell separator inside both rows. */
-  readonly separator: string;
+  /** `orphan: {name} — no recorded round owns it`. */
+  readonly orphan: BoardFactRowWords & {
+    /** The sentence an orphan draft's row ends with. */
+    readonly unowned: string;
+  };
+  /** `crashed: {token} · {token}`. */
+  readonly crashed: BoardFactRowWords;
 }
 
 /** The board's progress vocabulary — the glyphs, the two scopes and the two legend tails. */
@@ -421,10 +431,12 @@ export const WORDS = {
       },
     },
     facts: {
-      orphan: "orphan:",
-      crashed: "crashed:",
-      unowned: "no recorded round owns it",
-      separator: " · ",
+      /** The orphan row's join is an em dash — the record has no round, so the name and the
+       *  sentence are not two list cells. */
+      orphan: { label: "orphan:", join: " — ", unowned: "no recorded round owns it" },
+      /** The crashed row joins its round tokens with a middle dot (a cause stays
+       *  space-separated inside a token, so the join never splits one). */
+      crashed: { label: "crashed:", join: " · " },
     },
     reads: { label: "reads:", orphanDrafts: " · orphan drafts: ", join: " · " },
   },

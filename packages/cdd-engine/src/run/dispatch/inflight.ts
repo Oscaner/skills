@@ -18,13 +18,19 @@
 // failed lock leaves the record's bytes untouched: a challenger never overwrites a live
 // holder's facts.
 //
-// No exit path removes the record — a crash, a kill and a timeout all leave it behind as
-// the postmortem fact. `release()` (the normal end) is the one removal point besides the
-// explicit takeover, and it also expires the tree-level refusal fact a finished tree can
-// no longer justify: the criterion is the STATION NAME, so only a `standing` record whose
-// station is `in-flight` is cleared — a refusal about another row belongs to another
-// occasion, and a corrupt record is left where it is (deleting a fact whose station cannot
-// be read is a judgment about a fact nobody could read).
+// TWO ENDINGS, and the CALLER names which one a round got — this segment judges no round.
+// The NORMAL end (`release`) removes the record, drops the lock and expires the tree-level
+// refusal fact a finished tree can no longer justify; the ABNORMAL end (a non-zero child
+// exit, a kill, a timeout, an uncaught throw) drops the lock ALONE and leaves the record
+// standing as the postmortem fact both shipped readers need — the board's `in-flight:` row
+// names the dead holder and the `--recover` fold books the killed round from the record's
+// own cycle / attempt / dispatch base. No ending may leave the lock carrier behind: a
+// handle that outlived its round holds a carrier nothing will release.
+//
+// `release`'s expiry criterion is the STATION NAME: only a `standing` record whose station
+// is `in-flight` is cleared — a refusal about another row belongs to another occasion, and
+// a corrupt record is left where it is (deleting a fact whose station cannot be read is a
+// judgment about a fact nobody could read).
 //
 // The start instant is read from the process table and falls back to the injected
 // `Clock`: the pid's own start time is what the pid-reuse guard compares, so a record
@@ -42,12 +48,7 @@ import { ProcessFacts } from "../../env/process/proc.ts";
 import { Atomic } from "../../env/workspace/atomic.ts";
 import type { WorkspaceRoot } from "../../env/workspace/workspace.ts";
 import type { Refusal, RefusalState } from "../gate/refusal.ts";
-
-/** The in-flight record's tree-level name. The workspace family's root is the record's
- *  home (a tree-level fact, not a slug-scoped artifact) and this segment owns that name:
- *  the artifact matrix lists the round's own names and the refusal record, and a second
- *  home for this one would be a second writer. */
-const FILE = "in-flight.json";
+import { WORKSPACE_ARTIFACTS } from "../ledger/artifacts.ts";
 
 /** The two facts a record's target columns can read out missing — a closed set, so a
  *  report names the fact it read rather than a boolean's absence. */
@@ -112,6 +113,22 @@ export type AcquireOutcome =
   | { readonly kind: "acquired" }
   | { readonly kind: "held"; readonly record: InFlightRecord | null };
 
+/** How one round ended, as the CALLER judges it — the occupancy owns the two endings, the
+ *  dispatch face owns which one a round got. `normal` is an ending the engine itself
+ *  concluded (the child exited on its own, the spawn never produced a process, the round
+ *  was judged); `abnormal` is the family the record exists for. */
+export type RoundEnding = "normal" | "abnormal";
+
+/** One occupancy's terms. `ending` is REQUIRED: a default would decide the record's fate
+ *  by omission, and the two endings are not interchangeable (one leaves a postmortem fact,
+ *  the other removes it). */
+export interface OccupyOptions<T> {
+  /** The explicit takeover, threaded from the gate's authorization. */
+  readonly recover?: boolean;
+  /** The caller's ending judgment over the body's own value. */
+  readonly ending: (value: T) => RoundEnding;
+}
+
 /** One occupancy's answer: the body ran, or the tree was already held so it did not. */
 export type Occupancy<T> =
   | { readonly kind: "held"; readonly record: InFlightRecord | null }
@@ -151,11 +168,16 @@ type RecordRead =
 
 /**
  * InFlight — the tree's one occupancy. Invariant: zero records before the child exists,
- * no residue after it ends, and exactly one write point (see the file's header).
+ * no residue after a normal ending, and exactly one write point (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because the write ORDER
+ * — marker, takeover, live-holder guard, lock, record — IS the invariant, and a split into
+ * a lock class and a record class would hand that order back to a caller.
  */
 export class InFlight {
-  /** The record's tree-level name (the workspace root's own child). */
-  static readonly FILE: string = FILE;
+  /** The record's tree-level name — the SPELLING is the artifact matrix's
+   *  (`../ledger/artifacts.ts`), so a tree-level name has one home like every round name. */
+  static readonly FILE: string = WORKSPACE_ARTIFACTS.inFlight;
 
   readonly #root: WorkspaceRoot;
   readonly #lock: Lock;
@@ -233,28 +255,34 @@ export class InFlight {
   }
 
   /** Run one child inside the occupancy — the invariant's ONE carrier: the record is
-   *  taken first, the body runs, and the release point runs whatever the body did (a
-   *  failed spawn leaves no residue). A tree already held answers `held` and the body
-   *  never runs. */
+   *  taken first, the body runs, and the ending the CALLER names decides the record's
+   *  fate. The lock is dropped on every ending, so no carrier outlives its round. A tree
+   *  already held answers `held` and the body never runs. */
   async occupy<T>(
     record: InFlightRecord,
     body: () => Promise<T>,
-    options: { readonly recover?: boolean } = {},
+    options: OccupyOptions<T>,
   ): Promise<Occupancy<T>> {
     const taken = await this.acquire(record, options);
     if (taken.kind === "held") return taken;
+    let value: T;
     try {
-      return { kind: "ran", value: await body() };
-    } finally {
-      await this.release();
+      value = await body();
+    } catch (raw) {
+      // An ending nobody judged is the abnormal one: the lock still drops, and the record
+      // stands as the postmortem fact of a round the engine did not conclude.
+      await this.#dropLock();
+      throw raw;
     }
+    if (options.ending(value) === "normal") await this.release();
+    else await this.#dropLock();
+    return { kind: "ran", value };
   }
 
-  /** Release the record at the normal end — remove the record, drop the lock, then expire
-   *  the tree-level refusal fact this release invalidates. The expiry predicate is the
-   *  STATION NAME (`in-flight`), so a standing fact about another row stays, and a corrupt
-   *  record stays where it is. Idempotent and fail-open: cleanup never decides a round's
-   *  fate. */
+  /** The normal end — remove the record, drop the lock, then expire the tree-level refusal
+   *  fact this release invalidates. The expiry predicate is the STATION NAME (`in-flight`),
+   *  so a standing fact about another row stays, and a corrupt record stays where it is.
+   *  Idempotent and fail-open: cleanup never decides a round's fate. */
   async release(): Promise<void> {
     try {
       this.#root.ops.remove(this.path());
@@ -263,6 +291,13 @@ export class InFlight {
     }
     await this.#lock.release();
     this.#expireRefusal();
+  }
+
+  /** The ABNORMAL end — drop the lock ALONE and keep the record, which is the postmortem
+   *  fact of a round that was killed, timed out or died with a non-zero code. Idempotent:
+   *  a round that never acquired holds no handle. */
+  async #dropLock(): Promise<void> {
+    await this.#lock.release();
   }
 
   /** The release point's second effect — the tree has finished, so the refusal that only

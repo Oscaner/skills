@@ -19,6 +19,7 @@ import { Words } from "./words/words.ts";
 export {
   type ArtifactReportWords,
   type ArtifactWords,
+  type BoardFactRowWords,
   type BoardFactWords,
   type BoardWords,
   type CapsuleKey,

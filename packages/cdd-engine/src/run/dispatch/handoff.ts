@@ -19,6 +19,13 @@
 // (`over-budget` · `stalled` · `signal`) name cut-short rounds only, and none of them
 // describes a draft's shape.
 //
+// THE READ-BACK IS TIERED, like the declaration it walks: a slot the child OWES (the
+// plane's required set) that breaks its declaration REFUSES the draft, while a DECORATIVE
+// slot (declared, not required — both planes' `notes`, the work plane's `dispositions`, the
+// judge plane's `artifacts`) is DROPPED: its path is reported once and the slot is never
+// carried. A wrong decorative value costs a field, never a round, so the refusal face stays
+// exactly as wide as the fields the child owes.
+//
 // THE PLANES are derived from the verb, never declared per family: a work verb (implement ·
 // fix) authors `status` + `artifacts`, a judge verb (review) authors `findings`. Declaration
 // order is projection order, so the key set a child is shown and the key set it is judged
@@ -103,13 +110,28 @@ export interface JudgedRecord {
   readonly findings: readonly RoundFinding[] | null;
 }
 
-/** One draft's read-back — the three shapes above, plus the parsed draft on the compliant
- *  arm. */
+/** One draft's read-back — the three shapes above, plus the parsed draft and the decorative
+ *  slots DROPPED in place on the two non-absent arms. */
 export type HandoffRead =
   | { readonly kind: "absent" }
   | { readonly kind: "malformed"; readonly code: string }
-  | { readonly kind: "compliant"; readonly draft: Record<string, unknown> }
-  | { readonly kind: "breached"; readonly problems: readonly string[] };
+  | {
+      readonly kind: "compliant";
+      readonly draft: Record<string, unknown>;
+      readonly dropped: readonly string[];
+    }
+  | {
+      readonly kind: "breached";
+      readonly problems: readonly string[];
+      readonly dropped: readonly string[];
+    };
+
+/** One walk's accumulating ruling — the refusal list and the decorative slots dropped in
+ *  place, both read by the one walk. */
+interface CheckOut {
+  readonly problems: Problem[];
+  readonly dropped: string[];
+}
 
 /** One walk's accumulating problems — the `path: reason` wording's source. */
 type Problem = { readonly path: string; readonly reason: string };
@@ -117,6 +139,10 @@ type Problem = { readonly path: string; readonly reason: string };
 /**
  * Handoff — one declaration, three readings. Invariant: a draft is judged by what is on
  * disk, and the conclusion is derived from the findings (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the class stays whole because the declaration
+ * it projects and the walks that judge it are ONE contract — a split would let the
+ * projection and the read-back drift into two key sets, which is the invariant.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the declaration and its pure readings share no state — the zero-bare-function discipline admits no standalone predicates.
 export class Handoff {
@@ -130,7 +156,9 @@ export class Handoff {
     return PLANE_SLOTS[plane];
   }
 
-  /** Read one draft: `text` is the file's bytes, null when the file was never written. */
+  /** Read one draft: `text` is the file's bytes, null when the file was never written. The
+   *  walk is TIERED — a decorative slot that breaks its own declaration is dropped and
+   *  reported beside the problems, and only an owed slot's mismatch refuses the draft. */
   static read(text: string | null, plane: HandoffPlane): HandoffRead {
     if (text === null) return { kind: "absent" };
     let value: unknown;
@@ -139,12 +167,16 @@ export class Handoff {
     } catch (raw) {
       return { kind: "malformed", code: raw instanceof Error ? raw.name : "SyntaxError" };
     }
-    const problems: Problem[] = [];
-    Handoff.#check(value, plane, problems);
+    const out: CheckOut = { problems: [], dropped: [] };
+    Handoff.#check(value, plane, out);
     const draft = value as Record<string, unknown>;
-    return problems.length === 0
-      ? { kind: "compliant", draft }
-      : { kind: "breached", problems: problems.map(Handoff.#problemLine) };
+    return out.problems.length === 0
+      ? { kind: "compliant", draft, dropped: out.dropped }
+      : {
+          kind: "breached",
+          problems: out.problems.map(Handoff.#problemLine),
+          dropped: out.dropped,
+        };
   }
 
   /** The refusal one read earns, or null for the absent arm — the ONE place the two refusal
@@ -278,63 +310,75 @@ export class Handoff {
   }
 
   /** One walk over the draft's declared cells: the root object, then every required slot and
-   *  every present slot's own declaration. A non-declared key is DROPPED by the materialize
-   *  face, never a problem — the validator and the writer judge the same field the same way
-   *  (only a declared cell that breaks its own declaration refuses the draft). */
-  static #check(value: unknown, plane: HandoffPlane, problems: Problem[]): void {
+   *  every present slot judged at its OWN owed-ness. A non-declared key is DROPPED by the
+   *  materialize face, never a problem — the validator and the writer judge the same field the
+   *  same way (only a declared cell that breaks its own declaration refuses the draft). */
+  static #check(value: unknown, plane: HandoffPlane, out: CheckOut): void {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      problems.push({ path: "", reason: "expected a JSON object" });
+      out.problems.push({ path: "", reason: "expected a JSON object" });
       return;
     }
     const draft = value as Record<string, unknown>;
-    for (const key of PLANE_REQUIRED[plane]) {
-      if (draft[key] === undefined) problems.push({ path: key, reason: "required" });
+    const required = PLANE_REQUIRED[plane];
+    for (const key of required) {
+      if (draft[key] === undefined) out.problems.push({ path: key, reason: "required" });
     }
     for (const key of PLANE_SLOTS[plane]) {
       if (draft[key] === undefined) continue;
-      Handoff.#checkSlot(key, draft[key], problems);
+      const owed = required.includes(key);
+      const markProblems = out.problems.length;
+      const markDropped = out.dropped.length;
+      Handoff.#checkSlot(key, draft[key], owed, out);
+      if (owed || out.problems.length === markProblems) continue;
+      // The decorative slot breaks its own declaration — prune everything it booked inside,
+      // then report the slot once (materialize's copy point reads this path).
+      out.problems.length = markProblems;
+      out.dropped.length = markDropped;
+      out.dropped.push(key);
     }
   }
 
-  /** One declared slot's judgment — the slot's own shape, never a neighbouring slot's. */
-  static #checkSlot(key: HandoffKey, value: unknown, problems: Problem[]): void {
+  /** One declared slot's judgment — the slot's own shape, never a neighbouring slot's. An
+   *  owed slot's mismatch is a problem; a decorative one is dropped. */
+  static #checkSlot(key: HandoffKey, value: unknown, owed: boolean, out: CheckOut): void {
     if (key === "status") {
       if (!(WORK_STATUSES as readonly unknown[]).includes(value)) {
-        problems.push({ path: key, reason: `must be one of ${WORK_STATUSES.join(" | ")}` });
+        Handoff.#refuse(out, key, `must be one of ${WORK_STATUSES.join(" | ")}`, owed);
       }
       return;
     }
     if (key === "findings") {
-      Handoff.#checkFindings(value, problems);
+      Handoff.#checkFindings(value, owed, out);
       return;
     }
     if (key === "artifacts" || key === "dispositions") {
-      Handoff.#checkMap(key, value, problems);
+      Handoff.#checkMap(key, value, owed, out);
       return;
     }
-    Handoff.#checkNotes(key, value, problems);
+    Handoff.#checkNotes(key, value, owed, out);
   }
 
   /** The judge plane's finding rows — one row's three required cells, and the two optional
-   *  cells only when they are present. */
-  static #checkFindings(value: unknown, problems: Problem[]): void {
+   *  cells only when they are present. A row inside a PRESENT findings slot is owed: the
+   *  slot is the plane's required set, so a bad row is judged inside it. */
+  static #checkFindings(value: unknown, owed: boolean, out: CheckOut): void {
     if (!Array.isArray(value)) {
-      problems.push({ path: "findings", reason: "expected an array" });
+      Handoff.#refuse(out, "findings", "expected an array", owed);
       return;
     }
     for (const [index, entry] of value.entries()) {
       const at = `findings[${index}]`;
       const row = entry as { severity?: unknown; lens?: unknown; summary?: unknown } | null;
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-        problems.push({ path: at, reason: "expected an object" });
+        out.problems.push({ path: at, reason: "expected an object" });
         continue;
       }
       if (row?.severity !== "blocker" && row?.severity !== "warn") {
-        problems.push({ path: `${at}.severity`, reason: "must be one of blocker | warn" });
+        out.problems.push({ path: `${at}.severity`, reason: "must be one of blocker | warn" });
       }
       for (const cell of ["lens", "summary"] as const) {
         if (typeof row?.[cell] !== "string") {
-          problems.push({ path: `${at}.${cell}`, reason: "expected a string" });
+          out.problems.push({ path: `${at}.${cell}`, reason: "expected a string" });
         }
       }
     }
@@ -342,23 +386,32 @@ export class Handoff {
 
   /** A keyed cell (`artifacts` · `dispositions`) — an object whose values are declared per
    *  key by their own writer, so the slot's own declaration is "an object". */
-  static #checkMap(key: HandoffKey, value: unknown, problems: Problem[]): void {
+  static #checkMap(key: HandoffKey, value: unknown, owed: boolean, out: CheckOut): void {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      problems.push({ path: key, reason: "expected an object" });
+      Handoff.#refuse(out, key, "expected an object", owed);
     }
   }
 
-  /** The `notes` slot — string rows only. */
-  static #checkNotes(key: HandoffKey, value: unknown, problems: Problem[]): void {
+  /** The `notes` slot — string rows only. A row inside a PRESENT slot is owed: the slot's
+   *  own mismatch is the tiered one, and a decorative slot's parent prunes what its rows
+   *  booked and reports the slot once. */
+  static #checkNotes(key: HandoffKey, value: unknown, owed: boolean, out: CheckOut): void {
     if (!Array.isArray(value)) {
-      problems.push({ path: key, reason: "expected an array" });
+      Handoff.#refuse(out, key, "expected an array", owed);
       return;
     }
     for (const [index, entry] of value.entries()) {
       if (typeof entry !== "string") {
-        problems.push({ path: `${key}[${index}]`, reason: "expected a string" });
+        Handoff.#refuse(out, `${key}[${index}]`, "expected a string", true);
       }
     }
+  }
+
+  /** Book one mismatch at its tier — a problem for an owed slot, a dropped path for a
+   *  decorative one. */
+  static #refuse(out: CheckOut, path: string, reason: string, owed: boolean): void {
+    if (owed) out.problems.push({ path, reason });
+    else out.dropped.push(path);
   }
 
   /** A problem's printed form — `path: reason`, bare reason at the root. */

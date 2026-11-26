@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.38
+version: v0.39
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -540,33 +540,33 @@ pin 齐（表与族逐行对齐 · 每规则成对夹具（含 `wave-width-at-mo
 
 #### Consumes
 - 旧树的 `face/lifecycle.ts`（预算 · stall 判官 · 终止面的三档结论）· `face/dispatch-values.ts`（预帧值装配：身份 · 场景 · 快照三格）· `contract/liveness-signal.ts`（两条活性腿与四态判官）· `session/inflight.ts`（记录与四态判定；锁的持有者是 T5 交付的 `env/process/lock.ts`，in-flight 只经它取锁）· `session/handoff-schema.ts`（含结论派生三路）· `session/carrier-integrity.ts` · `contract/preflight-rows.ts` · `contract/context-declarations.ts`（读行为）· T10 落点 `docs/judging/closure.ts#ClosedDocument`（旧树 `face/lifecycle.ts` 的那一次闭包读：一次派发只构造一份，门口让位行与它共用）；spawn 与杀本身不在这里——由 `env/process/child-runner.ts`（T5）提供
-- T11 落点 `run/gate/refusal.ts#Refusal`（注入实例）：本片认领拒绝事实的第二个到期触发点——一次正常收工的释放使树级拒绝事实到期（旧树 `session/refusal.ts#RefusalState` 的同一行为）
+- T11 落点 `run/gate/refusal.ts#Refusal`（注入实例）：本片认领拒绝事实的第二个到期触发点——一次正常收工的释放让**站名是 `in-flight` 的那一条**树级拒绝事实到期；这条谓词不住 `RefusalState`（它只有 absent · corrupt · standing 三态读值，没有任何到期判断），旧树的谓词住 `face/lifecycle.ts#expireInFlightRefusal`：一次原始读、只放行 `standing`、再只放行 `station === "in-flight"`，其余一律 no-op
 
 #### Produces
 - `child`：`Child.dispatch(frame)` → `DispatchOutcome`（退出码 · 日志路径 · 终止因）· 预算四键——起进程经注入的 `ChildRunner`，本任务不持信号
 - `values`：`DispatchValues`（身份 · 场景 · 快照三格扁平事实 → 扁平记录）——预帧的一道装配，相对化只发生一处，四个行与渲染面读同一份；身份格里的 brief 仓库相对路径有两种填法、同一份拼写：派发路径由派发面（T13 的 `Lifecycle`）在落地那一刻交回，预览路径由注入的 brief 面的 `briefOf(request)` 回的名字取（T7 产物矩阵的 `brief` 行是那条拼写的单源，零渲染、零落盘）；本模块不拼、不落盘、不渲染
 - `liveness`：活性判官（轮日志增长与进程组 CPU 两条腿，四态；每轮一个实例，不可读期保留上一次读数而不是清零）
-- `handoff`：手交契约（键集）与读回（失败分型：缺失 / 畸形 / 违约）· 结论派生三路——findings 里有 blocker ⇒ `CHANGES_REQUESTED`，只有 warn ⇒ `REVIEW_FIX`，findings 为空 ⇒ `APPROVED` · 降档判定的两读——`HandoffSchema#downgrades(prior, current)`（降了档而本轮未写 `regrade` 理由的那些行）与 `#regradeReasons(prior, current)`（同一判断里写了理由的那半边，按载体行序）是**一个判断的两个分区**：显示面据此印 mark 与理由，不重判哪一行降了档；`prior` 是最近一条 findings 非空的评审记录（中间的干净记录不重置参照），`id` 是引擎写的行号、永不作为配对键
-- `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）；记录里的起跑时刻先取进程表、答不出时回落注入的 `Clock`（T5 落点 `env/process/clock.ts`，旧树 `face/lifecycle.ts#recordOf` 的 `Date.now()` 那一处按注入时钟改写）——本片零 `Date.now()`、零无参 `new Date()`；`#release` 在释放记录的同时经注入的 `Refusal#clear` 让一个已失效的树级拒绝事实到期（那棵树已经收工，前置拒绝不再成立），而读与判断都不清
+- `handoff`：手交契约（键集）与读回三型——**缺席**（草稿从未写：不拒绝，轮次由 T9 的完成判据收口，work 轮付那条 `IMPLEMENT_CARRIER_ABSENT` 软观测）· **畸形**（在盘上而 JSON 解不出：拒绝，detail 带解析器的错误码）· **违约**（解得开而不合格：拒绝，detail 带问题清单），两个拒绝臂共用同一个 `contract-violation` 终止因 · 结论派生三路——findings 里有 blocker ⇒ `CHANGES_REQUESTED`，只有 warn ⇒ `REVIEW_FIX`，findings 为空 ⇒ `APPROVED` · 降档判定的两读——`HandoffSchema#downgrades(prior, current)`（降了档而本轮未写 `regrade` 理由的那些行）与 `#regradeReasons(prior, current)`（同一判断里写了理由的那半边，按载体行序）是**一个判断的两个分区**：显示面据此印 mark 与理由，不重判哪一行降了档；`prior` 是最近一条 findings 非空的评审记录（中间的干净记录不重置参照），`id` 是引擎写的行号、永不作为配对键
+- `inflight`：`InFlight#acquire` / `#inspect` / `#release`；`InFlightState` 三种 kind（absent · held · corrupt）；记录里的起跑时刻先取进程表、答不出时回落注入的 `Clock`（T5 落点 `env/process/clock.ts`，旧树 `face/lifecycle.ts#recordOf` 的 `Date.now()` 那一处按注入时钟改写）——本片零 `Date.now()`、零无参 `new Date()`；`#release` 在释放记录的同时经注入的 `Refusal#clear` 让一个已失效的树级拒绝事实到期（那棵树已经收工，前置拒绝不再成立），**判据是站名**：只清 `standing` 且 `station` 为 `in-flight` 的那一条——站名是结构腿别的行（例如 `graph`）的记录属于另一次拒绝，释放不带它走；`corrupt` 记录留在盘上（站名读不出时删它就是替一条读不出的事实下判），而读与判断都不清
 - `__tests__/handoff-plane.guard.test.ts`：手交面守卫（`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
 - 写「孩子前零记录、收工后无残留」的 pin — checkable: 注入一个立即失败的 spawn ⇒ 无 in-flight 残留；正常收工 ⇒ 记录建立后被释放
 - 写 in-flight 三 kind 的 pin — checkable: 空闲 · 持有 · 记录损坏三态各一条；损坏按无锁放行但报文点名
 - 写 in-flight 时间戳的 pin — checkable: 进程表答不出时起跑时刻来自注入的固定时钟（不是墙上时钟）；`run/dispatch/**` 的非测试文件里零 `Date.now()` · 零无参 `new Date()`
-- 写手交读回分型的 pin — checkable: 缺席 · 畸形 · 违约三型各一条，且三者各给不同的终止因
+- 写手交读回分型的 pin — checkable: 三型各一条，但只有后两型是拒绝——**缺席**（草稿从未写）⇒ 全程不拒绝：轮次由 T9 的完成判据收口（work 轮的观测带 `IMPLEMENT_CARRIER_ABSENT`）、树上零崩溃记录、回值带空结论；**畸形**（在盘上而解不出）⇒ 拒绝且 detail 带解析器的错误码；**违约**（解得开而不合格）⇒ 拒绝且 detail 带 schema 问题清单；两个拒绝臂取同一个 `contract-violation` 终止因（`TerminationCause` 的三档只点名被截断的轮，任何一档都不描述草稿的形状）——三型因此各给一条不同的可观测事实，而不是三个终止因
 - 写降档判定的 pin — checkable: 把一轮的 grade 调低且不带 `regrade` ⇒ `downgrades` 命中那一行而 `regradeReasons` 为空；同一对入参里那一行带上 `regrade` ⇒ `regradeReasons` 出那一条而 `downgrades` 不出（两个集合分区同一判断）；等级不变或升高 ⇒ 两者都空；更早的干净 implement / fix 记录夹在两条评审之间 ⇒ 参照仍是最近那条非空评审记录
 - 写结论派生三路的 pin — checkable: 一条 blocker 的 review 草稿 ⇒ `CHANGES_REQUESTED` · 只有 warn ⇒ `REVIEW_FIX` · findings 为空 ⇒ `APPROVED`；三者印入胶囊 `status:` 的那一行与旧树同字节
 - 写活性判官的 pin — checkable: 只有日志增长 ⇒ 判在飞；两条腿都停 ⇒ `stalled`；不可读的腿保留上一次读数而不清零（注入假读数）
 - 写预帧值的 pin — checkable: 同一份扁平事实两次装配字节相同；快照的相对化只发生一次
 - 写预算与终止的 pin — checkable: 超预算 ⇒ `over-budget`；无活动 ⇒ `stalled`；收到信号 ⇒ `signal`（三档取自 `TerminationCause`）
 - 写「拒绝不消费 attempt」的 pin — checkable: 派发前拒绝 ⇒ 账本轮次数与 attempt 都不前进
-- 写释放点清拒绝事实的 pin — checkable: 一次正常收工（`InFlight#release`）经注入的 `Refusal` ⇒ 树级拒绝事实被清（读回 `absent`）；未释放 ⇒ 事实仍站着；释放两次 ⇒ 不抛（幂等、fail-open）；只有释放这一条路径清（一次读、一次 `#inspect` 都不清）
+- 写释放点清拒绝事实的 pin — checkable: 一次正常收工（`InFlight#release`）经注入的 `Refusal` ⇒ 站名 `in-flight` 的那条 `standing` 事实被清（读回 `absent`）；两条邻居臂各一条——站名是结构腿别的行（例如 `graph`）的既有事实经同一次释放仍在（它的到期点不是这一处）、`corrupt` 记录经同一次释放仍在（读回 `corrupt`）；未释放 ⇒ 事实仍站着；释放两次 ⇒ 不抛（幂等、fail-open）；只有释放这一条路径清（一次读、一次 `#inspect` 都不清）
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
 
 #### Acceptance
-pin 齐（记录生命周期 · 三 kind · 手交三型 · 结论派生三路 · 三档终止 · 拒绝不消费 attempt · 释放点清拒绝事实）；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
+pin 齐（记录生命周期 · 三 kind · 手交三型（缺席由完成判据收口、畸形与违约各一条 `contract-violation` 拒绝）· 结论派生三路 · 三档终止 · 拒绝不消费 attempt · 释放点清拒绝事实（含站名过滤与两条邻居臂））；`dispatch` 对 `advance` 零 import；锁经 `env.process.lock`。
 
 #### DependsOn
 11
@@ -883,13 +883,14 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 - 删旧树与对账器 — checkable: `packages/cdd-engine/src-next/` 与 `packages/cdd-engine/tests/parity/` 都不存在；对账器的 include 与它的 tsconfig 工程已删（根 `typecheck` 链里不再点名它）；`packages/cdd-engine/tsconfig.src.json` 已删且根 `typecheck` 链里它那一条同批去掉——翻面后不再有两份同文件集的工程（引擎主工程 · `scripts` · kairos 测试），不两份并列
 - 退役两树禁门与它的扫描器 — checkable: `packages/cdd-engine/src/__tests__/tree-separation.test.ts` 与 `packages/cdd-engine/tests/support/module-specifiers.ts` 都不在树上，且引擎套件里不再有枚举 `src-next/` 的用例；**禁门与两树共存窗口同生共死**（spec §3.1 的正控是对账器，对账器在同一个删除步里销毁），删树后**不补** `existsSync` 守卫换绿——守卫在树缺席时通过，正是 D101 与 spec §3.1 禁止的惰性判据；`src/` 这一向的禁令由「旧树不存在」在结构上保住，不需要一条永不再红的断言
 - 零残留的机械判据 — checkable: `grep -rn 'src-next' packages/cdd-engine/src packages/cdd-engine/vitest.config.ts` 零命中——`vitest.config.ts` 里描述两树并存的注释与 `src-next/**` 那条 include 同批清掉，`src/**` 里产品注释举的旧树路径例子也在这一扫之内
+- 发布面零字节的判据 — checkable: 相位自它出发点起的 diff 在 `packages/kairos/skills/**` 上零命中——`git diff --quiet <相位基点>..HEAD -- packages/kairos/skills` exit 0，相位基点取本计划文件进入树之前的那一笔（`git log --diff-filter=A -1 -- docs/kairos/plans/2026-11-25-engine-doc-tooling-p39.md` 的父提交）；由这个目录派生的生成物同批零改动（下面「重生生成物」一步的 `pnpm run emit:check` 判后者）；这条判的是 spec 的发布面约束（`skills/**` 本相位零字节）——本相位的套件只探技能结构与标题注册表，没有任何一格比字节，没有这条判据时一句话被「顺手润色」不会红
 - 重生生成物 — checkable: `pnpm run emit` 后 `pnpm run emit:check` 报 fresh
 - 全绿 — checkable: `pnpm run validate` exit 0；`pnpm run check:dist-smoke` 绿（dist 由新树产出）
 - 失败面的处置写进验收 — checkable: 若 `validate` 或 `dist-smoke` 红而对账器绿，处置是回 T2 的语料面补一种形态（因为这说明语料缺臂），**不改判据、不改基线**；若为了让翻面绿而动了消费者字节，按缺陷处理
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
-spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：编译面与测试 include 合一条、树外测试面与 `precommit` 守卫拆两条、两树禁门的退役紧跟在删树之后；末尾「失败面的处置」与「提交」是该波的收尾，不在那一序里）；旧树路径在代码 / 配置 / 脚本 / 图源 / 五份手维护文档 / 树外测试文件里零命中（历史文档的记录面除外，按 §3.4 的分界；注释里指向旧树的举例也算在内——`scripts/lib/scan.ts` 与 kairos 测试面同一条口径）；`packages/cdd-engine/tests/parity/` 不存在；`packages/cdd-engine/src` 与 `packages/cdd-engine/vitest.config.ts` 同在那条零命中的域内（两树禁门与它的扫描器已删，不以惰性守卫换绿）；`pnpm -C packages/cdd-engine run smoke` 绿；`pnpm run validate` exit 0；`check:dist-smoke` 绿；`emit:check` fresh；`pnpm -C packages/kairos test` 与根套件绿。
+spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：编译面与测试 include 合一条、树外测试面与 `precommit` 守卫拆两条、两树禁门的退役紧跟在删树之后；末尾「失败面的处置」与「提交」是该波的收尾，「发布面零字节的判据」与「重生生成物」是同一收尾里的一对，不在那一序里）；旧树路径在代码 / 配置 / 脚本 / 图源 / 五份手维护文档 / 树外测试文件里零命中（历史文档的记录面除外，按 §3.4 的分界；注释里指向旧树的举例也算在内——`scripts/lib/scan.ts` 与 kairos 测试面同一条口径）；`packages/cdd-engine/tests/parity/` 不存在；`packages/cdd-engine/src` 与 `packages/cdd-engine/vitest.config.ts` 同在那条零命中的域内（两树禁门与它的扫描器已删，不以惰性守卫换绿）；`pnpm -C packages/cdd-engine run smoke` 绿；`pnpm run validate` exit 0；`check:dist-smoke` 绿；`emit:check` fresh；`packages/kairos/skills/**` 相对相位基点零字节（该目录是相位的发布面，字节判据就在上面那一步，只有它的版本面那一半判在 T19 的 changeset）；`pnpm -C packages/kairos test` 与根套件绿。
 
 #### DependsOn
 17
@@ -969,3 +970,4 @@ changeset 一包 patch；四条不变量（四切片 + `run/` 四段）可核；
 | v0.36 | 2026-11-26 | docs-fix 轮二十九（F1 为 blocker，F2 · F3 · F4 为 warn，全部落地，未放宽判据；F5 指出的三条边归编排者，本轮不落）：**胶囊的 summary 那一格有了主人**——旧树 `face/capsule.ts#Capsule.emit` 的第五参（fix 轮的处置摘要 / judge 轮的降档注记）在旧树 stdout 上自成一格，槽序 `status` → summary → `next:` → `reason:`，而计划把胶囊写成两槽、`f5.capsule.*` 两格又都以两参调用录制，于是这一行消失时没有一格会红；T14 的 `WORDS` 收下处置摘要模板 `fixed {fixed} · rejected {rejected}`（旧树 `face/words.ts#FIX_DISPOSITIONS_SUMMARY`）与 capsule 的三槽槽词，T15 新增 capsule 的槽序契约与一条成对 pin（带 summary ⇒ 三行、不带 ⇒ 两行，槽序错位即红），T13 那句「那一行归 `surface/render`」改成模块加符号落点（模板 `surface/words/words.ts#WORDS`、填入与槽序 `surface/render/capsule.ts#Capsule`），`f5.capsule.success` 与 `f5.capsule.failure` 各补一条 summary 臂并随格集重录（F1）；**板面的改档注记落了三处、各有一条成对 pin**——T9 的 `criteria` 认领 `REGRADE_MARK` · `REGRADE_NOTE_SEPARATOR` · `displayReason` · `regradeNote`（一张表两个显示面共用一处合成），T12 的 `handoff` 认领 `HandoffSchema#downgrades` 与 `#regradeReasons`（同一判断的两个分区，显示面据此印 mark 与理由而不重判），T15 的板面把那个合成值接进 token 尾（`+N` 之后、` notes +M` 之前），T14 的板面组明写「改档注记不在这一组」以免第二份拷贝（F2）；**`render:<family>` 的枚举回到注册表**——T15 的 Files 删去「每个渲染器一个 driver」、Acceptance 删去「`init` 四出口的渲染字节」，`init` 四出口的字节面显式接到 T16 的 `seam` 格，本波真比的是 prompt 两带与胶囊（加同波 T9 注册的 skeleton），枚举与 `REGISTRATION_WAVES` 的 `render:*` 行集逐值相等（F3）；**文档行的 drift 读面点实**——T7 的 `Ledger#docLineVerdict(key, doc)` 进 Produces，pin 从树上零命中的 `docDriftOf` 改成它，并写明比较的两侧都是投影后的正文（front matter 与 `## Change history` 先投影掉），补一条「只改 front matter ⇒ `same`」的邻居臂（F4）。F5 的三条边（T11 `7, 10` → `5, 7, 10` · T12 `11` → `5, 11` · T14 `6, 11` → `5, 6, 11`）未动——`DependsOn` 集是编排者写权，本轮不落 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-26） |
 | v0.37 | 2026-11-26 | docs-fix 轮三十（F1 为 blocker、F2 为 warn，两条内容面落地；F3 · F4 落在本轮写权之外，交编排者）：**改档注记的合成搬到一个未闭合的任务**——v0.36 把它指给已闭合的 T9（板面读作 `W4 {7,8,9} ✔`），而 T9 交付的 `docs/judging/criteria.ts` 只有一行判据（`id: "regrade-mark"` 的 body · duty · counterExample），`REGRADE_MARK` · `REGRADE_NOTE_SEPARATOR` · `displayReason` · `regradeNote` 在 `src/` 零命中，于是 T15 的板面 token 与胶囊 summary 两条显示面在新树上没有可执行的 owner：W9 的验收转不绿，就地自拼又破掉单点与 spec §1.3；本轮把这一组挪到 T10（W5 `▶`，Files 增 `Modify: packages/cdd-engine/src/docs/judging/criteria.ts`，Objective · Consumes · Produces · Steps · Acceptance 同批收下），T9 只留它真正交付的判据行（四条臂的 pin 与 Acceptance 那一组随之移走），T14 的「不在这一组」与 T15 的两处引用改指 T10（F1）；**文档行的漂移读面回到已交付的成员**——v0.36 把 T7 的读面改成树上零命中的 `Ledger#docLineVerdict(key, doc)`（那是旧树 `session/ledger.ts` 的名字），而 T7 交付的是 `Ledger#docDriftOf(line, content)`：收文档的内容字节、投影由 `docs/grammar/doc-body.ts#docBodyOf` 先做；成员表、读面段、pin 与 Acceptance 同口径改回，并删掉与 delivered 签名相抵的「不收原始字节」半句（F2）。F3（spec §2.2 面 5 的胶囊三格与 summary 的两个来源）是 spec 内容、F4（T11 · T12 · T14 到 T5 的三条 `DependsOn` 边）是结构面，均在本轮写权之外，原样交编排者回填 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-26） |
 | v0.38 | 2026-11-26 | docs-fix 轮三十一（F1 为 warn，内容面落地；F2 · F3 落在本轮写权之外，交编排者）：**胶囊 summary 的合成有了主人**——三份声明原先彼此留白（T10 说两个显示面都取 `regradeNote`、T15 说「计数、合成与词面都不在本类」、T12 只交两个分区），判者轮那次调用无人认领，于是降档注记在正确实现上会静默消失，而 `f5.capsule.*` 注入事实、`f1.review.*` 的录制里无注记，没有一格会红；本轮把合成交给 T13 的 `run/advance/lifecycle.ts#Lifecycle#advance`（取 T12 `run/dispatch/handoff.ts` 的 `HandoffSchema#downgrades` 与 `#regradeReasons` 两个分区、`prior` 取最近一条 findings 非空的评审记录，调 T10 `docs/judging/criteria.ts#regradeNote`，回值进 `Run#advance` 的 `capsule` 事实，`undefined` 即那一格缺席），T13 补一条三臂 pin（mark / 理由 / 不降档，三臂都断取的是 T10 的合成值，自拼一句则本条与 T10 的单点 pin 同时红），Acceptance 同批收口；T10 那句点名两个显示面各自的取法（板面在渲染处直接取、胶囊经 `Lifecycle` 交下来），T15 的 capsule 一句不变（它本来就只接值）。F2（spec §2.2 面 5 与 §1.3 的 `capsule 槽` 回填成三格）是 spec 内容、F3（T11 · T12 · T14 到 T5 的三条 `DependsOn` 边）是结构面，均在本轮写权之外，原样交编排者回填。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-26） |
+| v0.39 | 2026-11-26 | docs-fix 轮三十二（F1 · F2 为 blocker、F4 为 warn，三条内容面落地，未放宽判据；F3 与 F5 落在本轮写权之外，交编排者）：**手交读回的三型各有各的可观测事实，不是三个终止因**——旧树里缺席的草稿从不被拒（完成判据收口本轮，work 轮付 `IMPLEMENT_CARRIER_ABSENT` 软观测、树上零崩溃记录），畸形与违约才走拒绝且共用 `#reject` 的默认 `contract-violation` 终止因，T12 的 `handoff` Produces 与那条 pin 同批改口（F1）；**释放点清拒绝事实带站名过滤**——谓词住旧树的 `face/lifecycle.ts#expireInFlightRefusal`（原始读只放行 `standing`、再只放行 `station` 为 `in-flight`），`corrupt` 记录留盘、别的站名的记录留原处，T12 的 Consumes 改指这一处（原先误指 `session/refusal.ts#RefusalState`，那里只有三态读值、没有到期谓词），Produces · pin · Acceptance 各补一条站名过滤与两条邻居臂（F2）；**发布面零字节有了判据**——T18 的 Steps 与 Acceptance 补一条相位 diff 在 `packages/kairos/skills/**` 上零命中的机械判据（相位基点取本计划文件进入树之前的那一笔），T19 的 changeset pin 仍只判版本面（F4）。F3（spec §2.2 面 5 的胶囊三格与 §2.3 的树形态声明）是 spec 内容、F5（T11 · T12 · T14 到 T5 的三条 `DependsOn` 边）是结构面，均在本轮写权之外，原样交编排者回填。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-26） |

@@ -14,6 +14,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { WORDS } from "../../src/surface/words/words.ts";
 import { CELLS, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
 import {
   BASELINE_FILE,
@@ -283,6 +284,67 @@ describe("the recorded shapes", () => {
     expect(open).toContain("the guard is missing at the second station");
     expect(open).not.toBe(folded);
   }, 120_000);
+});
+
+describe("the refusal face's words", () => {
+  /** One declared template as a matcher — every `{slot}` becomes a greedy fill. A row that
+   *  reads as the template with its slots filled is a row this table owns. */
+  const matchesTemplate = (template: string, text: string): boolean => {
+    const pattern = template
+      .split(/\{\w+\}/)
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("(.+)");
+    return new RegExp(`^${pattern}$`).test(text);
+  };
+
+  it("records the blocked line the word table composes — anchor, station, then the held row", () => {
+    // `f8.blocked.message` is the byte face of three rows: the `CDD_BLOCKED:` anchor, the
+    // refusing station's own name, and the in-flight held report with its slots filled. The
+    // corpus pins the holder's unstable cells as constants, so the WHOLE line is comparable.
+    const baseline = readBaseline(BASELINE_FILE);
+    if (baseline === null) throw new Error("the corpus has never been recorded");
+    const recorded = baseline.cells["f8.blocked.message.stderr"]?.value ?? "";
+    expect(recorded.length).toBeGreaterThan(0);
+    const parts = recorded.split(WORDS.refusal.join);
+    expect(parts[0]).toBe(`${WORDS.refusal.prefix} in-flight`);
+    const detail = parts.slice(1).join(WORDS.refusal.join);
+    const expected = Object.entries({
+      pid: "<pid>",
+      command: "cdd implement --tasks 1 --plan p9.md",
+      startedAt: "<startedAt>",
+      uptime: "<uptime>",
+      wave: "1",
+      slug: "p9",
+    }).reduce<string>((row, [slot, value]) => row.replace(`{${slot}}`, value), WORDS.inFlight.held);
+    expect(detail).toBe(expected);
+  });
+
+  it("records only `checked:` rows the word table declares — the block is that table's render", () => {
+    // Every row of the recorded block is a declared row: the heading, the in-flight state row
+    // (its `{pid}` filled), the plan-ahead info row (its `{count}` filled) or one of the
+    // declared yield words. A reword on either side reds here.
+    const baseline = readBaseline(BASELINE_FILE);
+    if (baseline === null) throw new Error("the corpus has never been recorded");
+    const recorded = baseline.cells["f8.blocked.checked.stderr"]?.value ?? "";
+    const [heading, ...rows] = recorded.split("\n");
+    expect(heading).toBe(WORDS.checked.heading);
+    const undeclared = rows
+      .map((row) => row.trim())
+      .filter((row) => row.includes(": "))
+      .map((row) => row.slice(row.indexOf(": ") + 2))
+      .filter(
+        (suffix) =>
+          !Object.values(WORDS.checked.skipped).includes(
+            suffix as (typeof WORDS.checked.skipped)[keyof typeof WORDS.checked.skipped],
+          ) &&
+          !Object.values(WORDS.checked.inFlight).some((row) => matchesTemplate(row, suffix)) &&
+          !matchesTemplate(WORDS.checked.planAhead, suffix),
+      );
+    expect(undeclared).toEqual([]);
+    // The block really carries state rows, so the scan above is not a pass over nothing.
+    expect(rows.some((row) => row.trim().startsWith("in-flight:"))).toBe(true);
+    expect(rows.some((row) => row.includes(WORDS.checked.skipped["no-doc-target"]))).toBe(true);
+  });
 });
 
 describe("the new tree's execution face", () => {

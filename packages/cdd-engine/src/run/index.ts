@@ -15,19 +15,25 @@
 //               its two expiry triggers, and the takeover's three legs. Its sentence: a
 //               refusal is a fact about the TREE, never about a round, and at most one
 //               stands at a time.
-//   dispatch/ — the child: its input contract, the handoff read-back, the budget, the
-//               in-flight record (zero records before the child exists; no residue after).
-//               Lands in a later wave.
+//   dispatch/ — the child: the dispatch's input contract and its pre-frame value
+//               assembly, the handoff contract and its read-back, the liveness judge, the
+//               budget and the three termination causes, and the tree's in-flight record
+//               (zero records before the child exists; no residue after). Its sentence:
+//               the engine authorises and attributes, it never signals.
 //   advance/  — the frontier and `next:`: the pipeline and wave frontiers, the closure
 //               judgment, the `next:` / `reason:` assembly (the frontier is the ledger's
 //               projection, never a second judgment). Lands in a later wave.
 //
-// `run/index.ts` is the slice's ONE entrance. This wave exposes the fact layer's READ face
-// and the gate the round machinery consults before a child exists; the round verbs and the
-// frontier arrive with their own segments. The class knows no path spelling (`env/`), no
-// markdown (`docs/`) and no byte (`surface/`): the gate and the refusal record arrive
-// CONSTRUCTED by the composition root, so this file composes nothing and spells nothing.
+// `run/index.ts` is the slice's ONE entrance. It exposes the fact layer's READ face, the
+// gate the round machinery consults before a child exists, and the dispatch segment's
+// faces (the child, the value assembly, the handoff and the in-flight record); the round
+// verbs and the frontier arrive with `advance/`. The class knows no path spelling (`env/`),
+// no markdown (`docs/`) and no byte (`surface/`): the gate, the refusal record, the lock and
+// the in-flight record arrive CONSTRUCTED by the composition root, so this file composes
+// nothing and spells nothing.
 
+import type { Child } from "./dispatch/child.ts";
+import type { InFlight } from "./dispatch/inflight.ts";
 import type { PreFlight } from "./gate/preflight.ts";
 import type { Refusal, RefusalState } from "./gate/refusal.ts";
 import type { ArtifactObservation } from "./ledger/ledger.ts";
@@ -44,6 +50,70 @@ import {
 import type { Drift, ReviewedIdentity } from "./ledger/reviewed.ts";
 import type { Rulings } from "./ledger/rulings.ts";
 
+export {
+  BUDGET,
+  Child,
+  type ChildOptions,
+  type DispatchFrame,
+  type DispatchLog,
+  type DispatchOutcome,
+  ROUND_PHASES,
+  type RoundPhase,
+  type TerminationCause,
+} from "./dispatch/child.ts";
+export {
+  CONTRACT_VIOLATION,
+  HANDOFF_KEYS,
+  Handoff,
+  type HandoffConclusion,
+  type HandoffKey,
+  type HandoffPlane,
+  type HandoffRead,
+  type JudgedRecord,
+  PLANE_REQUIRED,
+  PLANE_SLOTS,
+  type RoundFinding,
+  type RoundSeverity,
+  WORK_STATUSES,
+} from "./dispatch/handoff.ts";
+export {
+  type AcquireOutcome,
+  InFlight,
+  type InFlightBody,
+  type InFlightOptions,
+  type InFlightRecord,
+  type InFlightState,
+  type LivenessRead,
+  type Occupancy,
+  type StartRead,
+  TARGET_FACTS,
+  type TargetFact,
+} from "./dispatch/inflight.ts";
+export {
+  CpuAdvance,
+  LIVENESS_READS,
+  LIVENESS_SIGNALS,
+  type LivenessContext,
+  LivenessJudge,
+  type LivenessLeg,
+  type LivenessReads,
+  type LivenessSignal,
+  type LivenessSignalEntry,
+  type LivenessVerdict,
+  LogGrowth,
+  type Sample,
+  Sampler,
+  type SignalReading,
+  type TickReadings,
+  Watch,
+  type WatchOptions,
+} from "./dispatch/liveness.ts";
+export {
+  type ArtifactSnapshot,
+  type DispatchIdentity,
+  type DispatchSceneFacts,
+  DispatchValues,
+} from "./dispatch/values.ts";
 export type { Takeover, TakeoverAnswer } from "./gate/authority.ts";
 export { Authority } from "./gate/authority.ts";
 export {
@@ -121,6 +191,10 @@ export interface RunOptions extends LedgerOptions {
   readonly gate: PreFlight;
   /** The tree's one refusal record — the same instance the gate writes. */
   readonly refusal: Refusal;
+  /** The tree's one in-flight record — the same instance the release point clears through. */
+  readonly inflight: InFlight;
+  /** The child seam — the ONE spawn point a round's dispatch takes. */
+  readonly child: Child;
 }
 
 /**
@@ -135,6 +209,12 @@ export class Run {
   /** The work tree's gate. */
   readonly gate: PreFlight;
 
+  /** The tree's one in-flight record. */
+  readonly inflight: InFlight;
+
+  /** The child seam. */
+  readonly child: Child;
+
   readonly #ledger: Ledger;
   readonly #refusal: Refusal;
 
@@ -143,6 +223,8 @@ export class Run {
     this.#refusal = opts.refusal;
     this.facts = this.#ledger;
     this.gate = opts.gate;
+    this.inflight = opts.inflight;
+    this.child = opts.child;
   }
 
   /** The tree's refusal as THIS workspace sees it — the phase's own standing refusal, or

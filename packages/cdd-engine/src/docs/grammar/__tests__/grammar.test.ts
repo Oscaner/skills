@@ -198,6 +198,30 @@ describe("the record face", () => {
     const plain = "## Design\n\nbody\n";
     expect(docBodyOf(plain)).toBe(plain);
   });
+
+  it("keeps a CRLF document's line endings — the body is the same byte slice the old tree took", () => {
+    // The head boundary has ONE spelling in this slice (`headFenceOf`) and the line form
+    // has ONE (`lineSplitOf` / `lineJoinOf`): a CRLF document splits on `\n` alone, so
+    // each `\r` stays with the line it ends. A projection that normalized line endings
+    // would change a reviewed document's digest, and with it the drift verdict built on
+    // that digest.
+    const crlf = [
+      "---",
+      "title: Fixture",
+      "slug: fixture",
+      "---",
+      "",
+      "## Design",
+      "",
+      "body",
+      "",
+    ].join("\r\n");
+    const body = docBodyOf(crlf);
+    expect(body).not.toContain("title: Fixture");
+    expect(body).toBe("\r\n## Design\r\n\r\nbody\r\n");
+    // The head boundary is one walk for both faces: the split the head parser takes.
+    expect(frontmatterOf(crlf).body).toBe("\r\n## Design\r\n\r\nbody\r\n");
+  });
 });
 
 describe("the injected read face", () => {

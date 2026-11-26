@@ -236,6 +236,10 @@ const OVERALL_TEXT = [
   "",
 ].join("\n");
 
+/** The child's own note row the review carrier carries — the board's `notes +M` count
+ *  and, under `--notes`, the folded body behind it. */
+const CHILD_NOTE = "the guard is missing at the second station";
+
 /** One round record of a wave row — the shape the ledger persists. */
 const round = (
   op: string,
@@ -405,11 +409,14 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
   const base: FixtureFile = { path: `.kairos/cdd/${PHASE_SLUG}/base.json`, text: baseArtifact() };
   // A CLOSED wave row is closed by its review CARRIER: the closure judge reads the
   // round's own carrier bytes, so a row without one is an open verdict whatever its
-  // records say. The carrier is the shape a landed review leaves behind.
+  // records say. The carrier is the shape a landed review leaves behind — including the
+  // child's own `notes` rows, which is the input the board's `--notes` face expands
+  // (spec §2.2 #6 freezes both states, so the tree carries what distinguishes them).
   const reviewCarrier: FixtureFile = {
     path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-review-1.c1.json`,
-    text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
+    text: `${JSON.stringify({ status: "APPROVED", findings: [], notes: [CHILD_NOTE] }, null, 2)}\n`,
   };
+  const withCarrier = rounds === "review" || rounds === "closed";
   const corruptLock = (): TreeFixture => ({
     shape,
     files: [...docsFor(), progress("none"), { path: inFlightPaths().record, text: '{"pid": 1, ' }],
@@ -424,12 +431,7 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     case "wave":
       return {
         shape,
-        files: [
-          ...docsFor(),
-          progress(rounds),
-          base,
-          ...(rounds === "closed" ? [reviewCarrier] : []),
-        ],
+        files: [...docsFor(), progress(rounds), base, ...(withCarrier ? [reviewCarrier] : [])],
       };
     case "inflight": {
       if (holder === undefined) throw new Error("the `inflight` fixture needs holder facts");

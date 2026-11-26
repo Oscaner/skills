@@ -94,7 +94,3 @@ export class SlugIndex {
     }
   }
 }
-
-/** The scan over one basis — the member the `paths` segment exposes. */
-export const slugIndexOf = (root: RepoRoot, docs: DocRoots, slugOf: SlugReader): SlugIndex =>
-  SlugIndex.scan(root, docs, slugOf);

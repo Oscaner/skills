@@ -40,6 +40,34 @@ export type Stream = "stdout" | "stderr" | "exit-code";
 /** The three streams, in the order a cell is derived from one probe. */
 export const STREAMS: readonly Stream[] = ["stdout", "stderr", "exit-code"];
 
+/** What a run left at the target it was told to write. */
+export interface Landing {
+  /** The repo-relative path the run wrote (the probe's declared target). */
+  readonly path: string;
+  /** `absent` — nothing there; `empty` — a file with no bytes; `written` — bytes. */
+  readonly kind: "absent" | "empty" | "written";
+  /** The written bytes' sha256, or the empty string when nothing was written. */
+  readonly digest: string;
+}
+
+/** One probe's reading — the three streams, plus what the run left at its target. The
+ *  landing fact is taken INSIDE the run: the fixture tree is removed the moment the run
+ *  ends, so a post-run directory read would see nothing at all. */
+export interface ProbeReading {
+  /** Standard output. */
+  readonly stdout: string;
+  /** Standard error. */
+  readonly stderr: string;
+  /** The process exit code. */
+  readonly exitCode: number;
+  /** The landing fact, or undefined for a probe that declares no target. */
+  readonly landing?: Landing;
+}
+
+/** How one unit's cells are projected: a per-STREAM override of the default read. A
+ *  stream with no override records its own bytes — an exit code stays an exit code. */
+export type Projections = Readonly<Partial<Record<Stream, (reading: ProbeReading) => string>>>;
+
 /** The eight frozen faces of spec §2.2. */
 export type Face = "f1" | "f2" | "f3" | "f4" | "f5" | "f6" | "f7" | "f8";
 
@@ -91,6 +119,8 @@ export interface Probe {
   readonly hostless?: boolean;
   /** The in-process render key, when the probe drives a renderer instead of a command. */
   readonly render?: string;
+  /** The repo-relative path the run is expected to write — the landing fact's target. */
+  readonly target?: string;
 }
 
 /** One unit — one probe run and the streams read off it. */
@@ -107,8 +137,9 @@ export interface Unit {
   readonly producer: string;
   /** The probe; absent exactly when the route does not apply. */
   readonly probe?: Probe;
-  /** How a cell's value is taken off the reading; default is the whole stream. */
-  readonly slice?: (reading: { stdout: string; stderr: string; exitCode: number }) => string;
+  /** How a cell's value is taken off the reading; a stream with no entry records its
+   *  own bytes (or its own exit code). */
+  readonly project?: Projections;
 }
 
 /** One grid cell — a unit × a stream. */
@@ -131,8 +162,8 @@ export interface Cell {
   readonly producer: string;
   /** The unit's probe, or undefined for a not-applicable cell. */
   readonly probe?: Probe;
-  /** The unit's slice, when the cell reads a projection rather than a stream. */
-  readonly slice?: Unit["slice"];
+  /** The unit's projection, when the cell reads a fact rather than a whole stream. */
+  readonly project?: Projections;
 }
 
 /** The plan path the fixture declares, spelled repo-relative for every argv. */
@@ -594,8 +625,15 @@ export const UNITS: readonly Unit[] = [
     probe: {
       fixture: "empty",
       argv: ["schema", "get", "plan", "--output", "skeleton", "landed.md"],
+      target: "landed.md",
     },
-    slice: (reading) => (reading.exitCode === 0 ? "target-written" : "target-refused"),
+    // The landing FACT, plus the path the command echoed: does the target file get
+    // written and is it non-empty? The skeleton's `date:` line is today's clock, so the
+    // file's own bytes are never recorded here — `f3.skeleton.*` carries the content
+    // face under the corpus's frozen date. The exit code keeps its own cell.
+    project: {
+      stdout: (reading) => `${reading.stdout.trim()} target=${reading.landing?.kind ?? "unread"}`,
+    },
   },
   // ---- face 4: the prompt bands ---------------------------------------------------
   ...[
@@ -646,7 +684,10 @@ export const UNITS: readonly Unit[] = [
     route: "normal",
     task: "T16",
     producer: "surface/render/board.ts#BoardView",
-    probe: { fixture: "wave", argv: ["board", "--plan", PLAN] },
+    // A wave row whose review round left a carrier carrying the child's own note: the
+    // two states of §2.2 #6 differ only by what `--notes` opens, so the tree must carry
+    // the note — an unexpanded and an expanded cell over a note-less tree are one cell.
+    probe: { fixture: "wave", options: { rounds: "review" }, argv: ["board", "--plan", PLAN] },
   },
   {
     key: "f6.board.expanded",
@@ -654,7 +695,11 @@ export const UNITS: readonly Unit[] = [
     route: "normal",
     task: "T16",
     producer: "surface/render/board.ts#BoardView",
-    probe: { fixture: "wave", argv: ["board", "--plan", PLAN, "--notes"] },
+    probe: {
+      fixture: "wave",
+      options: { rounds: "review" },
+      argv: ["board", "--plan", PLAN, "--notes"],
+    },
   },
   // ---- face 7: the dry-run preview ------------------------------------------------
   {
@@ -724,7 +769,7 @@ export const UNITS: readonly Unit[] = [
       argv: implementArgv,
       dispatch: true,
     },
-    slice: (reading) => blockedLines(reading.stderr, "CDD_BLOCKED"),
+    project: { stderr: (reading) => blockedLines(reading.stderr, "CDD_BLOCKED") },
   },
   {
     key: "f8.blocked.checked",
@@ -738,7 +783,7 @@ export const UNITS: readonly Unit[] = [
       argv: implementArgv,
       dispatch: true,
     },
-    slice: (reading) => checkedBlock(reading.stderr),
+    project: { stderr: (reading) => checkedBlock(reading.stderr) },
   },
   {
     key: "f8.blocked.station",
@@ -752,7 +797,7 @@ export const UNITS: readonly Unit[] = [
       argv: implementArgv,
       dispatch: true,
     },
-    slice: (reading) => stationOf(reading.stderr),
+    project: { stderr: (reading) => stationOf(reading.stderr) },
   },
   {
     key: "f8.blocked.yielding",
@@ -766,7 +811,7 @@ export const UNITS: readonly Unit[] = [
       argv: implementArgv,
       dispatch: true,
     },
-    slice: (reading) => blockedLines(reading.stderr, "skipped"),
+    project: { stderr: (reading) => blockedLines(reading.stderr, "skipped") },
   },
 ];
 
@@ -805,7 +850,7 @@ export const CELLS: readonly Cell[] = UNITS.flatMap((unit) =>
     task: unit.task,
     producer: unit.producer,
     probe: unit.probe,
-    slice: unit.slice,
+    project: unit.project,
   })),
 );
 
@@ -824,6 +869,15 @@ export const TREE_SHAPES_TEXT = TREE_SHAPES;
 /** The three non-tree fixtures, exposed so a report can name them. */
 export const NON_TREE_FIXTURES = { plantPathStandIn, RecordingStepRunner } as const;
 
-/** One roster row — the cell id, its wiring task, its producer landing and its route. */
-export const rosterRow = (cell: Cell): string =>
-  `| ${cell.id} | ${cell.task} | ${cell.producer} | ${cell.route} |`;
+/** The roster's table — one row per cell, rendered from this grid.
+ *
+ *  The table and the grid are one declaration and one rendering: `GRID-WIRING.md` carries
+ *  prose plus this table, and `roster.ts` rewrites the table from `CELLS` in place, so a
+ *  landing that renames its producer is one re-render away instead of a hand edit of a
+ *  200-row table. The parity suite fails the moment the file and this function disagree. */
+export const rosterTable = (): string =>
+  [
+    "| cell | task | producer | route |",
+    "| --- | --- | --- | --- |",
+    ...CELLS.map((cell) => `| ${cell.id} | ${cell.task} | ${cell.producer} | ${cell.route} |`),
+  ].join("\n");

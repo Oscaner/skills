@@ -14,11 +14,23 @@ producer lands, every cell it owns that is still recorded as `GAP` turns the cor
 as wired starts comparing bytes. A producer that does not exist yet is a `GAP`: counted,
 neither skipped nor red.
 
-**The three states** (spec §2.4): `GAP` — the producer has not landed, so the cell has no
-judge yet; `DIFF` — the cell is wired and its bytes differ from the recording, red;
-`MISSING` — the recorded state and the tree disagree, red. The per-wave judgment is
-"wired cells show zero diffs, and the GAP set is exactly the set the baseline recorded as
-unwired". "The GAP set is empty" is the cutover's judgment, not every wave's.
+**Three states, and a route that has none** (spec §2.4): `GAP` — the producer has not
+landed, so the cell has no judge yet; `DIFF` — the cell is wired and its new-tree bytes
+differ from the recording, red; `MISSING` — the recording and the tree disagree (a cell
+recorded `GAP` whose producer has landed, a wired cell with no new-tree driver, a recording
+taken under another frozen date), red; `not-applicable` — the command has no such route,
+which is a state of its own and never a GAP. The per-wave judgment is "wired cells show
+zero diffs, and the GAP set is exactly the roster's unwired applicable cells" — a condition
+read off the tree, never a snapshot of the wave that recorded it. "The GAP set is empty" is
+the cutover's judgment, not every wave's.
+
+**The expectation is the old tree; the reading is the new one.** A cell's baseline value is
+the old tree's recorded bytes; its actual bytes come from the new tree, through the drivers
+of `NewTree` — the same fixture, the same argv, the same injected day. A driver is
+registered by the wave that lands the entry it drives (the process `entry`, the in-process
+`seam`, one `render:<family>` per renderer), and a kind with no driver is a named absence.
+No cell ever falls back to a second old-tree run, which is what makes "the new tree
+reproduces the old one" a judgment rather than a tautology.
 
 **The refusal route is declared per cause.** The wave gate's five reasons
 (`mixed-batch` · `wave-too-wide` · `too-many-tasks` · `split` · `wrong-phase`) and the
@@ -42,11 +54,13 @@ judgment from T10, the preview's input from T13's `Run#previewOf`, the `init` st
 from T8. The wiring task is the landing that produces the cell's bytes; the read source
 supplies a value to it.
 
-**Two cells are shapes, not bytes.** `f3.skeleton-landing.*` records the landing FACT
-(does the target file get written, and is it non-empty) rather than a byte string: the
-skeleton's `date:` line is read from the system clock by the CLI face, so a cross-day
-byte baseline for that cell would be a lie. Its content face is `f3.skeleton.*`, which is
-recorded in-process under the corpus's frozen date.
+**The landing cells are judged within the run, not against the baseline.**
+`f3.skeleton-landing.*` judges whether `schema get … --output skeleton <target>` really
+writes its target: both trees write in this pass — same fixture, same argv, same clock —
+and the two targets must both be there and carry equal bytes. The written file holds the
+wall clock's `date:` line, so a cross-day byte baseline for this cell would be a lie; the
+content face is `f3.skeleton.*`, recorded in-process under the corpus's frozen date. Each
+landing is taken INSIDE the run — the fixture tree is removed the moment the run ends.
 
 ## Recorded readings
 
@@ -60,8 +74,10 @@ with `node --experimental-strip-types packages/cdd-engine/tests/parity/record.ts
 One row per cell, rendered from the grid's own `UNITS` table (`grid.ts`) — the table and
 the roster are one declaration and one rendering, and the parity suite fails the moment
 they disagree. A landing task that exports a symbol other than the one named here rewrites
-its row in `grid.ts` and re-renders this file; until then the row names the plan's
-declared landing, which is what makes a producer arriving unwired go red.
+its row in `grid.ts` and re-renders this file with
+`node --experimental-strip-types packages/cdd-engine/tests/parity/roster.ts`; until then
+the row names the plan's declared landing, which is what makes a producer arriving unwired
+go red.
 
 | cell | task | producer | route |
 | --- | --- | --- | --- |

@@ -34,6 +34,24 @@ export class FrontMatterError extends Error {
 /** The closing/opening fence of a YAML head block. */
 const FENCE = "---";
 
+/** The ONE fence walk of a head boundary — the head's own split and the body projection
+ *  both read it, so `---` means one thing in this slice. Recognition only: no YAML is
+ *  parsed here, so a document whose head will not parse still projects its body. */
+export const headFenceOf = (lines: readonly string[]): number => {
+  if ((lines[0] ?? "").trim() !== FENCE) return -1;
+  return lines.findIndex((line, index) => index > 0 && line.trim() === FENCE);
+};
+
+/** Split a document into lines on `\n` alone — the ONE spelling of a document's line
+ *  form in this slice. The `\r` of a CRLF text belongs to the line it ends, so
+ *  `lineJoinOf` restores the input byte for byte and a projected body stays equal to
+ *  the old tree's projection. */
+export const lineSplitOf = (content: string): readonly string[] => content.split("\n");
+
+/** Join lines back with `\n` separators — the inverse of `lineSplitOf`, keeping every
+ *  `\r` a line still carries. */
+export const lineJoinOf = (lines: readonly string[]): string => lines.join("\n");
+
 /** Narrow a thrown YAML error to the typed, positioned failure. */
 const errorOf = (raw: unknown, block: readonly string[]): FrontMatterError => {
   const message = raw instanceof Error ? raw.message : "YAML parse error";
@@ -112,15 +130,14 @@ export interface FrontMatterSplit {
  *  `FrontMatterError`; a non-record block (a bare scalar, a sequence) is not a head and
  *  answers the empty head with the original body. */
 export const frontmatterOf = (content: string): FrontMatterSplit => {
-  const lines = content.split(/\r?\n/);
-  if ((lines[0] ?? "").trim() !== FENCE) return { head: new FrontMatter(null), body: content };
-  const closing = lines.findIndex((line, index) => index > 0 && line.trim() === FENCE);
+  const lines = lineSplitOf(content);
+  const closing = headFenceOf(lines);
   if (closing === -1) return { head: new FrontMatter(null), body: content };
   const block = lines.slice(1, closing);
   const counter = new LineCounter();
   let parsed: unknown;
   try {
-    parsed = parseYaml(block.join("\n"), { lineCounter: counter });
+    parsed = parseYaml(lineJoinOf(block), { lineCounter: counter });
   } catch (raw) {
     throw errorOf(raw, block);
   }
@@ -129,6 +146,6 @@ export const frontmatterOf = (content: string): FrontMatterSplit => {
   }
   return {
     head: new FrontMatter(parsed as Record<string, unknown> | null),
-    body: lines.slice(closing + 1).join("\n"),
+    body: lineJoinOf(lines.slice(closing + 1)),
   };
 };

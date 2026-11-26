@@ -1,33 +1,43 @@
 // packages/cdd-engine/tests/parity/parity.test.ts
-// The parity corpus's own suite: the roster is complete and singular, the baseline
-// covers every declared cell, the reconciliation answers three states, and the harness
-// can go red on its own.
+// The parity corpus's own suite: the roster is complete, singular and rendered from the
+// grid; the baseline covers every declared cell; the reconciliation answers four states
+// and reads the NEW tree; the recorded shapes carry the facts their cells claim; and the
+// harness can go red on its own.
 //
-// The last one is the point: a reconciliation that cannot fail is only running itself.
-// The self-proving arm records the same corpus twice from the old tree and requires the
-// two recordings to be byte-identical, then flips one byte of one expectation and
-// requires the difference to be seen. It touches no new-tree producer — which is why
-// "the harness itself is red-able" holds from the day the corpus lands, not from the day
-// the first producer does.
+// The last one is the point: a reconciliation that cannot fail is only running itself. The
+// self-proving arm records the same corpus twice from the old tree and requires the two
+// recordings to be byte-identical, then flips one byte of one expectation and requires the
+// difference to be seen. It touches no new-tree producer — which is why "the harness itself
+// is red-able" holds from the day the corpus lands, not from the day the first producer does.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CELLS, TREE_SHAPES_TEXT } from "./grid.ts";
+import { CELLS, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
 import {
   BASELINE_FILE,
+  type Baseline,
   CORPUS,
+  compareTree,
+  kindOf,
+  landingDiff,
+  NEW_TREE,
+  NEW_TREE_ENTRY,
+  NEW_TREE_ROOT,
+  NewTree,
   PARITY_ROOT,
+  ProbeRunner,
   producerWired,
+  projectionOf,
   Recorder,
+  ROSTER_FILE,
   Roster,
+  type RosterRow,
   readBaseline,
   reconcile,
   SelfProof,
 } from "./harness.ts";
-
-/** The roster's file. */
-const ROSTER_FILE = path.join(PARITY_ROOT, "GRID-WIRING.md");
 
 /** The engine package root. */
 const ENGINE_ROOT = path.resolve(PARITY_ROOT, "../..");
@@ -37,6 +47,43 @@ const REPO_ROOT = path.resolve(ENGINE_ROOT, "../..");
 
 /** One cell the corpus always records — the smallest read face, so a case can name it. */
 const SAMPLE_CELL = "f1.base-get.refusal.absent.stderr";
+
+/** The sample cell's declaration. */
+const sampleCell = (): (typeof CELLS)[number] => {
+  const cell = CELLS.find((entry) => entry.id === SAMPLE_CELL);
+  if (cell === undefined) throw new Error(`${SAMPLE_CELL} is not declared`);
+  return cell;
+};
+
+/** One cell of one unit and stream. */
+const cellOf = (unit: string, stream: "stdout" | "stderr" | "exit-code") => {
+  const cell = CELLS.find((entry) => entry.unit === unit && entry.stream === stream);
+  if (cell === undefined) throw new Error(`${unit}.${stream} is not declared`);
+  return cell;
+};
+
+/** A roster holding ONE row — how a case wires a single cell without touching the file. */
+const rosterOf = (row: RosterRow): Roster => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "parity-roster-")), "roster.md");
+  const body = `| cell | task | producer | route |\n| --- | --- | --- | --- |\n| ${row.cell} | ${row.task} | ${row.producer} | ${row.route} |\n`;
+  writeFileSync(file, body, "utf8");
+  return Roster.read(file);
+};
+
+/** A recording of one cell, as a stitched baseline would hold it. */
+const baselineOf = (cell: string, value: string): Baseline => ({
+  scenario: CORPUS.id,
+  frozenDate: CORPUS.frozenDate,
+  recordedFrom: "src-next",
+  cells: { [cell]: { state: "recorded", value } },
+});
+
+/** The bytes a driver answers on every stream — distinguishable from any real reading. */
+const FAKE_READING: ProbeReading = {
+  stdout: "the new tree's stdout",
+  stderr: "the new tree's stderr",
+  exitCode: 7,
+};
 
 describe("the corpus is on the tree", () => {
   it("registers the seven tree shapes, the three non-tree fixtures and the frozen date", () => {
@@ -97,6 +144,12 @@ describe("the wiring roster", () => {
     }
   });
 
+  it("carries the table the grid renders — the document and the table are one declaration", () => {
+    // `roster.ts` rewrites this table from `CELLS`; the file is prose PLUS that rendering.
+    // A hand-edited row therefore reds here instead of drifting silently.
+    expect(readFileSync(ROSTER_FILE, "utf8").trimEnd().endsWith(rosterTable())).toBe(true);
+  });
+
   it("declares the refusal route per cause — the five wave-gate reasons and the four stations", () => {
     const causes = CELLS.map((cell) => cell.unit).filter((unit) => unit.includes(".refusal."));
     for (const cause of [
@@ -130,9 +183,12 @@ describe("the baseline", () => {
     for (const cell of CELLS) {
       const entry = baseline.cells[cell.id];
       if (entry === undefined) throw new Error(`${cell.id}: no baseline entry`);
-      expect(entry.state).toBe("gap");
-      // An empty stream is a legal recording (a silent command writes no stderr); a
-      // route the command does not have is the ONLY cell with no bytes at all.
+      // The recording's state is a CONDITION, not a snapshot of the wave that took it: the
+      // route decides `not-applicable`, and nothing else does.
+      expect(["gap", "recorded", "not-applicable"]).toContain(entry.state);
+      expect(entry.state === "not-applicable").toBe(!cell.applicable);
+      // An empty stream is a legal recording (a silent command writes no stderr); a route
+      // the command does not have is the ONLY cell with no bytes at all.
       if (!cell.applicable) expect(entry.value).toBe("");
     }
     const recorded = Object.values(baseline.cells).filter((entry) => entry.value.length > 0);
@@ -140,28 +196,165 @@ describe("the baseline", () => {
   });
 });
 
+describe("the recorded shapes", () => {
+  it("records the skeleton landing fact and the real exit code, never one token for three streams", async () => {
+    // `schema get … --output skeleton <target>`: one stream judges whether the target file is
+    // there and non-empty, the exit-code stream still records the exit code. A path echoed
+    // with nothing written must red, so the three cells cannot collapse into one token.
+    const probe = cellOf("f3.skeleton-landing", "stdout").probe;
+    if (probe === undefined) throw new Error("the landing probe is not declared");
+    const reading = await ProbeRunner.run(probe);
+    expect(reading.stdout.trim()).toBe("landed.md");
+    expect(reading.exitCode).toBe(0);
+    expect(reading.landing?.kind).toBe("written");
+    expect(reading.landing?.digest).toMatch(/^[0-9a-f]{64}$/);
+    const stdout = projectionOf(cellOf("f3.skeleton-landing", "stdout"), reading);
+    const exitCode = projectionOf(cellOf("f3.skeleton-landing", "exit-code"), reading);
+    expect(stdout).toContain("target=written");
+    expect(exitCode).toBe("0");
+    expect(exitCode).not.toBe(stdout);
+  }, 120_000);
+
+  it("judges a landing cell within the run — both targets written, their bytes equal", () => {
+    // The written file carries the wall clock's date, so this cell cannot lean on the
+    // baseline: both trees write in this run and the two targets are what get compared.
+    const cell = cellOf("f3.skeleton-landing", "stdout");
+    const written = (digest: string): ProbeReading => ({
+      stdout: "landed.md\n",
+      stderr: "",
+      exitCode: 0,
+      landing: { path: "landed.md", kind: "written", digest },
+    });
+    const absent: ProbeReading = {
+      stdout: "landed.md\n",
+      stderr: "",
+      exitCode: 0,
+      landing: { path: "landed.md", kind: "absent", digest: "" },
+    };
+    expect(landingDiff(cell, written("a".repeat(64)), written("a".repeat(64)))).toBeNull();
+    expect(landingDiff(cell, written("a".repeat(64)), written("b".repeat(64)))).not.toBeNull();
+    // The echoed path with nothing written is the exact failure this cell exists to red on.
+    expect(landingDiff(cell, absent, absent)?.expected).toContain("must write the target");
+    expect(landingDiff(cell, written("a".repeat(64)), absent)?.expected).toContain(
+      "must write the target",
+    );
+  });
+
+  it("records the board's two note states differently — the expanded face has an input", async () => {
+    // spec §2.2 #6 freezes `--notes` unexpanded AND expanded. Two cells over a tree with no
+    // note are one cell: the fixture carries a child note, so the expanded rendering has
+    // something to open and deleting the notes renderer reds.
+    const recorder = new Recorder(ProbeRunner.run);
+    const folded = await recorder.cellValueOf(cellOf("f6.board.unexpanded", "stdout"));
+    const open = await recorder.cellValueOf(cellOf("f6.board.expanded", "stdout"));
+    expect(folded).toContain("notes +1");
+    expect(folded).not.toContain("the guard is missing at the second station");
+    expect(open).toContain("the guard is missing at the second station");
+    expect(open).not.toBe(folded);
+  }, 120_000);
+});
+
+describe("the new tree's execution face", () => {
+  it("registers the new tree's own process entry, and it is the new tree's", () => {
+    expect(NEW_TREE.kinds()).toContain("entry");
+    expect(NEW_TREE_ENTRY.startsWith(NEW_TREE_ROOT)).toBe(true);
+    expect(NEW_TREE_ENTRY).not.toContain("src-next");
+  });
+
+  it("leaves every probe kind it cannot read owed to a named wiring task", () => {
+    // The kinds are the reconciler's routing table. Each kind is either answered or owed —
+    // there is no third route, and in particular no fallback to the old tree.
+    const roster = Roster.read(ROSTER_FILE);
+    const owed = new Set<string>();
+    for (const cell of CELLS) {
+      if (!cell.applicable || cell.probe === undefined) continue;
+      const kind = kindOf(cell.probe);
+      if (NEW_TREE.kinds().includes(kind)) continue;
+      owed.add(kind);
+      const task = roster.rowOf(cell.id)?.task;
+      expect(task).toMatch(/^T\d+$/);
+    }
+    expect([...owed].length).toBeGreaterThan(0);
+  });
+});
+
 describe("the reconciliation", () => {
   const roster = Roster.read(ROSTER_FILE);
 
-  it("counts every unwired cell as a GAP — exactly the set the baseline recorded as one", async () => {
+  it("counts every cell with no landed producer as a GAP — the roster's unwired set, never a snapshot", async () => {
     const baseline = readBaseline(BASELINE_FILE);
     if (baseline === null) throw new Error("the corpus has never been recorded");
     const answer = await reconcile(CORPUS, baseline, roster);
-    const recordedGaps = Object.entries(baseline.cells)
-      .filter(([, cell]) => cell.state === "gap")
-      .map(([id]) => id)
-      .sort();
-    expect([...answer.gaps].sort()).toEqual(recordedGaps);
-    // At this wave no producer has landed, so no cell is compared and none is missing.
+    const unwired = CELLS.filter((cell) => {
+      if (!cell.applicable) return false;
+      const row = roster.rowOf(cell.id);
+      return row === null || !producerWired(row.producer);
+    }).map((cell) => cell.id);
+    expect([...answer.gaps].sort()).toEqual(unwired.sort());
+    expect(unwired.length).toBeGreaterThan(0);
+    // Nothing has landed yet, so nothing is compared and nothing is missing — and the GAP
+    // set is the whole applicable corpus, not "everything the recording happened to say".
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
   });
 
   it("treats a producer landing as wiring, not as a hidden gap", () => {
-    // The reading of "wired" is the producer's own landing — a path that exists and
-    // exports the name. Both directions are exercised so the predicate is not a stub.
+    // The reading of "wired" is the producer's own landing — a path that exists and exports
+    // the name. Both directions are exercised so the predicate is not a stub.
     expect(producerWired("env/index.ts#Env")).toBe(true);
     expect(producerWired("surface/commands/implement.ts#ImplementCommand")).toBe(false);
+  });
+
+  it("answers the brief's one call — compareTree reports the wired cells' byte differences", async () => {
+    expect(await compareTree(CORPUS)).toEqual([]);
+  });
+
+  it("reads a wired cell's actual bytes on the NEW tree, never a re-run of the old one", async () => {
+    // The finding this pins: a reconciler whose actual is the old tree's second reading
+    // compares old against old and can never red. The driver here answers bytes no tree
+    // printed, so only a new-tree read can produce them.
+    const cell = sampleCell();
+    const driver = { run: async () => FAKE_READING };
+    const answer = await reconcile(
+      CORPUS,
+      baselineOf(cell.id, "the old tree's bytes"),
+      rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
+      NewTree.of([["entry", driver]]),
+    );
+    expect(answer.diffs).toHaveLength(1);
+    expect(answer.diffs[0]?.actual).toBe(projectionOf(cell, FAKE_READING));
+    expect(answer.diffs[0]?.actual).not.toBe("the old tree's bytes");
+  });
+
+  it("reports a wired cell the new tree cannot read as MISSING, naming the owing task", async () => {
+    // No driver, no comparison: the cell must not fall back to the old tree, and it must not
+    // pass either. A wiring task that lands a producer owes the driver too.
+    const cell = sampleCell();
+    const answer = await reconcile(
+      CORPUS,
+      baselineOf(cell.id, "the old tree's bytes"),
+      rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
+      NewTree.unwired(),
+    );
+    expect(answer.diffs).toEqual([]);
+    expect(answer.missing).toContain(
+      `${cell.id}: the new tree has no "entry" driver — T16 wires it`,
+    );
+  });
+
+  it("refuses a recording taken under another frozen date", async () => {
+    const cell = sampleCell();
+    const stale: Baseline = {
+      ...baselineOf(cell.id, "the old tree's bytes"),
+      frozenDate: "2000-01-01",
+    };
+    const answer = await reconcile(
+      CORPUS,
+      stale,
+      rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
+      NewTree.unwired(),
+    );
+    expect(answer.missing.some((entry) => entry.includes("2000-01-01"))).toBe(true);
   });
 });
 
@@ -179,10 +372,9 @@ describe("the harness can go red on its own", () => {
   }, 180_000);
 
   it("re-reads one cell deterministically — a second independent pass equals the first", async () => {
-    const cell = CELLS.find((entry) => entry.id === SAMPLE_CELL);
-    if (cell === undefined) throw new Error("the sample cell is not declared");
-    const first = await new Recorder().valueOf(cell);
-    const second = await new Recorder().valueOf(cell);
+    const cell = sampleCell();
+    const first = await new Recorder(ProbeRunner.run).cellValueOf(cell);
+    const second = await new Recorder(ProbeRunner.run).cellValueOf(cell);
     expect(second).toBe(first);
     expect(first.length).toBeGreaterThan(0);
   }, 180_000);

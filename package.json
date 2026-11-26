@@ -12,7 +12,7 @@
     "version-sync": "node scripts/run.ts version-sync",
     "check:dist-smoke": "pnpm -C packages/cdd-engine build && node packages/cdd-engine/dist/bin.js schema get overall",
     "check:no-bare-functions": "! grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next packages/cdd-engine/src packages/kairos/tests scripts --include='*.ts'",
-    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests && tsc --noEmit -p packages/cdd-engine/tsconfig.src.json",
+    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests && tsc --noEmit -p packages/cdd-engine/tsconfig.src.json && tsc --noEmit -p packages/cdd-engine/tests/parity/tsconfig.json",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
     "prepare": "lefthook install --reset-hooks-path",

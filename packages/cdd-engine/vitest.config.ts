@@ -22,6 +22,14 @@ export default defineConfig({
     // the one being re-derived from it. Both are collected, because a tree no project runs
     // is a tree with no judge — its first real test run would come at the cutover, where
     // every failure reads as a cutover defect instead of the wave that introduced it.
-    include: ["src-next/**/__tests__/**/*.test.ts", "src/**/__tests__/**/*.test.ts"],
+    include: [
+      "src-next/**/__tests__/**/*.test.ts",
+      "src/**/__tests__/**/*.test.ts",
+      // The parity corpus (spec §2.3): the differential harness and its fixtures live
+      // outside `src/` and both trees, because a reconciliation reads both. The entry is
+      // APPENDED, never substituted — both trees keep their own suites while they
+      // coexist, and this one is deleted in the same batch as the corpus at the cutover.
+      "tests/parity/**/*.test.ts",
+    ],
   },
 });

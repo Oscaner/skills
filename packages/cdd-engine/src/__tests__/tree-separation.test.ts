@@ -11,14 +11,28 @@
 // against its own file's directory, so a relative reach of any spelling lands on a real
 // path and is judged there; a bare package specifier names no file in either tree.
 //
+// Prose is not an edge. A comment that quotes the idiom it forbids (`// never write
+// import x from "../src-next/bin.ts"`) and a doc string that does the same are the two
+// shapes a correct product file takes to record the ban, so both must read as no edge at
+// all; `tests/support/module-specifiers.ts` is the one scanner that carries that boundary,
+// and it lives outside both trees so this gate does not reach across the one it judges.
+//
 // The verdict therefore carries no line numbers and no file list of its own to maintain:
 // it re-derives both from the trees it reads, which is the only form that stays true.
+//
+// Retirement: the cutover deletes `src-next/` outright (spec §3.3), and this file goes with
+// it in that same batch. The `src-next/` direction of the ban cannot outlive its own
+// subject — enumerating a deleted directory throws rather than passing, and an `existsSync`
+// guard that passes on a missing tree is exactly the false green D101 forbids. The surviving
+// direction then lives in `src-next/__tests__/zero-dep.test.ts`, whose specifier scan refuses
+// a src-next reach into `src/` whether or not that directory exists.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { specifiersIn } from "../../tests/support/module-specifiers.ts";
 
 /** The engine package root — both trees' shared parent. */
 const ENGINE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -76,7 +90,7 @@ class CrossTreeReach {
   rows(): string[] {
     const offending: string[] = [];
     for (const file of this.judged.absolutePaths()) {
-      for (const specifier of specifiersOf(readFileSync(file, "utf8"))) {
+      for (const specifier of specifiersIn(readFileSync(file, "utf8"))) {
         if (!landsIn(dirname(file), specifier, this.foreignRoot)) continue;
         offending.push(`${relative(ENGINE_ROOT, file)} -> ${specifier}`);
       }
@@ -84,22 +98,6 @@ class CrossTreeReach {
     return offending;
   }
 }
-
-/** The module forms a specifier can arrive in — `from`, dynamic `import()`, side effect. */
-const SPECIFIER_FORMS: readonly RegExp[] = [
-  /\bfrom\s*["']([^"']+)["']/g,
-  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
-  /^\s*import\s+["']([^"']+)["']/gm,
-];
-
-/** Every module specifier the text can load, deduplicated and in first-seen order. */
-const specifiersOf = (text: string): string[] => {
-  const found = new Set<string>();
-  for (const form of SPECIFIER_FORMS) {
-    for (const match of text.matchAll(form)) found.add(match[1]);
-  }
-  return [...found];
-};
 
 /**
  * True when `specifier`, read from a module in `fromDirectory`, resolves into the tree

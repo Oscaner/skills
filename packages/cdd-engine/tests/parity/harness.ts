@@ -782,8 +782,14 @@ export const reconcile = async (
     const row = roster.rowOf(cell.id);
     if (row === null || !producerWired(row.producer)) {
       gaps.push(cell.id);
+      // A recording that disagrees with the grid's own route is MISSING even while the
+      // producer is owed: "this route does not exist" is one of the brief's MISSING
+      // conditions, and the unwired branch is the one place a recorded `not-applicable`
+      // would otherwise be absorbed into the GAP count.
       if (recorded.state === "recorded") {
         missing.push(`${cell.id}: recorded as wired, but its producer is not resolvable`);
+      } else if (recorded.state === "not-applicable") {
+        missing.push(`${cell.id}: recorded as not-applicable, but the route is resolvable`);
       }
       continue;
     }

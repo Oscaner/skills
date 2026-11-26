@@ -43,10 +43,14 @@ the recorder spells them as corpus constants rather than dropping the cell:
   around them — `alive` / `gone`, the takeover hint, the target-gone sentence, the
   `current=` digest of the bytes the corpus itself plants — stays in the byte.
 
-`f3.skeleton-landing` records the landing FACT (`target-written`), not a byte string: the
-CLI face reads the skeleton's `date:` from the system clock and has no seam for it, so a
-cross-day byte baseline for that cell would be a lie. Its content face is
-`f3.skeleton.*`, recorded in-process under the corpus's frozen date.
+`f3.skeleton-landing` records the landing PROJECTION, not a byte string: the cell's value
+is the path the command echoed plus what the run left at the target
+(`landed.md target=written` today). The judgment happens INSIDE the run — both trees write
+their own target under the same clock, and `landingDiff` compares the two targets' sha256,
+so a target the run did not write is a difference rather than a fact. Nothing in this cell
+is compared against the baseline: the skeleton's `date:` line is the system clock and the
+CLI has no seam for it, so a cross-day byte baseline for that cell would be a lie. Its
+content face is `f3.skeleton.*`, recorded in-process under the corpus's frozen date.
 
 Each shape's reading through the old entry is recorded below. A reading is evidence, not
 an expectation: the expectations are the bytes in `baseline/src-next.json`.

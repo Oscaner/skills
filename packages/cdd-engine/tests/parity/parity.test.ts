@@ -30,6 +30,7 @@ import {
   ProbeRunner,
   producerWired,
   projectionOf,
+  type RecordedState,
   Recorder,
   ROSTER_FILE,
   Roster,
@@ -71,11 +72,11 @@ const rosterOf = (row: RosterRow): Roster => {
 };
 
 /** A recording of one cell, as a stitched baseline would hold it. */
-const baselineOf = (cell: string, value: string): Baseline => ({
+const baselineOf = (cell: string, value: string, state: RecordedState = "recorded"): Baseline => ({
   scenario: CORPUS.id,
   frozenDate: CORPUS.frozenDate,
   recordedFrom: "src-next",
-  cells: { [cell]: { state: "recorded", value } },
+  cells: { [cell]: { state, value } },
 });
 
 /** The bytes a driver answers on every stream — distinguishable from any real reading. */
@@ -240,6 +241,19 @@ describe("the recorded shapes", () => {
     );
   });
 
+  it("records the board's refusal row — the `refused` shape has a byte judge", async () => {
+    // The `refused` tree shape exists for one line: a standing refusal replayed into the
+    // board. The shape alone is evidence only as long as a cell compares that line, which
+    // is what `f6.board.refused.stdout` does — its recorded bytes must carry the row, and
+    // a `BoardView` that stops printing it diffs against them.
+    const value = await new Recorder(ProbeRunner.run).cellValueOf(
+      cellOf("f6.board.refused", "stdout"),
+    );
+    expect(value).toContain(
+      "refused: implement 1·a1 graph · task 1 depends on a task the plan does not declare",
+    );
+  }, 120_000);
+
   it("records the board's two note states differently — the expanded face has an input", async () => {
     // spec §2.2 #6 freezes `--notes` unexpanded AND expanded. Two cells over a tree with no
     // note are one cell: the fixture carries a child note, so the expanded rendering has
@@ -259,6 +273,40 @@ describe("the new tree's execution face", () => {
     expect(NEW_TREE.kinds()).toContain("entry");
     expect(NEW_TREE_ENTRY.startsWith(NEW_TREE_ROOT)).toBe(true);
     expect(NEW_TREE_ENTRY).not.toContain("src-next");
+  });
+
+  it("reads an entry probe through the new tree's own process — three streams, and never the old tree's bytes", async () => {
+    // The one path that spawns `src/bin.ts`: until this pin existed, nothing in the suite
+    // called `NEW_TREE.read`, so the wave that first compares an entry-kind cell would also
+    // be the driver's first execution — a wrong cwd, argv or env there reads as "the new
+    // tree's command prints nothing" on every entry cell at once.
+    const probe = cellOf("f1.base-set.normal", "stderr").probe;
+    if (probe === undefined) throw new Error("the entry probe is not declared");
+    expect(kindOf(probe)).toBe("entry");
+    const reading = await NEW_TREE.read(probe, CORPUS.frozenDate);
+    // Three answers, typed as the reading declares them.
+    expect(typeof reading.stdout).toBe("string");
+    expect(typeof reading.stderr).toBe("string");
+    expect(Number.isInteger(reading.exitCode)).toBe(true);
+    // What the root answers TODAY: `main` is declared and its boot wrapper arrives with the
+    // cutover, so the unwired process writes nothing and exits 0 (the next case pins the
+    // refusal itself). The old tree answers bytes for the same probe, so the difference also
+    // proves the reading is the new tree's and not a fallback — and this case flips meaning
+    // in the wave that boots the composition root, when the same read answers the command's
+    // own bytes.
+    const old = await ProbeRunner.run(probe);
+    expect(old.stdout.length).toBeGreaterThan(0);
+    expect(reading.stdout).toBe("");
+    expect(reading.stderr).toBe("");
+    expect(reading.exitCode).toBe(0);
+  }, 120_000);
+
+  it("declares a composition root that refuses to boot until the cutover fills it", async () => {
+    // The entry the driver spawns is not a stub: its `main` throws the named refusal, which
+    // is what makes "the new tree cannot answer bytes yet" a fact rather than an empty
+    // process. The boot wrapper is the cutover's, so the process stays silent until then.
+    const { main } = await import("../../src/bin.ts");
+    await expect(main(["schema", "get", "plan"])).rejects.toThrow(/src\/bin\.ts is not wired yet/);
   });
 
   it("leaves every probe kind it cannot read owed to a named wiring task", () => {
@@ -324,6 +372,30 @@ describe("the reconciliation", () => {
     expect(answer.diffs).toHaveLength(1);
     expect(answer.diffs[0]?.actual).toBe(projectionOf(cell, FAKE_READING));
     expect(answer.diffs[0]?.actual).not.toBe("the old tree's bytes");
+  });
+
+  it("refuses a recording that calls an applicable route inapplicable, even before its producer lands", async () => {
+    // The fifth MISSING condition: the recording says "this route does not exist" while the
+    // grid declares it applies. An unwired producer is no licence to absorb that
+    // disagreement into the GAP count — a wave that flips a unit from `not-applicable` to
+    // a real route reads red in its own round instead of one wave later.
+    const cell = sampleCell();
+    const answer = await reconcile(
+      CORPUS,
+      baselineOf(cell.id, "", "not-applicable"),
+      rosterOf({
+        cell: cell.id,
+        task: "T16",
+        producer: "surface/commands/implement.ts#ImplementCommand",
+        route: cell.route,
+      }),
+      NewTree.unwired(),
+    );
+    expect(answer.missing).toContain(
+      `${cell.id}: recorded as not-applicable, but the route is resolvable`,
+    );
+    // It is still a cell whose producer has not landed, so it stays counted as a GAP too.
+    expect(answer.gaps).toContain(cell.id);
   });
 
   it("reports a wired cell the new tree cannot read as MISSING, naming the owing task", async () => {

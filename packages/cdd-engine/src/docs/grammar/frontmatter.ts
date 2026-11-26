@@ -19,6 +19,10 @@ export class FrontMatterError extends Error {
   readonly line: number;
   /** The 1-based column on that line. */
   readonly column: number;
+  /** The engine's reason, WITHOUT its position clause — the position rides the typed
+   *  fields below, so a renderer composing the blocked face from `reason` / `line` /
+   *  `column` / `source` never re-parses a message. */
+  readonly reason: string;
   /** The offending source line, verbatim. */
   readonly source: string;
 
@@ -27,6 +31,7 @@ export class FrontMatterError extends Error {
     this.name = "FrontMatterError";
     this.line = line;
     this.column = column;
+    this.reason = reason;
     this.source = source;
   }
 }
@@ -52,17 +57,24 @@ export const lineSplitOf = (content: string): readonly string[] => content.split
  *  `\r` a line still carries. */
 export const lineJoinOf = (lines: readonly string[]): string => lines.join("\n");
 
+/** The text before the first occurrence of `separator` — the hand-rolled slice (the
+ *  whole string on no occurrence). The YAML engine appends ` at line <n>, column <m>` to
+ *  its sentence; that clause is a typed field here, never a second spelling in `reason`. */
+const beforeFirst = (text: string, separator: string): string => {
+  const index = text.indexOf(separator);
+  return index === -1 ? text : text.slice(0, index);
+};
+
 /** Narrow a thrown YAML error to the typed, positioned failure. */
 const errorOf = (raw: unknown, block: readonly string[]): FrontMatterError => {
   const message = raw instanceof Error ? raw.message : "YAML parse error";
-  const cut = message.indexOf("\n");
-  const reason = cut === -1 ? message : message.slice(0, cut);
+  const reason = beforeFirst(beforeFirst(message, "\n"), " at line ").trim();
   const position = (raw as { linePos?: readonly { line: number; col: number }[] }).linePos?.[0];
   const line = position?.line ?? 0;
   return new FrontMatterError(
     line,
     position?.col ?? 0,
-    reason.trim(),
+    reason,
     line > 0 ? (block[line - 1] ?? "") : "",
   );
 };

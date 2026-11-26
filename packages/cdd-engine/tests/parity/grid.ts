@@ -701,6 +701,18 @@ export const UNITS: readonly Unit[] = [
       argv: ["board", "--plan", PLAN, "--notes"],
     },
   },
+  {
+    key: "f6.board.refused",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // The tree-level refusal replay reaches the board as its own `refused:` row, and this
+    // is the ONLY cell that reads the `refused` shape: a `BoardView` that drops the row —
+    // or a corpus that stops replaying a standing refusal — must red here instead of
+    // staying green on the fixture's recorded prose.
+    probe: { fixture: "refused", argv: ["board", "--plan", PLAN] },
+  },
   // ---- face 7: the dry-run preview ------------------------------------------------
   {
     key: "f7.preview.passing",

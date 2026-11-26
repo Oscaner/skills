@@ -164,6 +164,15 @@ describe("front matter", () => {
     const failure = thrown as FrontMatterError;
     expect(failure.line).toBeGreaterThan(0);
     expect(failure.message).toContain(`line ${failure.line}`);
+    // The position rides the typed fields exactly once: `reason` is the engine's own
+    // sentence without its position clause, so a renderer composing the blocked face
+    // from `reason` / `line` / `column` / `source` never re-parses the message and the
+    // sentence never repeats the clause.
+    expect(failure.reason.length).toBeGreaterThan(0);
+    expect(failure.reason).not.toContain(" at line ");
+    expect(failure.message.split("at line").length).toBe(2);
+    expect(failure.message).toContain(`at line ${failure.line}, column ${failure.column}`);
+    expect(failure.source).toBe("slug: [unclosed");
   });
 });
 

@@ -10,7 +10,9 @@
 //   · the two text write bases do not cross: the workspace basis lands under the
 //     workspace and returns its repo-relative path, the repo basis lands at the very
 //     repo-relative target it was given (never under `.kairos/<slug>/`);
-//   · `writeFileSync` appears in `src/**` exactly once, in `workspace.ts`;
+//   · `writeFileSync` appears in `src/**` exactly once, in `workspace.ts`, and the
+//     zero-clock face covers the three segments this task delivers (the clock's own
+//     reader, `env/process/clock.ts`, is outside them);
 //   · `ensure` publishes the keep-out marker and creates no slug directory;
 //   · `Env` exposes the two delivered segments and takes one options parameter.
 
@@ -23,6 +25,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -240,7 +243,11 @@ describe("the landing surface", () => {
   });
 
   it("reads no clock of its own: zero `Date.now` and zero argument-free `new Date(`", () => {
-    const scan = new Scan();
+    // The clock face covers exactly the three segments this task delivers — `env/index.ts`,
+    // `env/paths/` and `env/workspace/`. The one place in `env/` that reads a clock is
+    // `env/process/clock.ts` (T5), which sits outside them; walking all of `src/` here
+    // would let a later wave's clock file red a pin this wave owns.
+    const scan = new Scan(["env/index.ts", "env/paths", "env/workspace"]);
     expect(scan.filesUsing("Date.now")).toEqual([]);
     expect(scan.filesUsing("new Date()")).toEqual([]);
   });
@@ -281,24 +288,34 @@ describe("the env facade", () => {
 
 /** The `src/**` scan: which non-test modules mention one identifier. */
 class Scan {
-  /** The repo-relative paths (from `src/`) whose non-test text mentions `needle`. */
+  /** The scanned roots, as `src`-relative segments (the whole tree by default). */
+  readonly #segments: readonly string[];
+
+  /** Scan the whole `src/` tree, or the named segments of it — a file (`index.ts`) or a
+   *  directory (`paths`) — so a pin states its face instead of implying every wave's. */
+  constructor(segments: readonly string[] = ["."]) {
+    this.#segments = segments;
+  }
+
+  /** The `src`-relative paths whose non-test text mentions `needle`. */
   filesUsing(needle: string): string[] {
     const root = path.join(ENGINE_ROOT, "src");
     const found: string[] = [];
-    const walk = (directory: string): void => {
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const child = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-          if (entry.name !== "__tests__") walk(child);
-          continue;
-        }
-        if (!entry.name.endsWith(".ts")) continue;
-        if (readFileSync(child, "utf8").includes(needle)) {
-          found.push(path.relative(root, child));
-        }
-      }
-    };
-    walk(root);
+    for (const segment of this.#segments) this.#walk(path.join(root, segment), root, needle, found);
     return found.sort();
+  }
+
+  /** Collect `needle`'s mentions under one root — a file reads itself, a directory walks. */
+  #walk(target: string, root: string, needle: string, found: string[]): void {
+    const stats = statSync(target);
+    if (stats.isDirectory()) {
+      for (const entry of readdirSync(target, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name === "__tests__") continue;
+        this.#walk(path.join(target, entry.name), root, needle, found);
+      }
+      return;
+    }
+    if (!target.endsWith(".ts")) return;
+    if (readFileSync(target, "utf8").includes(needle)) found.push(path.relative(root, target));
   }
 }

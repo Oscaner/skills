@@ -252,6 +252,9 @@ go red.
 | f6.board.expanded.stdout | T16 | surface/render/board.ts#BoardView | normal |
 | f6.board.expanded.stderr | T16 | surface/render/board.ts#BoardView | normal |
 | f6.board.expanded.exit-code | T16 | surface/render/board.ts#BoardView | normal |
+| f6.board.refused.stdout | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.refused.stderr | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.refused.exit-code | T15 | surface/render/board.ts#BoardView | normal |
 | f7.preview.passing.stdout | T15 | surface/render/preview.ts#Preview | normal |
 | f7.preview.passing.stderr | T15 | surface/render/preview.ts#Preview | normal |
 | f7.preview.passing.exit-code | T15 | surface/render/preview.ts#Preview | normal |

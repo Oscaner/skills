@@ -74,6 +74,20 @@ const rosterOf = (row: RosterRow): Roster => {
   return Roster.read(file);
 };
 
+/** The whole roster with ONE row overridden — how a case wires a single cell without
+ *  unwiring every other cell's producer. */
+const rosterWith = (row: RosterRow): Roster => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "parity-roster-full-")), "roster.md");
+  const rows = CELLS.map((cell) =>
+    cell.id === row.cell
+      ? `| ${row.cell} | ${row.task} | ${row.producer} | ${row.route} |`
+      : `| ${cell.id} | ${cell.task} | ${cell.producer} | ${cell.route} |`,
+  );
+  const body = `| cell | task | producer | route |\n| --- | --- | --- | --- |\n${rows.join("\n")}\n`;
+  writeFileSync(file, body, "utf8");
+  return Roster.read(file);
+};
+
 /** A recording of one cell, as a stitched baseline would hold it. */
 const baselineOf = (cell: string, value: string, state: RecordedState = "recorded"): Baseline => ({
   scenario: CORPUS.id,
@@ -424,8 +438,8 @@ describe("the reconciliation", () => {
     const answer = await reconcile(
       CORPUS,
       stitched,
-      rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      NewTree.unwired(),
+      rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
+      NEW_TREE,
     );
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
@@ -447,6 +461,37 @@ describe("the reconciliation", () => {
       NewTree.unwired(),
     );
     expect(answer.missing.some((entry) => entry.includes("2000-01-01"))).toBe(true);
+  });
+});
+
+describe("the skeleton cells", () => {
+  it("compare the four families' bytes on the new tree, under the corpus's frozen date", async () => {
+    const baseline = readBaseline(BASELINE_FILE);
+    if (baseline === null) throw new Error("the corpus has never been recorded");
+    for (const type of ["overall", "plan", "phase-spec", "single-spec"]) {
+      const cell = cellOf(`f3.skeleton.${type}`, "stdout");
+      const probe = cell.probe;
+      if (probe === undefined) throw new Error(`${cell.id}: no probe`);
+      // The cell's kind IS the registered renderer — the wave that landed the assembler wired
+      // the cell, so it is byte-compared instead of counted as a gap.
+      expect(NEW_TREE.kinds()).toContain(kindOf(probe));
+      expect(baseline.cells[cell.id]?.state).toBe("recorded");
+      const reading = await NEW_TREE.read(probe, CORPUS.frozenDate);
+      expect(projectionOf(cell, reading)).toBe(baseline.cells[cell.id]?.value);
+    }
+    // …and the whole reconciliation sees no diff on them.
+    expect((await reconcile(CORPUS, baseline, Roster.read(ROSTER_FILE))).diffs).toEqual([]);
+  });
+
+  it("read the new tree's OWN assembler — another frozen day changes the byte", async () => {
+    const cell = cellOf("f3.skeleton.plan", "stdout");
+    const probe = cell.probe;
+    if (probe === undefined) throw new Error("the skeleton probe is not declared");
+    const frozen = projectionOf(cell, await NEW_TREE.read(probe, CORPUS.frozenDate));
+    const other = projectionOf(cell, await NEW_TREE.read(probe, "2001-02-03"));
+    expect(other).not.toBe(frozen);
+    expect(other).toContain("date: 2001-02-03");
+    expect(frozen).toContain(`date: ${CORPUS.frozenDate}`);
   });
 });
 

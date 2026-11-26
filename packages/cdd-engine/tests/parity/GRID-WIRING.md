@@ -27,6 +27,11 @@ declared or named missing, and the GAP set is exactly the roster's unwired appli
 cells" — a condition read off the tree, never a snapshot of the wave that recorded it.
 "The GAP set is empty" is the cutover's judgment, not every wave's.
 
+**The skeleton cells are wired.** `f3.skeleton.*` names `docs/skeleton/assembler.ts#SkeletonAssembler`
+at T9, and the `render:skeleton` driver drives it in process under the corpus's frozen date —
+so the four families are byte-compared, `date:` line included, instead of counted as gaps. The
+landing cell (`f3.skeleton-landing.*`) stays T16's: it judges the shell's write, not the bytes.
+
 **A deferred driver is a schedule fact, an undeclared one is a hole.** The registration
 table is the one place that answers "when does this kind grow its driver": `entry` in T17,
 `seam` in T16, `render:skeleton` in T9, the remaining render families in T15. Its key set is

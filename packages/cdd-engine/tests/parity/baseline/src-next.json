@@ -472,51 +472,51 @@
       "value": "2"
     },
     "f3.skeleton.overall.stdout": {
-      "state": "gap",
+      "state": "recorded",
       "value": "---\ntitle: ':::fill title'\ndoc-type: overall\nversion: v0.1\ndate: 2026-01-01\nslug: ':::fill slug'\nauthor: ':::fill author'\n---\n\n## Document scope\n\n:::fill document-scope\n\n## Program charter\n\n### Goal\n\n- :::fill goal-description\n\n### Non-goals\n\n- :::fill non-goal-description\n\n### Cross-cutting\n\n- :::fill cross-cutting-description\n\n## Issue inventory\n\n| Phase | Issue (ref) | Title summary |\n| --- | --- | --- |\n| P1 | none | :::fill issue-title |\n\n## Phase inventory\n\n| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |\n| --- | --- | --- | --- | --- | --- | --- |\n| P1 | :::fill phase-name | :::fill scope | [Pending] | Pending | :::fill acceptance-criteria | :::fill dependency |\n| P2 | :::fill phase-name | :::fill scope | [Pending] | Pending | :::fill acceptance-criteria | :::fill dependency |\n\n## Dependency graph\n\nP1 -> P2\n- `->` = hard block\n\n## Boundary rules\n\n- :::fill boundary-rule\n\n## Constraints\n\n- :::fill constraint\n\n## Maintenance\n\n- :::fill maintenance-note\n\n## Change history\n\n| Version | date | summary | author |\n| --- | --- | --- | --- |\n| v0.1 | 2026-01-01 | :::fill summary | :::fill author |"
     },
     "f3.skeleton.overall.stderr": {
-      "state": "gap",
+      "state": "recorded",
       "value": ""
     },
     "f3.skeleton.overall.exit-code": {
-      "state": "gap",
+      "state": "recorded",
       "value": "0"
     },
     "f3.skeleton.plan.stdout": {
-      "state": "gap",
+      "state": "recorded",
       "value": "---\ntitle: ':::fill title'\ndoc-type: plan\nversion: v0.1\ndate: 2026-01-01\nslug: ':::fill slug'\nbase: ':::fill base'\n---\n\n## Constraints\n\n- :::fill constraint\n\n### Task 1: :::fill task-title\n\n#### Objective\n:::fill objective\n\n#### Files\n:::fill file-paths\n\n#### Consumes\n:::fill consumes\n\n#### Produces\n:::fill produces\n\n#### Steps\n- :::fill step-action — checkable: :::fill step-checkable\n- :::fill step-action-2 — checkable: :::fill step-checkable-2\n\n#### Acceptance\n:::fill acceptance\n\n#### DependsOn\nnone\n\n## Change history\n\n| Version | date | summary | author |\n| --- | --- | --- | --- |\n| v0.1 | 2026-01-01 | :::fill summary | :::fill author |"
     },
     "f3.skeleton.plan.stderr": {
-      "state": "gap",
+      "state": "recorded",
       "value": ""
     },
     "f3.skeleton.plan.exit-code": {
-      "state": "gap",
+      "state": "recorded",
       "value": "0"
     },
     "f3.skeleton.phase-spec.stdout": {
-      "state": "gap",
+      "state": "recorded",
       "value": "---\ntitle: ':::fill title'\ndoc-type: phase-spec\nversion: v0.1\ndate: 2026-01-01\nslug: ':::fill slug'\nprogram: <overall-slug>\nauthor: ':::fill author'\n---\n\n## Design\n\n:::fill design-intro\n\n### 1. :::fill group-title\n#### 1.1 :::fill item-title\n- :::fill item-body\n\n### Acceptance criteria\n\n- `:::fill acceptance-entry`\n\n## Constraints\n\n- :::fill constraint\n\n## Change history\n\n| Version | date | summary | author |\n| --- | --- | --- | --- |\n| v0.1 | 2026-01-01 | :::fill summary | :::fill author |"
     },
     "f3.skeleton.phase-spec.stderr": {
-      "state": "gap",
+      "state": "recorded",
       "value": ""
     },
     "f3.skeleton.phase-spec.exit-code": {
-      "state": "gap",
+      "state": "recorded",
       "value": "0"
     },
     "f3.skeleton.single-spec.stdout": {
-      "state": "gap",
+      "state": "recorded",
       "value": "---\ntitle: ':::fill title'\ndoc-type: single-spec\nversion: v0.1\ndate: 2026-01-01\nslug: ':::fill slug'\nauthor: ':::fill author'\nissues: ':::fill issues'\n---\n\n## Background & root cause\n\n:::fill background-root-cause\n\n## Design decisions\n\n:::fill design-ruling\n\n## Acceptance\n\n:::fill acceptance\n\n## Constraints\n\n:::fill constraints\n\n## Change history\n\n| Version | date | summary | author |\n| --- | --- | --- | --- |\n| v0.1 | 2026-01-01 | :::fill summary | :::fill author |"
     },
     "f3.skeleton.single-spec.stderr": {
-      "state": "gap",
+      "state": "recorded",
       "value": ""
     },
     "f3.skeleton.single-spec.exit-code": {
-      "state": "gap",
+      "state": "recorded",
       "value": "0"
     },
     "f3.skeleton-landing.stdout": {

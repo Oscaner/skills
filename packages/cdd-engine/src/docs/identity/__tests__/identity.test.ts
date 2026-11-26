@@ -47,7 +47,11 @@ const DOCS_ROOT = path.join(ENGINE_ROOT, "src", "docs");
 
 /** A `Documents` facade over a reader that never has a file to read. */
 const documents = (): Documents =>
-  new Documents({ readText: (target) => ({ kind: "read-failure", target }) });
+  new Documents({
+    readText: (target) => ({ kind: "read-failure", target }),
+    today: "2026-01-01",
+    textWriter: (target) => ({ kind: "written", target }),
+  });
 
 /** The typed head of a fixture body. */
 const headOf = (head: Record<string, string>): FrontMatter =>

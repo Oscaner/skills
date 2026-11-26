@@ -54,6 +54,8 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { DocType } from "../../src/docs/identity/types.ts";
+import { Documents } from "../../src/docs/index.ts";
 import { declaredRegistries } from "../../src-next/contract/declare.ts";
 import { Projector } from "../../src-next/contract/project.ts";
 import { Capsule } from "../../src-next/face/capsule.ts";
@@ -693,6 +695,25 @@ export const REGISTRATION_WAVES: ReadonlyMap<string, string> = new Map([
   ["render:capsule", "T15"],
 ]);
 
+/**
+ * The new tree's skeleton face — the renderer driven IN PROCESS under the corpus's frozen
+ * date, which is how a byte face whose input includes the run day is recorded and compared
+ * without a wall clock: both trees' assemblers receive the same day, so the `date:` line is
+ * compared like every other byte instead of being masked.
+ */
+const SKELETON_DRIVER: NewTreeDriver = {
+  async run(probe: Probe, frozenDate: string): Promise<ProbeReading> {
+    const key = probe.render ?? "";
+    const [, name] = key.split(":");
+    const documents = new Documents({
+      readText: (target) => ({ kind: "read-failure", target }),
+      today: frozenDate,
+      textWriter: (target) => ({ kind: "write-failure", target }),
+    });
+    return { stdout: documents.skeletonOf(name as DocType), stderr: "", exitCode: 0 };
+  },
+};
+
 /** The named-deferral verdict for one absent driver: the wave that registers the kind, or
  *  null when the kind declares none — an undeclared driver is MISSING, never a silent
  *  count. The table is a parameter so the two-way pin can hand it a table with and without
@@ -702,13 +723,14 @@ export const registrationWaveOf = (
   waves: ReadonlyMap<string, string> = REGISTRATION_WAVES,
 ): string | null => waves.get(kind) ?? null;
 
-/** The new tree's execution face as it stands: NO driver. The first wave registered the
- *  process `entry` as a placeholder, and it answered nothing (the composition root still
- *  throws `not wired yet`), so registering it made every entry-kind cell look wired while
- *  the tree held an empty process. It is retired here: entry cells read as NAMED-DEFERRED
- *  until T17 registers the real thing, and `ENTRY_DRIVER` stays in the file for that wave
- *  to register — the driver is written, the registration is what the wave withholds. */
-export const NEW_TREE = NewTree.of([]);
+/** The new tree's execution face as it stands: the skeleton renderer, and nothing else. The
+ *  first wave registered the process `entry` as a placeholder, and it answered nothing (the
+ *  composition root still throws `not wired yet`), so registering it made every entry-kind
+ *  cell look wired while the tree held an empty process — retired in the provisioning wave.
+ *  `seam` and the remaining render families land with their own waves; entry cells read as
+ *  NAMED-DEFERRED until T17 registers the real process driver, which stays in this file
+ *  written and unregistered for that wave. */
+export const NEW_TREE = NewTree.of([["render:skeleton", SKELETON_DRIVER]]);
 
 /** Record the whole corpus from the live old tree. Each cell's state is DERIVED from the
  *  producer's landing on the new tree, so a re-record after a producer arrives advances

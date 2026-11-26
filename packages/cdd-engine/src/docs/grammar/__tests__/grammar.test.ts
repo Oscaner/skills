@@ -284,11 +284,20 @@ describe("the record face", () => {
   });
 });
 
+/** The material slice's construction facts for a read-only pin: one reader, one frozen day
+ *  and a writer that answers the target it was handed (no case here writes). */
+const documentsOf = (readText: (target: RepoPath) => { kind: string }) =>
+  new Documents({
+    readText: readText as never,
+    today: "2026-01-01",
+    textWriter: (target) => ({ kind: "written", target }),
+  });
+
 describe("the injected read face", () => {
   it("reads two different documents through one coordinate, one per reader", () => {
     const target = "docs/kairos/specs/fixture.md" as RepoPath;
-    const first = new Documents({ readText: readerOf(DOC) }).parse(target);
-    const second = new Documents({ readText: readerOf(PLAN) }).parse(target);
+    const first = documentsOf(readerOf(DOC)).parse(target);
+    const second = documentsOf(readerOf(PLAN)).parse(target);
     expect(first.kind).toBe("document");
     expect(second.kind).toBe("document");
     if (first.kind !== "document" || second.kind !== "document") throw new Error("unreachable");
@@ -297,16 +306,13 @@ describe("the injected read face", () => {
 
   it("returns the reader's failure unchanged, never an empty document", () => {
     const target = "docs/kairos/specs/gone.md" as RepoPath;
-    const documents = new Documents({
-      readText: (asked) => ({ kind: "read-failure", target: asked }),
-    });
+    const documents = documentsOf((asked) => ({ kind: "read-failure", target: asked }));
     expect(documents.parse(target)).toEqual({ kind: "read-failure", target });
   });
 
-  it("imports no `node:fs` and no `judging/` anywhere under `docs/`", () => {
+  it("imports no `node:fs` anywhere under `docs/` — every read and write is injected", () => {
     const scan = new SliceScan(DOCS_ROOT);
     expect(scan.filesImporting("node:fs")).toEqual([]);
-    expect(scan.filesImporting("judging")).toEqual([]);
   });
 });
 

@@ -19,11 +19,16 @@
 //     usage vocabulary — `docs/` knows no round and imports no `run/`, so the word that
 //     a failure renders as belongs to the face that knows the command.
 //
-// Two segments are in place: `grammar/` (the markdown tree, the body projection, the
-// front matter and the task-block grammar, all pure text reads) and `identity/` (the four
-// document types and their declared registries, the location vocabulary, the six derived
-// projections, the four parse faces, the recognition layer and the `SKILL.md` anatomy
-// contract). The judging tables and engines arrive in later waves.
+// Four segments are in place: `grammar/` (the markdown tree, the body projection, the front
+// matter and the task-block grammar, all pure text reads) · `identity/` (the four document
+// types and their declared registries, the location vocabulary, the six derived projections,
+// the four parse faces, the recognition layer and the `SKILL.md` anatomy contract) ·
+// `judging/` (the tier and lens tables the review prompt folds in, the completion criteria,
+// the wave-width ceiling over the graph's own decomposition, and the task graph itself) ·
+// `skeleton/` (the four families' byte rendering). A skeleton write goes through the
+// INJECTED writer for the same reason a read goes through the injected reader: this slice
+// owns no filesystem, and the day it renders under is a construction fact, never a clock
+// read.
 
 import type { RepoPath } from "../env/paths/root.ts";
 import type { MarkdownDocument } from "./grammar/markdown-document.ts";
@@ -31,6 +36,13 @@ import { MarkdownTree } from "./grammar/markdown-tree.ts";
 import { Projector } from "./identity/project.ts";
 import { declaredRegistries } from "./identity/registry.ts";
 import { DOC_TYPE_VALUES, type DocType, type ElementRegistry } from "./identity/types.ts";
+import {
+  CRITERIA,
+  type LensQuestionRow,
+  type ReviewCriteria,
+  type ReviewKind,
+} from "./judging/criteria.ts";
+import { SkeletonAssembler, type TextWriteOutcome, type TextWriter } from "./skeleton/assembler.ts";
 
 export { docBodyOf } from "./grammar/doc-body.ts";
 export {
@@ -102,6 +114,52 @@ export {
   TARGET_TYPE_VALUES,
   type TargetType,
 } from "./identity/types.ts";
+export {
+  COMPLETION_CRITERIA,
+  CommitsCriterion,
+  CompletionCriteria,
+  type CompletionCriterion,
+  type CompletionFacts,
+  type CompletionVerb,
+  type CompletionVerdict,
+  FindingsCriterion,
+} from "./judging/completion.ts";
+export {
+  CALIBRATION_TAIL,
+  CLOSED_WAVE_DISCIPLINE,
+  CRITERIA,
+  CRITERIA_BODIES,
+  type CriteriaFace,
+  type CriteriaRow,
+  type CriteriaTier,
+  CriteriaTiers,
+  LENS_QUESTIONS,
+  type LensQuestionRow,
+  LensQuestions,
+  REVIEW_BODY_TEXT,
+  REVIEW_KINDS,
+  ReviewCriteria,
+  type ReviewKind,
+  RUBRIC_PREAMBLE,
+  RUBRIC_SLOTS,
+  reviewGuideOf,
+  reviewKindOf,
+  SEVERITY_RUBRIC,
+  TIER_ORDER,
+} from "./judging/criteria.ts";
+export {
+  GRAPH_ISSUE_CLASSES,
+  type GraphIssue,
+  type GraphIssueClass,
+  TaskGraph,
+} from "./judging/task-graph.ts";
+export { MAX_TASKS_PER_WAVE, WaveWidth, type WideWave } from "./judging/wave-width.ts";
+export {
+  SkeletonAssembler,
+  type SkeletonAssemblerOptions,
+  type TextWriteOutcome,
+  type TextWriter,
+} from "./skeleton/assembler.ts";
 
 /** A document's text, as one read face answers it. */
 export interface RepoText {
@@ -146,17 +204,40 @@ export type ProjectionResult =
   | { readonly kind: "projection"; readonly text: string }
   | { readonly kind: "extra-target"; readonly target: RepoPath };
 
+/** A skeleton landing's declared outcome: the writer's own answer, or the refusal to write
+ *  because the command named no target. The last value names a KIND of refusal only — the
+ *  word a consumer prints for it belongs to the face that knows the command. */
+export type SkeletonWrite = TextWriteOutcome | { readonly kind: "missing-target" };
+
+/** The material slice's construction facts. */
+export interface DocumentsOptions {
+  /** The text reader — `env.workspace#readText` in production. */
+  readonly readText: DocumentReader;
+  /** The day every skeleton renders under — `env.process.clock#dayOf` read ONCE at the
+   *  composition root. Required, no default: this slice never reads a clock. */
+  readonly today: string;
+  /** The one text write face — `env.workspace#writeTextAt` in production. */
+  readonly textWriter: TextWriter;
+}
+
 /**
  * Documents — the material slice's entry. Invariant: a document's shape is judged by the
- * registry, and every judgment reads text only — so this class holds a reader and no
- * filesystem, and every read comes back through the injected face.
+ * registry, and every judgment reads text only — so this class holds a reader, a writer and
+ * one day, and nothing it answers comes from the filesystem or the clock directly.
  */
 export class Documents {
   readonly #readText: DocumentReader;
   readonly #projector = new Projector(declaredRegistries);
+  readonly #criteria: ReviewCriteria = CRITERIA;
+  readonly #skeleton: SkeletonAssembler;
 
-  constructor(opts: { readText: DocumentReader }) {
+  constructor(opts: DocumentsOptions) {
     this.#readText = opts.readText;
+    this.#skeleton = new SkeletonAssembler({
+      projection: this.#projector.skeleton(),
+      today: opts.today,
+      textWriter: opts.textWriter,
+    });
   }
 
   /** Parse one repository coordinate. The reader's failure value is returned as it
@@ -189,5 +270,34 @@ export class Documents {
       kind: "projection",
       text: `${JSON.stringify(this.#projector.schema()[type], null, 2)}\n`,
     };
+  }
+
+  /** One review kind's criteria text — the body with its numbered lens list, the bytes the
+   *  prompt's `**Criteria — <type>:**` line carries. An unregistered kind throws: a prompt
+   *  can never read a body that was never declared. */
+  criteriaOf(kind: ReviewKind): string {
+    return this.#criteria.textOf(kind);
+  }
+
+  /** One review kind's lens questions, in declaration order. */
+  lensQuestionsOf(kind: ReviewKind): readonly LensQuestionRow[] {
+    return this.#criteria.lensQuestionsOf(kind);
+  }
+
+  /** One document type's skeleton BYTES — no trailing newline, so a caller that compares
+   *  bytes compares the rendering itself. */
+  skeletonOf(type: DocType): string {
+    this.registryOf(type);
+    return this.#skeleton.compose(type);
+  }
+
+  /** The skeleton LANDING — `target` absent is a declared refusal (`missing-target`),
+   *  answered before any write; a target is rendered, given exactly one trailing newline and
+   *  handed to the injected writer, whose own outcome is returned unchanged. The command's
+   *  argv path arrives verbatim, so the shell carries no judgment about it. */
+  skeletonAt(type: DocType, target: RepoPath | undefined): SkeletonWrite {
+    this.registryOf(type);
+    if (target === undefined) return { kind: "missing-target" };
+    return this.#skeleton.assembleAt(type, target);
   }
 }

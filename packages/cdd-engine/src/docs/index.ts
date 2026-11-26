@@ -43,6 +43,7 @@
 
 import { DOC_ROOT_SEGMENTS } from "../env/paths/doc-roots.ts";
 import type { RepoPath } from "../env/paths/root.ts";
+import { DocSyntaxError } from "./grammar/doc-syntax.ts";
 import type { MarkdownDocument } from "./grammar/markdown-document.ts";
 import { MarkdownTree } from "./grammar/markdown-tree.ts";
 import { Projector } from "./identity/project.ts";
@@ -463,10 +464,19 @@ export class Documents {
   }
 
   /** The WARN observation face — the reference lint over the SAME parse context the judgment
-   *  built. Its warnings never enter a verdict: forcing one changes no finding count. */
+   *  built. Its warnings never enter a verdict: forcing one changes no finding count. A
+   *  document the parse face refuses has nothing to observe — the judgment owns that refusal
+   *  (one `doc-syntax` finding), so this face answers no observation instead of throwing out
+   *  of a gate that already has the verdict. Any OTHER break is a programming one and
+   *  rethrows. */
   lintOf(input: JudgeInput): readonly Warn[] {
     this.registryOf(input.docKey);
-    return this.#lint.run(this.#judge.contextOf(input));
+    try {
+      return this.#lint.run(this.#judge.contextOf(input));
+    } catch (error) {
+      if (error instanceof DocSyntaxError) return [];
+      throw error;
+    }
   }
 
   /** Whether one document is PROVEN closed — the ONE closure reading of this slice, so the

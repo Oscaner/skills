@@ -4,9 +4,9 @@
 // bare `Error` a consumer has to interpret.
 //
 // The type lives in the grammar layer because the grammar is its thrower: the task-block
-// parse refuses a duplicated reserved section here, and the identity parse face re-exports
-// the class for the public surface. A type declared beside a reader that cannot throw it is
-// a rejection nothing can raise.
+// parse refuses a duplicated reserved section in the `plan` scope, and the identity parse
+// face re-exports the class for the public surface. A type declared beside a reader that
+// cannot throw it is a rejection nothing can raise.
 
 /**
  * DocSyntaxError — the document-syntax rejection. The anchored field, the message and the

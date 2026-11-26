@@ -173,6 +173,9 @@ export class Judge {
     // the line face, the tree face and the parse face all read the same normalized bytes.
     const { head, text } = new RowSource(this.#translator).read(input.content);
     const tree = MarkdownTree.parse(text);
+    // The selector face reads blocks as STRUCTURE for every document type: the reserved set
+    // is the plan's grammar, and the plan's own parse below is where it is asserted — so a
+    // charter or spec carrying a task-shaped appendix is judged, never refused.
     const blocks = TaskBlocks.of(tree);
     const parsed: ParsedDoc = docTypeParsers[input.docKey].parse(tree, head);
     return {

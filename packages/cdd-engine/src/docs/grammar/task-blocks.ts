@@ -12,8 +12,10 @@
 // comma- or space-separated, with `none` and an empty value meaning "no edges". Cycles
 // are read out rather than rejected here — whether a cycle blocks a wave is the gate's
 // judgment, not the grammar's. A reserved section declared TWICE inside one block IS
-// rejected here: the section identity is the parse face's own invariant, loud at parse
-// time as a typed `DocSyntaxError` the judgment materializes as one finding.
+// rejected here — but only in the `plan` scope: the reserved set is the PLAN's grammar, so a
+// charter or spec that carries a task-shaped appendix is judged by its own rule rows, never
+// refused for a grammar it does not own. The rejection is a typed `DocSyntaxError` the
+// judgment materializes as one finding.
 
 import { DocSyntaxError } from "./doc-syntax.ts";
 import { MarkdownDocument } from "./markdown-document.ts";
@@ -52,8 +54,16 @@ export class TaskBlockGrammar {
 }
 
 /**
- * TaskBlocks — the plan's task-block read face. Invariant: one document's blocks are
- * parsed once, in document order, and every read answers the same records.
+ * The scope one block read runs in. `"structure"` is the bare structure read any document
+ * type may ask (blocks, sections, edges); `"plan"` adds the reserved-section identity, which
+ * only a plan's own parse owns.
+ */
+export type TaskBlockScope = "structure" | "plan";
+
+/**
+ * TaskBlocks — the task-block read face. Invariant: one document's blocks are parsed once, in
+ * document order, every read answers the same records, and the reserved-section identity is
+ * asserted only in the `plan` scope.
  */
 export class TaskBlocks {
   readonly #blocks: readonly TaskBlock[];
@@ -67,15 +77,17 @@ export class TaskBlocks {
     return TaskBlockGrammar.RESERVED;
   }
 
-  /** Parse one tree's task blocks. */
-  static of(tree: MarkdownTree): TaskBlocks {
-    return new TaskBlocks(TaskBlocks.#parse(tree.document));
+  /** Parse one tree's task blocks in the declared scope. A structure read asserts nothing:
+   *  the reserved set belongs to the plan, so a task-shaped appendix in a non-plan document
+   *  parses like any other heading run and is judged by that document's own rule rows. */
+  static of(tree: MarkdownTree, scope: TaskBlockScope = "structure"): TaskBlocks {
+    return new TaskBlocks(TaskBlocks.#parse(tree.document, scope));
   }
 
   /** Parse one document's text directly — the convenience entry a reader with no tree
    *  yet uses; it builds the index it needs and nothing else. */
-  static parse(content: string): TaskBlocks {
-    return new TaskBlocks(TaskBlocks.#parse(MarkdownDocument.parse(content)));
+  static parse(content: string, scope: TaskBlockScope = "structure"): TaskBlocks {
+    return new TaskBlocks(TaskBlocks.#parse(MarkdownDocument.parse(content), scope));
   }
 
   /** The blocks, in document order. */
@@ -159,8 +171,10 @@ export class TaskBlocks {
     return [...cycle.slice(pivot), ...cycle.slice(0, pivot)];
   }
 
-  /** The ONE block parse over one index. */
-  static #parse(document: MarkdownDocument): readonly TaskBlock[] {
+  /** The ONE block parse over one index. The reserved-section assertion runs only in the
+   *  `plan` scope: the reserved keys are the plan's grammar, and a document of another type
+   *  writes its own headings. */
+  static #parse(document: MarkdownDocument, scope: TaskBlockScope): readonly TaskBlock[] {
     const nodes = document.topNodes();
     const blocks: TaskBlock[] = [];
     for (const [index, node] of nodes.entries()) {
@@ -175,7 +189,7 @@ export class TaskBlocks {
       const sections = headingShape
         ? TaskBlocks.#headingSections(document, inner, boundary.line - 1)
         : TaskBlocks.#legacySections(document, start + 1, boundary.line - 1);
-      TaskBlocks.#assertReservedUnique(Number(match[1]), sections);
+      if (scope === "plan") TaskBlocks.#assertReservedUnique(Number(match[1]), sections);
       blocks.push({
         id: Number(match[1]),
         heading: document.line(start),
@@ -187,9 +201,9 @@ export class TaskBlocks {
     return blocks;
   }
 
-  /** Reject a duplicated reserved key inside one block — the section identity is the parse
-   *  face's own invariant, loud at parse time. The anchored field is the section heading
-   *  (`#### Key`), the same anchor both shapes write. */
+  /** Reject a duplicated reserved key inside one block — the section identity is the plan
+   *  parse face's own invariant, loud at parse time. The anchored field is the section
+   *  heading (`#### Key`), the same anchor both shapes write. */
   static #assertReservedUnique(id: number, sections: readonly TaskSection[]): void {
     const seen = new Set<string>();
     for (const section of sections) {

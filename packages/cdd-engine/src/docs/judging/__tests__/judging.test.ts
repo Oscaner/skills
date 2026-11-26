@@ -319,6 +319,16 @@ const judgeOver = (opts: {
     world: worldOf(opts.files, opts.documents, opts.complete ?? true),
   });
 
+/** The slice entry over a reader that reads nothing and the fixture world — the face pair
+ *  (`judge` then `lintOf`) a dispatch-door gate calls on one document. */
+const documentsOver = (): Documents =>
+  new Documents({
+    readText: (target) => ({ kind: "read-failure", target }),
+    today: "2026-01-15",
+    textWriter: (target) => ({ kind: "written", target }),
+    world: worldOf(),
+  });
+
 /** The ONE row of a rule id — the single-rule registry a paired fixture judges through. */
 const rowOf = (id: string): DocRuleDeclaration => {
   const row = RULE_REGISTRY.find((candidate) => candidate.id === id);
@@ -909,6 +919,54 @@ describe("the document-syntax refusal", () => {
     const broken = doctored(PLAN, [["slug: 2026-01-15-fixture-design", "slug: [unclosed"]]);
     expect(() => judgeOver({}).judge(inputOf("plan", broken))).toThrow(FrontMatterError);
   });
+
+  /** A charter carrying a task-shaped appendix — another document type's headings, one of
+   *  them declared twice. The reserved set is the plan's grammar, so this document owes no
+   *  refusal for it. */
+  const APPENDIX = doctored(OVERALL, [
+    [
+      "## Change history",
+      [
+        "## Appendix — an example block",
+        "",
+        "### Task 1: an example",
+        "",
+        "#### Objective",
+        "",
+        "see line 42 of the module.",
+        "",
+        "#### Objective",
+        "",
+        "a second objective",
+        "",
+        "## Change history",
+      ].join("\n"),
+    ],
+  ]);
+
+  it("judges a non-plan document's task-shaped appendix by its own rows", () => {
+    const kinds = judgeOver({})
+      .judge(inputOf("overall", APPENDIX))
+      .map((finding) => finding.kind);
+    expect(kinds).not.toContain("doc-syntax");
+    // The ordinary rows reached the appendix rather than a refusal replacing the verdict.
+    const ordinary = judgeOver({ registry: [rowOf("line-coordinate")] }).judge(
+      inputOf("overall", APPENDIX),
+    );
+    expect(ordinary.length).toBeGreaterThan(0);
+    for (const finding of ordinary) expect(finding.kind).toBe("line-coordinate");
+  });
+
+  it("answers no observation where the judgment refuses the document", () => {
+    // A dispatch-door gate runs the judgment and then the lint over one document: the refused
+    // document answers one `doc-syntax` finding there and no observation here, never a throw
+    // out of the command.
+    const documents = documentsOver();
+    expect(documents.judge(inputOf("plan", DOUBLED)).map((finding) => finding.kind)).toEqual([
+      "doc-syntax",
+    ]);
+    expect(documents.lintOf(inputOf("plan", DOUBLED))).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1014,12 +1072,7 @@ describe("the reference lint", () => {
   ].join("\n");
 
   it("observes a suspected missing edge, and the judgment ignores it", () => {
-    const documents = new Documents({
-      readText: (target) => ({ kind: "read-failure", target }),
-      today: "2026-01-15",
-      textWriter: (target) => ({ kind: "written", target }),
-      world: worldOf(),
-    });
+    const documents = documentsOver();
     const warns = documents.lintOf(inputOf("plan", CITED));
     expect(warns.map((warn) => warn.kind)).toEqual(["reference-lint"]);
     expect(warns[0]?.message).toContain("Task 1");
@@ -1030,13 +1083,7 @@ describe("the reference lint", () => {
   });
 
   it("answers no observation outside a plan", () => {
-    const documents = new Documents({
-      readText: (target) => ({ kind: "read-failure", target }),
-      today: "2026-01-15",
-      textWriter: (target) => ({ kind: "written", target }),
-      world: worldOf(),
-    });
-    expect(documents.lintOf(inputOf("single-spec", SINGLE))).toEqual([]);
+    expect(documentsOver().lintOf(inputOf("single-spec", SINGLE))).toEqual([]);
   });
 });
 
@@ -1099,14 +1146,16 @@ const charterOf = (cells: { design: string; plan: string }): string =>
     ...HISTORY,
   ].join("\n");
 
-/** A closure reading over one file map and one index. */
+/** A closure reading over one file map and one index. `complete` is the index's scan fact:
+ *  false means the scan discarded a candidate, so a unique survivor is not a unique
+ *  identification and nothing is proven closed. */
 const closureOver = (
   files: ReadonlyMap<string, string>,
   documents: readonly IndexedDocument[],
+  complete = true,
 ): ClosedDocument =>
   new ClosedDocument({
-    // The closure reading is positive-only: an index's scan completeness never enters it.
-    index: new DocumentIndex(documents, true),
+    index: new DocumentIndex(documents, complete),
     read: (target) => files.get(target) ?? null,
   });
 
@@ -1198,6 +1247,19 @@ describe("the proven-closure reading", () => {
       { rel: rel("docs/kairos/plans/spec.md"), slug: "x", docType: "plan" },
     ];
     expect(closureOver(files, documents).closed(SPEC_PATH)).toBe(false);
+  });
+
+  it("proves nothing over a scan that discarded a candidate", () => {
+    const files = new Map(CLEAN_FILES);
+    files.set(OVERALL_PATH, charterOf({ design: "spec.md", plan: "plan.md" }));
+    const documents = indexOf({ rel: OVERALL_PATH, slug: "p", docType: "overall" });
+    // The registration's unique survivor is not a unique identification while the scan that
+    // produced the index discarded a same-named candidate: a document sharing the judged
+    // document's basename may be sitting outside the index, so nothing is closed and the
+    // closure-gated rows keep running.
+    expect(closureOver(files, documents, false).closed(SPEC_PATH)).toBe(false);
+    // The neighbour: over a complete scan the same registration does prove closure.
+    expect(closureOver(files, documents).closed(SPEC_PATH)).toBe(true);
   });
 
   it("exempts the rows that declare it, and only those", () => {
@@ -1342,6 +1404,12 @@ describe("the downgrade note", () => {
       rel: "run/surface/capsule.ts",
       text: 'import { displayReason } from "../../docs/judging/criteria.ts";',
     };
+    // The natural way to write one string: no export name is mentioned, the mark's sentence
+    // and the separator are spelled into the template — a second home all the same.
+    const inlined = {
+      rel: "run/surface/board.ts",
+      text: `const note = \`${REGRADE_MARK}${REGRADE_NOTE_SEPARATOR}the reason\`;`,
+    };
     const throughTheOneHome = {
       rel: "run/surface/board.ts",
       text: 'import { regradeNote } from "../../docs/judging/criteria.ts";\nconst note = regradeNote(1, reasons);',
@@ -1355,16 +1423,35 @@ describe("the downgrade note", () => {
       "run/surface/board.ts",
       "run/surface/capsule.ts",
     ]);
+    expect(secondHomesOf([inlined])).toEqual(["run/surface/board.ts"]);
     expect(secondHomesOf([throughTheOneHome, home, barrel])).toEqual([]);
   });
 });
 
-/** The note's composition tokens — a product module that mentions one of them builds its own
- *  copy of the note. `regradeNote` is deliberately absent: it is the ONE entry a render site
+/** The note's export names — a product module that mentions one of them builds its own copy
+ *  of the composition. `regradeNote` is deliberately absent: it is the ONE entry a render site
  *  calls, and its callers are not second homes. */
-const NOTE_TOKENS = /\b(REGRADE_MARK|REGRADE_NOTE_SEPARATOR|displayReason)\b/;
+const NOTE_NAMES = /\b(REGRADE_MARK|REGRADE_NOTE_SEPARATOR|displayReason)\b/;
 
-/** The two modules allowed to mention those tokens: the ONE home, and the docs barrel that
+/** The note's declared VALUES carrying a letter — the mark's sentence names a copy the moment
+ *  a module inlines it, which is exactly how a render site writes one string. The separator's
+ *  `"; "` carries no letter and is punctuation the whole tree writes, so it names no copy on
+ *  its own; both values are read off the one home rather than retyped here, so a change to
+ *  the mark moves this scan with it. */
+const NOTE_VALUES: readonly string[] = [REGRADE_MARK, REGRADE_NOTE_SEPARATOR].filter((value) =>
+  /[A-Za-z]/.test(value),
+);
+
+/** One literal's regex source — the value is matched as the bytes it is, not as a pattern. */
+const literalOf = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The needles: the export names, and every declared value that is a sentence. */
+const NOTE_NEEDLES: readonly RegExp[] = [
+  NOTE_NAMES,
+  ...NOTE_VALUES.map((value) => new RegExp(literalOf(value))),
+];
+
+/** The two modules allowed to mention those needles: the ONE home, and the docs barrel that
  *  re-exports the public surface. Every other product module composes through `regradeNote`. */
 const NOTE_HOMES: ReadonlySet<string> = new Set(["docs/judging/criteria.ts", "docs/index.ts"]);
 
@@ -1374,7 +1461,7 @@ const secondHomesOf = (
 ): readonly string[] =>
   modules
     .filter((module) => !NOTE_HOMES.has(module.rel))
-    .filter((module) => NOTE_TOKENS.test(module.text))
+    .filter((module) => NOTE_NEEDLES.some((needle) => needle.test(module.text)))
     .map((module) => module.rel);
 
 /** Every non-test TypeScript file under one root — the `src/**` scan basis. */

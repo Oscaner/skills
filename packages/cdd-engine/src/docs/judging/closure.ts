@@ -16,7 +16,10 @@
 //                      documents' basenames, and only a UNIQUE hit on the judged document
 //                      proves closure: zero hits and several hits prove nothing, because a
 //                      registration that no longer identifies one document cannot establish
-//                      that anything is closed.
+//                      that anything is closed. An index whose scan discarded a candidate
+//                      proves nothing either — a unique survivor over a truncated set is not
+//                      a unique identification, so an incomplete index answers `false` and
+//                      the closure-gated rows keep running.
 //
 // The polarity is deliberate and is the opposite of the retired pin face's `#closedBy`
 // (which read zero / several hits as CLOSED so a dead `✔ Done` row could not buy a silent
@@ -154,7 +157,8 @@ const DONE_CELL = /✔ Done（`(?<file>[^`]+)`/;
 /**
  * ClosedDocument — the closure reading over one index. Invariant: the answer is PROVEN
  * closure only — a unique identification of the judged document by a phase registration's
- * named cell — so no absent or ambiguous cell ever exempts a document from a shape rule.
+ * named cell over a scan that discarded nothing — so no absent, ambiguous or incompletely
+ * indexed cell ever exempts a document from a shape rule.
  */
 export class ClosedDocument {
   readonly #index: DocumentIndex;
@@ -171,8 +175,11 @@ export class ClosedDocument {
   /** Whether the judged document is PROVEN closed by a phase inventory's named cells.
    *  `rel` is the judged document's repo-relative path; a cell's file name is compared
    *  against the indexed documents' basenames, and a cell that resolves to zero or several
-   *  documents proves nothing. */
+   *  documents proves nothing. Neither does any cell over an INCOMPLETE index: a unique
+   *  survivor of a scan that discarded a same-named candidate is not a unique identification,
+   *  and closure is what exempts the closure-gated rows from running. */
   closed(rel: RepoPath): boolean {
+    if (!this.#index.complete()) return false;
     // The one path normalization of the rule plane, not a second spelling of it: the judged
     // path and every indexed entry meet on the same form, so two writings of one location
     // never read as two locations.

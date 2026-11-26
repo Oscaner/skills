@@ -367,7 +367,34 @@ describe("task blocks", () => {
       "b.ts",
       "",
     ].join("\n");
-    expect(() => TaskBlocks.parse(content)).toThrow(/#### Files/);
+    expect(() => TaskBlocks.parse(content, "plan")).toThrow(/#### Files/);
+  });
+
+  it("asserts the reserved section only in the plan scope", () => {
+    // The reserved set is the PLAN's grammar: a document of another type writes its own
+    // headings, so the bare structure read parses a task-shaped appendix instead of refusing.
+    const content = [
+      "### Task 1: one",
+      "",
+      "#### Files",
+      "",
+      "a.ts",
+      "",
+      "#### Files",
+      "",
+      "b.ts",
+      "",
+    ].join("\n");
+    expect(
+      TaskBlocks.parse(content)
+        .blocks()
+        .map((block) => block.id),
+    ).toEqual([1]);
+    expect(
+      TaskBlocks.parse(content)
+        .blocks()[0]
+        ?.sections.map((section) => section.key),
+    ).toEqual(["Files", "Files"]);
   });
 
   it("throws the typed rejection carrying the anchored field, the message and the fix", () => {
@@ -385,7 +412,7 @@ describe("task blocks", () => {
     ].join("\n");
     let caught: unknown;
     try {
-      TaskBlocks.parse(content);
+      TaskBlocks.parse(content, "plan");
     } catch (error) {
       caught = error;
     }

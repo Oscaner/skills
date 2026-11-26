@@ -83,14 +83,16 @@ export class TaskGraph {
     this.#edges = edges;
   }
 
-  /** Build from one markdown tree — the convenience entry a caller holding a document uses. */
+  /** Build from one markdown tree — the convenience entry a caller holding a plan uses. The
+   *  read is the plan's own scope: a break of the plan's block grammar is a refusal here, not
+   *  a silently merged block. */
   static of(tree: MarkdownTree): TaskGraph {
-    return new TaskGraph(TaskBlocks.of(tree));
+    return new TaskGraph(TaskBlocks.of(tree, "plan"));
   }
 
   /** Build from one plan's text directly. */
   static parse(text: string): TaskGraph {
-    return new TaskGraph(TaskBlocks.parse(text));
+    return new TaskGraph(TaskBlocks.parse(text, "plan"));
   }
 
   /** The registered task ids, ascending. */

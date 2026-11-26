@@ -221,9 +221,11 @@ export abstract class DocParser<P extends ParsedDoc> {
   }
 
   /** The `### Task N:` blocks in document order — the ONE block-structure parse face, so
-   *  the graph, the brief and the judgments all read the same records. */
+   *  the graph, the brief and the judgments all read the same records. The `plan` scope is
+   *  the plan's own: this parse is the only one that owns the reserved-section grammar, so
+   *  the judgment's `doc-syntax` refusal reaches a plan and no other document type. */
   protected taskBlocksOf(tree: MarkdownTree): readonly TaskBlock[] {
-    return TaskBlocks.of(tree).blocks();
+    return TaskBlocks.of(tree, "plan").blocks();
   }
 
   /** The parsed table of one declared table section (empty when the section or its table

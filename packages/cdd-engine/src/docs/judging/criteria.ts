@@ -17,6 +17,9 @@
 //     their labelled target word and in nothing else.
 //   · The lens questions are declared ONCE per question, with every kind that shares it on
 //     the same row; `LensQuestions#forKind` expands them in declaration order.
+//   · The downgrade mark is a DISPLAY token, not a rubric cell: the board's verb cell and
+//     the capsule's summary line take its bytes from `regradeNote` here, so the mark and a
+//     stated reason compose in one place — a render site never splices a second copy.
 //
 // Invariant: a kind's criteria text is a pure function of these tables — the body, the
 // numbered lens list and the filled rubric compose in one place, so two spellings of one
@@ -100,6 +103,45 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
     face: "numbered",
   },
 ];
+
+/** The downgrade mark (the `regrade-mark` row's display line) — the token the board's verb
+ *  cell and the capsule's summary line print when a finding returns one tier lower and its
+ *  round states no reason. It is declared beside the criteria table because the mark has
+ *  exactly one source (never a second copy at a render site), and it is deliberately NOT a
+ *  rubric cell: a display token has no place in the tier prose a grader calibrates against. */
+export const REGRADE_MARK = "downgraded without a regrade reason";
+
+/** The separator between two downgrade notes on ONE face — the mark and a stated reason are
+ *  two sentences, never one spliced phrase. */
+export const REGRADE_NOTE_SEPARATOR = "; ";
+
+/** The board's ` · ` cell shape — a reason carrying it would read as two cells on the ONE
+ *  token the board pins as one row. */
+const BOARD_CELL_SHAPE = / *· */g;
+
+/** Whitespace runs and control characters — a reason carrying a line break would split the
+ *  capsule's one line and the board's one token into two. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: the control-character range IS the rule here — a display token may not carry a line break or a raw C0 byte.
+const DISPLAY_BREAKS = /[\s\u0000-\u001f\u007f]+/g;
+
+/** One stated reason folded to its display form: the author's bytes stay on the carrier, only
+ *  the printed wording is collapsed so neither face can split on it. Exported so the board's
+ *  note token and the downgrade note share ONE fold — a second copy at a render site is exactly
+ *  the duplicate this module's header forbids. */
+export const displayReason = (reason: string): string =>
+  reason.replace(BOARD_CELL_SHAPE, "; ").replace(DISPLAY_BREAKS, " ").trim();
+
+/** The downgrade note's ONE composition — both display faces (the board's verb cell and the
+ *  capsule's summary line) take their bytes from here, so the mark and the stated reason cannot
+ *  drift apart: a row that owes its reason prints the mark, a row that states one prints the
+ *  reason, and a round with neither prints nothing at all (`undefined` = zero bytes on both
+ *  faces). A stated reason is folded first, so a line break or the board's own ` · ` never
+ *  splits the one line / one token it rides. */
+export const regradeNote = (owing: number, reasons: readonly string[]): string | undefined => {
+  const stated = reasons.map(displayReason).filter((reason) => reason.length > 0);
+  const parts = [...(owing > 0 ? [REGRADE_MARK] : []), ...stated];
+  return parts.length === 0 ? undefined : parts.join(REGRADE_NOTE_SEPARATOR);
+};
 
 /** The tier ladder's assembly face — the rubric is the TABLE's rendering, never a prose
  *  copy beside it. */

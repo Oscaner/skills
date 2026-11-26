@@ -20,6 +20,7 @@ import {
   type Baseline,
   CORPUS,
   compareTree,
+  ENTRY_DRIVER,
   kindOf,
   landingDiff,
   NEW_TREE,
@@ -30,6 +31,7 @@ import {
   ProbeRunner,
   producerWired,
   projectionOf,
+  REGISTRATION_WAVES,
   type RecordedState,
   Recorder,
   ROSTER_FILE,
@@ -37,6 +39,7 @@ import {
   type RosterRow,
   readBaseline,
   reconcile,
+  registrationWaveOf,
   SelfProof,
 } from "./harness.ts";
 
@@ -269,8 +272,14 @@ describe("the recorded shapes", () => {
 });
 
 describe("the new tree's execution face", () => {
-  it("registers the new tree's own process entry, and it is the new tree's", () => {
-    expect(NEW_TREE.kinds()).toContain("entry");
+  it("retires the entry placeholder: the face holds no `entry` driver and the kind is declared", () => {
+    // Two facts, each derived from its own declaration — never one literal wave number:
+    // the face registers no driver at all (the placeholder answered no bytes, because the
+    // composition root still refuses to boot), and the registration table says which wave
+    // will register `entry`. T17 flips this pair back to `toContain` when it registers the
+    // real entry; the two steps are one pair.
+    expect(NEW_TREE.kinds()).not.toContain("entry");
+    expect(REGISTRATION_WAVES.has("entry")).toBe(true);
     expect(NEW_TREE_ENTRY.startsWith(NEW_TREE_ROOT)).toBe(true);
     expect(NEW_TREE_ENTRY).not.toContain("src-next");
   });
@@ -283,7 +292,10 @@ describe("the new tree's execution face", () => {
     const probe = cellOf("f1.base-set.normal", "stderr").probe;
     if (probe === undefined) throw new Error("the entry probe is not declared");
     expect(kindOf(probe)).toBe("entry");
-    const reading = await NEW_TREE.read(probe, CORPUS.frozenDate);
+    // The driver is BUILT and unregistered: the wave that registers it (T17) re-uses this
+    // one value, and this case keeps the process read exercised until then.
+    const entryFace = NewTree.of([["entry", ENTRY_DRIVER]]);
+    const reading = await entryFace.read(probe, CORPUS.frozenDate);
     // Three answers, typed as the reading declares them.
     expect(typeof reading.stdout).toBe("string");
     expect(typeof reading.stderr).toBe("string");
@@ -398,20 +410,28 @@ describe("the reconciliation", () => {
     expect(answer.gaps).toContain(cell.id);
   });
 
-  it("reports a wired cell the new tree cannot read as MISSING, naming the owing task", async () => {
+  it("counts a wired cell whose kind is declared as a NAMED deferral, never a diff or a gap", async () => {
     // No driver, no comparison: the cell must not fall back to the old tree, and it must not
-    // pass either. A wiring task that lands a producer owes the driver too.
+    // pass either. A kind with a declared registration wave is counted WITH that wave — "the
+    // driver is not here YET" is a schedule fact, not a missing judge.
     const cell = sampleCell();
+    const recorded = readBaseline(BASELINE_FILE);
+    if (recorded === null) throw new Error("the corpus has never been recorded");
+    const stitched: Baseline = {
+      ...recorded,
+      cells: { ...recorded.cells, [cell.id]: { state: "recorded", value: "the old tree's bytes" } },
+    };
     const answer = await reconcile(
       CORPUS,
-      baselineOf(cell.id, "the old tree's bytes"),
+      stitched,
       rosterOf({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
       NewTree.unwired(),
     );
     expect(answer.diffs).toEqual([]);
-    expect(answer.missing).toContain(
-      `${cell.id}: the new tree has no "entry" driver — T16 wires it`,
-    );
+    expect(answer.missing).toEqual([]);
+    expect(answer.deferred).toEqual([
+      `${cell.id}: the "entry" driver is registered by ${REGISTRATION_WAVES.get("entry")}`,
+    ]);
   });
 
   it("refuses a recording taken under another frozen date", async () => {
@@ -427,6 +447,29 @@ describe("the reconciliation", () => {
       NewTree.unwired(),
     );
     expect(answer.missing.some((entry) => entry.includes("2000-01-01"))).toBe(true);
+  });
+});
+
+describe("the named deferral", () => {
+  it("declares exactly the kinds the grid derives — both sides derived, no literal list", () => {
+    const kinds = new Set(
+      CELLS.filter((cell) => cell.applicable && cell.probe !== undefined).map((cell) =>
+        kindOf(cell.probe as NonNullable<typeof cell.probe>),
+      ),
+    );
+    expect([...REGISTRATION_WAVES.keys()].sort()).toEqual([...kinds].sort());
+  });
+
+  it("defers a declared kind and holes an undeclared one — the rule has both arms", () => {
+    // With the row: the kind answers its wave. Without it: no wave, so a producer with no
+    // driver is MISSING — absence must be named.
+    expect(registrationWaveOf("seam", new Map([["seam", "T16"]]))).toBe("T16");
+    expect(registrationWaveOf("seam", new Map())).toBeNull();
+    expect(registrationWaveOf("seam")).toBe("T16");
+    // `seam` is the command face's wave, not the render waves' — the table says T16.
+    expect(REGISTRATION_WAVES.get("seam")).toBe("T16");
+    // A kind the grid never derives is not declared either.
+    expect(registrationWaveOf("render:unknown")).toBeNull();
   });
 });
 

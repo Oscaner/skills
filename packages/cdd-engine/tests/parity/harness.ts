@@ -33,6 +33,12 @@
 //                      Red;
 //   · NOT-APPLICABLE — the command has no such route. Its own state, so it never counts
 //                      as a GAP and never blocks "the GAP set is empty".
+//   · NAMED-DEFERRED  — the cell's producer landed and its kind has no driver, but the kind
+//                      carries a declared registration wave (`REGISTRATION_WAVES`). Counted
+//                      with the wave's name, never a diff and never a missing: "this kind has
+//                      no driver YET" is a schedule fact, while an undeclared absence is a
+//                      hole. A kind with no declared wave still reads MISSING — absence must
+//                      be named.
 // The per-wave judgment is therefore "wired cells show zero diffs, and the GAP set is
 // exactly the roster's unwired applicable cells". "The GAP set is empty" belongs to the
 // cutover wave, not to every wave.
@@ -641,7 +647,7 @@ export class NewTree {
  *  that needs no injected seam is read here verbatim. An entry that has not grown its boot
  *  wrapper yet answers nothing, and the cell's bytes say so instead of the harness
  *  pretending the old tree's answer is the new tree's. */
-const ENTRY_DRIVER: NewTreeDriver = {
+export const ENTRY_DRIVER: NewTreeDriver = {
   async run(probe: Probe, _frozenDate: string): Promise<ProbeReading> {
     const corpus = await Corpus.open(probe);
     try {
@@ -665,11 +671,44 @@ const ENTRY_DRIVER: NewTreeDriver = {
   },
 };
 
-/** The new tree's execution face as it stands. `entry` is registered because the entry
- *  itself landed in the first wave; `seam` lands with the command face (T16) and
- *  `render:<family>` with each renderer (T9 · T15). The roster names the owing task per
- *  cell, and the reconciler reports an owed cell as MISSING rather than as a diff. */
-export const NEW_TREE = NewTree.of([["entry", ENTRY_DRIVER]]);
+/**
+ * REGISTRATION_WAVES — kind → the wave that will register its driver. The reconciler's
+ * NAMED-DEFERRED state reads it for one question a recording cannot answer: a baseline entry's
+ * state reports that a recording and a tree disagree, never WHEN a kind grows its driver.
+ * A kind absent from this table has no declared wave, so a producer with no driver reads
+ * MISSING (absence must be named) — never a silent count.
+ *
+ * The table is a declaration beside `NEW_TREE`, and the two tell their own truths: the
+ * table says `entry` arrives in T17 and `seam` in T16 while `NEW_TREE` holds neither
+ * driver yet; `render:*` registrations belong to the render waves. The parity suite pins
+ * the key set to the kinds the grid actually derives, so a new probe kind cannot arrive
+ * without a declared wave.
+ */
+export const REGISTRATION_WAVES: ReadonlyMap<string, string> = new Map([
+  ["entry", "T17"],
+  ["seam", "T16"],
+  ["render:skeleton", "T9"],
+  ["render:prompt", "T15"],
+  ["render:review", "T15"],
+  ["render:capsule", "T15"],
+]);
+
+/** The named-deferral verdict for one absent driver: the wave that registers the kind, or
+ *  null when the kind declares none — an undeclared driver is MISSING, never a silent
+ *  count. The table is a parameter so the two-way pin can hand it a table with and without
+ *  the row: the rule ("a declared wave defers, an undeclared one holes") is one function. */
+export const registrationWaveOf = (
+  kind: string,
+  waves: ReadonlyMap<string, string> = REGISTRATION_WAVES,
+): string | null => waves.get(kind) ?? null;
+
+/** The new tree's execution face as it stands: NO driver. The first wave registered the
+ *  process `entry` as a placeholder, and it answered nothing (the composition root still
+ *  throws `not wired yet`), so registering it made every entry-kind cell look wired while
+ *  the tree held an empty process. It is retired here: entry cells read as NAMED-DEFERRED
+ *  until T17 registers the real thing, and `ENTRY_DRIVER` stays in the file for that wave
+ *  to register — the driver is written, the registration is what the wave withholds. */
+export const NEW_TREE = NewTree.of([]);
 
 /** Record the whole corpus from the live old tree. Each cell's state is DERIVED from the
  *  producer's landing on the new tree, so a re-record after a producer arrives advances
@@ -699,6 +738,8 @@ export interface Reconciliation {
   readonly diffs: readonly Diff[];
   /** The cells with no producer yet — counted, never skipped. */
   readonly gaps: readonly string[];
+  /** The cells whose kind has a declared registration wave — counted, with the wave named. */
+  readonly deferred: readonly string[];
   /** The recording and the tree disagree, or the new tree cannot read the cell. */
   readonly missing: readonly string[];
 }
@@ -761,6 +802,7 @@ export const reconcile = async (
 ): Promise<Reconciliation> => {
   const diffs: Diff[] = [];
   const gaps: string[] = [];
+  const deferred: string[] = [];
   const missing: string[] = [];
   if (baseline.frozenDate !== scenario.frozenDate) {
     missing.push(
@@ -809,7 +851,13 @@ export const reconcile = async (
       next = await newTree.read(probe, scenario.frozenDate);
     } catch (raw) {
       if (!(raw instanceof NewTreeAbsent)) throw raw;
-      missing.push(`${cell.id}: the new tree has no "${raw.kind}" driver — ${row.task} wires it`);
+      const wave = registrationWaveOf(raw.kind);
+      if (wave === undefined) {
+        missing.push(`${cell.id}: the new tree has no "${raw.kind}" driver — ${row.task} wires it`);
+      } else {
+        // The kind is declared: counted with its wave, never a diff and never a hole.
+        deferred.push(`${cell.id}: the "${raw.kind}" driver is registered by ${wave}`);
+      }
       continue;
     }
     if (probe.target !== undefined) {
@@ -825,7 +873,7 @@ export const reconcile = async (
     if (actual === recorded.value) continue;
     diffs.push({ cell: cell.id, expected: recorded.value, actual });
   }
-  return { diffs, gaps, missing };
+  return { diffs, gaps, deferred, missing };
 };
 
 /** Compare one scenario against its recording — the byte differences of the wired cells.

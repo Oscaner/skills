@@ -14,21 +14,33 @@ producer lands, every cell it owns that is still recorded as `GAP` turns the cor
 as wired starts comparing bytes. A producer that does not exist yet is a `GAP`: counted,
 neither skipped nor red.
 
-**Three states, and a route that has none** (spec §2.4): `GAP` — the producer has not
+**Four states, and a route that has none** (spec §2.4): `GAP` — the producer has not
 landed, so the cell has no judge yet; `DIFF` — the cell is wired and its new-tree bytes
-differ from the recording, red; `MISSING` — the recording and the tree disagree (a cell
-recorded `GAP` whose producer has landed, a wired cell with no new-tree driver, a recording
-taken under another frozen date), red; `not-applicable` — the command has no such route,
-which is a state of its own and never a GAP. The per-wave judgment is "wired cells show
-zero diffs, and the GAP set is exactly the roster's unwired applicable cells" — a condition
-read off the tree, never a snapshot of the wave that recorded it. "The GAP set is empty" is
-the cutover's judgment, not every wave's.
+differ from the recording, red; `NAMED-DEFERRED` — the producer HAS landed and its kind has
+no driver yet, but the kind carries a declared registration wave (`REGISTRATION_WAVES` in
+`harness.ts`), so the cell is counted with that wave's name; `MISSING` — the recording and
+the tree disagree (a cell recorded `GAP` whose producer has landed, a wired cell whose kind
+declares NO registration wave, a recording taken under another frozen date), red;
+`not-applicable` — the command has no such route, which is a state of its own and never a
+GAP. The per-wave judgment is "wired cells show zero diffs, every owed driver is either
+declared or named missing, and the GAP set is exactly the roster's unwired applicable
+cells" — a condition read off the tree, never a snapshot of the wave that recorded it.
+"The GAP set is empty" is the cutover's judgment, not every wave's.
+
+**A deferred driver is a schedule fact, an undeclared one is a hole.** The registration
+table is the one place that answers "when does this kind grow its driver": `entry` in T17,
+`seam` in T16, `render:skeleton` in T9, the remaining render families in T15. Its key set is
+pinned to the kinds the grid actually derives, so a new probe kind cannot arrive without a
+declared wave. A driver the new tree does not register is therefore never reported as a
+diff, and never silently counted: it is either deferred with its wave named, or missing.
 
 **The expectation is the old tree; the reading is the new one.** A cell's baseline value is
 the old tree's recorded bytes; its actual bytes come from the new tree, through the drivers
 of `NewTree` — the same fixture, the same argv, the same injected day. A driver is
-registered by the wave that lands the entry it drives (the process `entry`, the in-process
-`seam`, one `render:<family>` per renderer), and a kind with no driver is a named absence.
+registered by the wave that owns its entry (the in-process `seam` in T16, one
+`render:<family>` per renderer family, the process `entry` in T17 after its placeholder was
+retired), and a kind with no driver yet is a named absence — declared in
+`REGISTRATION_WAVES`, or reported missing when it declares none.
 No cell ever falls back to a second old-tree run, which is what makes "the new tree
 reproduces the old one" a judgment rather than a tautology.
 

@@ -2,7 +2,7 @@
 // Every write goes through one declared, atomic, previewable path.
 //
 // `Env` is the external world's one adapter, constructed once at the composition root
-// and handed to the other three slices as an instance. It has four segments:
+// and handed to the other three slices as an instance. It has five segments:
 //
 //   paths     — the path basis (`RepoRoot`), the doc roots (`DocRoots`) and the slug
 //               index (`SlugIndex`): how a repository spells its own coordinates.
@@ -12,6 +12,11 @@
 //               the child seam and the lock: everything the engine asks of the OS and
 //               of the machine it runs on.
 //   vcs       — git reads and the plan source: what the repository itself says.
+//   provision — the harness install / update sequence: the outside world touched through
+//               declared, previewable steps. It sits inside `env/` rather than in a slice
+//               of its own because it keeps THIS segment's invariant (only a declared,
+//               atomic, previewable step touches the outside world) — the object differs,
+//               the rule does not.
 //
 // `Env` knows no CDD semantics: no round, no document type, no judgment — those live
 // above it. The clock is the one fact that has a production default: `Clock` IS the
@@ -26,6 +31,7 @@ import { type ChildRunner, Terminator } from "./process/child-runner.ts";
 import { Clock } from "./process/clock.ts";
 import { detectHost, type HostEnv, type HostId, type HostProbe } from "./process/host.ts";
 import { Lock, type LockHolderReader } from "./process/lock.ts";
+import { Provisioner, type StepRunner } from "./provision/init.ts";
 import { GitClient } from "./vcs/git.ts";
 import { type PlanSource, planSourceOf } from "./vcs/plan-source.ts";
 import type { FileOps } from "./workspace/atomic.ts";
@@ -138,6 +144,8 @@ export interface EnvOptions {
   readonly runner?: ChildRunner;
   /** The git read face, when a caller drives a repository other than the cwd's. */
   readonly git?: GitClient;
+  /** The provisioning step seam, when a caller drives an install plan without spawning. */
+  readonly stepRunner?: StepRunner;
 }
 
 /** Every write goes through one declared, atomic, previewable path — the workspace is
@@ -155,6 +163,9 @@ export class Env {
   /** The repository's own facts: git and the plan source. */
   readonly vcs: Vcs;
 
+  /** The harness's install / update sequence — step plan and step run. */
+  readonly provision: Provisioner;
+
   constructor(opts: EnvOptions) {
     this.paths = Paths.of(opts.cwd ?? process.cwd());
     this.process = new Process({
@@ -171,5 +182,6 @@ export class Env {
       ops: opts.ops,
     });
     this.vcs = new Vcs({ root: this.paths.root, docs: this.paths.docs, git: opts.git });
+    this.provision = new Provisioner({ runner: opts.stepRunner });
   }
 }

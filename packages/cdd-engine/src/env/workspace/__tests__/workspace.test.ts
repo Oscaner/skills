@@ -14,7 +14,7 @@
 //     zero-clock face covers the three segments this task delivers (the clock's own
 //     reader, `env/process/clock.ts`, is outside them);
 //   · `ensure` publishes the keep-out marker and creates no slug directory;
-//   · `Env` exposes the four segments and takes one options parameter.
+//   · `Env` exposes the five segments and takes one options parameter.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -268,7 +268,7 @@ describe("the keep-out marker", () => {
 });
 
 describe("the env facade", () => {
-  it("exposes the four segments and nothing else across instance and prototype", () => {
+  it("exposes the five segments and nothing else across instance and prototype", () => {
     const repo = tempRepo("env-facade-");
     const env = new Env({
       cwd: repo,
@@ -281,7 +281,7 @@ describe("the env facade", () => {
         (name) => name !== "constructor",
       ),
     ]);
-    expect([...members].sort()).toEqual(["paths", "process", "vcs", "workspace"]);
+    expect([...members].sort()).toEqual(["paths", "process", "provision", "vcs", "workspace"]);
     expect(env.workspace.at("s").slug).toBe("s");
     expect(env.process.clock.now()).toBe(FIXED_NOW);
     expect(Env.length).toBeLessThanOrEqual(1);

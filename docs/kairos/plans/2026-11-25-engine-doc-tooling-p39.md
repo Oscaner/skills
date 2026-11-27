@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.49
+version: v0.50
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -767,7 +767,7 @@ pin 齐（两带名册 · 字节等价 · 胶囊三槽（含 summary 那一格�
 - Modify: `packages/cdd-engine/tests/parity/baseline/`（重录产物：本片落地的 producer 把它名下的格从 GAP 推进到已接线）
 - Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
 - Modify: `packages/cdd-engine/tests/parity/parity.test.ts`（本片各格的比较项）
-- Modify: `packages/cdd-engine/tests/parity/harness.ts`（`seam` 的注册波就是本波：注册 `seam` kind 与它的进程内 driver）
+- Modify: `packages/cdd-engine/tests/parity/harness.ts`（本波只补本片各格的**名册行**；`seam` kind 与它的进程内 driver 不在本波注册——见 Steps 末条与 T17）
 - Modify: `packages/cdd-engine/tests/parity/fixtures/trees.ts`（新增一条「已存在但读不出」的探针旋钮：`TreeFixture` 收一个可声明的读不出路径集，`materialize()` 落盘后对它们逐个把模式清零——`f1.board.refusal.unreadable` 那一格的输入只由它造，探针与树形态都不持模式字面）
 - Modify: `packages/cdd-engine/tests/parity/fixtures/README.md`（把读不出旋钮那一条读数与既有树形态同册）
 - Modify: `packages/cdd-engine/src/run/advance/lifecycle.ts`（**写入面外延一笔，理由在 Objective 末句**：`AdvanceOutcome#dispatch` 要交出派发回合的可渲染值——结论词、carrier 坐标、`NextHop`（`next:` 与 `reason:` 读的正是它）。这个值的形状属于 advance 段，而消费它的是本任务的 `seam` driver；不给它落点，24 个 `seam` 单元里的 17 个派发命令永远读作具名延后）
@@ -785,7 +785,7 @@ pin 齐（两带名册 · 字节等价 · 胶囊三槽（含 summary 那一格�
 - 三条纯命令的产物面无新落点：`base` 的读与写走 `env/workspace/base-artifact.ts`（T3，`BASE_ARTIFACT_FIELDS` 从那里导出）· `issue render` 的渲染与输入契约走 `surface/render/issue.ts`（T15）· 骨架走 `docs/skeleton/assembler.ts`（T9）——`schema` 壳（`surface/commands/schema.ts#SchemaCommand`）按 `--output` 一次值分派到 `Documents` 的**两个**入口（分叉只读旗标值、不读域事实）：`--output skeleton` 走 `Documents.skeletonAt(type, target)`（渲染、经注入的 `env.workspace#writeTextAt` 落盘、回显相对路径三件都在那一个入口里完成）、其余走 `Documents.projectOf(type, target)`（序列形与「多余 target」的拒绝都在那个入口里），壳既不渲染也不写盘、也不判 target 的多少。壳只取参、调它们、原样输出。这两件实例的所有者是 `Env`：`base` 的基产物读写是 `env.workspace` 的成员（`env/workspace/base-artifact.ts`），`init` 的 `Provisioner` 是 `env.provision` 的成员（T8），组合根只构造 `Env` 一处，`Cli` 收的是这两个成员的引用，壳只持它们的类型、零 `new`
 - `init` 壳的接线（同一片、同一判据）：壳把 `Cli#report` 的**那一对** writer（stdout 面与 stderr 面）都交给 `surface/render/init.ts`——进度行与绿摘要走 stdout 那一个、首败报三行走 stderr 那一个，并把 `#apply` 的 `onStep` 一并传进去——两条流与首败报的 `exit <code>` 都出自这一处（旧树的 `initHeader` 就是 `writeSync(1, …)`、失败报三行进 `io.stderr`；单 writer 接线会把首败报落到 stdout，把面 1 的 init 失败路两条流对调），壳自己零判档、零拼字节、零 spawn；`#apply` 的回值（`{kind: "green"} | {kind: "failed", index, exitCode}`，T8）由壳原样交给 `Cli#report`，于是首败报的 `<code>` 有来源而不是渲染器自造的第三件入参
 - `Cli#run(argv)`（`surface/index.ts`）
-- **`seam` 的注册波就是本波**（`harness.ts` + `parity.test.ts`）：`seam` probe 读的是一次完整命令的 stdout / stderr / 退出码，故它的 driver 只可能在命令面落地之后存在——driver 按 probe 的 argv 在测试面装配本树的四片（`Env` → `Documents` → `Run` → `Cli`），把注入的派发结论与 step runner 挂在相应缝上，`spawn` 计数为零；它住 `tests/parity/`（测试面），不与 T17 的组合根唯一性冲突（那一条只扫 `src/**` 的非测试文件）。T8 已把 `seam` 的行记成本波，本波只补 driver、不改那一行；T11 · T14 · T15 落地 producer 的 `seam` 格在此之前读作具名延后并点名 T16，本波起逐字节比，本片名下的 `seam` 格同批
+- **`seam` 的注册波不在这里**（`harness.ts` + `parity.test.ts`）：`seam` probe 读的是一次完整命令的 stdout / stderr / 退出码，故它的 driver 只可能在命令面落地之后存在——driver 按 probe 的 argv 在测试面装配本树的四片（`Env` → `Documents` → `Run` → `Cli`），把注入的派发结论与 step runner 挂在相应缝上，`spawn` 计数为零；它住 `tests/parity/`（测试面），不与 T17 的组合根唯一性冲突（那一条只扫 `src/**` 的非测试文件）。T8 已把 `seam` 的行记成本波，本波只补 driver、不改那一行；T11 · T14 · T15 落地 producer 的 `seam` 格在此之前读作具名延后并点名 T16，本波起逐字节比，本片名下的 `seam` 格同批
 - `__tests__/channel-closure.guard.test.ts`：通道闭合守卫（读 `declare` 的 `CLI_COMMANDS` / `ARGV_CHANNEL` 与 `env/process/host.ts` 的 `HOSTS` / `DISPATCH` / `REFS`；守卫读产品面的单源，不另立白名单。`precommit` 今天指向旧树的同名文件，翻面时随 T18 改指这一处）
 
 #### Steps
@@ -800,7 +800,7 @@ pin 齐（两带名册 · 字节等价 · 胶囊三槽（含 summary 那一格�
 - 写 help 与 usage 的 pin — checkable: `--help` 形面与 usage 字节；子命令树可读；**两处同源**：`cdd board --dry-run` 与 `cdd schema get plan --dry-run` 的 usage 首行逐字节等于同一命令节点的 `--help` 首行（两个纯命令各一条臂，只比首行不比整篇 help；把 `usageLineOf` 改成另一句 ⇒ 两条臂同时红——这是 T15 那条注入面的真命令对偶）；对账器的 `--help` / usage / 错用码 2 三格由本任务接线（它们是 `entry` kind，字节比在 T17 收口）
 - 接骨架落盘那一格 — checkable: 用**进程内的壳**判「路径回显了、文件没写」——壳 + 注入的 `Documents`（收真的 `env.workspace#writeTextAt`）跑一次 `schema get <族> --output skeleton <target>`，目标文件被写出、非空、且字节与 `Documents.skeletonAt` 的那一份相等，`skeletonAt` 只被调一次；把壳里的 `skeletonAt` 换成只回显路径而不落盘的假实现 ⇒ 该条红。进程级的落盘事实（`f3.skeleton-landing` 格，`entry` kind）在 T17 与其余 entry 格同批比
 - 补 body 层与 `--help` 的语料格 — checkable: 名册里 `f1.schema-get.refusal` 不再是 `not-applicable`——它拆成 `missing-target` 与 `extra-target` 两族，每族的 stdout / stderr / 退出码各一行且 producer 落点非空；`f1.schema-get.failure` 也不再是 `not-applicable`——它成了写失败那一族（探针 `schema get plan --output skeleton <既有目录>`，三流齐，producer 落点 `surface/index.ts#Cli`）；把这条探针的目标换成可写路径 ⇒ 该格红（录到的会是成功落地那一支的字节，不是写失败那两行）；`f1.issue-render.refusal` 同样不再是 `not-applicable`——它成了校验拒绝那一族（`f1.issue-render.refusal.validation`，探针 stdin `{"type":"bug"}`，三流齐：stdout 空 · stderr 首行 + 每条违约一行缩进 · exit 1，producer 落点 `surface/commands/issue.ts#IssueCommand`）；把这一格的探针换成畸形 JSON 的 stdin ⇒ 该格红（它会录到 `f1.issue-render.failure` 那一格的单行形——两族各录各的字节，不互相顶替）；`board` 的四族（`scope` · `no-flags` · `no-match` 含双旗标那一条 · `unreadable`——这一族的探针用 `fixtures/trees.ts` 的读不出旋钮造一个存在而读不出的目标，录到的 stderr 恰为 `cdd board: cannot read --plan <路径>`，与 `no-match` 那一族的 `no docs match` 字节不同）· `schema get` 的 `scope` 族 · 计划外任务的三族（两行形，带 usage 首行；`implement` 那一格的探针是 `implement --tasks <计划外 id> --plan <…>`，不带 `--type`——它没有这个旗标，带上只会录到解析层的 `error: unknown option '--type'`）在册；**「无可派发帧」不在册**：那条字节在本树上没有触发点（波门 line 腿先以 `split` 拒绝，frontier 非空则派发或被 hop 拒绝），语料不为它开格、名册里没有它的行，它的判者只有本任务那条手写字面单元臂；面 2 的 `--help` 族按顶层八节点与四个嵌套叶各一格，每格的 usage 首行与该节点 `--help` 首行逐字节相等（把 `usageLineOf` 改成另一句 ⇒ 那几格同时红）；把任一新族的 `task` 从名册删掉 ⇒ 该格红（不是 skip、不是 `todo`）；新增族改动了语料的格集 ⇒ 本步结束前跑一次录制（`record.ts`），让新族在录制件里有条目（否则它们报「the baseline carries no entry」；`f1.issue-render.refusal.validation` 与其余新族同批写进 `baseline/`）；把读不出旋钮关掉（目标存在且可读）⇒ `f1.board.refusal.unreadable` 那一格红，不再与旧树字节相等；**预览面的 dry-run 拒绝与错用各开一族**——`f7.preview.refusal.split`（split 树上 `--dry-run`：stdout 空、stderr 是拒绝行 + 三段波板 + `checked:` 段、exit 1）与 `f7.preview.usage.missing-plan`（空树上 `--dry-run`：usage 首行 + `error: cannot read file: …`、exit 2，与 `f7` 已存在的六个通过 / 持有 / 阻断格不同形），两族各录三流；名册（`grid.ts` · `GRID-WIRING.md`）同批给两族各一行（producer 落点 `surface/render/route.ts#refusalBlock` / `surface/render/usage.ts#UsageFace`，接线任务本片）；语料的格集因此再变一次 ⇒ 本步的重录（`record.ts`）同批把这两族写进 `baseline/`
-- 注册 `seam` 的 driver — checkable: `NEW_TREE.kinds()` 本波含 `seam`、仍不含 `entry`（`entry` 的注册波是 T17）；名册挂给 T11 · T14 · T15 · 本片的 `seam` 格在本波全部派生成已接线并逐字节比、零差异；把 `NEW_TREE` 的 `seam` 行删掉 ⇒ 这些格退回具名延后并点名 T16（不是差异、不是缺格）；一条 `seam` 读数全程 `spawn` 计数为零（注入的派发结论与 step runner），且读数带 stdout / stderr / 退出码三件
+- 声明本片各格并保持具名延后 — checkable: 本波注册后 `NEW_TREE.kinds()` **仍不含** `seam`（`seam` probe 读的是一次完整命令的 stdout / stderr / 退出码，那需要组合根把四片接起来，故它的注册波是 T17）；名册挂给本片的各格读作具名延后而**不是**红；`pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿。原判据里的以下断言移入 T17 —— `NEW_TREE.kinds()` 含 `seam`、仍不含 `entry`（`entry` 的注册波是 T17）；名册挂给 T11 · T14 · T15 · 本片的 `seam` 格在本波全部派生成已接线并逐字节比、零差异；把 `NEW_TREE` 的 `seam` 行删掉 ⇒ 这些格退回具名延后并点名 T16（不是差异、不是缺格）；一条 `seam` 读数全程 `spawn` 计数为零（注入的派发结论与 step runner），且读数带 stdout / stderr / 退出码三件
 - 重录基线 — checkable: 跑 `node --experimental-strip-types packages/cdd-engine/tests/parity/record.ts` 后，本片 producer 名下的格（含 `entry` 类：它们的 producer 在本波落地，状态前进到已接线，读数仍由具名延后兜住）在录制件里的状态是已接线（不再是 GAP），期望字节与重录前逐字节相等
 - 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/surface tests/parity` 绿（对账器按 T2 的三态口径加 T8 的具名延后那一档：已接线的格零差异、未接线的格计入 GAP、kind 的注册波未到的格计入具名延后，三者都不判红；本片的 `seam` 格在本波 producer 与本波注册的 driver 一起派生成已接线并逐字节比（T11 · T14 · T15 落地的那几格在这一波首次读到真读数——`seam` 的注册波就是本波），`entry` 格读作具名延后、点名 T17，由 T17 收口）
 - 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
@@ -821,7 +821,9 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 - Create: `packages/cdd-engine/src/__tests__/composition.test.ts`
 - Create: `packages/cdd-engine/src/__tests__/smoke.integration.test.ts`
 - Modify: `packages/cdd-engine/tests/parity/grid.ts`（本片各格的名册行；注册波表不在这里，在 `harness.ts#REGISTRATION_WAVES`）
-- Modify: `packages/cdd-engine/tests/parity/harness.ts`（`entry` kind 与组合根接线同批就位）
+- Modify: `packages/cdd-engine/tests/parity/harness.ts`（两件：`entry` kind 与组合根接线同批就位；**`seam` kind 与它的进程内 driver 在本波注册**——`seam` probe 读的是一次完整命令的 stdout / stderr / 退出码，只有四片接起来才读得出读数，所以它的注册波是这里）
+- Create: `packages/cdd-engine/src/docs/world.ts`（`DocumentWorld` 的**生产适配器**：`Documents#judge` 缺它只回 `no-world`，`checked:` 面因此逐字节比不出来。它把 `Env.paths` 的文档根与 `Env.workspace` 的读面接成 judge 要的世界视图；此前全树只有测试替身）
+- Create: `packages/cdd-engine/src/run/advance/reads.ts`（20 个 `LifecycleReads` 的**生产实现**：四行 pre-dispatch station 与派发帧的读面都从这二十个读数来；T13 只定义了它们的接口，本波给出真实装配）
 - Modify: `packages/cdd-engine/tests/parity/GRID-WIRING.md`（本片各格的名册行）
 - Modify: `packages/cdd-engine/tests/parity/parity.test.ts`
 
@@ -847,7 +849,7 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 从仓库根跑 `node --experimental-strip-types packages/cdd-engine/src/bin.ts` 能跑通八条命令且退出码与旧树一致；组合根唯一性 pin 绿；`src/__tests__/smoke.integration.test.ts` 绿；对账器全绿（八面逐字节，GAP 集合为空）；两棵树各自的套件同时绿。
 
 #### DependsOn
-8, 16
+8, 16, 20
 
 ### Task 18: 翻面
 
@@ -940,6 +942,39 @@ spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：�
 #### DependsOn
 18
 
+### Task 20: 派发帧的组装与空 prompt 的拒绝
+
+#### Objective
+把「渲染出来的那条 prompt」交给孩子：按 host 的 `promptForm` 数据列拼成 **一条** prompt 实参，并在它为空时**拒绝派发**。**这一层曾经出过一次故障**：拼装错位使 spawn 照常成功、退出码正常，而孩子收到的任务里没有 prompt —— 于是 harness 不知道自己该做什么，把整份 spec 与计划都做了一遍。教训写进判据：**「spawn 成功」不是证据，「孩子收到了它能执行的任务」才是。**
+
+空 prompt 的拒绝**不是新增的门**：Constraints 禁的是新增判定面（doc-contract 行 · 判据行），而这是**缝上的不变量**——与「孩子存在之前零记录」同族，都属于「不造出无法归因的东西」。
+
+#### Files
+- Create: `packages/cdd-engine/src/run/dispatch/frame-assembly.ts`
+- Create: `packages/cdd-engine/src/run/dispatch/__tests__/frame-assembly.test.ts`
+
+#### Consumes
+- T13 的 `LifecycleReads#dispatchFrame` 接口（本波给出真实实现并接上去）· T15 的 `TEMPLATE_PROMPT` 渲染面与 `surface/words` 的槽表 · 旧树的 `face/lifecycle.ts`（`#template.render(values)` → host `promptForm` 列 → 子进程一条实参）
+- spec §2.2 面 4（prompt 字节冻结）
+
+#### Produces
+- `frame-assembly.ts`：`assembleDispatchFrame(frame, briefPath) → DispatchFrame`——渲染 prompt（经 T15 的模板面）、按 `HOSTS[host].promptForm` 拼 argv、把 prompt 作为**恰好一条**实参放进去
+- 空渲染的拒绝：`prompt.trim() === ""` ⇒ 回一个声明过的失败值（不 spawn），由调用方按既有不变量处理
+
+#### Steps
+- 写「恰好一条、字节相同」的 pin — checkable: `calls[0].args` 里那条 prompt 与 `TEMPLATE_PROMPT` 对同一输入的渲染**字节相等**，且整条 argv 里它不是零次、也不是两次
+- 写「删掉拼装即红」的 pin — checkable: 把拼装那一步从 argv 里去掉（只留命令与旗标）⇒ 该 pin 红——这正是曾经静默成功的那次故障的形态
+- 写「空 prompt 零 spawn」的 pin — checkable: 渲染结果为空串或全空白 ⇒ 组装回失败值，且注入的 spawn runner **零调用**（断言调用次数为 0，不是断言退出码）
+- 写「按数据面走」的 pin — checkable: 换掉 `HOSTS` 里该 host 的 `promptForm` 列 ⇒ argv 形态随之变（零硬编码分支；断言从表派生）
+- 全片跑绿 — checkable: `pnpm -C packages/cdd-engine exec vitest run src/run` 绿；`pnpm run typecheck` 绿
+- 提交 — checkable: `git log -1 --format=%s` 以 `feat(p39):` 起头
+
+#### Acceptance
+四条 pin 齐（恰好一条且字节相同 · 删掉拼装即红 · 空 prompt 零 spawn · 换 `promptForm` 列即变）；`Child` 侧仍是透传，拼装只在本任务一处；旧树 `promptOf(runner)` 那族断言在新树上有了对应物。
+
+#### DependsOn
+13, 15
+
 ## Change history
 
 | Version | date | summary | author |
@@ -993,3 +1028,4 @@ spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：�
 | v0.47 | 2026-11-27 | wave fix 轮补记（`ae51ffd1` 的 `fix(p39)` 改了本计划这几段而未留行，本轮只补记录面：判据与正文按已交付形状原样留存，任务 id 集与 `DependsOn` 集未动）：**派发基线一次读、两处写**——`Lifecycle#advance` 在最后一次拒绝之后、in-flight 记录存在之前读一次 HEAD（`LifecycleReads#head`），把同一个值写进 in-flight 记录的 `dispatchBase` 与 `Ledger#recordRound` 的 `dispatchBase` 格，而 `#completionFactsOf` 的 `groupBase` 取「本行最早记录的那一个 `dispatchBase`，缺则这次测量的 HEAD」，`commits` 从那个基线数（`LifecycleReads#commits(base)`）——判据与事后诊断因此不会对同一次派发说两个基线，组的第一轮也不会被拒在一个它正要写下的基线上；**own-bytes 三态**——`LifecycleReads#touchedDoc` 只对可读的范围答 `true` / `false`，`#bindReviewed` 只在 `false` 时挡绑，`null`（无基线或仓库读不出）保留绑定并由本轮记下 `WRITE_BACK_UNMEASURED`，于是「测不了」不被读成「没动过」；**证据格有了生产者**——T13 的 `Files` 收 `Modify: packages/cdd-engine/src/run/dispatch/handoff.ts`（`EVIDENCE_CONTRACT` · `Handoff#evidenceOf` · `Handoff#evidenceViolationOf`），`LifecycleReads#evidence` 的一次读同时喂 `facts` 的 `evidenceOk` 格与轮次那条 hard 条目，欠不欠证据由动词的载体面（`Handoff.planeOf(op) === "work"`）与目标行是不是文档面两处声明派生，`emptyFileTasks` 改由 `FrameScene#emptyFileTasks` 派生——T13 原先写这两个格在工作面「保持声明空值」，绿证据的验证波因而永读拒；T13 的 Steps 补派发基线 · own-bytes 三态 · 证据门三条 pin，Acceptance 补同样的三句，T17 的 `Produces` 补 `LifecycleReads` 的 git 面与证据面接线（`head` · `commits` · `touchedDoc` · `evidence`） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |
 | v0.48 | 2026-11-27 | **编排者的写入面外延（开发期漂移 · 用户裁定链上继续）**：第十波的 implement 轮报 BLOCKED，理由是本任务注册 `seam` driver 需要 `run/advance/lifecycle.ts` 交出派发回合的可渲染值（结论词 · carrier 坐标 · `NextHop`），而该文件不在 T16 的写入面内。缺口是计划的划面太窄——这个值的形状属于 advance 段，消费它的却是命令壳，两头都不该由另一轮越界改。T16 的 Files 因此加一条 `Modify` 并写明理由；任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-27） |
 | v0.49 | 2026-11-27 | docs-fix 轮四十一（F3 为 warn，内容面落地，未放宽判据；F1 · F2 · F4 落在本轮写权之外，原样交编排者）：**`v0.48` 这一行的日期回到写下它的那一天**——该行的日期格与作者格末尾都原写 `2026-11-25`，而写下它的提交 `8be67e13` 落在 `2026-11-27`、上一行 `v0.47` 也读作 `2026-11-27`，于是谱系里最新一次授权编辑读起来比它所跟随的那一次更早，按行对提交的审计会去找一笔当天不存在的改动；本轮把这两处都改成 `2026-11-27`，该行其余格一字不动（版本字面仍是 `v0.48`）。F1（spec §2.2 面 5 的胶囊四槽 · §2.3 的 `overall` 树形态与形态计数 · 验收里 changeset 级别的措辞）落在 spec 内容、F2（载体 · 时钟 · 环境与类型三族 `DependsOn` 边）落在结构面、F4（章程 `Phase inventory` 的 P39 Scope 格缺 D104 ④ 的唯一例外句）落在章程，均在本轮写权之外，原样交编排者回填。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |
+| v0.50 | 2026-11-27 | **编排者的三笔（开发期漂移 · 用户确认）**：① **`seam` 的注册波从 T16 移到 T17**——第十波两次 implement 都报 BLOCKED，理由一致：`seam` probe 读的是一次完整命令的三条流，只有四片接起来才读得出读数；T16 改为「声明本片各格并保持具名延后」。② **T17 补两个生产落点**：`Docs` 的 `DocumentWorld` 适配器（此前全树只有测试替身，缺它 `checked:` 面比不出来）与 20 个 `LifecycleReads` 的真实装配（T13 只给了接口）。③ **新增 T20**：派发帧的组装与空 prompt 的拒绝——用户报告过一次同类故障（拼装错位 ⇒ spawn 成功而 prompt 未进去 ⇒ child 把整份 spec 与计划都做了），故判据钉「恰好一条且字节相同 · 删掉拼装即红 · 空 prompt 零 spawn · 按 `promptForm` 数据面走」四条；T17 依赖加 20。任务 id 集与其余边由编排者落，波次重算 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-27） |

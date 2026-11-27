@@ -15,6 +15,11 @@
 // ledger, the gate and the run exist. A target that names no workspace is answered with the
 // engine's own identity refusal — exit 1, no dispatch, no writes.
 //
+// One invocation reads the corpus ONCE: the document world and every workspace ledger are
+// built from the same listing instance, and a program board hands the ONE world to every
+// phase it reads, so the cost of a board is linear in the documents it judges rather than
+// the product of documents and phases.
+//
 // `main` is the arrow const (one call per process, argv in, exit code out) and the boot
 // wrapper runs it only when this module IS the process entry, so a suite imports `main`
 // without booting a CLI.
@@ -51,8 +56,9 @@ import { InFlight } from "./run/dispatch/inflight.ts";
 import { Authority } from "./run/gate/authority.ts";
 import { PreFlight } from "./run/gate/preflight.ts";
 import { Refusal } from "./run/gate/refusal.ts";
-import { type BoardOutcome, type BoardReads, Run } from "./run/index.ts";
+import { type BoardOutcome, type BoardReads, type DocSeat, Run } from "./run/index.ts";
 import { Artifacts } from "./run/ledger/artifacts.ts";
+import { RoundIdentity } from "./run/ledger/identity.ts";
 import { Ledger } from "./run/ledger/ledger.ts";
 import type { BaseResolution } from "./surface/commands/base.ts";
 import type { TargetTypeRead } from "./surface/commands/board.ts";
@@ -83,11 +89,13 @@ type SlugVerdict =
       readonly target: string;
     };
 
-/** The document reads one graph is assembled over — the repo-basis text read and the index. */
+/** The document reads one graph is assembled over — the repo-basis text read, the index and
+ *  the ONE document world this invocation built. */
 interface GraphReads {
   readonly readRepo: (rel: string) => string | null;
   readonly index: SlugIndex;
   readonly documents: Documents;
+  readonly world: DocWorld;
 }
 
 /** The seams a caller may substitute for one invocation — the surface's two writers and stdin
@@ -107,6 +115,11 @@ export interface BootSeams {
 /**
  * Boot — the composition itself. Invariant: one process builds one graph, and every object the
  * slices receive is constructed here or by `env/`'s own two entries (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the composition root is ONE graph built in one
+ * place — the wiring order and the one pre-command identity judgment are the whole reason it
+ * exists, and splitting it would hand each half its own copy of that order, which is the
+ * defect a composition root is here to prevent.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the composition root's single entry — the zero-bare-function discipline admits no standalone functions.
 export class Boot {
@@ -156,7 +169,9 @@ export class Boot {
     // the failure its own read found (a plan the caller spelled, a board with no entry flag).
     const slug = Boot.needsRun(argv) ? (typeof resolved === "string" ? resolved : "") : null;
     const wiring =
-      slug === null ? null : Boot.phaseRun({ env, reads: { readRepo, index, documents }, slug });
+      slug === null
+        ? null
+        : Boot.phaseRun({ env, reads: { readRepo, index, documents, world }, slug });
     const cli = new Cli({
       clock,
       host: env.process.host(),
@@ -188,12 +203,7 @@ export class Boot {
     const workspace = env.workspace.at(slug);
     const workspaceRel = env.paths.root.relativize(workspace.path);
     const artifacts = new Artifacts();
-    const ledger = new Ledger({
-      workspace,
-      names: () => env.paths.listing.names(workspaceRel),
-      artifacts,
-      reserved: Boot.reservedNames(env, workspaceRel),
-    });
+    const ledger = Boot.ledgerAt(env, slug, artifacts);
     const carriers = new CarrierReads({ workspace });
     const brief = new BriefRenderer();
     const lines = new LinePhase({
@@ -249,7 +259,7 @@ export class Boot {
       pipeline,
       artifacts,
       documents: reads.documents,
-      world: Boot.worldOf(env, reads.readRepo),
+      world: reads.world,
       brief,
       prompts: new PromptBandsRenderer(),
       wording: Boot.wordingOf(clock),
@@ -275,10 +285,13 @@ export class Boot {
     const board: BoardReads = {
       docFacts: (target) => Boot.docFactsOf(reads.readRepo, target),
       phases: async (charterSlug) => Boot.phaseBoards(env, reads, charterSlug),
+      // The charter's own seat: its `overall` row is recorded in the PROGRAM's workspace,
+      // never the phase's, so a node board reads that one line from there.
+      charterSeat: (charterSlug) => Boot.seatOf(env, charterSlug),
     };
     const run = new Run({
       workspace,
-      names: () => env.paths.listing.names(workspaceRel),
+      names: () => env.paths.listing.files(workspaceRel),
       artifacts,
       reserved: Boot.reservedNames(env, workspaceRel),
       gate,
@@ -298,6 +311,43 @@ export class Boot {
       run,
       base: (planArg) => Boot.baseOf(env, reads, planArg),
       boardType: (parsed) => Boot.boardTypeOf(reads, parsed),
+    };
+  }
+
+  /** One workspace's artifact index — the ONE construction of that fact, so the index a
+   *  graph reads and the index a seam asks for are the same reading. */
+  static artifactsOf(): Artifacts {
+    return new Artifacts();
+  }
+
+  /** One workspace's fact ledger — the ONE construction site of a seat's ledger, so the
+   *  phase graph and a charter's `overall` row read their records through the same
+   *  collaborators (the reserve set, the file listing, the artifact index). */
+  static ledgerAt(env: Env, slug: string, artifacts: Artifacts): Ledger {
+    const workspace = env.workspace.at(slug);
+    const rel = env.paths.root.relativize(workspace.path);
+    return new Ledger({
+      workspace,
+      names: () => env.paths.listing.files(rel),
+      artifacts,
+      reserved: Boot.reservedNames(env, rel),
+    });
+  }
+
+  /** The charter's own seat — the `overall` row as the program's workspace records it: the
+   *  rounds, their carrier paths and the carrier bytes, all on that workspace's basis. ONE
+   *  construction (the seat's ledger), so the row and its carriers never come from two
+   *  readings of one document. */
+  static seatOf(env: Env, charterSlug: string): DocSeat {
+    const workspace = env.workspace.at(charterSlug);
+    const ledger = Boot.ledgerAt(env, charterSlug, Boot.artifactsOf());
+    return {
+      rounds: ledger.rounds("overall"),
+      carrierPathOf: (record) => ledger.carrierPathOf("overall", "overall", record),
+      readText: (target) => {
+        const read = workspace.readText(target);
+        return read.kind === "text" ? read.value : null;
+      },
     };
   }
 
@@ -329,18 +379,31 @@ export class Boot {
   }
 
   /** The workspace names the engine writes that are NOT round artifacts — the ledger's own
-   *  document, the tree-level records, the base artifact, the log directory, and the brief
-   *  family already on disk (a brief is the dispatch's read input, not a carrier). */
+   *  document, the tree-level records, the base artifact, the log directory, and the WAVE
+   *  brief family already on disk (a brief is the dispatch's read input, not a carrier).
+   *  Only a wave dispatch lands a brief (`TargetFaces#advancesBatch`), so only the wave
+   *  spine's briefs are reserved: a leftover `<document line>-brief.md` from an older engine
+   *  is no name this tree writes, and it stays an observation the orphan face reports. */
   static reservedNames(env: Env, workspaceRel: RepoPath): readonly string[] {
-    const existing = env.paths.listing.names(workspaceRel);
+    const existing = env.paths.listing.files(workspaceRel);
     return [
       Ledger.FILE,
       Refusal.FILE,
       InFlight.FILE,
       BASE_NAME,
       Workspace.LOGS_SEGMENT,
-      ...existing.filter((name) => name.endsWith(BRIEF_SUFFIX)),
+      ...existing.filter(Boot.isWaveBrief),
     ];
+  }
+
+  /** Whether one workspace name is a WAVE dispatch brief — the engine's own brief family
+   *  (`BriefRenderer#name` over a wave frame's line key, whose word is the wave spine). A
+   *  document line dispatches no brief, so any other `-brief.md` is a name this engine never
+   *  writes, whatever wrote it. */
+  static isWaveBrief(name: string): boolean {
+    if (!name.endsWith(BRIEF_SUFFIX)) return false;
+    const word = name.slice(0, -BRIEF_SUFFIX.length);
+    return RoundIdentity.splitLineWord(word).kind === "wave";
   }
 
   /** The requested wave's task-only brief projection — the version a wave review binds today.

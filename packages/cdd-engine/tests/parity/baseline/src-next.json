@@ -1083,6 +1083,54 @@
       "state": "recorded",
       "value": "0"
     },
+    "f6.board.charter.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved   review 1 ✓ · fix 1 ✓ notes +1\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.charter.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.charter.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
+    "f6.board.legacy.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.legacy.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.legacy.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
+    "f6.board.reattempt.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓ · review 1 ✓ notes +1 · fix 1/2 ✓ notes +1 · fix 1 ✗→✓\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.reattempt.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.reattempt.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
+    "f6.board.doc-face-drift.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft   review 1 ✓ · fix 1 ✓\n  plan     p9.md           v1.0   review 1 ✓ · fix 1 ✓\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  doc-drift\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.doc-face-drift.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.doc-face-drift.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
     "f7.preview.passing.stdout": {
       "state": "recorded",
       "value": "cdd implement: preview (no repo changes)\n  step:        implement round 1 — wave 1\n  reads:       .kairos/cdd/p9/tasks-1-brief.md (would re-render from the current plan)\n  would write: .kairos/cdd/p9/tasks-1-implement-1.json · .kairos/cdd/p9/tasks-1-implement-1-report.md · .kairos/cdd/p9/tasks-1-implement-1-test-evidence.json\n  would record: progress.waves[\"1\"].rounds += { op: implement, cycle: 1, attempt: 1 }\n  child:       pi -p --mode text\n"

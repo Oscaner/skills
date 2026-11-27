@@ -23,6 +23,11 @@ import type { RepoPath, RepoRoot } from "./root.ts";
 export interface DirectoryListing {
   /** The entry names directly inside one repo-relative directory; [] when it holds none. */
   names(directory: RepoPath): readonly string[];
+  /** The REGULAR-FILE names directly inside one repo-relative directory; [] when it holds
+   *  none. A directory is never a document and never an artifact — the two consumers that
+   *  judge "which names exist" (the workspace observation set and the brief family) ask
+   *  here, so `scratch/` can never read as an unattributed carrier. */
+  files(directory: RepoPath): readonly string[];
 }
 
 /** The node-backed listing — the engine's ONE directory enumeration, over ONE path basis.
@@ -40,8 +45,22 @@ export class NodeDirectoryListing implements DirectoryListing {
    *  directory that does not exist holds nothing; any other failure rethrows, because an
    *  unreadable root is never an empty one. */
   names(directory: RepoPath): readonly string[] {
+    return NodeDirectoryListing.#read(directory, this.#root, false);
+  }
+
+  /** The REGULAR-FILE names under one repo-relative directory — the observation set's own
+   *  read (a directory is not an artifact). */
+  files(directory: RepoPath): readonly string[] {
+    return NodeDirectoryListing.#read(directory, this.#root, true);
+  }
+
+  /** One directory read over the injected basis; a missing directory holds nothing, any
+   *  other failure rethrows (an unreadable root is never an empty one). `filesOnly` keeps
+   *  directories out of the answer. */
+  static #read(directory: RepoPath, root: RepoRoot, filesOnly: boolean): readonly string[] {
     try {
-      return readdirSync(this.#root.resolve(directory));
+      const entries = readdirSync(root.resolve(directory), { withFileTypes: true });
+      return entries.filter((entry) => !filesOnly || entry.isFile()).map((entry) => entry.name);
     } catch (raw) {
       if ((raw as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw raw;

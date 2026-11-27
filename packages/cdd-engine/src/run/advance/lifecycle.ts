@@ -200,6 +200,10 @@ export type AdvanceOutcome =
   | { readonly kind: "read-failure"; readonly target: string }
   | { readonly kind: "write-failure"; readonly target: string };
 
+/** The frame read's whole answer: the assembled frame, the empty-render refusal, or the
+ *  `no-host` refusal of an environment the frame cannot be built in. */
+export type DispatchFrameRead = DispatchAssemblyOutcome | { readonly kind: "no-host" };
+
 /** The brief landing: the workspace-relative name, the bytes the injected renderer produced
  *  (one render, zero second spelling of the name here) and the task-only PROJECTION those
  *  bytes were rendered from. */
@@ -262,9 +266,10 @@ export interface LifecycleReads {
   readonly preflight: (frame: FrameFacts, holding: InFlightState) => PreFlightContext;
   /** The child's frame — the argv, the environment and the log's coordinate — or the
    *  refusal of an EMPTY rendered prompt, which names the brief the round was measured
-   *  against. The assembly is the dispatch segment's own; this segment forwards its answer
+   *  against, or the `no-host` refusal of an environment that moved between the gate and
+   *  this read. The assembly is the dispatch segment's own; this segment forwards its answer
    *  and translates nothing. */
-  readonly dispatchFrame: (frame: FrameFacts, briefPath: string) => DispatchAssemblyOutcome;
+  readonly dispatchFrame: (frame: FrameFacts, briefPath: string) => DispatchFrameRead;
   /** The brief's name, its bytes and the task-only projection the wave line's reviewed version
    *  hashes (one render, three cells). */
   readonly brief: (frame: FrameFacts) => BriefLanding;
@@ -444,6 +449,15 @@ export class Lifecycle {
     // it borrows is the existing `write-failure` arm, whose target on this chain is the brief
     // the round was measured against (the brief HAS landed by now; what failed is the prompt).
     const assembled = this.#reads.dispatchFrame(frame, landing.landed.path);
+    if (assembled.kind === "no-host") {
+      // No harness detected at the frame read. The structural leg owns that fact, so the SAME
+      // context is judged again (a pure read) and its `no-host` station answers the refusal
+      // every other face prints — an undeclared environment never becomes a crash, and it
+      // never takes the lock or a child process either.
+      const station = await this.#gate.vet(this.#reads.preflight(frame, holding));
+      if (!station.ok) return Lifecycle.#refused(station, holding);
+      return { kind: "write-failure", target: String(landing.landed.path) };
+    }
     if (assembled.kind === "empty-prompt") {
       return { kind: "write-failure", target: String(assembled.briefPath) };
     }

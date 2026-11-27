@@ -344,11 +344,25 @@ export interface BoardPhase {
   readonly cells: readonly BoardPhaseCell[];
 }
 
+/** One document line's own SEAT — the workspace its records and its carriers live in. A
+ *  phase's own document rows are recorded in the phase's workspace; a CHARTER's `overall`
+ *  row is recorded in the program's, so a node board reads that one line from there (the
+ *  row, its notes and its findings come from one seat, never a records-from-here /
+ *  carriers-from-there split). */
+export interface DocSeat {
+  /** The line's rounds, in `(cycle, attempt)` order. */
+  readonly rounds: readonly RoundRecord[];
+  /** One record's carrier path inside that seat. */
+  readonly carrierPathOf: (record: RoundRecord) => RepoPath | "";
+  /** One carrier's bytes, on the seat's basis. */
+  readonly readText: (target: RepoPath) => string | null;
+}
+
 /** The board's reads the round layer cannot answer from ITS OWN ledger: one document's
- *  declared header cells, and the phase specifications a charter groups (a phase is its own
- *  workspace, so its rounds live in its own ledger read). The composition root supplies
- *  both; a `Run` wired with neither answers no header cell and no phase row, never a
- *  fabricated one. */
+ *  declared header cells, the phase specifications a charter groups (a phase is its own
+ *  workspace, so its rounds live in its own ledger read), and the charter's own seat. The
+ *  composition root supplies all three; a `Run` wired with none answers no header cell, no
+ *  phase row and no charter row, never a fabricated one. */
 export interface BoardReads {
   /** One document's declared facts; null when the document cannot be read. */
   readonly docFacts: (target: RepoPath) => DocFacts | null;
@@ -358,6 +372,8 @@ export interface BoardReads {
   readonly phases: (
     charterSlug: string,
   ) => Promise<readonly { readonly slug: string; readonly board: BoardOutcome }[]>;
+  /** The charter's own seat — where its `overall` row's rounds and carriers live. */
+  readonly charterSeat: (charterSlug: string) => DocSeat;
 }
 
 /** One board row, as a VALUE — the render face connects it, so no byte is spelled here. */
@@ -840,11 +856,19 @@ export class Run {
       { kind: "next", hop: this.#pipeline.hopOf(scene.pipeline) },
     ];
     for (const line of Run.#docLinesOf(scene)) {
+      // A CHARTER's row is recorded in the program's workspace, not this node's: the seat
+      // answers the row's rounds AND its carriers, so the tokens describe the program's own
+      // history instead of the node's (`overall` never has a row here). Any other document
+      // line is the node's own.
+      const seat = line.word === "overall" ? this.#charterSeatOf(line.doc) : null;
       rows.push({
         kind: "doc",
         line: line.word,
         doc: this.#docOf(line.doc),
-        rounds: this.#roundsOf(line.word, this.#ledger.rounds(line.word)),
+        rounds:
+          seat === null
+            ? this.#roundsOf(line.word, this.#ledger.rounds(line.word))
+            : this.#roundsOfSeat(seat),
       });
     }
     for (const row of this.#waveRowsOf(scene)) rows.push(row);
@@ -901,6 +925,29 @@ export class Run {
     return left - right;
   }
 
+  /** The charter's seat when the board was wired with one — read off the charter document's
+   *  own declared slug (the overall row's document IS the key), null when the document
+   *  declares none or the seat read is unwired. */
+  #charterSeatOf(doc: string | null): DocSeat | null {
+    const board = this.#board;
+    if (board === null || doc === null) return null;
+    const slug = board.docFacts(doc as RepoPath)?.slug ?? null;
+    if (slug === null || slug.length === 0) return null;
+    return board.charterSeat(slug);
+  }
+
+  /** One SEAT's rounds as the board's tokens read them — the same cells `#roundsOf` composes,
+   *  with the carrier path and bytes taken from the seat the records live in. */
+  #roundsOfSeat(seat: DocSeat): readonly BoardRound[] {
+    const carriers = new BoardCarriers({
+      records: seat.rounds,
+      line: "overall",
+      pathOf: (record) => seat.carrierPathOf(record),
+      text: (target) => seat.readText(target),
+    });
+    return seat.rounds.map((record) => Run.#roundOf(record, carriers));
+  }
+
   /** One line's rounds, as the board's tokens read them — the record's own cells plus the
    *  carrier content the ledger's ONE read answers. The downgrade note is composed by the
    *  criteria slice's one composer, never here. */
@@ -920,19 +967,22 @@ export class Run {
         return read.kind === "text" ? read.value : null;
       },
     });
-    return records.map((record) => {
-      const content = carriers.contentOf(record);
-      const regrade = carriers.regradeOf(record);
-      return {
-        op: record.op,
-        cycle: record.cycle,
-        attempt: record.attempt,
-        passed: record.verdict.targetAction,
-        findings: content.findings.length,
-        ...(regrade === undefined ? {} : { regrade }),
-        notes: content.notes,
-      };
-    });
+    return records.map((record) => Run.#roundOf(record, carriers));
+  }
+
+  /** One record's board cells — the ONE projection both a node line and a charter seat use. */
+  static #roundOf(record: RoundRecord, carriers: BoardCarriers): BoardRound {
+    const content = carriers.contentOf(record);
+    const regrade = carriers.regradeOf(record);
+    return {
+      op: record.op,
+      cycle: record.cycle,
+      attempt: record.attempt,
+      passed: record.verdict.targetAction,
+      findings: content.findings.length,
+      ...(regrade === undefined ? {} : { regrade }),
+      notes: content.notes,
+    };
   }
 
   /** One document line's header cells — read through the injected document face, or null when

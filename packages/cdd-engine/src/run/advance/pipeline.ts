@@ -135,16 +135,27 @@ export class Pipeline {
   hopOf(input: PipelineInput): NextHop {
     const verdict = this.frontierOf(input);
     const target = verdict.target;
+    const gate = {
+      docDrift: Pipeline.#docDriftOf(target, this.#lines),
+      briefDrift: target?.type === "wave" ? this.#lines.briefDriftedAt(String(target.id)) : false,
+    };
     return this.#routes.nextOf({
       target,
-      route: verdict.route,
+      route: Pipeline.#reopenedRoute(verdict.route, gate.docDrift),
       verdict: target === null ? "terminal" : this.#docClassOf(target),
-      gate: {
-        docDrift: Pipeline.#docDriftOf(target, this.#lines),
-        briefDrift: target?.type === "wave" ? this.#lines.briefDriftedAt(String(target.id)) : false,
-      },
+      gate,
       nextLineOpen: this.branchLineOpen(input.planPath),
     });
+  }
+
+  /** The route a hop reports, AFTER the drift reopen — a document that moved past the version
+   *  its review bound makes an EXIT-side route (a closure, a face-to-face handoff, no route at
+   *  all) describe bytes nobody judged, so the hop becomes the review the movement owes. A
+   *  still-open hop (review / fix) and the soft-cap adjudication keep their own route: a
+   *  pending fix outranks drift. The scope predicate is the ONE `onExitSide`, so this hop and
+   *  every other drift-reopen reader agree on where the override stops. */
+  static #reopenedRoute(route: Route | null, docDrift: boolean): Route | null {
+    return docDrift && NextRoutes.onExitSide(route) ? { kind: "review" } : route;
   }
 
   /** Whether the branch line holds a dispatchable open round — the sixth hop cell's ONE
@@ -274,10 +285,14 @@ export class Pipeline {
   }
 
   /** The doc-drift cell of a hop — a doc line's own identity document moved past the version
-   *  its review bound. Off the doc faces the cell is false (a wave line's movement is the
-   *  brief cell's, a separate fact). */
+   *  its review bound (the branch line is judged at the plan, its identity document). Off the
+   *  doc faces the cell is false: a wave line's movement is the brief cell's, a separate
+   *  fact. */
   static #docDriftOf(target: RouteTarget | null, lines: LinePhase): boolean {
-    if (target === null || target.type === "wave" || target.type === "branch") return false;
+    if (target === null || target.type === "wave") return false;
+    if (target.type === "branch") {
+      return target.plan === undefined ? false : lines.reopenedAt("branch", "branch", target.plan);
+    }
     return lines.reopenedAt(target.type, target.type, target.id);
   }
 }

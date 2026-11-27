@@ -763,9 +763,9 @@ describe("the named deferral", () => {
     // driver is MISSING — absence must be named.
     expect(registrationWaveOf("seam", new Map([["seam", "T17"]]))).toBe("T17");
     expect(registrationWaveOf("seam", new Map())).toBeNull();
+    // `seam` is the composition root's wave, and the assertion DERIVES it from the table —
+    // moving the row moves this reading with it, so the table stays the one declaration.
     expect(registrationWaveOf("seam")).toBe(REGISTRATION_WAVES.get("seam") ?? null);
-    // `seam` is the composition root's wave, not the render waves' — the table says T17.
-    expect(REGISTRATION_WAVES.get("seam")).toBe("T17");
     // A kind the grid never derives is not declared either.
     expect(registrationWaveOf("render:unknown")).toBeNull();
   });

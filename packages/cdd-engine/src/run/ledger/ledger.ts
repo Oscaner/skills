@@ -75,6 +75,12 @@ export interface RoundRecord {
   /** The payload digest the engine recorded for the carrier it wrote; null when the round
    *  wrote none (or the record predates the column — a present-facts read). */
   readonly carrierDigest: string | null;
+  /** The carrier path an OLDER engine recorded on the record itself — the historical fact
+   *  `carrierPathOf`'s step ① answers. This tree never writes it (a record's carrier is a
+   *  function of its identity), and a present record that carries one keeps it: the name it
+   *  remembers is the file the round actually wrote, which a re-dispatch's ladder can no
+   *  longer derive. */
+  readonly carrierPath?: string | null;
 }
 
 /** The writable shape of one round record — the identity cells a seeding caller may leave
@@ -578,10 +584,18 @@ export class Ledger {
     );
   }
 
-  /** The carrier path one record resolves — THE only accessor of that fact. The identity
-   *  comes from the record's four cells; the ladder reads the finalized carrier first (the
-   *  round's answer) and the child's draft second, and answers `""` when neither landed. */
+  /** The carrier path one record resolves — THE only accessor of that fact. Step ① answers
+   *  the path the RECORD remembers (`carrierPath`, a historical fact this tree never writes
+   *  but every older row carries): the file that round actually wrote, which no derivation
+   *  from its identity may replace — a re-dispatched cycle wrote its own name, so a ladder
+   *  seeded from the identity would answer a sibling attempt's file. Step ② otherwise reads
+   *  the finalized carrier first (the round's answer) and the child's draft second, and
+   *  answers `""` when neither landed. */
   carrierPathOf(type: string, key: string, record: RoundRecord): RepoPath | "" {
+    const recorded = record.carrierPath;
+    if (typeof recorded === "string" && recorded.length > 0) {
+      return this.#workspace.root.basis.relativize(recorded);
+    }
     const round = new RoundIdentity({
       line: RoundIdentity.lineWordOf(type, key),
       op: record.op,
@@ -644,13 +658,15 @@ export class Ledger {
     );
   }
 
-  /** The workspace's ORPHAN names, the two-tier judgment: (i) a name no row renders at all —
-   *  an observation, never a refusal; (ii) a name rendering the carrier pair (`draft` /
-   *  `final`) that no record claims — a carrier already on disk the ledger never booked
-   *  stays visible, so a recovery pass can see it. Every other attributable name (a report,
-   *  a log, a sidecar) is the board's own attachment, not a carrier. A ledger with no
-   *  artifact index answers the empty set: attribution is the index's, and "no index" has
-   *  no second name grammar to fall back on. Zero writes — a pure read. */
+  /** The workspace's ORPHAN names, the two-tier judgment: (i) a name no artifact kind renders
+   *  — an observation, never a refusal; (ii) a name rendering the carrier pair (`draft` /
+   *  `final`) that no record claims — a carrier already on disk the ledger never booked stays
+   *  visible, so a recovery pass can see it. Every other attributable name (a report, a log,
+   *  a sidecar, a legacy cycle-less report) is the board's own attachment, not a carrier. The
+   *  candidate set is the workspace's FILES: a directory is not an artifact, and the engine's
+   *  own `scratch/` must not read as an unattributed one. A ledger with no artifact index
+   *  answers the empty set: attribution is the index's, and "no index" has no second name
+   *  grammar to fall back on. Zero writes — a pure read. */
   orphanHandoffs(): readonly string[] {
     const artifacts = this.#artifacts;
     if (artifacts === null) return [];
@@ -658,13 +674,13 @@ export class Ledger {
     const orphans: string[] = [];
     for (const name of this.#names()) {
       if (this.#reserved.has(name)) continue;
-      const attributed = artifacts.attribute(name);
-      if (attributed === null) {
+      const named = ArtifactIdentity.lineAndKindOf(name);
+      if (named === null) {
         orphans.push(name);
         continue;
       }
-      if (attributed.kind !== "draft" && attributed.kind !== "final") continue;
-      if (this.#claimed(document, attributed, name)) continue;
+      if (named.kind !== "draft" && named.kind !== "final") continue;
+      if (this.#claimed(document, named.line, name)) continue;
       orphans.push(name);
     }
     return orphans.sort();
@@ -690,17 +706,21 @@ export class Ledger {
     return { type: kind === "wave" ? "wave" : word, key };
   }
 
-  /** Whether a record claims one attributed carrier name — the identity tier first (the
-   *  record's own `(op, cycle, attempt)` on the same line), the recorded-path tier second
-   *  (a record whose own carrier path carries this base name). */
-  #claimed(document: LedgerDocument | null, attributed: ArtifactIdentity, name: string): boolean {
-    const round = attributed.round;
-    const { type, key } = this.#targetOf(round.line);
-    return (Ledger.rowOf(document, round.line)?.rounds ?? []).some((record) => {
+  /** Whether a record claims one attributable carrier name — the identity tier first (the
+   *  name's own `(op, cycle, attempt)` on the row's line; a cycle-less name has no identity
+   *  and skips this tier), the recorded-path tier second (a record whose own carrier path
+   *  carries this base name — the only tier a legacy cycle-less carrier can be claimed
+   *  through). Both tiers read the carrier path through `carrierPathOf`, the ONE accessor of
+   *  that fact, so a record's remembered path is judged on the same reading that prints it. */
+  #claimed(document: LedgerDocument | null, line: string, name: string): boolean {
+    const { type, key } = this.#targetOf(line);
+    const identity = ArtifactIdentity.attribute(name)?.round ?? null;
+    return (Ledger.rowOf(document, line)?.rounds ?? []).some((record) => {
       if (
-        record.op === round.op &&
-        record.cycle === round.cycle &&
-        record.attempt === round.attempt
+        identity !== null &&
+        record.op === identity.op &&
+        record.cycle === identity.cycle &&
+        record.attempt === identity.attempt
       ) {
         return true;
       }

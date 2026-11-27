@@ -525,7 +525,17 @@ const fixture = (): Fixture => {
     stepReads: reads,
     briefName: () => "brief.md",
     host: () => "pi",
-    board: { docFacts: docFactsOf(repo), phases: async () => [] },
+    // The charter's seat: this fixture's overall document records no round, so the row it
+    // answers is the empty one (a charter's rounds live in the program's workspace).
+    board: {
+      docFacts: docFactsOf(repo),
+      phases: async () => [],
+      charterSeat: () => ({
+        rounds: [],
+        carrierPathOf: () => "" as RepoPath,
+        readText: () => null,
+      }),
+    },
   };
   return {
     repo,

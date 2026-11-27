@@ -88,4 +88,18 @@ describe("the composition root is the one place the four slices are constructed"
     }
     expect(existsSync(ROOT_FILE)).toBe(true);
   });
+
+  it("builds the document world ONCE per invocation — one construction, one scan", () => {
+    // The world is a SCAN (a listing plus a front-matter read per document), so a construction
+    // per phase makes a program board cost documents × phases. The root builds it once and
+    // hands the same instance to `Documents`, the advance reads and every phase graph; the
+    // count below is the whole judgment — two construction sites would be the defect again.
+    const root = readFileSync(ROOT_FILE, "utf8");
+    expect([...root.matchAll(/Boot\.worldOf\(/g)].length).toBe(1);
+    // One call site, and the ONE construction it reaches: the root's own factory body.
+    expect([...root.matchAll(/\bnew DocWorld\(/g)].length).toBe(1);
+    // And that one construction lives in the root: no other product file builds a world, so a
+    // per-phase scan cannot creep back in beside it.
+    expect(filesMatching(/\bnew DocWorld\(/).map(relative)).toEqual(["bin.ts"]);
+  });
 });

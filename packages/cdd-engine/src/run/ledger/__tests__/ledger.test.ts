@@ -13,7 +13,15 @@
 // `env.workspace`" is only a fact if the writes are the workspace's own.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -402,6 +410,32 @@ describe("the artifact identity", () => {
     expect(ArtifactIdentity.attribute("notes.md")).toBeNull();
   });
 
+  it("reads a legacy cycle-less name's LINE and KIND without inventing an identity", () => {
+    // The engine that shipped before this tree minted carriers with no cycle segment. No
+    // round identity can name one (a cycle is required), but its kind still attributes — the
+    // observation face classifies by this answer, so a legacy report is an attachment and a
+    // legacy carrier pair still reaches the claim judgment.
+    expect(ArtifactIdentity.attribute("tasks-1,3-implement-report.md")).toBeNull();
+    expect(ArtifactIdentity.lineAndKindOf("tasks-1,3-implement-report.md")).toEqual({
+      line: "tasks-1,3",
+      kind: "report",
+    });
+    expect(ArtifactIdentity.lineAndKindOf("tasks-1,3-implement.json")).toEqual({
+      line: "tasks-1,3",
+      kind: "draft",
+    });
+    // A name no kind renders, and a name whose tail is not a round artifact at all.
+    expect(ArtifactIdentity.lineAndKindOf("scratch")).toBeNull();
+    expect(ArtifactIdentity.lineAndKindOf("notes.md")).toBeNull();
+    // The cycle-bearing form answers the same LINE, and a tag that disagrees with the stem
+    // belongs to no identity.
+    expect(ArtifactIdentity.lineAndKindOf("tasks-1-implement-2.c2.json")).toEqual({
+      line: "tasks-1",
+      kind: "final",
+    });
+    expect(ArtifactIdentity.lineAndKindOf("tasks-1-implement-2.c3.json")).toBeNull();
+  });
+
   it("refuses a second registration of one artifact", () => {
     const artifacts = new Artifacts();
     const round = new RoundIdentity({ line: "branch", op: "review", cycle: 1, attempt: 1 });
@@ -630,6 +664,25 @@ describe("the orphan face", () => {
     // A ledger with no artifact index answers the empty set: attribution is the index's.
     expect(new Ledger({ workspace, names }).orphanHandoffs()).toEqual([]);
     expect(artifacts.names()).toEqual([]);
+  });
+
+  it("spares a legacy cycle-less row its own artifacts and claims a carrier a record remembers", () => {
+    const { ledger, workspace } = fixture();
+    // A cycle-less record: the carrier path an older engine wrote is the file it wrote, and
+    // the ledger answers THAT (step ①), not a name its identity would derive.
+    const recorded = `${workspace.path}/tasks-1-implement.json`;
+    ledger.recordRound("tasks-1", { op: "implement", cycle: 1, attempt: 1 });
+    const row = JSON.parse(readFileSync(`${workspace.path}/progress.json`, "utf8")) as {
+      waves: { rounds: Record<string, unknown>[] }[];
+    };
+    (row.waves[0]?.rounds[0] as Record<string, unknown>).carrierPath = recorded;
+    writeFileSync(`${workspace.path}/progress.json`, `${JSON.stringify(row, null, 2)}\n`, "utf8");
+    workspace.writeJson("tasks-1-implement.json", { status: "APPROVED" });
+    workspace.writeText("tasks-1-implement-report.md", "# report\n");
+    expect(ledger.orphanHandoffs()).toEqual([]);
+    const record = ledger.rounds("tasks-1")[0];
+    if (record === undefined) throw new Error("the round is on record");
+    expect(ledger.carrierPathOf("wave", "1", record)).toBe(".kairos/cdd/p9/tasks-1-implement.json");
   });
 });
 

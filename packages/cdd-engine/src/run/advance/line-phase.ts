@@ -62,6 +62,11 @@ export type DocumentText = (path: string) => string | null;
 
 /** The two facts a recorded round contributes to a route — the carrier's own cells. */
 export interface CarriedFacts {
+  /** Whether the round's carrier was READ at all. A round whose carrier cannot be resolved,
+   *  read or parsed has no facts to judge, so the closure walk answers no route rather than a
+   *  silent `done` — the shipped engine's own rule. ABSENT reads as readable: a caller that
+   *  hands facts over without modelling the carrier's presence is saying it read one. */
+  readonly readable?: boolean;
   /** The judge carrier's findings; null when the round wrote none. */
   readonly findings: readonly RoundFinding[] | null;
   /** A work round's conclusion; null on a judge round. */
@@ -328,6 +333,10 @@ export class LinePhase {
    *  unreadable (a round that cannot be read cannot be judged closed). */
   #roundRoute(key: string, type: TargetType, record: RoundRecord): Route | null {
     const carried = this.#carried(key, record);
+    // A carrier that cannot be read cannot be judged: no facts, no route, so the line stays
+    // open (`null` is not the closure side). Answering `done` from an absent carrier would
+    // close a line on a file nobody read.
+    if (carried.readable === false) return null;
     return this.#routes.routeOf({
       phase: record.op,
       status: carried.status,

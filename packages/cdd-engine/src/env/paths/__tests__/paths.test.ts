@@ -89,6 +89,23 @@ describe("the doc roots", () => {
   });
 });
 
+describe("the directory listing", () => {
+  it("separates a directory from the files beside it — the observation set is files", () => {
+    const repo = tempRepo("env-listing-");
+    writeDoc(repo, DOC_ROOT_SEGMENTS.specs, "s1-design.md", "s1");
+    mkdirSync(path.join(repo, DOC_ROOT_SEGMENTS.specs, "scratch"), { recursive: true });
+    const listing = new NodeDirectoryListing(RepoRoot.of(repo));
+    // `names` is the entry read (a document scan's candidate set), `files` the artifact read:
+    // a directory is never an artifact, and the engine's own `scratch/` must not read as one.
+    const specs = DOC_ROOT_SEGMENTS.specs as RepoPath;
+    expect([...listing.names(specs)].sort()).toEqual(["s1-design.md", "scratch"]);
+    expect(listing.files(specs)).toEqual(["s1-design.md"]);
+    // A directory that does not exist holds nothing, on both reads.
+    expect(listing.names(`${DOC_ROOT_SEGMENTS.specs}/gone` as never)).toEqual([]);
+    expect(listing.files(`${DOC_ROOT_SEGMENTS.specs}/gone` as never)).toEqual([]);
+  });
+});
+
 describe("the slug index", () => {
   it("answers the one path of a singly declared slug", () => {
     const repo = tempRepo("env-slug-");

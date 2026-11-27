@@ -1021,6 +1021,64 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/render/board.ts#BoardView",
     probe: { fixture: "overall", argv: ["board", "--plan", OVERALL_REL, "--artifacts"] },
   },
+  {
+    key: "f6.board.charter",
+    face: "f6",
+    route: "normal",
+    task: "T17",
+    producer: "surface/render/board.ts#BoardView",
+    // A charter whose own `overall` row carries a review AND a fix round: those records live
+    // in the PROGRAM's workspace, never the phase's, so a node board that reads only its own
+    // seat prints the row header with no cells at all.
+    probe: {
+      fixture: "wave",
+      options: { charterFix: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f6.board.legacy",
+    face: "f6",
+    route: "normal",
+    task: "T17",
+    producer: "surface/render/board.ts#BoardView",
+    // The legacy spellings an older engine wrote: a cycle-less draft a record owns by its
+    // recorded `carrierPath`, its report and evidence siblings (attributable names, never
+    // orphans) and a directory that is not an artifact at all.
+    probe: {
+      fixture: "wave",
+      options: { legacyArtifacts: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f6.board.reattempt",
+    face: "f6",
+    route: "normal",
+    task: "T17",
+    producer: "surface/render/board.ts#BoardView",
+    // One cycle re-dispatched after a crash: attempt 1 wrote no carrier, attempt 2 wrote the
+    // canonical name its record remembers, so the notes belong to the PASSED attempt alone.
+    probe: {
+      fixture: "wave",
+      options: { reattempt: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f6.board.doc-face-drift",
+    face: "f6",
+    route: "normal",
+    task: "T17",
+    producer: "surface/render/board.ts#BoardView",
+    // A closed phase-spec line whose document moved past the version its review bound: the
+    // `next:` row must name the review the drift owes, never the closed line's handoff.
+    probe: {
+      fixture: "wave",
+      options: { docFaceDrift: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
   // ---- face 7: the dry-run preview ------------------------------------------------
   {
     key: "f7.preview.passing",

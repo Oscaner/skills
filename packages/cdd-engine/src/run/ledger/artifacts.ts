@@ -66,6 +66,13 @@ const STEM = new RegExp(
   `^(?<line>${LINE_WORDS})-(?<op>${ROUND_OPS.join("|")})-(?<cycle>\\d+)(?:-a(?<attempt>\\d+))?$`,
 );
 
+/** The CYCLE-LESS stem's parse — the name a carrier minted before the cycle segment existed
+ *  carries. This tree mints none (every rendered name has a cycle), but a consumer workspace
+ *  written by the engine that shipped before it holds them, and every round of it was
+ *  attributed by kind; a reader that answered `null` for them would print a consumer's own
+ *  closed-round artifacts as unattributed observations. */
+const CYCLELESS_STEM = new RegExp(`^(?<line>${LINE_WORDS})-(?<op>${ROUND_OPS.join("|")})$`);
+
 /** The `.c<cycle>` closing tag a `final` / `rulings` name carries. */
 const CYCLE_TAG = /^(?<stem>.+)\.c(?<cycle>\d+)$/;
 
@@ -144,6 +151,27 @@ export class ArtifactIdentity {
   static prescribedOf(round: RoundIdentity): readonly ArtifactKind[] {
     const evidence = round.op !== "review" && round.lineKind !== "doc";
     return evidence ? ["draft", "report", "evidence"] : ["draft", "report"];
+  }
+
+  /** The KIND one on-disk name belongs to, with the line it hangs on — the reverse read
+   *  that answers where `attribute` cannot: a cycle-less stem names no round coordinate, so
+   *  it has no identity, but it is still an artifact of a declared kind. The observation
+   *  face classifies by this answer, so a legacy report reads as a report (attributable, not
+   *  an orphan) while a legacy carrier pair still lands on the claim judgment. Null for a
+   *  name no kind renders — the same unknown-name face `attribute` answers. */
+  static lineAndKindOf(
+    name: string,
+  ): { readonly line: string; readonly kind: ArtifactKind } | null {
+    const parts = ArtifactIdentity.#splitName(name);
+    if (parts === null) return null;
+    const match = STEM.exec(parts.stem) ?? CYCLELESS_STEM.exec(parts.stem);
+    const line = match?.groups?.line;
+    const cycle = match?.groups?.cycle;
+    if (line === undefined) return null;
+    if (cycle !== undefined && parts.cycleTag !== undefined && parts.cycleTag !== Number(cycle)) {
+      return null;
+    }
+    return { line, kind: parts.kind };
   }
 
   /** The reverse direction: the artifact one on-disk name belongs to, or null for a name

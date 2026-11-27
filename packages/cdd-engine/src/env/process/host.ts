@@ -203,3 +203,9 @@ export const detectHost: HostProbe = (env) => {
   }
   return "";
 };
+
+/** Whether one detected value names a declared host — the ONE narrowing from a detection's
+ *  `HostId | ""` answer onto a row key, so a caller that needs the row never re-types the
+ *  vocabulary or casts the empty string into it. */
+export const isHostId = (value: string): value is HostId =>
+  (HOST_IDS as readonly string[]).includes(value);

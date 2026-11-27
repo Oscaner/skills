@@ -35,14 +35,11 @@ import type { DocWorld } from "../../docs/world.ts";
 import type { Paths } from "../../env/index.ts";
 import type { RepoPath } from "../../env/paths/root.ts";
 import type { Clock } from "../../env/process/clock.ts";
+import { isHostId } from "../../env/process/host.ts";
 import type { GitClient } from "../../env/vcs/git.ts";
 import { RoundLogLayout } from "../../env/workspace/round-log.ts";
 import type { Workspace, WriteOutcome } from "../../env/workspace/workspace.ts";
-import {
-  assembleDispatchFrame,
-  type DispatchAssemblyOutcome,
-  type PromptBandLine,
-} from "../dispatch/frame-assembly.ts";
+import { assembleDispatchFrame, type PromptBandLine } from "../dispatch/frame-assembly.ts";
 import { Handoff, type JudgedRecord, type RoundFinding } from "../dispatch/handoff.ts";
 import type { InFlightState } from "../dispatch/inflight.ts";
 import { type ArtifactSnapshot, DispatchValues } from "../dispatch/values.ts";
@@ -58,7 +55,7 @@ import { CarrierLine } from "../ledger/carrier-line.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { Ledger, RoundRecord, WaveLine } from "../ledger/ledger.ts";
 import type { FrameFacts } from "./frame.ts";
-import type { BriefLanding, EvidenceFile, LifecycleReads } from "./lifecycle.ts";
+import type { BriefLanding, DispatchFrameRead, EvidenceFile, LifecycleReads } from "./lifecycle.ts";
 import type { CarriedFacts, LinePhase } from "./line-phase.ts";
 import type { NextHop } from "./next.ts";
 import type { Pipeline } from "./pipeline.ts";
@@ -173,16 +170,17 @@ export class CarrierReads {
   factsOf(line: string, record: RoundCoordinate): CarriedFacts {
     const path = this.pathOf(line, record);
     const text = path === null ? null : this.#textOf(path);
-    if (path === null || text === null) return { findings: null, status: null };
+    if (path === null || text === null) return { findings: null, status: null, readable: false };
     let draft: unknown;
     try {
       draft = JSON.parse(text);
     } catch {
-      return { findings: null, status: null };
+      return { findings: null, status: null, readable: false };
     }
     const identity = CarrierReads.identityOf(line, record);
     const status = (draft as { readonly status?: unknown } | null)?.status;
     return {
+      readable: true,
       findings: record.op === "review" ? Handoff.findingsOf(draft) : null,
       status: status === "APPROVED" || status === "BLOCKED" ? status : null,
       ...(record.op === "review"
@@ -314,7 +312,13 @@ export class AdvanceReads implements LifecycleReads {
 
   /** The dispatch's frame, assembled from the ONE value record and refused by name when the
    *  rendered prompt is empty. */
-  dispatchFrame(frame: FrameFacts, briefPath: string): DispatchAssemblyOutcome {
+  dispatchFrame(frame: FrameFacts, briefPath: string): DispatchFrameRead {
+    // The host row is the frame's own input — a dispatch without a harness has no argv form.
+    // The pre-flight's `no-host` station refuses that tree before this read, so the answer
+    // here is the declared refusal of an environment that moved under the step, never an
+    // index into a table the empty string does not key.
+    const host = this.#o.host();
+    if (!isHostId(host)) return { kind: "no-host" };
     const artifact = this.#artifactOf(frame);
     const values = this.#valuesOf(frame, briefPath, artifact);
     const identity = this.#identityOf(frame);
@@ -325,7 +329,7 @@ export class AdvanceReads implements LifecycleReads {
       briefPath: briefPath as RepoPath,
       values,
       prompts: this.#o.prompts,
-      host: this.#o.host() as never,
+      host,
       cwd: this.#o.paths.root.absolute,
       log: { file: this.#o.paths.root.resolve(log), path: log },
     });

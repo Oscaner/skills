@@ -245,6 +245,16 @@ const OVERALL_TEXT = [
  *  and, under `--notes`, the folded body behind it. */
 const CHILD_NOTE = "the guard is missing at the second station";
 
+/** The placeholder a fixture writes where a record holds an ABSOLUTE path; `materialize`
+ *  binds it to the temp tree it materialized. */
+const REPO_PLACEHOLDER = "{REPO}";
+
+/** A well-formed sha1 that no document's body digests to — the "reviewed, then the document
+ *  moved" cell of a fixture. It has to be a REAL digest width: the identity read validates the
+ *  recorded hex, so a short literal would read as "no version recorded" and the drift the
+ *  fixture is about would never be judged. */
+const STALE_DIGEST = "0000000000000000000000000000000000000000";
+
 /** One round record of a wave row — the shape the ledger persists. */
 const round = (
   op: string,
@@ -408,6 +418,25 @@ export interface TreeOptions {
   /** Give the `overall` shape's phase one completed round on each line its program-board row
    *  summarises (`phase-spec` · `plan` · `branch`), so the phase row prints its cells. */
   readonly phaseCells?: boolean;
+  /** Put a FIX round beside the charter's own review round, both with a carrier carrying the
+   *  child's note — the `overall` row's two-verb token set, recorded in the PROGRAM's
+   *  workspace. A node board reads that row from there, so the row's cells are only judged on
+   *  a tree that carries it. */
+  readonly charterFix?: boolean;
+  /** Carry the LEGACY artifact spellings an older engine wrote: a cycle-less implement draft
+   *  a record still owns by its recorded `carrierPath`, its report and test-evidence siblings,
+   *  and one non-artifact directory beside them. The orphan face judges all four: the draft is
+   *  claimed, the report and the evidence are attributable names, and the directory is not an
+   *  artifact at all. */
+  readonly legacyArtifacts?: boolean;
+  /** Re-dispatch one cycle the way a crash forces it: attempt 1 failed with NO carrier, and
+   *  attempt 2 wrote the canonical name its record remembers. The two attempts are two
+   *  tokens, and only the SECOND owns the carrier the two of them would both resolve. */
+  readonly reattempt?: boolean;
+  /** Close the phase's identity document and its plan, then move the SPEC past the version
+   *  its review bound — a closed line `next:` must reopen onto the review it owes, which a
+   *  closed-line handoff would otherwise swallow. */
+  readonly docFaceDrift?: boolean;
   /** Repo-relative paths to land and then make UNREADABLE — the "exists but cannot be read"
    *  probe axis. The probe and the tree shape hold no mode literal: a fixture declares the
    *  paths and `materialize` clears their bits. */
@@ -496,6 +525,161 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     ...(options.crashedRound === true ? [crashedProgress()] : []),
     ...(options.artifactArms === true ? artifactFiles() : []),
   ];
+  /** The charter's own seat with a FIX round beside its review round — both carriers land, so
+   *  the node board's `overall` row prints two verbs and their note count. */
+  const charterFixFiles = (): readonly FixtureFile[] => [
+    {
+      path: `.kairos/cdd/${PHASE_SLUG}-overall/progress.json`,
+      text: `${JSON.stringify(
+        {
+          ...emptyProgress(),
+          waves: [{ wave: "overall", rounds: [round("review"), round("fix")] }],
+        },
+        null,
+        2,
+      )}\n`,
+    },
+    {
+      path: `.kairos/cdd/${PHASE_SLUG}-overall/overall-fix-1.c1.json`,
+      text: `${JSON.stringify({ status: "APPROVED", artifacts: {}, notes: [CHILD_NOTE] }, null, 2)}\n`,
+    },
+  ];
+  /** The legacy spellings an older engine wrote: a cycle-less implement draft a record still
+   *  owns through its recorded `carrierPath`, the report and evidence siblings beside it, and
+   *  one directory that is not an artifact at all. */
+  const legacyShape = (): TreeFixture => ({
+    shape,
+    files: [
+      ...docsFor(),
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+        text: `${JSON.stringify(
+          {
+            ...emptyProgress(),
+            waves: [
+              {
+                wave: "1",
+                rounds: [
+                  {
+                    ...round("implement"),
+                    // The historical fact: the file the round actually wrote, under the
+                    // spelling this tree no longer mints.
+                    carrierPath: `${REPO_PLACEHOLDER}/.kairos/cdd/${PHASE_SLUG}/tasks-1-implement.json`,
+                  },
+                ],
+              },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+      },
+      base,
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-implement.json`,
+        text: `${JSON.stringify({ status: "APPROVED", artifacts: {} }, null, 2)}\n`,
+      },
+      { path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-implement-report.md`, text: "# legacy report\n" },
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-implement-test-evidence.json`,
+        text: `${JSON.stringify({ command: "true", exit_code: 0, passed: true }, null, 2)}\n`,
+      },
+    ],
+    directories: [`.kairos/cdd/${PHASE_SLUG}/scratch`],
+    ...knobs,
+  });
+  /** A cycle re-dispatched after a crash: attempt 1 failed writing no carrier, attempt 2
+   *  wrote the canonical name its record remembers. Both attempts are booked, and the carrier
+   *  the two of them would resolve belongs to attempt 2 alone. */
+  const reattemptShape = (): TreeFixture => ({
+    shape,
+    files: [
+      ...docsFor(),
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+        text: `${JSON.stringify(
+          {
+            ...emptyProgress(),
+            waves: [
+              {
+                wave: "1",
+                rounds: [
+                  round("implement"),
+                  round("review"),
+                  round("fix", { treeClean: true, targetAction: false }),
+                  {
+                    ...round("fix"),
+                    attempt: 2,
+                    dispatchBase: "cafe",
+                    carrierPath: `${REPO_PLACEHOLDER}/.kairos/cdd/${PHASE_SLUG}/tasks-1-fix-1.json`,
+                  },
+                ],
+              },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+      },
+      base,
+      reviewCarrier,
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-fix-1.json`,
+        text: `${JSON.stringify({ status: "APPROVED", artifacts: {}, notes: [CHILD_NOTE] }, null, 2)}\n`,
+      },
+    ],
+    ...knobs,
+  });
+  /** The phase's identity document and its plan both closed, then the SPEC moved past the
+   *  version its review bound: the closed line owes a review, and a closed-line handoff would
+   *  swallow the drift the same read reports. */
+  const docFaceDriftShape = (): TreeFixture => {
+    const carrier = (rel: string, findings: boolean): FixtureFile => ({
+      path: `.kairos/cdd/${PHASE_SLUG}/${rel}`,
+      text: `${JSON.stringify(
+        findings
+          ? { status: "APPROVED", findings: [] }
+          : { status: "APPROVED", artifacts: {}, notes: [] },
+        null,
+        2,
+      )}\n`,
+    });
+    return {
+      shape,
+      files: [
+        ...docsFor(),
+        {
+          path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+          text: `${JSON.stringify(
+            {
+              ...emptyProgress(),
+              waves: [
+                {
+                  wave: "phase-spec",
+                  rounds: [round("review"), round("fix")],
+                  reviewedRevision: { kind: "doc-revision", doc: SPEC_REL, doc_hash: STALE_DIGEST },
+                },
+                {
+                  wave: "plan",
+                  rounds: [round("review"), round("fix")],
+                  reviewedRevision: { kind: "doc-revision", doc: PLAN_REL, doc_hash: STALE_DIGEST },
+                },
+                { wave: "1", rounds: [] },
+              ],
+            },
+            null,
+            2,
+          )}\n`,
+        },
+        base,
+        carrier("phase-spec-review-1.c1.json", true),
+        carrier("phase-spec-fix-1.c1.json", false),
+        carrier("plan-review-1.c1.json", true),
+        carrier("plan-fix-1.c1.json", false),
+      ],
+      ...knobs,
+    };
+  };
   const corruptLock = (): TreeFixture => ({
     shape,
     files: [...docsFor(), progress("none"), { path: inFlightPaths().record, text: '{"pid": 1, ' }],
@@ -509,6 +693,12 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     case "empty":
       return { shape, files: [...extra()], ...knobs };
     case "wave":
+      // The four ledger-state arms: the default row set, and one shape per artifact face a
+      // board reads (the charter's own row, the legacy spellings, a re-dispatched cycle, a
+      // drifted identity document).
+      if (options.legacyArtifacts === true) return legacyShape();
+      if (options.reattempt === true) return reattemptShape();
+      if (options.docFaceDrift === true) return docFaceDriftShape();
       return {
         shape,
         files: [
@@ -517,6 +707,7 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
           base,
           ...(withCarrier ? [reviewCarrier] : []),
           ...extra(),
+          ...(options.charterFix === true ? charterFixFiles() : []),
         ],
         ...knobs,
       };
@@ -691,7 +882,10 @@ export const materialize = (fixture: TreeFixture): string => {
   for (const file of fixture.files) {
     const target = path.join(repo, file.path);
     mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, file.text, "utf8");
+    // A record's historical `carrierPath` is an ABSOLUTE path (that is the spelling the engine
+    // recorded), so a hermetic fixture writes the placeholder and the materializer binds it to
+    // the tree it just made — the corpus never holds one machine's path.
+    writeFileSync(target, file.text.replaceAll(REPO_PLACEHOLDER, realpathSync(repo)), "utf8");
   }
   for (const directory of fixture.directories ?? []) {
     mkdirSync(path.join(repo, directory), { recursive: true });

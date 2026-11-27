@@ -74,6 +74,10 @@ export type RefusalVerdict = PreFlightVerdict | WaveVerdict;
  * RouteRenderer — the route face's whole byte surface (see the file's header). Invariant:
  * every method answers bytes derived from the word table plus the values it is handed, so
  * two faces reading one fact print one row.
+ *
+ * Rule zero (over the 200-line class limit): every sentence a hop or a refusal prints has ONE
+ * composition point here; splitting it by consuming face would give `next:` two spellings,
+ * which is the drift this class exists to make impossible.
  */
 export class RouteRenderer {
   readonly #words: Words;

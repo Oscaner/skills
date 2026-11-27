@@ -131,14 +131,12 @@ const round = (over: Partial<BoardRound> = {}): BoardRound => ({
 const docRow = (
   line: string,
   over: {
-    readonly state?: "closed" | "reopened" | "open";
     readonly doc?: BoardDoc | null;
     readonly rounds?: readonly BoardRound[];
   } = {},
 ): BoardRow => ({
   kind: "doc",
   line,
-  state: over.state ?? "closed",
   doc:
     over.doc === undefined
       ? { name: `${line}.md`, version: "v1.0", status: "Draft", title: null }
@@ -146,13 +144,21 @@ const docRow = (
   rounds: over.rounds ?? [],
 });
 
-/** One wave row. */
+/** One wave row — the frontier cell the marker reads, the closure cell and the line's
+ *  rounds. */
 const waveRow = (
   tasks: readonly number[],
-  phase: "implement" | "review" | "fix" | "branch-review" | null = null,
+  frontier = false,
   closed = false,
   rounds: readonly BoardRound[] = [],
-): BoardRow => ({ kind: "wave", line: `tasks-${tasks.join(",")}`, tasks, phase, closed, rounds });
+): BoardRow => ({
+  kind: "wave",
+  line: `tasks-${tasks.join(",")}`,
+  tasks,
+  frontier,
+  closed,
+  rounds,
+});
 
 /** The branch row. */
 const branchRow = (
@@ -465,7 +471,7 @@ describe("the board", () => {
     const value = boardValue({
       rows: [
         { kind: "in-flight", state: { kind: "absent" } },
-        waveRow([1], null, true, [round({ op: "review", notes })]),
+        waveRow([1], false, true, [round({ op: "review", notes })]),
       ],
     });
     const folded = board.render(value).join("\n");
@@ -619,6 +625,92 @@ describe("the board", () => {
     expect(body.endsWith(words.legendTail("board"))).toBe(true);
   });
 
+  it("prints a phase row's cells in the table's declared order and with its declared join", () => {
+    // The cells arrive in an order the renderer does NOT follow: the layout is the table's,
+    // so `wave` sits between `plan` and `branch` and the join is the row's own ` · `.
+    const phase: BoardPhase = {
+      slug: "p9",
+      status: "Draft",
+      title: null,
+      wave: "W1",
+      cells: [
+        { key: "branch", rounds: [round({ op: "review" })] },
+        { key: "spec", rounds: [round({ op: "review" })] },
+        { key: "plan", rounds: [round({ op: "review", findings: 2 })] },
+      ],
+    };
+    const body = board
+      .renderProgram(
+        boardValue({
+          rows: [
+            { kind: "in-flight", state: { kind: "absent" } },
+            docRow("overall", {
+              doc: { name: "p9-overall.md", version: "v1.0", status: "Approved", title: null },
+            }),
+            docRow("phase-spec"),
+          ],
+          phases: [phase],
+        }),
+      )
+      .join("\n");
+    const { tokens } = words.boardWords();
+    expect(body).toContain(
+      `  phase p9  Draft   spec review 1 ${tokens.judgement.passed} · plan review 1 ${tokens.judgement.passed}+2 · wave W1… · branch review 1 ${tokens.judgement.passed}`,
+    );
+    // The join is the board's cell separator, never the downgrade note's `; `.
+    expect(body).not.toContain("; plan");
+    // A phase line with no round still prints no cell for that key.
+    const bare = board
+      .renderProgram(
+        boardValue({
+          rows: [
+            { kind: "in-flight", state: { kind: "absent" } },
+            docRow("overall", {
+              doc: { name: "p9-overall.md", version: "v1.0", status: "Approved", title: null },
+            }),
+          ],
+          phases: [{ ...phase, wave: null, cells: [{ key: "spec", rounds: [] }] }],
+        }),
+      )
+      .join("\n");
+    expect(bare).toContain("  phase p9  Draft\n");
+  });
+
+  it("prints the wave segment's one frontier marker, the first-row label and the absence", () => {
+    const markers = words.boardWords().progress.markers;
+    const two = board.render(
+      boardValue({
+        rows: [
+          { kind: "in-flight", state: { kind: "absent" } },
+          waveRow([1], true, false),
+          waveRow([2], false, false),
+        ],
+      }),
+    );
+    // ONE frontier: the second wave is not current just because it is unstarted.
+    expect(two).toContain(`  wave     W1 {1}  ${markers.current}`);
+    expect(two).toContain(`           W2 {2}  ${markers.pending}`);
+    // The label column prints the `wave` word on the FIRST row only.
+    expect(two.filter((row) => row.includes("wave     "))).toHaveLength(1);
+    // A closed wave is done whatever its frontier cell says, and the frontier may sit past it.
+    const passed = board.render(
+      boardValue({
+        rows: [
+          { kind: "in-flight", state: { kind: "absent" } },
+          waveRow([1], false, true),
+          waveRow([2], true, false),
+        ],
+      }),
+    );
+    expect(passed).toContain(`  wave     W1 {1}  ${markers.done}`);
+    expect(passed).toContain(`           W2 {2}  ${markers.current}`);
+    // A tree with no wave line prints the absence, never nothing at all.
+    const none = board.render(
+      boardValue({ rows: [{ kind: "in-flight", state: { kind: "absent" } }] }),
+    );
+    expect(none).toContain(`  wave     ${words.boardWords().absent}`);
+  });
+
   it("prints a document row as the name, the header cells and the line's round tokens", () => {
     const rows = board.render(
       boardValue({
@@ -636,7 +728,7 @@ describe("the board", () => {
             doc: { name: "p9.md", version: "v1.0", status: null, title: null },
             rounds: [round({ op: "review" })],
           }),
-          waveRow([1], null, true, [round(), round({ op: "review", notes: ["a note"] })]),
+          waveRow([1], false, true, [round(), round({ op: "review", notes: ["a note"] })]),
           branchRow("open"),
         ],
       }),
@@ -654,7 +746,7 @@ describe("the board", () => {
     const rows = board.render(
       boardValue({
         rows: [
-          waveRow([1], "review", false, [
+          waveRow([1], true, false, [
             round(),
             round({ cycle: 2, passed: false }),
             round({ cycle: 2, attempt: 2 }),
@@ -668,7 +760,7 @@ describe("the board", () => {
     expect(rows.join("\n")).toContain("implement 2/3 ✓ · implement 2 ✗→✓");
     const failed = board.render(
       boardValue({
-        rows: [waveRow([1], null, true, [round(), round({ cycle: 2, passed: false })])],
+        rows: [waveRow([1], false, true, [round(), round({ cycle: 2, passed: false })])],
       }),
     );
     expect(failed.join("\n")).toContain("implement 1/2 ✓ · implement 2 ✗");
@@ -677,10 +769,40 @@ describe("the board", () => {
   it("hands the regrade note through untouched — no composition at a render site", () => {
     const note = regradeNote(1, ["a second-order guard"]) ?? "";
     const value = boardValue({
-      rows: [waveRow([1], null, true, [round({ op: "review", regrade: note })])],
+      rows: [waveRow([1], false, true, [round({ op: "review", regrade: note })])],
     });
     expect(board.render(value, { notes: true, artifacts: false }).join("\n")).toContain(note);
     expect(FOLDED_BOARD).toEqual({ notes: false, artifacts: false });
+  });
+
+  it("places the note after the findings count and before the note count, and folds its reason", () => {
+    const { tokens } = words.boardWords();
+    const rowOf = (regrade: string | undefined): string =>
+      board
+        .render(
+          boardValue({
+            rows: [
+              waveRow([1], false, false, [
+                round({
+                  op: "review",
+                  findings: 2,
+                  notes: ["a note"],
+                  ...(regrade === undefined ? {} : { regrade }),
+                }),
+              ]),
+            ],
+          }),
+        )
+        .join("\n");
+    // No downgrade: the segment is ZERO bytes, so the count and the note count sit adjacent.
+    expect(rowOf(undefined)).toContain(`review 1 ✓+2 ${tokens.notes} +1`);
+    // An owing round: the mark rides between `+N` and ` notes +M`.
+    const mark = regradeNote(1, []) ?? "";
+    expect(rowOf(mark)).toContain(`review 1 ✓+2 ${mark} ${tokens.notes} +1`);
+    // A stated reason: the FOLDED sentence replaces nothing and splits nothing.
+    const stated = regradeNote(1, ["the guard is\nsecond-order"]) ?? "";
+    expect(stated).not.toContain("\n");
+    expect(rowOf(stated)).toContain(`review 1 ✓+2 ${stated} ${tokens.notes} +1`);
   });
 });
 

@@ -759,6 +759,18 @@
       "state": "recorded",
       "value": "0"
     },
+    "f6.board.waves.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n           W2 {2}  ○\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.waves.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.waves.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
     "f6.board.program.stdout": {
       "state": "recorded",
       "value": "cdd board: p9-overall\n\n  overall  p9-overall.md   v1.0 · Approved   review 1 ✓\n\n  phase p9  Draft   wave W1…   title: P9 spec\n\n  next:    done\n\nprogress: ✔ done · ▶ current · ○ pending\n"
@@ -768,6 +780,18 @@
       "value": ""
     },
     "f6.board.program.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
+    "f6.board.program.cells.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9-overall\n\n  overall  p9-overall.md   v1.0 · Approved   review 1 ✓\n\n  phase p9  Draft   spec review 1 ✓ · plan review 1 ✓ · wave W1… · branch review 1 ✓   title: P9 spec\n\n  next:    done\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.program.cells.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.program.cells.exit-code": {
       "state": "recorded",
       "value": "0"
     },

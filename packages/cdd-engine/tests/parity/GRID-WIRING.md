@@ -287,9 +287,15 @@ go red.
 | f6.board.art.all.stdout | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.art.all.stderr | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.art.all.exit-code | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.waves.stdout | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.waves.stderr | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.waves.exit-code | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.stdout | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.stderr | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.exit-code | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.program.cells.stdout | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.program.cells.stderr | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.program.cells.exit-code | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.art.stdout | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.art.stderr | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.program.art.exit-code | T15 | surface/render/board.ts#BoardView | normal |

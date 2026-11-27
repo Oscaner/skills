@@ -775,6 +775,17 @@ export const UNITS: readonly Unit[] = [
     },
   },
   {
+    key: "f6.board.waves",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // A TWO-wave plan: the segment's one frontier marker (`▶` on the first open wave, `○` on
+    // the next) and its one label column (`wave` on the first row, the blank column below)
+    // are facts a one-wave plan cannot judge.
+    probe: { fixture: "wave", options: { twoWaves: true }, argv: ["board", "--plan", PLAN] },
+  },
+  {
     key: "f6.board.program",
     face: "f6",
     route: "normal",
@@ -782,6 +793,20 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/render/board.ts#BoardView",
     // The program board's only shape: `--plan` naming the charter itself.
     probe: { fixture: "overall", argv: ["board", "--plan", OVERALL_REL] },
+  },
+  {
+    key: "f6.board.program.cells",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // A phase whose own lines carry a round: the phase row's cells (`spec` · `plan` · `wave` ·
+    // `branch`, in that order and joined by ` · `) are facts a cell-less phase cannot judge.
+    probe: {
+      fixture: "overall",
+      options: { phaseCells: true },
+      argv: ["board", "--plan", OVERALL_REL],
+    },
   },
   {
     key: "f6.board.program.art",

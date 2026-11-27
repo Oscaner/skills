@@ -268,8 +268,11 @@ export interface BoardTokenWords {
   readonly notes: string;
 }
 
-/** The program board's row cells — the phase label, its status fallback, the wave cell and
- *  the title annotation. */
+/** One cell key a phase row can print — the line it summarises. */
+export type PhaseCellKey = "spec" | "plan" | "wave" | "branch";
+
+/** The program board's row cells — the phase label, its status fallback, the wave cell, the
+ *  title annotation, and the cell order with its ONE join. */
 export interface BoardProgramWords {
   readonly phase: string;
   readonly title: string;
@@ -278,6 +281,12 @@ export interface BoardProgramWords {
   readonly wave: string;
   /** The status a phase row prints when its document declares none. */
   readonly pending: string;
+  /** The phase row's cell ORDER — the frozen face prints the wave cell between `plan` and
+   *  `branch`, never last. */
+  readonly cells: readonly PhaseCellKey[];
+  /** The join between two of those cells — the row's own separator, never a note
+   *  composer's. */
+  readonly join: string;
 }
 
 /** The board family. */
@@ -289,8 +298,9 @@ export interface BoardWords {
   /** The document lines' label words — a phase specification and a single specification are
    *  both the `spec` line. */
   readonly lines: Readonly<Record<"overall" | "spec" | "plan", string>>;
-  /** A document row's declared absence. */
-  readonly doc: { readonly absent: string };
+  /** The board's ONE absence word — a document row whose document does not read and a wave
+   *  segment with no wave row both print it. */
+  readonly absent: string;
   /** The two line-state words the branch row prints. */
   readonly states: Readonly<Record<"closed" | "open", string>>;
   readonly tokens: BoardTokenWords;
@@ -499,8 +509,8 @@ export const WORDS = {
     reads: { label: "reads:", orphanDrafts: " · orphan drafts: ", join: " · " },
     /** The document lines' own words. */
     lines: { overall: "overall", spec: "spec", plan: "plan" },
-    /** A row whose document does not read: the absence, never a fabricated cell. */
-    doc: { absent: "(none)" },
+    /** The absence a row prints rather than a cell it never had. */
+    absent: "(none)",
     /** The branch row's two state words — the reopened state prints `open` because the line
      *  IS open again. */
     states: { closed: "closed", open: "open" },
@@ -511,8 +521,16 @@ export const WORDS = {
       count: "+{count}",
       notes: "notes",
     },
-    /** The program board's row cells. */
-    program: { phase: "phase", title: "title:", wave: "{label}…", pending: "Pending" },
+    /** The program board's row cells — the order and the join included, so a renderer
+     *  fills a layout instead of choosing one. */
+    program: {
+      phase: "phase",
+      title: "title:",
+      wave: "{label}…",
+      pending: "Pending",
+      cells: ["spec", "plan", "wave", "branch"],
+      join: " · ",
+    },
   },
   artifacts: {
     label: "art:",

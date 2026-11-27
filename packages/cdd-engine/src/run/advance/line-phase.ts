@@ -294,6 +294,13 @@ export class LinePhase {
     );
   }
 
+  /** The FIRST wave in the board's own order that still holds an open task — the frontier
+   *  cell the board's `▶` marks, answered ONCE here so no render site re-judges it. Null when
+   *  every wave closed (a drained tree has no frontier) or the tree records no wave. */
+  frontierWaveOf(keys: readonly string[]): string | null {
+    return keys.find((key) => !this.waveClosedAt(key)) ?? null;
+  }
+
   /** The ledger's line word of a wave task-group key — the wave's own spine, read from the
    *  identity grammar rather than re-spelled. */
   static waveLineWord(key: string): string {

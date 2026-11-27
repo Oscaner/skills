@@ -766,7 +766,7 @@ describe("the declared failures", () => {
     if (waveBoard.kind !== "board") return;
     expect(waveBoard.rows.find((row) => row.kind === "wave")).toMatchObject({
       line: waveLine,
-      phase: null,
+      frontier: false,
       closed: true,
     });
     // The dispatch entry still names the member for the same tree — the board never does.
@@ -774,17 +774,11 @@ describe("the declared failures", () => {
       kind: "usage",
       reason: { kind: "no-frame", command: "implement" },
     });
-    // A closed PLAN line, driven through a REAL dispatch so its row and its closing read are
-    // the step's own.
+    // A closed PLAN line, driven through a REAL dispatch: the ENTRY names the member for the
+    // same tree while the board reports the line's own rounds, so "closed" is the command's
+    // answer and never a board cell.
     const planRequest = { command: "review", type: "plan" as const, plan: PLAN_REL };
     expect((await fx.run.advance(planRequest)).kind).toBe("dispatch");
-    const planBoard = await fx.run.boardOf(planRequest);
-    expect(planBoard.kind).toBe("board");
-    if (planBoard.kind !== "board") return;
-    const planRow = planBoard.rows.find(
-      (row): row is Extract<BoardRow, { kind: "doc" }> => row.kind === "doc" && row.line === "plan",
-    );
-    expect(planRow?.state).toBe("closed");
     expect(await fx.run.advance(planRequest)).toEqual({
       kind: "usage",
       reason: { kind: "no-frame", command: "review" },
@@ -842,10 +836,9 @@ describe("the declared failures", () => {
           kind: "doc",
           line: "phase-spec",
           doc: { name: "2026-01-01-p9.md", version: "v0.1", status: "Draft", title: "P9 spec" },
-          state: "closed",
           rounds: [],
         },
-        { kind: "wave", line: "tasks-1", tasks: [1], phase: null, closed: false, rounds: [] },
+        { kind: "wave", line: "tasks-1", tasks: [1], frontier: false, closed: false, rounds: [] },
         { kind: "branch", state: "open", rounds: [] },
       ],
       facts: { orphans: [], crashed: [], refusal: { kind: "absent" } },
@@ -888,16 +881,20 @@ describe("the declared failures", () => {
     expect(known.kind).not.toBe("usage");
   });
 
-  it("reports a board's doc row at the document that row is judged at", async () => {
+  it("reads a document line's state at the document the line is judged at", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     const request = { command: "review", type: "phase-spec" as const, spec: SPEC_REL };
     expect((await fx.run.advance(request)).kind).toBe("dispatch");
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
-    // The document moves OUTSIDE the round: the row and the board's `next:` row must agree.
+    // The document moves OUTSIDE the round: the line's state reopens — read at the document
+    // the line is judged at, so another document's bytes can never answer for this line.
     const content = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
     writeFileSync(path.join(fx.repo, SPEC_REL), `${content}\nmoved outside the round\n`, "utf8");
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
+    // The board answers that line's row with its own rounds: the closure state is the
+    // command's answer, and the row carries what it is judged on.
     const board = await fx.run.boardOf({ command: "board", type: "plan", plan: PLAN_REL });
     expect(board.kind).toBe("board");
     if (board.kind !== "board") return;
@@ -905,7 +902,9 @@ describe("the declared failures", () => {
       (row): row is Extract<BoardRow, { kind: "doc" }> =>
         row.kind === "doc" && row.line === "phase-spec",
     );
-    expect(docRow?.state).toBe("reopened");
+    expect(docRow?.rounds).toEqual([
+      { op: "review", cycle: 1, attempt: 1, passed: true, findings: 0, notes: [] },
+    ]);
   });
 });
 

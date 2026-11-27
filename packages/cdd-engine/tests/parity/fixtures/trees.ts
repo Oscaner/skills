@@ -280,14 +280,16 @@ const roundsOf = (state: WaveRounds): readonly Record<string, unknown>[] => {
   return [round("implement"), round("review")];
 };
 
-/** A progress document with one wave row in the requested state. `snapshot` decides
- *  whether a closed row keeps its plan-task set — the fact the wave gate's append
- *  exemption reads (`#appendedSinceClosure`): a row WITHOUT the snapshot is the
- *  conservative shape, so a batch that mixes closed and open tasks blocks. */
+/** A progress document with one wave row in the requested state — plus a SECOND unstarted
+ *  row when the plan declares two waves. `snapshot` decides whether a closed row keeps its
+ *  plan-task set — the fact the wave gate's append exemption reads
+ *  (`#appendedSinceClosure`): a row WITHOUT the snapshot is the conservative shape, so a
+ *  batch that mixes closed and open tasks blocks. */
 const waveProgress = (
   state: WaveRounds,
   snapshot: boolean,
   tasks: number,
+  second = false,
 ): Record<string, unknown> => ({
   ...emptyProgress(),
   waves: [
@@ -303,6 +305,7 @@ const waveProgress = (
           }
         : {}),
     },
+    ...(second ? [{ wave: "2", rounds: [] }] : []),
   ],
 });
 
@@ -394,6 +397,13 @@ export interface TreeOptions {
   /** Carry the artifact inventory's two arms: a healthy review round whose rulings sidecar
    *  reads `ok`, and a review round on the plan line with no sidecar at all (`absent`). */
   readonly artifactArms?: boolean;
+  /** Declare a TWO-wave plan — two chained tasks, and a progress document recording BOTH
+   *  wave rows. The board's wave segment then has two rows, which is what a frontier marker
+   *  and a label column need to be judged at all. */
+  readonly twoWaves?: boolean;
+  /** Give the `overall` shape's phase one completed round on each line its program-board row
+   *  summarises (`phase-spec` · `plan` · `branch`), so the phase row prints its cells. */
+  readonly phaseCells?: boolean;
 }
 
 /** The in-flight record's two paths — the record and the lock directory beside it. */
@@ -402,25 +412,36 @@ export const inFlightPaths = (): { record: string; lock: string } => ({
   lock: ".kairos/cdd/in-flight.json.lock",
 });
 
-/** The plan text one shape declares. */
-const planOf = (options: TreeOptions): string =>
-  planText(options.tasks ?? 1, options.chain === true);
+/** The phase workspace's progress for a program board whose phase row prints its cells —
+ *  one completed round on each line the row summarises (`spec` · `plan` · `branch`). */
+const phaseCellProgress = (): Record<string, unknown> => ({
+  ...emptyProgress(),
+  waves: [
+    { wave: "phase-spec", rounds: [round("review")] },
+    { wave: "plan", rounds: [round("review")] },
+    { wave: "branch", rounds: [round("review")] },
+  ],
+});
 
 /** The seven fixture declarations. `holder` is required by the two in-flight shapes and
  *  ignored by the rest — a fixture never invents a process identity of its own. */
 export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFixture => {
   const holder = options.holder === "live" ? undefined : options.holder;
-  const tasks = options.tasks ?? 1;
+  // A two-wave plan is a PLAN WIDTH plus a ledger state, not a shape of its own: two chained
+  // tasks derive two waves, and the progress document records both rows so the board's wave
+  // segment has the two rows its marker and label columns are judged on.
+  const tasks = options.twoWaves === true ? 2 : (options.tasks ?? 1);
+  const chain = options.twoWaves === true || options.chain === true;
   const rounds: WaveRounds = options.rounds ?? (shape === "doc-drift" ? "review" : "none");
   const snapshot = options.snapshot ?? true;
   const docsFor = (): readonly FixtureFile[] => [
     { path: SPEC_REL, text: SPEC_TEXT },
     { path: OVERALL_REL, text: OVERALL_TEXT },
-    { path: PLAN_REL, text: planOf(options) },
+    { path: PLAN_REL, text: planText(tasks, chain) },
   ];
   const progress = (state: WaveRounds): FixtureFile => ({
     path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
-    text: `${JSON.stringify(waveProgress(state, snapshot, tasks), null, 2)}\n`,
+    text: `${JSON.stringify(waveProgress(state, snapshot, tasks, options.twoWaves === true), null, 2)}\n`,
   });
   const base: FixtureFile = { path: `.kairos/cdd/${PHASE_SLUG}/base.json`, text: baseArtifact() };
   // A CLOSED wave row is closed by its review CARRIER: the closure judge reads the
@@ -514,7 +535,11 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
           },
           {
             path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
-            text: `${JSON.stringify(emptyProgress(), null, 2)}\n`,
+            text: `${JSON.stringify(
+              options.phaseCells === true ? phaseCellProgress() : emptyProgress(),
+              null,
+              2,
+            )}\n`,
           },
           ...extra(),
         ],

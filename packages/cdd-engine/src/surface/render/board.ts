@@ -57,7 +57,7 @@ import {
   Run,
 } from "../../run/index.ts";
 import type { ArtifactRead } from "../../run/ledger/artifact-reads.ts";
-import type { Words } from "../words/words.ts";
+import type { BoardProgramWords, PhaseCellKey, Words } from "../words/words.ts";
 import type { RouteRenderer } from "./route.ts";
 
 /** The label column of the board's row block — `  ` plus the label padded to this width.
@@ -118,6 +118,10 @@ export type BoardShape = "node" | "program";
 /**
  * BoardView — the board's ONE renderer. Invariant: one facts value renders one board, and the
  * display switches change what is printed, never what is judged (see the file's header).
+ *
+ * Rule zero (over the 200-line class limit): the two layouts share the fact block, the legend,
+ * the token grammar and the artifact inventory — splitting per path would give the token
+ * composition two sites, which is the one thing this class exists to prevent.
  */
 export class BoardView {
   readonly #words: Words;
@@ -272,7 +276,7 @@ export class BoardView {
   #docRow(row: Extract<BoardRow, { kind: "doc" }>, display: BoardDisplay, width: number): string {
     const label = `  ${this.#labelOf(row.line).padEnd(LABEL_WIDTH)}`;
     const doc: BoardDoc | null = row.doc;
-    if (doc === null) return `${label}${this.#words.boardWords().doc.absent}`.trimEnd();
+    if (doc === null) return `${label}${this.#words.boardWords().absent}`.trimEnd();
     const meta = [doc.version, doc.status].filter((cell) => cell !== null).join(" · ");
     const tokens = this.#tokensOf(row.rounds, display);
     const cells = [doc.name.padEnd(width), meta, tokens].filter((cell) => cell !== "");
@@ -287,24 +291,27 @@ export class BoardView {
     return kind === "overall" || kind === "plan" ? lines[kind] : lines.spec;
   }
 
-  /** One wave row per recorded wave line — the derived label, its task scope, the marker and
-   *  the line's tokens. The marker column is fixed-width, so the markers align into one. */
+  /** One row per recorded wave line — the derived label, its task scope, the marker and the
+   *  line's tokens. The marker reads the line's OWN frontier cell: `▶` marks the first wave
+   *  still holding an open task, `○` every later one, and a closed wave `✔`. The label column
+   *  prints the `wave` word on the FIRST row and the blank column below it, so the rows read
+   *  as one segment; a tree with no wave row prints the absence, never nothing. */
   #waveRows(value: BoardValue, display: BoardDisplay): readonly string[] {
     const waves = value.rows.filter(
       (row): row is Extract<BoardRow, { kind: "wave" }> => row.kind === "wave",
     );
+    const words = this.#words.boardWords();
+    if (waves.length === 0) return [`  ${"wave".padEnd(LABEL_WIDTH)}${words.absent}`];
     const labels = waves.map((row, index) => `W${index + 1} {${row.tasks.join(",")}}`);
     const width = Math.max(0, ...labels.map((label) => label.length));
-    const markers = this.#words.boardWords().progress.markers;
+    const markers = words.progress.markers;
+    const blank = " ".repeat(2 + LABEL_WIDTH);
     return waves.map((row, index) => {
-      const marker = row.closed
-        ? markers.done
-        : row.phase === null
-          ? markers.pending
-          : markers.current;
+      const marker = row.closed ? markers.done : row.frontier ? markers.current : markers.pending;
+      const prefix = index === 0 ? `  ${"wave".padEnd(LABEL_WIDTH)}` : blank;
       const tokens = this.#tokensOf(row.rounds, display);
-      const head = `${"wave".padEnd(LABEL_WIDTH)}${(labels[index] ?? "").padEnd(width)}  ${marker}`;
-      return `  ${head}${tokens === "" ? "" : `  ${tokens}`}`.trimEnd();
+      const head = `${prefix}${(labels[index] ?? "").padEnd(width)}  ${marker}`;
+      return `${head}${tokens === "" ? "" : `  ${tokens}`}`.trimEnd();
     });
   }
 
@@ -327,22 +334,27 @@ export class BoardView {
   }
 
   /** One program-board phase row — `phase <slug>  <status>   <cells>   title: <title>`. The
-   *  cells print only when the phase's own line carries a round: a cell with no token says
-   *  nothing rather than printing an empty key. */
+   *  cells print in the table's declared order with its declared join, and a cell whose line
+   *  carries no round prints nothing rather than an empty key. */
   #phaseRow(phase: BoardPhase, display: BoardDisplay): string {
     const program = this.#words.boardWords().program;
     const status = phase.status ?? program.pending;
-    const cells: string[] = [];
-    for (const cell of phase.cells) {
-      const tokens = this.#tokensOf(cell.rounds, display);
-      if (tokens !== "") cells.push(`${cell.key} ${tokens}`);
+    const bodies: Partial<Record<PhaseCellKey, string>> = {};
+    for (const cell of phase.cells) bodies[cell.key] = this.#tokensOf(cell.rounds, display);
+    const parts: string[] = [];
+    for (const key of program.cells) {
+      const body = key === "wave" ? this.#waveCell(phase, program) : (bodies[key] ?? "");
+      if (body !== "") parts.push(`${key} ${body}`);
     }
-    if (phase.wave !== null) {
-      cells.push(`wave ${program.wave.replace("{label}", phase.wave)}`);
-    }
-    const tail = cells.length === 0 ? "" : `${CELL_GAP}${cells.join(REGRADE_NOTE_SEPARATOR)}`;
+    const tail = parts.length === 0 ? "" : `${CELL_GAP}${parts.join(program.join)}`;
     const title = this.#titleNote(phase.title, program.title);
     return `  ${program.phase} ${phase.slug}  ${status}${tail}${title}`;
+  }
+
+  /** The phase row's wave cell — the phase's first derived wave label plus the ellipsis the
+   *  table declares; a phase that derived no wave prints no wave cell. */
+  #waveCell(phase: BoardPhase, program: BoardProgramWords): string {
+    return phase.wave === null ? "" : program.wave.replace("{label}", phase.wave);
   }
 
   /** The phase row's title annotation — trimmed, and cut to the declared ceiling with an

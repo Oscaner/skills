@@ -56,7 +56,7 @@ import type { NextHop } from "./advance/next.ts";
 import type { Pipeline } from "./advance/pipeline.ts";
 import { TargetFaces, type TargetType } from "./advance/target-faces.ts";
 import type { WaveVerdict } from "./advance/wave.ts";
-import type { Child, RoundPhase } from "./dispatch/child.ts";
+import type { Child } from "./dispatch/child.ts";
 import { Handoff, type RoundFinding } from "./dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "./dispatch/inflight.ts";
 import type { CheckedRow, PreFlight, PreFlightVerdict } from "./gate/preflight.ts";
@@ -369,7 +369,6 @@ export type BoardRow =
       readonly line: string;
       /** The document's header cells; null when the document cannot be read. */
       readonly doc: BoardDoc | null;
-      readonly state: LineState;
       readonly rounds: readonly BoardRound[];
     }
   /** One wave line. */
@@ -377,7 +376,10 @@ export type BoardRow =
       readonly kind: "wave";
       readonly line: string;
       readonly tasks: readonly number[];
-      readonly phase: RoundPhase | null;
+      /** Whether this line is the tree's FRONTIER — the first wave still holding an open
+       *  task. Exactly one wave answers true (none when every wave closed), and the board's
+       *  `▶` marks this cell alone. */
+      readonly frontier: boolean;
       readonly closed: boolean;
       readonly rounds: readonly BoardRound[];
     }
@@ -809,17 +811,20 @@ export class Run {
         kind: "doc",
         line: line.word,
         doc: this.#docOf(line.doc),
-        state: this.#lines.stateOf(line.word, Run.docTypeOf(line.word), line.doc),
         rounds: this.#roundsOf(line.word, this.#ledger.rounds(line.word)),
       });
     }
-    for (const line of this.#ledger.waveLines()) {
+    const waves = this.#ledger.waveLines();
+    const frontier = this.#lines.frontierWaveOf(
+      waves.map((line) => RoundIdentity.splitLineWord(line.line).key),
+    );
+    for (const line of waves) {
       const key = RoundIdentity.splitLineWord(line.line).key;
       rows.push({
         kind: "wave",
         line: line.line,
         tasks: line.taskIds,
-        phase: this.#lines.wavePhaseOf(key),
+        frontier: key === frontier,
         closed: this.#lines.waveClosedAt(key),
         rounds: this.#roundsOf(line.line, line.rounds),
       });

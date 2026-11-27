@@ -16,7 +16,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { WORDS } from "../../src/surface/words/words.ts";
 import { OVERALL_REL, SPEC_REL, treeFixture } from "./fixtures/trees.ts";
-import { CELLS, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
+import { CELLS, type Probe, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
 import {
   BASELINE_FILE,
   type Baseline,
@@ -232,54 +232,85 @@ describe("the baseline", () => {
   });
 });
 
-/** One cell's recorded bytes — the baseline's own expectation, read as a fact. */
-const recordedOf = (cell: string): string => {
-  const baseline = JSON.parse(readFileSync(BASELINE_FILE, "utf8")) as Baseline;
-  return baseline.cells[cell]?.value ?? "";
+/** One cell's bytes, read through the FIXTURE the cell names — never off the committed
+ *  baseline. The probe is re-run on the old tree, so the cell's own knob is the arm's input:
+ *  a fixture that stops planting a row, or a renderer that stops printing it, changes this
+ *  reading while the recording stands still. */
+const liveOf = async (unit: string, flip?: Probe["options"]): Promise<string> => {
+  const cell = cellOf(unit, "stdout");
+  const base = cell.probe;
+  if (base === undefined) throw new Error(`${unit} declares no probe`);
+  const probe = flip === undefined ? base : { ...base, options: { ...base.options, ...flip } };
+  return new Recorder(ProbeRunner.run).cellValueOf({ ...cell, probe });
 };
 
 describe("the render corpus the board and capsule cells read", () => {
-  it("records the board's orphan row from the fixture's own draft knob", () => {
-    const value = recordedOf("f6.board.orphan.stdout");
+  it("records the board's orphan row from the fixture's own draft knob", async () => {
+    const value = await liveOf("f6.board.orphan");
     expect(value).toContain("orphan: ");
     expect(value).toContain(" — no recorded round owns it");
     // The row is between the occupancy row and the document rows — the fixture's shape, not
     // a row appended at the end.
     expect(value.indexOf("orphan:")).toBeLessThan(value.indexOf("overall"));
-  });
+    // The knob is the row's only input: without it the same board prints no orphan row.
+    const bare = await liveOf("f6.board.orphan", { orphanDraft: false });
+    expect(bare).not.toContain("orphan:");
+    expect(bare).not.toBe(value);
+  }, 120_000);
 
-  it("records the board's crashed row — one token, and no orphan beside it", () => {
-    const value = recordedOf("f6.board.crashed.stdout");
+  it("records the board's crashed row — one token, and no orphan beside it", async () => {
+    const value = await liveOf("f6.board.crashed");
     expect(value).toContain("crashed: implement 2·a1");
     // A tree that also planted a review carrier would print an orphan row for it; this
     // probe carries none, so the crashed row is the only observation.
     expect(value).not.toContain("orphan:");
-  });
+    // The crashed-round knob is the row's only input.
+    const bare = await liveOf("f6.board.crashed", { crashedRound: false });
+    expect(bare).not.toContain("crashed:");
+  }, 120_000);
 
-  it("records an anomalous artifact round on the default face and both arms under --artifacts", () => {
-    expect(recordedOf("f6.board.art.anomalous.stdout")).toContain("! misplaced");
-    const all = recordedOf("f6.board.art.all.stdout");
+  it("records an anomalous artifact round on the default face and both arms under --artifacts", async () => {
+    expect(await liveOf("f6.board.art.anomalous")).toContain("! misplaced");
+    const all = await liveOf("f6.board.art.all");
     expect(all).toContain("   ok");
     expect(all).toContain("   absent");
     expect(all).toContain("c1·a1");
-  });
+    // The inventory's knob is the observation set: with no artifact arm the same switch
+    // prints zero `art:` rows rather than an empty one.
+    const bare = await liveOf("f6.board.art.all", { artifactArms: false });
+    expect(bare).not.toContain("art:");
+  }, 120_000);
 
-  it("records the program board and its own artifact seat as two different cells", () => {
-    const program = recordedOf("f6.board.program.stdout");
+  it("records the board's two-wave segment — one frontier marker and one label column", async () => {
+    const value = await liveOf("f6.board.waves");
+    // The first wave is the frontier and carries the segment's label; the second is neither
+    // current nor labelled, which is the whole arm: a tree whose every unstarted wave read as
+    // current prints `▶` twice and repeats the label.
+    expect(value).toContain("  wave     W1 {1}  ▶");
+    expect(value).toContain("           W2 {2}  ○");
+    expect(value.match(/wave {5}W/g) ?? []).toHaveLength(1);
+  }, 120_000);
+
+  it("records the program board and its own artifact seat as two different cells", async () => {
+    const program = await liveOf("f6.board.program");
     expect(program).toContain("next:    done");
     expect(program).toContain("  phase ");
     expect(program).not.toContain("art:");
-    expect(recordedOf("f6.board.program.art.stdout")).toContain("art:");
-  });
+    expect(await liveOf("f6.board.program.art")).toContain("art:");
+    // A phase whose own lines carry rounds prints its cells in the table's declared order —
+    // `wave` between `plan` and `branch`, joined by the row's own separator.
+    const cells = await liveOf("f6.board.program.cells");
+    expect(cells).toContain("spec review 1 ✓ · plan review 1 ✓ · wave W1… · branch review 1 ✓");
+  }, 120_000);
 
-  it("records the capsule's summary frame as four rows — status, summary, next, reason", () => {
-    const rows = recordedOf("f5.capsule.summary.stdout").split("\n");
+  it("records the capsule's summary frame as four rows — status, summary, next, reason", async () => {
+    const rows = (await liveOf("f5.capsule.summary")).split("\n");
     expect(rows).toHaveLength(4);
     expect(rows[0]).toMatch(/^status: /);
     expect(rows[1]).toContain("fixed ");
     expect(rows[2]).toMatch(/^next: /);
     expect(rows[3]).toMatch(/^reason: /);
-  });
+  }, 120_000);
 });
 
 describe("the recorded shapes", () => {

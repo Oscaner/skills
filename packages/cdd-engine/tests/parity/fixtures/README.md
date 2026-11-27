@@ -29,6 +29,8 @@ program's, so no knob of the other shapes can stand in for it:
 | `orphanDraft` | `materialize` drops one handoff draft no recorded round claims — the board's `orphan:` row |
 | `crashedRound` | books one round whose verdict withheld its target action and carries a HARD violation — the board's `crashed:` row |
 | `artifactArms` | carries the inventory's two arms: a review round whose rulings sidecar sits at its rendered name (read `ok`) and a review round whose carrier stands but whose sidecar is absent (read `absent`) |
+| `twoWaves` | declares a two-wave plan — two chained tasks, and a progress document recording BOTH wave rows: the board's segment then has two rows to place one frontier marker and one label column on |
+| `phaseCells` | gives the `overall` shape's phase one completed round on each line its program-board row summarises (`phase-spec` · `plan` · `branch`), so the phase row prints its cells |
 
 The three cause fixtures the refusal cells need are shapes with knobs, never new shapes:
 a wide wave is `wave` + `tasks: 4`; a split is `wave` + `tasks: 2` requested as one task;

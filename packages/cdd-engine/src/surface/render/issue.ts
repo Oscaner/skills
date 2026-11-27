@@ -87,6 +87,10 @@ const SEGMENTS = ["context", "problem", "impact", "suggestedFix"] as const;
  * IssueBodyRenderer — the aggregate issue body and its input contract. Invariant: one stdin
  * text answers exactly one report — the rendered body, or ONE of the two declared rejection
  * shapes — so a shell never decides which of the three it is looking at.
+ *
+ * Rule zero (over the 200-line class limit): the input contract and the body are one answer
+ * over one payload — validating in a second object would put the accepted shape and the
+ * rendered shape in two places, and they must agree byte for byte.
  */
 export class IssueBodyRenderer {
   /** The finding-type vocabulary — the word table's ONE type set. */

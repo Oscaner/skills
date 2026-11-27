@@ -72,6 +72,7 @@ const STUB_LOG: DispatchLog = {
  *  the rest is standing context no arm here depends on. */
 const frameOf = (over: Partial<FrameFacts> = {}): FrameFacts => ({
   kind: "frame",
+  state: "open",
   command: "implement",
   recover: false,
   type: "wave",

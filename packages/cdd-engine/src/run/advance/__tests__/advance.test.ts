@@ -82,6 +82,7 @@ import { type DocFacts, Frame, type FrameFacts, type FrameRequest } from "../fra
 import { Lifecycle, type LifecycleReads } from "../lifecycle.ts";
 import type { CarriedFacts } from "../line-phase.ts";
 import { LinePhase } from "../line-phase.ts";
+import { LineRows } from "../line-rows.ts";
 import {
   DISPATCH_REASON,
   NextRoutes,
@@ -496,6 +497,8 @@ const fixture = (): Fixture => {
       return { target: `evidence-${facts.round}.json`, read: evidence.read };
     },
     blockerRun: (facts) => lines.blockerRunOf(facts.key, facts.type, facts.round),
+    // The pipeline's own hop — the object the refusal and the board both render.
+    hopOf: (facts) => pipeline.hopOf(facts.pipeline),
   };
   const waveGate = new WaveGate();
   const waveInputOf = (facts: FrameFacts): WaveInput => ({
@@ -508,6 +511,7 @@ const fixture = (): Fixture => {
     gate,
     authority: new Authority(),
     drift: driftStation,
+    lineRows: new LineRows({ lines, drifts: driftStation }),
     inflight,
     child,
     ledger,
@@ -771,15 +775,18 @@ describe("the declared failures", () => {
     oneTaskPlan(fx);
     const missing = await fx.run.advance(waveRequest({ plan: `${PLAN_REL}.nope` }));
     expect(missing).toEqual({ kind: "read-failure", target: `${PLAN_REL}.nope` });
-    // A closed line holds no dispatchable frame: a clean review closes the wave, so the
-    // assembly answers the SCENE alone and the dispatch entry names the member (the board
-    // reads the same scene — pinned in the closed-line case below).
+    // A closed line is NOT a usage value: the frame carries the closure, the tree's gates
+    // judge the REQUEST, and the line leg answers the batch it was asked for — the wave gate
+    // refuses a batch the plan has already closed, which is the shipped engine's own byte.
     fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "implement", cycle: 1 });
     fx.carriedByKey.set("implement:1", { findings: [], status: null });
     fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "review", cycle: 1 });
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     const closed = await fx.run.advance(waveRequest());
-    expect(closed).toEqual({ kind: "usage", reason: { kind: "no-frame", command: "implement" } });
+    expect(closed.kind).toBe("blocked");
+    if (closed.kind !== "blocked") return;
+    expect(closed.leg).toBe("line");
+    expect(closed.verdict).toMatchObject({ ok: false, reason: "split" });
   });
 
   it("answers a closed plan line and a closed wave line as boards", async () => {
@@ -800,20 +807,52 @@ describe("the declared failures", () => {
       frontier: false,
       closed: true,
     });
-    // The dispatch entry still names the member for the same tree — the board never does.
-    expect(await fx.run.advance(waveRequest())).toEqual({
-      kind: "usage",
-      reason: { kind: "no-frame", command: "implement" },
-    });
-    // A closed PLAN line, driven through a REAL dispatch: the ENTRY names the member for the
-    // same tree while the board reports the line's own rounds, so "closed" is the command's
-    // answer and never a board cell.
+    // The dispatch entry answers the SAME tree with a refusal (the batch is closed), while the
+    // board reports the line's own rounds — "closed" is a line-leg row, never a board cell.
+    const closedWave = await fx.run.advance(waveRequest());
+    expect(closedWave.kind).toBe("blocked");
+    // A closed PLAN line, driven through a REAL dispatch: the round binds the version it
+    // judged, so the second request finds the line closed and UNCHANGED — the anti-spin row.
     const planRequest = { command: "review", type: "plan" as const, plan: PLAN_REL };
     expect((await fx.run.advance(planRequest)).kind).toBe("dispatch");
-    expect(await fx.run.advance(planRequest)).toEqual({
-      kind: "usage",
-      reason: { kind: "no-frame", command: "review" },
-    });
+    const closedPlan = await fx.run.advance(planRequest);
+    expect(closedPlan.kind).toBe("blocked");
+    if (closedPlan.kind !== "blocked" || closedPlan.leg !== "line") return;
+    expect(closedPlan.verdict).toMatchObject({ ok: false, leg: "line", reason: "unchanged" });
+  });
+
+  it("refuses a verb a moved document line is not at, with the frontier's own reason", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // The plan line reviewed the version it then held; the document moved afterwards. The line
+    // is REOPENED — it owes that review — so a `fix` request is not the round it would take, and
+    // the refusal names the frontier's hop instead of claiming a closure.
+    const planLine = RoundIdentity.lineWordOf("plan", "");
+    fx.ledger.recordRound(planLine, { op: "review", cycle: 1 });
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    fx.ledger.recordDocReview(
+      planLine,
+      docBodyOf(readFileSync(path.join(fx.repo, PLAN_REL), "utf8")),
+    );
+    writeFileSync(
+      path.join(fx.repo, PLAN_REL),
+      `${readFileSync(path.join(fx.repo, PLAN_REL), "utf8")}\n\n`,
+    );
+
+    const request = { command: "fix", type: "plan" as const, plan: PLAN_REL };
+    // The line's own cell says it: not open, not closed — reopened.
+    const frame = fx.frame.of(request);
+    expect(frame.kind).toBe("frame");
+    if (frame.kind !== "frame") return;
+    expect(frame.state).toBe("reopened");
+    // And the refusal is the FRONTIER's own reason, the object the board renders beside it —
+    // never a closure token claiming there is nothing here.
+    const hop = fx.pipeline.hopOf(frame.pipeline);
+    const refused = await fx.run.advance(request);
+    expect(refused.kind).toBe("blocked");
+    if (refused.kind !== "blocked" || refused.leg !== "line") return;
+    expect(refused.verdict).toMatchObject({ ok: false, leg: "line", reason: hop.reason });
+    expect(refused.hop?.reason).toBe(hop.reason);
   });
 
   it("answers the board's identity, a document row's header cells and the branch row", async () => {

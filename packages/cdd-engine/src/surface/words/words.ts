@@ -561,6 +561,11 @@ export const WORDS = {
      *  contract from `refusal.artifact`'s rows). */
     continuation: { derived: "derived", found: "found", reason: "reason" },
   },
+  /** The `CDD_WARN` channel's one sentence — the fact that a caller's path resolved outside
+   *  the repository. The path arrives as a value. */
+  warn: {
+    outsideRepo: "path is outside the repository: {path}",
+  },
   route: {
     done: "done",
     review: "review",
@@ -680,6 +685,12 @@ export class Words {
   /** One stderr/route station by its semantic kind. */
   station(kind: StationKind): string {
     return WORDS.capsule.stations[kind];
+  }
+
+  /** The out-of-tree warning's whole sentence — the `warn` station's one row, filled with the
+   *  repo-relative spelling the path basis produced. */
+  outsideRepo(path: string): string {
+    return WORDS.warn.outsideRepo.replace("{path}", path);
   }
 
   /** The capsule's summary cell for a fix round — the one template, filled with the two

@@ -219,6 +219,17 @@ export class LinePhase {
     return { recorded: reviewed.hash, current: ReviewedIdentity.hashOf(body, reviewed.basis) };
   }
 
+  /** Whether the line's reviewed version is still the document's — the closed line's
+   *  `unchanged` row's ONE cell. It takes a RECORDED version (a line nobody reviewed is not
+   *  unchanged, it is unbound) and today's reviewed BODY equal to it; an unreadable document
+   *  answers false, because a comparison that did not happen cannot claim equality. */
+  unchangedAt(key: string, doc: string | null): boolean {
+    if (doc === null) return false;
+    const content = this.#text(doc);
+    if (content === null) return false;
+    return this.#facts.docDriftOf(key, docBodyOf(content)) === "same";
+  }
+
   /** Whether one line was ever WORKED — a recorded round of the face's review lead or a fix.
    *  A face the pipeline never entered holds no station, so its document's movement is the
    *  pipeline's business, not a dispatch refusal's. */

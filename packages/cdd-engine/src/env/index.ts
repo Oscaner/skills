@@ -25,7 +25,7 @@
 
 import type { DocRoots } from "./paths/doc-roots.ts";
 import { docRootsOf } from "./paths/doc-roots.ts";
-import { RepoRoot } from "./paths/root.ts";
+import { type OutsideRepo, RepoRoot } from "./paths/root.ts";
 import {
   type DirectoryListing,
   NodeDirectoryListing,
@@ -60,8 +60,8 @@ export class Paths {
 
   /** Resolve one working directory into the paths segment. A directory that is not
    *  inside a git tree throws — an unresolvable basis never degrades to the cwd. */
-  static of(cwd: string): Paths {
-    return new Paths(RepoRoot.of(cwd));
+  static of(cwd: string, outside?: OutsideRepo): Paths {
+    return new Paths(RepoRoot.of(cwd, outside));
   }
 
   /** Scan the doc roots into the slug index; `slugOf` is the document world's reading
@@ -149,6 +149,9 @@ export interface EnvOptions {
   readonly ops?: FileOps;
   /** The directory listing, when a caller drives the tree over a fabricated one. */
   readonly listing?: DirectoryListing;
+  /** Where a CALLER path that resolves outside the repository is reported — the composition
+   *  root wires it to the word table; a caller that injects none keeps the silent form. */
+  readonly outside?: OutsideRepo;
   /** The host probe, when a caller needs to count or pin the detection. */
   readonly hostProbe?: HostProbe;
   /** The environment view the host probe reads; `process.env` by default. */
@@ -180,7 +183,7 @@ export class Env {
   readonly provision: Provisioner;
 
   constructor(opts: EnvOptions) {
-    this.paths = new Paths(RepoRoot.of(opts.cwd ?? process.cwd()), opts.listing);
+    this.paths = new Paths(RepoRoot.of(opts.cwd ?? process.cwd(), opts.outside), opts.listing);
     this.process = new Process({
       clock: opts.clock,
       runner: opts.runner,

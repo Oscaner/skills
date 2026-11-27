@@ -30,7 +30,7 @@
 // functions.
 
 import { REFS } from "../../env/process/host.ts";
-import type { DriftRefusal } from "../../run/advance/drift-station.ts";
+import type { LineRowRefusal } from "../../run/advance/drift-station.ts";
 import { NEXT_HOP_REASON, type NextHop, type Route } from "../../run/advance/next.ts";
 import type { RouteTarget } from "../../run/advance/target-faces.ts";
 import type { WaveVerdict } from "../../run/advance/wave.ts";
@@ -67,9 +67,10 @@ const BOARD_NO_NEXT = "(none)";
  *  width the shipped engine chose, so an operator's two reports of one movement read alike. */
 const DRIFT_HASH_PREFIX = 12;
 
-/** One line-leg refusal, as this face reads it: the wave gate's five rows, or the drift
- *  station's `doc-drift` row with its mandatory diagnosis. */
-export type LineVerdict = WaveVerdict | DriftRefusal;
+/** One line-leg refusal, as this face reads it: the wave gate's five rows, the drift
+ *  station's `doc-drift` row (with the diagnosis its hop target answers), or the closed
+ *  line's own token. */
+export type LineVerdict = WaveVerdict | LineRowRefusal;
 
 /** One refusal, as this face reads it: the structure leg's verdict, the wave gate's, or the
  *  line leg's drift row. */
@@ -210,7 +211,7 @@ export class RouteRenderer {
    *  `graph.ts` lays out); every other cause prints the details the verdict carries. */
   refusalDetails(verdict: RefusalVerdict, tree: GraphTree | null = null): readonly string[] {
     if (RouteRenderer.isLine(verdict)) {
-      return !("drift" in verdict) && verdict.reason === "split" && tree !== null
+      return !("leg" in verdict) && verdict.reason === "split" && tree !== null
         ? this.#graph
             .render(tree)
             .split("\n")
@@ -226,11 +227,12 @@ export class RouteRenderer {
     return station === null ? carried : [...station.slice(1), ...carried];
   }
 
-  /** Whether one verdict is a LINE-leg refusal — the wave gate's or the drift station's.
-   *  Both answer the same one-line shape and neither carries the structure leg's `checked`
-   *  rows, so every reader branches on this predicate rather than on one type's cell. */
+  /** Whether one verdict is a LINE-leg refusal — the wave gate's (its `open` cell), the drift
+   *  station's or the closed line's (both carry the `leg` discriminant). All three answer the
+   *  same one-line shape and none carries the structure leg's `details`, so every reader
+   *  branches on this predicate rather than on one type's cell. */
   static isLine(verdict: RefusalVerdict): verdict is LineVerdict {
-    return "open" in verdict || "drift" in verdict;
+    return "open" in verdict || "leg" in verdict;
   }
 
   /** One station refusal's detail body, split into its lines; null for a named reason (its
@@ -278,17 +280,19 @@ export class RouteRenderer {
   }
 
   /** The line leg's cause cell — the wave gate's token, or the drift row's token plus the
-   *  diagnosis the reason names (`layer` · `line` · both digest ends). The prefix width is
-   *  this face's, so the diagnosis VALUE carries no truncated hash of its own. */
+   *  diagnosis its HOP TARGET answered (`layer` · `line` · both digest ends). The prefix width
+   *  is this face's, so the diagnosis VALUE carries no truncated hash of its own; a drift row
+   *  whose target moved nowhere prints the bare token. */
   static #lineCause(verdict: LineVerdict): string {
-    if ("drift" in verdict) {
-      const drift = verdict.drift;
-      const prefix = (hash: string): string => hash.slice(0, DRIFT_HASH_PREFIX);
-      return `${verdict.reason} · layer=${drift.layer} · line=${drift.line} · recorded=${prefix(
-        drift.recorded,
-      )} · current=${prefix(drift.current)}`;
+    if (!("leg" in verdict)) {
+      return "reason" in verdict && verdict.reason !== undefined ? verdict.reason : "split";
     }
-    return verdict.reason ?? "split";
+    const drift = verdict.drift;
+    if (drift === undefined) return verdict.reason;
+    const prefix = (hash: string): string => hash.slice(0, DRIFT_HASH_PREFIX);
+    return `${verdict.reason} · layer=${drift.layer} · line=${drift.line} · recorded=${prefix(
+      drift.recorded,
+    )} · current=${prefix(drift.current)}`;
   }
 
   /** The sentence behind one named reason. A station refusal carries no reason word at all

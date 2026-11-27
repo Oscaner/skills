@@ -53,6 +53,7 @@ import { DriftStation } from "../drift-station.ts";
 import type { FrameFacts } from "../frame.ts";
 import { Lifecycle } from "../lifecycle.ts";
 import { LinePhase } from "../line-phase.ts";
+import { LineRows } from "../line-rows.ts";
 import { Pipeline } from "../pipeline.ts";
 import { AdvanceReads, CarrierReads, type PromptBandReads } from "../reads.ts";
 import { WaveGate } from "../wave.ts";
@@ -276,6 +277,7 @@ const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"
     gate,
     authority: new Authority(),
     drift: new DriftStation(lines),
+    lineRows: new LineRows({ lines, drifts: new DriftStation(lines) }),
     inflight,
     child: new Child({ runner, clock }),
     ledger,
@@ -292,6 +294,7 @@ const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"
   const graph = TaskGraph.parse(planText);
   const frame: FrameFacts = {
     kind: "frame",
+    state: "open",
     command: "implement",
     recover: false,
     type: "wave",

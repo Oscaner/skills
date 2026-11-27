@@ -15,6 +15,8 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { docBodyOf } from "../../../src/docs/grammar/doc-body.ts";
+import { ReviewedIdentity } from "../../../src/run/ledger/reviewed.ts";
 import { FROZEN_DATE } from "./non-tree.ts";
 
 /** The tree shapes of the corpus. `overall` is a DOCUMENT-KIND shape — a charter plus the
@@ -168,6 +170,16 @@ const SPEC_TEXT = [
   `| v1.0 | ${FROZEN_DATE} | initial | [human] |`,
   "",
 ].join("\n");
+
+/** The spec's CURRENT reviewed-body digest — the version a CLOSED, UNCHANGED phase-spec row
+ *  records. DERIVED, never typed: the fixture states the fact the engine compares, and a
+ *  literal would go stale the day this text moves (the drift it would then plant is nobody's
+ *  subject). */
+const SPEC_REVIEWED_DIGEST = ReviewedIdentity.record(
+  "document",
+  SPEC_REL,
+  docBodyOf(SPEC_TEXT),
+).hash;
 
 /** The program overall charter — every registered element present, its inventory
  *  links resolving into the siblings this fixture tree carries. */
@@ -342,6 +354,24 @@ const specDriftRow = (): Record<string, unknown> => ({
   reviewedRevision: { kind: "doc-revision", doc: SPEC_REL, doc_hash: STALE_DIGEST },
 });
 
+/** The CLOSED, UNCHANGED phase-spec row — one completed review bound to the version the
+ *  document still holds. It is the closed line's `unchanged` row's only input: without it the
+ *  corpus can show a moved line but never a settled one. */
+const specClosedRow = (): Record<string, unknown> => ({
+  wave: "phase-spec",
+  rounds: [round("review")],
+  reviewedRevision: { kind: "doc-revision", doc: SPEC_REL, doc_hash: SPEC_REVIEWED_DIGEST },
+});
+
+/** The drifted, CLOSED PLAN row — the plan moved past what its review bound while the
+ *  specification stayed put. Whose movement the refusal DIAGNOSES is then decided by the hop's
+ *  target alone, which the spec-drift row cannot judge (both faces point at the spec). */
+const planDriftRow = (): Record<string, unknown> => ({
+  wave: "plan",
+  rounds: [round("review")],
+  reviewedRevision: { kind: "doc-revision", doc: PLAN_REL, doc_hash: STALE_DIGEST },
+});
+
 /** The accepted refusal record the tree-level `refusal.json` carries. */
 const refusalRecord = (): Record<string, unknown> => ({
   at: `${FROZEN_DATE}T00:00:00.000Z`,
@@ -451,6 +481,12 @@ export interface TreeOptions {
    *  re-entry (the drift owes a review) and the line leg's upstream `doc-drift` refusal (a
    *  request whose face sits BELOW the moved document would build on bytes nobody reviewed). */
   readonly specDrift?: boolean;
+  /** Plant a CLOSED phase-spec line whose recorded version the document STILL holds — the
+   *  closed line's `unchanged` row (`review` on it is refused, not dispatched). */
+  readonly specClosed?: boolean;
+  /** Plant a CLOSED PLAN line whose own document moved while the specification did not — the
+   *  arm `specDrift` cannot reach, because there both faces point at the spec. */
+  readonly planDrift?: boolean;
   /** Repo-relative paths to land and then make UNREADABLE — the "exists but cannot be read"
    *  probe axis. The probe and the tree shape hold no mode literal: a fixture declares the
    *  paths and `materialize` clears their bits. */
@@ -511,14 +547,23 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     path: `.kairos/cdd/${PHASE_SLUG}/phase-spec-review-1.c1.json`,
     text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
   };
-  /** This shape's own progress with the drifted phase-spec row in FRONT of it — the row the
-   *  document faces judge keeps the shape's wave (and brief) facts untouched. */
-  const specDriftProgress = (state: WaveRounds): FixtureFile => {
+  /** The PLAN row's carrier — the same shape one face across, so a drifted plan line reads as
+   *  a worked line too. */
+  const planDriftCarrier: FixtureFile = {
+    path: `.kairos/cdd/${PHASE_SLUG}/plan-review-1.c1.json`,
+    text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
+  };
+  /** This shape's own progress with the given DOCUMENT rows in FRONT of it — the rows the
+   *  document faces judge keep the shape's wave (and brief) facts untouched. */
+  const withDocRows = (
+    state: WaveRounds,
+    rows: readonly Record<string, unknown>[],
+  ): FixtureFile => {
     const document = waveProgress(state, snapshot, tasks, options.twoWaves === true);
     return {
       path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
       text: `${JSON.stringify(
-        { ...document, waves: [specDriftRow(), ...(document.waves as readonly unknown[])] },
+        { ...document, waves: [...rows, ...(document.waves as readonly unknown[])] },
         null,
         2,
       )}\n`,
@@ -845,19 +890,39 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
         ...knobs,
       };
     }
-    case "branch-closed":
+    case "branch-closed": {
+      // The document-row arms this shape carries, each behind its own knob: a closed
+      // phase-spec line whose document MOVED (`specDrift`), one that still HOLDS the version
+      // its review bound (`specClosed`), and a closed plan line that moved on its own
+      // (`planDrift` — the arm where the refusal's cause and its `next:` name two documents).
+      const docRows = [
+        ...(options.specDrift === true ? [specDriftRow()] : []),
+        ...(options.specClosed === true ? [specClosedRow()] : []),
+        ...(options.planDrift === true ? [planDriftRow()] : []),
+      ];
+      if (docRows.length > 0) {
+        return {
+          shape,
+          files: [
+            ...docsFor(),
+            withDocRows("closed", docRows),
+            base,
+            reviewCarrier,
+            ...(options.specDrift === true || options.specClosed === true
+              ? [specDriftCarrier]
+              : []),
+            ...(options.planDrift === true ? [planDriftCarrier] : []),
+            ...extra(),
+          ],
+          ...knobs,
+        };
+      }
       return {
         shape,
-        files: [
-          ...docsFor(),
-          options.specDrift === true ? specDriftProgress("closed") : progress("closed"),
-          base,
-          reviewCarrier,
-          ...(options.specDrift === true ? [specDriftCarrier] : []),
-          ...extra(),
-        ],
+        files: [...docsFor(), progress("closed"), base, reviewCarrier, ...extra()],
         ...knobs,
       };
+    }
   }
 };
 

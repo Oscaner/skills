@@ -189,14 +189,6 @@ export const USAGE_BYTES: Readonly<Record<UsageReason["kind"], UsageByteRow>> = 
     message: (reason) =>
       `cdd base get: missing or corrupt base artifact at ${reason.kind === "base-absent" ? reason.target : ""}`,
   },
-  "no-frame": {
-    shape: "single",
-    stream: "stderr",
-    exitCode: 1,
-    producer: "run/index.ts#Run",
-    message: (reason) =>
-      `cdd ${reason.kind === "no-frame" ? reason.command : ""}: nothing to dispatch — the line holds no open frame`,
-  },
 };
 
 /** THE translation table — one row per declared failure value, each answering the member

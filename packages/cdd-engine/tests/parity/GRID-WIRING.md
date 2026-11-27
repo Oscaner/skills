@@ -407,6 +407,12 @@ go red.
 | f7.preview.doc-drift.stdout | T17 | run/advance/frame.ts#Frame | normal |
 | f7.preview.doc-drift.stderr | T17 | run/advance/frame.ts#Frame | normal |
 | f7.preview.doc-drift.exit-code | T17 | run/advance/frame.ts#Frame | normal |
+| f7.preview.closed-unchanged.stdout | T17 | run/advance/line-rows.ts#LineRows | refusal |
+| f7.preview.closed-unchanged.stderr | T17 | run/advance/line-rows.ts#LineRows | refusal |
+| f7.preview.closed-unchanged.exit-code | T17 | run/advance/line-rows.ts#LineRows | refusal |
+| f7.preview.doc-drift.plan-target.stdout | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f7.preview.doc-drift.plan-target.stderr | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f7.preview.doc-drift.plan-target.exit-code | T17 | run/advance/drift-station.ts#DriftStation | refusal |
 | f7.preview.usage.missing-plan.stdout | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.stderr | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.exit-code | T16 | surface/render/usage.ts#UsageFace | refusal |

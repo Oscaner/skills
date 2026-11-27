@@ -69,7 +69,6 @@ const USAGE_MEMBERS: Readonly<{ readonly [M in UsageReason["kind"]]: M }> = {
   "board-unmatched": "board-unmatched",
   "board-unreadable": "board-unreadable",
   "base-absent": "base-absent",
-  "no-frame": "no-frame",
 };
 
 /** The declared failure values, closed the same way — the translation table's domain. */
@@ -1362,12 +1361,6 @@ describe("the usage face", () => {
     expect(absent.text).toBe(
       "cdd base get: missing or corrupt base artifact at .kairos/cdd/p9/base.json\n",
     );
-    const noFrame = face.report(
-      { kind: "usage", reason: { kind: "no-frame", command: "review" } },
-      "review",
-    );
-    expect(noFrame.text).toBe("cdd review: nothing to dispatch — the line holds no open frame\n");
-    expect(noFrame.exitCode).toBe(1);
     expect(recorded).toEqual([]);
   });
 
@@ -1446,8 +1439,8 @@ describe("the surface door", () => {
   it("routes a misuse through the usage face and the body through the issue face", async () => {
     const cli = new Cli({ clock: CLOCK, usageLine: (path) => `Usage: cdd ${path}` });
     expect(
-      cli.usageReport({ kind: "usage", reason: { kind: "no-frame", command: "review" } }).exitCode,
-    ).toBe(1);
+      cli.usageReport({ kind: "usage", reason: { kind: "read-failure", target: "a.md" } }).text,
+    ).toContain("cannot read file: a.md");
     expect(
       cli.usageReport({ kind: "usage", reason: { kind: "missing-plan-or-spec" } }, "board").text,
     ).toBe("Usage: cdd board\nerror: cdd board: pass --plan and/or --spec\n");

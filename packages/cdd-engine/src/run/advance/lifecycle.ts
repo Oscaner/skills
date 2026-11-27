@@ -104,9 +104,10 @@ import type {
 } from "../gate/preflight.ts";
 import type { RoundRecord, RoundRecordInit, RoundViolation } from "../ledger/ledger.ts";
 import { ReviewedIdentity } from "../ledger/reviewed.ts";
-import type { DriftRefusal, DriftStation } from "./drift-station.ts";
+import type { DriftStation, LineRowRefusal } from "./drift-station.ts";
 import type { FrameFacts, UsageReason } from "./frame.ts";
 import type { CarriedFacts } from "./line-phase.ts";
+import type { LineRows } from "./line-rows.ts";
 import { type NextHop, NextRoutes, type RoundFacts, type Route } from "./next.ts";
 import { TargetFaces } from "./target-faces.ts";
 import type { WaveBoard, WaveGate, WaveInput, WaveVerdict } from "./wave.ts";
@@ -181,12 +182,13 @@ export type AdvanceOutcome =
       readonly verdict: PreFlightVerdict;
       readonly checked: readonly CheckedRow[];
     }
-  /** The wave gate refused before the dispatch — the task face's own line leg, carrying the
-   *  wave board its `split` cause prints. */
+  /** The line leg refused before the dispatch — the wave gate's five rows (carrying the wave
+   *  board its `split` cause prints), the drift station's `doc-drift` row, or the closed
+   *  line's own row. */
   | {
       readonly kind: "blocked";
       readonly leg: "line";
-      readonly verdict: WaveVerdict | DriftRefusal;
+      readonly verdict: WaveVerdict | LineRowRefusal;
       readonly checked: readonly CheckedRow[];
       readonly tree: WaveBoard | null;
       readonly hop: NextHop | null;
@@ -354,13 +356,17 @@ export interface LifecycleOptions {
    *  Required, not optional: a dispatch entry that could forget to judge it would ship the
    *  "build on bytes nobody reviewed" face as a silently allowed dispatch. */
   readonly drift: DriftStation;
+  /** The line leg's document ROWS — the row a line at another phase owes, and the closure's
+   *  own token. Required for the same reason as the drift station: an entry that skipped them
+   *  would answer the shipped engine's refusal with nothing at all. */
+  readonly lineRows: LineRows;
 }
 
 /** The line leg's whole refusal — the verdict the render face prints and the wave board its
  *  `split` cause carries. The verdict is the drift station's value or the wave gate's; both
  *  answer the same one-line refusal shape. */
 export interface LineRefusal {
-  readonly verdict: WaveVerdict | DriftRefusal;
+  readonly verdict: WaveVerdict | LineRowRefusal;
   readonly tree: WaveBoard | null;
 }
 
@@ -382,6 +388,7 @@ export class Lifecycle {
   readonly #waveGate: WaveGate;
   readonly #waveInput: (frame: FrameFacts) => WaveInput;
   readonly #drift: DriftStation;
+  readonly #rows: LineRows;
   readonly #routes = new NextRoutes();
 
   constructor(opts: LifecycleOptions) {
@@ -394,18 +401,30 @@ export class Lifecycle {
     this.#waveGate = opts.waveGate;
     this.#waveInput = opts.waveInput;
     this.#drift = opts.drift;
+    this.#rows = opts.lineRows;
   }
 
   /** The line leg's judgment for one frame — the drift station's row first (the most
    *  upstream cause wins: a request whose document moved must not be told its batch is
-   *  split), then the wave gate's five rows. Null when the frame's row audits no task graph
-   *  AND nothing above it moved. ONE producer: `advance` refuses on it and a preview reports
-   *  the same verdict, so the two entries never give two conclusions for one tree. */
+   *  split), then the wave gate's five rows, then the closure. Null when the frame's row
+   *  audits no task graph, nothing above it moved AND the line holds a dispatchable round.
+   *  ONE producer: `advance` refuses on it and a preview reports the same verdict, so the two
+   *  entries never give two conclusions for one tree. */
   lineRefusalOf(frame: FrameFacts): LineRefusal | null {
-    const drift = this.#drift.refusalOf(frame);
+    // The diagnosis the drift row prints is the HOP's own (the command the refusal names),
+    // so the station is handed the very hop the outcome carries.
+    const hop = this.#reads.hopOf?.(frame) ?? null;
+    const drift = this.#drift.refusalOf({ type: frame.type, pipeline: frame.pipeline, hop });
     if (drift !== null) return { verdict: drift, tree: null };
     const wave = this.waveVerdictOf(frame);
-    return wave === null || wave.ok ? null : { verdict: wave, tree: this.waveTreeOf(frame) };
+    if (wave !== null && !wave.ok) return { verdict: wave, tree: this.waveTreeOf(frame) };
+    // The line's own document rows run LAST, and in the shipped order: a moved document ABOVE
+    // the request is the drift station's, a batch the wave gate refuses keeps its own five rows,
+    // then a line that MOVED owes the round the frontier names (`elsewhereOf`), and only a line
+    // with nothing owed answers its closure. Both rows are refusals, so neither state can reach
+    // the landing.
+    if (frame.state === "reopened") return { verdict: this.#rows.elsewhereOf(hop), tree: null };
+    return frame.state === "closed" ? { verdict: this.#rows.closedOf(frame), tree: null } : null;
   }
 
   /** The line leg's judgment for one frame, or null when the frame's row audits no task

@@ -40,7 +40,7 @@
 
 import { regradeNote } from "../docs/judging/criteria.ts";
 import type { RepoPath } from "../env/paths/root.ts";
-import type { DriftRefusal } from "./advance/drift-station.ts";
+import type { LineRowRefusal } from "./advance/drift-station.ts";
 import type {
   BoardMiss,
   DocFacts,
@@ -463,11 +463,11 @@ export type PreviewOutcome =
       readonly verdict: PreFlightVerdict;
       readonly checked: readonly CheckedRow[];
     }
-  /** The line leg refused — the doc-drift station's row or the wave gate's five, with the
-   *  wave board the `split` cause alone prints. */
+  /** The line leg refused — the doc-drift station's row, the wave gate's five (with the wave
+   *  board the `split` cause alone prints) or the closed line's own row. */
   | {
       readonly kind: "refused";
-      readonly verdict: WaveVerdict | DriftRefusal;
+      readonly verdict: WaveVerdict | LineRowRefusal;
       readonly checked: readonly CheckedRow[];
       readonly tree: WaveBoard | null;
       readonly hop: NextHop | null;
@@ -716,11 +716,11 @@ export class Run {
 
   /** One dispatch step. The scene assembly happens ONCE here: the shell hands the argv-side
    *  input in, and the frame's usage / read-failure values go back unchanged. A line whose rounds
-   *  lie on the closure side holds no dispatchable frame — that member is translated HERE,
-   *  at the dispatch entry, so the board (a pure read) still reports the same tree. */
+   *  lie on the closure side is NOT a usage value: its frame carries the closure, the step's
+   *  pre-flight judges the request, and the line leg answers the closure with its own row — so
+   *  the tree's gates speak before the closure does, exactly as the shipped engine orders them. */
   async advance(request: FrameRequest): Promise<AdvanceOutcome> {
     const assembled = this.#frame.of(request);
-    if (assembled.kind === "closed-line") return Run.#noFrame(request);
     if (assembled.kind === "usage") return assembled;
     if (assembled.kind === "read-failure") return assembled;
     return this.#lifecycle.advance(assembled);
@@ -731,7 +731,6 @@ export class Run {
    *  settle, no brief landing, no lock, no spawn, no ledger write. */
   async previewOf(request: FrameRequest): Promise<PreviewOutcome> {
     const assembled = this.#frame.of(request);
-    if (assembled.kind === "closed-line") return Run.#noFrame(request);
     if (assembled.kind === "usage") return assembled;
     if (assembled.kind === "read-failure") return assembled;
     const frame = assembled;
@@ -799,8 +798,8 @@ export class Run {
     }
     if (assembled.kind === "usage") return assembled;
     // A closed line is a perfectly good board: the SCENE is all the board reads, and the
-    // dispatch cells (phase, round, attempt) are the dispatch entry's own.
-    const scene = assembled.kind === "closed-line" ? assembled.scene : assembled;
+    // dispatch cells (phase, round, attempt) are the step's own.
+    const scene = assembled;
     const holding = await this.inflight.inspect();
     const documents = this.#ledger.read();
     const rows = this.#rowsOf(scene, holding);
@@ -1088,12 +1087,6 @@ export class Run {
       { word: scene.pipeline.specType ?? "phase-spec", doc: scene.pipeline.specPath },
       { word: "plan", doc: scene.pipeline.planPath },
     ];
-  }
-
-  /** The one usage member the DISPATCH entries answer for a line that holds no open round —
-   *  the fill value is the command word the caller typed. */
-  static #noFrame(request: FrameRequest): Usage {
-    return { kind: "usage", reason: { kind: "no-frame", command: request.command } };
   }
 
   /** The tree's refusal as THIS workspace sees it — the phase's own standing refusal, or

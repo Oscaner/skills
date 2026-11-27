@@ -1175,6 +1175,40 @@ export const UNITS: readonly Unit[] = [
     },
   },
   {
+    key: "f7.preview.closed-unchanged",
+    face: "f7",
+    route: "refusal",
+    task: "T17",
+    producer: "run/advance/line-rows.ts#LineRows",
+    // A CLOSED document line whose document still holds the version its review bound: the
+    // request is refused with the anti-spin row (`unchanged`) and the pre-flight's whole
+    // `checked:` block — the shape a line leg that answered "nothing to dispatch" could never
+    // state, and the one cell that reds when the closure stops naming its cause.
+    probe: {
+      fixture: "branch-closed",
+      options: { specClosed: true },
+      argv: ["review", "--type", "phase-spec", "--spec", SPEC_REL, "--dry-run"],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f7.preview.doc-drift.plan-target",
+    face: "f7",
+    route: "refusal",
+    task: "T17",
+    producer: "run/advance/drift-station.ts#DriftStation",
+    // The drifted PLAN line under a request whose `next:` names the SPEC review: the refusal's
+    // cause is the plan face while its hop target is the untouched specification, so the row
+    // prints the bare token and no digest cells. The `specDrift` arm cannot judge this — there
+    // the moved face and the hop target are the same document.
+    probe: {
+      fixture: "branch-closed",
+      options: { planDrift: true },
+      argv: ["implement", "--tasks", "1", "--plan", PLAN, "--dry-run"],
+      dispatch: true,
+    },
+  },
+  {
     key: "f7.preview.usage.missing-plan",
     face: "f7",
     route: "refusal",

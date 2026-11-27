@@ -13,10 +13,24 @@
 // both this row and the pipeline's reopen share — a second comparison would let the board's
 // `next:` and the refusal's diagnosis disagree about one document.
 //
+// THE CAUSE AND THE DIAGNOSIS ARE TWO CELLS. The CAUSE is the first face above the request
+// that moved; the DIAGNOSIS is read off the hop the refusal's `next:` will print, exactly as
+// the shipped composer reads it. They are not the same face: a request whose PLAN moved is
+// refused by the plan face while the frontier's hop names the SPEC review, and printing that
+// plan's digests beside a command naming the spec would diagnose one document and prescribe a
+// round on another. A hop target holding no movement prints the bare token (no cells) — a
+// diagnosis never invents a fact.
+//
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
 import type { LinePhase } from "./line-phase.ts";
-import { DISPATCH_REASON, type DispatchReason, type PhaseFaceKey, PIPELINE_FACES } from "./next.ts";
+import {
+  DISPATCH_REASON,
+  type DispatchReason,
+  type NextHop,
+  type PhaseFaceKey,
+  PIPELINE_FACES,
+} from "./next.ts";
 import type { PipelineInput } from "./pipeline.ts";
 import type { TargetType } from "./target-faces.ts";
 
@@ -34,23 +48,33 @@ export interface DriftDiagnosis {
 }
 
 /**
- * DriftRefusal — the line leg's `doc-drift` verdict. Invariant: it carries the diagnosis the
- * reason names (see the file's header), so a refusal can never print a token without its two
- * ends. A value, not a judgment: the station below produces it, and nothing re-derives it.
+ * LineRowRefusal — the line leg's DOC rows: the drift station's `doc-drift`, the row a line
+ * sitting at another phase owes, and the closure's own token. Invariant: the token names the
+ * cause, and the diagnosis (when the token names a MOVEMENT) is the hop target's — absent,
+ * never invented, when that target recorded none. A value, not a judgment: the producers in
+ * this file and `line-rows.ts` build it, and nothing re-derives it.
  */
-export interface DriftRefusal {
+export interface LineRowRefusal {
   readonly ok: false;
+  /** The line leg's discriminant — the wave gate's `open` cell is the other shape
+   *  (`RouteRenderer#isLine` reads both). */
+  readonly leg: "line";
   /** The ONE table's token — never a second spelling of the fact. */
   readonly reason: DispatchReason;
-  readonly drift: DriftDiagnosis;
+  /** The hop target's two digest ends; absent when that target moved nowhere (or the caller
+   *  asked only whether a cause holds). */
+  readonly drift?: DriftDiagnosis;
 }
 
-/** What one station read needs: the request's target type and its pipeline cells. The frame
- *  assembly and the dispatch entry both hand in exactly this, so the refusal's cause is one
- *  reading whichever face asks. */
+/** What one station read needs: the request's target type, its pipeline cells and the hop the
+ *  refusal's `next:` will print. The frame assembly asks the cause alone (it has no hop yet),
+ *  the dispatch entry hands both in — so the refusal's cause is one reading whichever face
+ *  asks. */
 export interface DriftRequest {
   readonly type: TargetType;
   readonly pipeline: PipelineInput;
+  /** The hop the refusal prints; absent/null when the caller only asks whether a cause holds. */
+  readonly hop?: NextHop | null;
 }
 
 /** One document face as a station reads it: the target type, the ledger key and the record. */
@@ -62,8 +86,9 @@ interface StationLine {
 
 /**
  * DriftStation — the doc-drift refusal producer. Invariant: the first face that MOVED owns the
- * refusal (upstream first, in the pipeline's own order), and every answer carries that face's
- * own diagnosis (see the file's header).
+ * refusal (upstream first, in the pipeline's own order), while the diagnosis it carries is the
+ * HOP's own target (see the file's header) — so a cause and a prescription can never name two
+ * different documents.
  *
  * Rule zero note: the class is two short rows over one line walk, so it holds no state beyond
  * that walk — the alternative (a caller composing "is the upstream drifted" itself) is the
@@ -82,29 +107,51 @@ export class DriftStation {
    *  walks, and a face the pipeline never entered reports nothing. It reads only the request's
    *  target type and its pipeline cells, so the frame assembly asks the same question about a
    *  CLOSED line it never assembled a round for. */
-  refusalOf(request: DriftRequest): DriftRefusal | null {
+  refusalOf(request: DriftRequest): LineRowRefusal | null {
     const index = DriftStation.faceIndexOf(request.type);
     if (index <= 0) return null;
     for (const face of PIPELINE_FACES.slice(0, index)) {
       const line = DriftStation.stationOf(face, request.pipeline);
       if (line === null) continue;
-      const refusal = this.#refusalOfLine(line);
-      if (refusal !== null) return refusal;
+      if (!this.#movedAt(line)) continue;
+      const drift = this.diagnosisOf(request.hop ?? null);
+      return {
+        ok: false,
+        leg: "line",
+        reason: DISPATCH_REASON.docDrift.token,
+        ...(drift === null ? {} : { drift }),
+      };
     }
     return null;
   }
 
-  /** One station line's refusal — the two cells this row judges: it was WORKED, and its
+  /** One station line's CAUSE — the two cells this row judges: it was WORKED, and its
    *  document moved. */
-  #refusalOfLine(line: StationLine): DriftRefusal | null {
-    if (!this.#lines.enteredAt(line.key, line.type)) return null;
-    const pair = this.#lines.driftPairOf(line.key, line.doc);
+  #movedAt(line: StationLine): boolean {
+    if (!this.#lines.enteredAt(line.key, line.type)) return false;
+    return this.#lines.driftPairOf(line.key, line.doc) !== null;
+  }
+
+  /** The DIAGNOSIS of the hop's own render target — the shipped composer's one rule, shared
+   *  with the row a line at another phase owes (`line-rows.ts`), so one hop target has one
+   *  reading whichever row prints it. The
+   *  target's own type is the ledger key of the line it renders, and a branch target carries
+   *  its document in `plan` while every other doc shape carries it in `id`. Null when the
+   *  target names no document (a wave target's movement is the BRIEF's, a different layer this
+   *  station never diagnoses) or that document recorded no movement. */
+  diagnosisOf(hop: NextHop | null): DriftDiagnosis | null {
+    const target = hop === null ? null : hop.target;
+    if (target === null) return null;
+    const identity = this.#lines.identityOf({
+      type: target.type,
+      doc: target.type === "branch" ? null : target.id,
+      plan: target.plan ?? null,
+    });
+    const doc = identity.doc;
+    if (doc === null) return null;
+    const pair = this.#lines.driftPairOf(identity.key, doc);
     if (pair === null) return null;
-    return {
-      ok: false,
-      reason: DISPATCH_REASON.docDrift.token,
-      drift: { layer: "doc", line: line.doc, recorded: pair.recorded, current: pair.current },
-    };
+    return { layer: "doc", line: doc, recorded: pair.recorded, current: pair.current };
   }
 
   /** The document face one pipeline face is judged at — the specification face reads the

@@ -13,9 +13,10 @@
 //     carries the coordinate and `usage` carries one member of the closed union this file
 //     owns (`UsageReason`). The bytes a consumer prints for a member belong to the render
 //     face, and this file spells none of them. A line that holds NO open round is not a
-//     usage: the assembly answers `closed-line` with the scene it read, and whether that is
-//     a refusal (the dispatch entry: `no-frame`) or a perfectly good board is the CALLER's
-//     judgment — the scene carries no phase, so no reader can mistake a read for a dispatch;
+//     usage either: the assembly answers the frame the REQUEST asks for and marks it closed,
+//     so the tree's gates judge it before the line leg answers the closure with its own row
+//     — the scene carries no open phase, and the closure is a fact (`FrameFacts#closed`),
+//     never a read failure;
 //   · `--tasks` is the ONE usage member this assembly can reach. Every other flag's value
 //     domain is refused at the parse layer (a declared flag with a declared domain), so the
 //     parse layer's refusals are not members of this union.
@@ -78,9 +79,7 @@ export type UsageReason =
   /** A board could not read the document one flag named. */
   | { readonly kind: "board-unreadable"; readonly flag: string; readonly target: string }
   /** The base artifact is absent or corrupt. */
-  | { readonly kind: "base-absent"; readonly target: string }
-  /** A work command found no dispatchable frame (the ledger holds no open round). */
-  | { readonly kind: "no-frame"; readonly command: string };
+  | { readonly kind: "base-absent"; readonly target: string };
 
 /** The assembly's failure values — the usage union, or a plan read that failed at a
  *  coordinate. */
@@ -218,11 +217,24 @@ export interface FrameScene {
   readonly workspace: { readonly dir: string; readonly id: string };
 }
 
+/** Where one line sits for the request being assembled (see `FrameFacts#state`). */
+export type FrameState = "open" | "reopened" | "closed";
+
 /** One assembled round's facts — everything a dispatch needs and nothing it must re-derive. */
 export interface FrameFacts extends FrameScene {
   /** The success discriminator — the outcome union's own tag. */
   readonly kind: "frame";
-  /** The dispatch phase this frame runs; a line holding no open round has no frame. */
+  /** Where the line SITS for this request, and the cell the line leg's document rows read
+   *  (`run/advance/line-rows.ts`):
+   *    · `open` — a dispatchable round the frame names;
+   *    · `reopened` — the line's document moved past the version its review bound, so the round
+   *      it owes is that review: the requested verb is refused with the frontier hop's reason;
+   *    · `closed` — nothing is owed, so the closure's own token answers.
+   *  The frame still names the phase the request ASKS for in the last two states (the
+   *  pre-flight judges a request, not a round), and no second caller re-derives this cell. */
+  readonly state: FrameState;
+  /** The dispatch phase this frame would run: the line's OPEN round, or — on a closed line —
+   *  the phase the verb asks for. */
   readonly phase: RoundPhase;
   /** The round number this frame dispatches under. */
   readonly round: number;
@@ -230,15 +242,11 @@ export interface FrameFacts extends FrameScene {
   readonly attempt: number;
 }
 
-/** What one assembly answered: a dispatchable frame, the scene of a line that holds no open
- *  round, or one of the two declared failures. */
-export type FrameOutcome =
-  | FrameFacts
-  /** The line's rounds lie on the closure side — the scene stands, no round is dispatchable.
-   *  The dispatch entry answers `usage`/`no-frame` for it; the board answers a board. */
-  | { readonly kind: "closed-line"; readonly scene: FrameScene }
-  | Usage
-  | ReadFailure;
+/** What one assembly answered: a frame, or one of the two declared failures. A line holding no
+ *  open round is NOT a failure of this read — it assembles the frame its request asks for and
+ *  says so (`FrameFacts#closed`), because the closure is the line leg's row and the tree's
+ *  gates judge the request before it. */
+export type FrameOutcome = FrameFacts | Usage | ReadFailure;
 
 /** The plan's task blocks — the ONE extraction this assembly makes, so the graph and the
  *  empty-`Files` cell read the same blocks. A plan whose block grammar breaks yields no
@@ -296,13 +304,16 @@ export class Frame {
     }
     const taskIds = Frame.#tasksOf(request);
     if (taskIds.failure !== null) return taskIds.failure;
-    const namedPlan = request.plan === undefined ? null : this.#reads.root.relativize(request.plan);
+    // The argv path VALUES are the caller's coordinates, projected ONCE here each (`--spec`
+    // included) so one input is one out-of-tree report however many readers consume it.
+    const namedPlan = request.plan === undefined ? null : this.#reads.root.callerPath(request.plan);
+    const namedSpec = request.spec === undefined ? null : this.#reads.root.callerPath(request.spec);
     const namedPlanText = namedPlan === null ? null : this.#reads.planText(namedPlan);
     if (namedPlanText !== null && namedPlanText.kind === "read-failure") {
       return { kind: "read-failure", target: namedPlanText.target };
     }
     const index = this.#reads.index();
-    const slug = this.#slugOf(request, namedPlan, namedPlanText, index);
+    const slug = this.#slugOf(request, namedSpec, namedPlan, namedPlanText, index);
     if (slug.kind !== "ok") return slug.failure;
     // THE PLAN is the plan-sourced face's own document when argv names it, else the slug's
     // plan (a phase's registration is one identity document plus one plan). A derived plan
@@ -324,7 +335,7 @@ export class Frame {
       };
     }
     const identity = this.#identityOf(slug.slug, index);
-    const doc = Frame.#judgedDocOf(request, identity.doc, planPath);
+    const doc = Frame.#judgedDocOf(request, namedSpec, identity.doc, planPath);
     const target = this.#targetOf(request.type, doc, planPath, taskIds.ids);
     const key = this.#keyOf(request.type, taskIds.ids);
     const scene: FrameScene = {
@@ -355,9 +366,12 @@ export class Frame {
       },
       workspace: { dir: slug.slug, id: slug.slug },
     };
-    // The phase is a DISPATCH cell: a line whose rounds lie on the closure side has none, and
-    // the scene answers unchanged so a read (the board) still reports it.
-    const phase = this.#roundPhaseOf({
+    // The phase is a DISPATCH cell: the line's OPEN round, or — when its rounds lie on the
+    // closure side — the phase the request ASKS for. The closure does not fail this read: the
+    // gates judge the REQUEST (they need its phase, its round and its station values), and the
+    // line leg answers the closure with its own row afterwards. Translating it into a usage
+    // value here would answer "nothing to dispatch" before any gate spoke.
+    const open = this.#roundPhaseOf({
       type: request.type,
       key,
       command: request.command,
@@ -368,11 +382,12 @@ export class Frame {
       doc,
       pipeline: scene.pipeline,
     });
-    if (phase === null) return { kind: "closed-line", scene };
+    const phase = open ?? Frame.#expectedPhaseOf(request.type, request.command);
     const round = this.#roundOf(key, phase);
     return {
       ...scene,
       kind: "frame",
+      state: this.#stateOf({ open, type: request.type, key, doc }),
       phase,
       round,
       attempt: this.#lines.attemptOf(key, Frame.#opOfPhase(phase), round),
@@ -390,7 +405,7 @@ export class Frame {
     ];
     for (const [flag, value] of named) {
       if (value === undefined) continue;
-      const rel = this.#reads.root.relativize(value);
+      const rel = this.#reads.root.callerPath(value);
       // A miss is "no document is here": outside the declared roots, or absent on disk. A
       // present-but-unreadable path is NOT a miss — the read failure is the board's own
       // `cannot read` answer, and folding it into "no docs match" would name the wrong fact.
@@ -436,11 +451,12 @@ export class Frame {
    *  assembly owns, because no slug means no workspace. */
   #slugOf(
     request: FrameRequest,
+    namedSpec: RepoPath | null,
     planPath: RepoPath | null,
     plan: PlanText | null,
     index: SlugIndex,
   ): { kind: "ok"; slug: string } | { kind: "fail"; failure: ReadFailure | Usage } {
-    const source = this.#identityCoordinateOf(request, planPath);
+    const source = Frame.#identityCoordinateOf(namedSpec, planPath);
     if (source === null) {
       return { kind: "fail", failure: { kind: "read-failure", target: request.plan ?? "" } };
     }
@@ -460,10 +476,11 @@ export class Frame {
 
   /** The coordinate whose declared slug names the phase — the specification when the command
    *  named one, else the plan. */
-  #identityCoordinateOf(request: FrameRequest, planPath: RepoPath | null): RepoPath | null {
-    if (request.spec !== undefined) return this.#reads.root.relativize(request.spec);
-    if (planPath !== null) return planPath;
-    return null;
+  static #identityCoordinateOf(
+    namedSpec: RepoPath | null,
+    planPath: RepoPath | null,
+  ): RepoPath | null {
+    return namedSpec ?? planPath;
   }
 
   /** The slug's PLAN coordinate — the one indexed document of that slug declaring the plan
@@ -527,10 +544,11 @@ export class Frame {
    *  coordinate, the resolved identity document is the doc face's own answer. */
   static #judgedDocOf(
     request: FrameRequest,
+    namedSpec: RepoPath | null,
     identityDoc: string | null,
     planPath: RepoPath | null,
   ): string | null {
-    if (request.spec !== undefined) return request.spec;
+    if (namedSpec !== null) return namedSpec;
     if (request.plan !== undefined && planPath !== null) return planPath;
     return identityDoc;
   }
@@ -558,8 +576,8 @@ export class Frame {
   }
 
   /** The phase this frame runs — read off the ONE line walk; null when the line holds no
-   *  open round (its rounds lie on the closure side), which the assembly answers as the
-   *  scene alone. */
+   *  open round (its rounds lie on the closure side), which the assembly records as
+   *  `FrameFacts#closed` and answers with the phase the REQUEST asks for. */
   #roundPhaseOf(cells: {
     readonly type: TargetType;
     readonly key: string;
@@ -585,16 +603,31 @@ export class Frame {
     // A document line's closure is as OF the version its review bound: a document that moved
     // past it owes that review, and the pipeline hop already names the round. So a REVIEW
     // re-enters the line's review lead on exactly that drift (the one row that ADMITS the
-    // review the movement owes), while every other verb keeps asking for its own phase — a
-    // dispatch entry that answered "nothing to dispatch" here would leave the board's own
-    // `next:` command unrunnable.
+    // review the movement owes), while every other verb keeps asking for its own phase — an
+    // entry that refused this request without naming the owed review would leave the board's
+    // own `next:` command unrunnable.
     if (command === "review" && this.#lines.walk.reopenedAt(key, type, doc)) {
       return TargetFaces.phaseOfHop(type, "review");
     }
     // The same admission for a CLOSED line under a different verb: a moved face above it owns
     // the refusal, so the request assembles the phase it would run under and the line leg
-    // names the drift. Nothing moved → no frame, exactly as before.
+    // names the drift. Nothing moved → no OPEN round: the assembly records where the line sits
+    // (`FrameFacts#state`) and the line leg answers it with its own row.
     return this.#driftedUpstream({ type, pipeline }) ? Frame.#expectedPhaseOf(type, command) : null;
+  }
+
+  /** Where the line sits for a request whose open round the walk did not answer. A document
+   *  line whose reviewed version its document moved past is REOPENED — it owes the review the
+   *  pipeline hop already names — and every other such line is CLOSED. The reopen is asked of
+   *  the SAME walk read the frame's phase is (`reopenedAt`), never of a second comparison. */
+  #stateOf(cells: {
+    readonly open: RoundPhase | null;
+    readonly type: TargetType;
+    readonly key: string;
+    readonly doc: string | null;
+  }): FrameState {
+    if (cells.open !== null) return "open";
+    return this.#lines.walk.reopenedAt(cells.key, cells.type, cells.doc) ? "reopened" : "closed";
   }
 
   /** The phase a command asks the LINE for — the verb's own word, or the target row's review

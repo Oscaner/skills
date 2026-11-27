@@ -41,12 +41,14 @@ import { DocWorld } from "./docs/world.ts";
 import { Env } from "./env/index.ts";
 import type { RepoPath } from "./env/paths/root.ts";
 import type { SlugIndex } from "./env/paths/slug-index.ts";
+import { Clock } from "./env/process/clock.ts";
 import type { PlanText } from "./env/vcs/plan-source.ts";
 import { Workspace } from "./env/workspace/workspace.ts";
 import { DriftStation } from "./run/advance/drift-station.ts";
 import { type DocFacts, Frame } from "./run/advance/frame.ts";
 import { Lifecycle } from "./run/advance/lifecycle.ts";
 import { LinePhase } from "./run/advance/line-phase.ts";
+import { LineRows } from "./run/advance/line-rows.ts";
 import type { DocClassVerdict } from "./run/advance/next.ts";
 import { Pipeline } from "./run/advance/pipeline.ts";
 import { AdvanceReads, CarrierReads, type StationWording } from "./run/advance/reads.ts";
@@ -126,9 +128,24 @@ export interface BootSeams {
 export class Boot {
   /** Run one invocation: compose the graph, hand the argv to the surface, answer its code. */
   static async main(argv: readonly string[], seams: BootSeams = {}): Promise<number> {
+    // The ONE word table and the ONE writer every seam below reports through: the out-of-tree
+    // sink is wired HERE because `env/` reports the fact and spells no sentence. A path that
+    // leaves the repository is warned about ONCE per invocation — several readers normalize the
+    // same argv value (the identity gate, then the frame), and one input is one warning.
+    const clock = new Clock();
+    const stderr = seams.io?.stderr ?? ((text: string) => process.stderr.write(text));
+    const words = new Words({ clock });
+    const warned = new Set<string>();
     const env = new Env({
       baseName: BASE_NAME,
       cwd: process.cwd(),
+      clock,
+      outside: (rel) => {
+        const outside = String(rel);
+        if (warned.has(outside)) return;
+        warned.add(outside);
+        stderr(`${words.station("warn")} ${words.outsideRepo(outside)}\n`);
+      },
       ...(seams.runner === undefined ? {} : { runner: seams.runner }),
       ...(seams.stepRunner === undefined ? {} : { stepRunner: seams.stepRunner }),
       ...(seams.hostProbe === undefined ? {} : { hostProbe: seams.hostProbe }),
@@ -144,7 +161,6 @@ export class Boot {
       return read.kind === "text" ? read.value : null;
     };
     const world = Boot.worldOf(env, readRepo);
-    const clock = env.process.clock;
     const documents = new Documents({
       readText: (target) => family.readText(target),
       today: clock.dayOf(clock.now()),
@@ -160,8 +176,6 @@ export class Boot {
     // reaches the frame and answers that frame's own declared failure.
     const gateApplies = argv[0] !== "board" && (target?.flag === "--spec" || argv[0] === "base");
     if (verdict !== null && gateApplies) {
-      const words = new Words({ clock });
-      const stderr = seams.io?.stderr ?? ((text: string) => process.stderr.write(text));
       stderr(`${words.station("blocked")} ${words.slugRefusal(verdict)}\n`);
       return 1;
     }
@@ -180,7 +194,10 @@ export class Boot {
         ? {}
         : { run: wiring.run, base: wiring.base, boardType: wiring.boardType }),
       documents,
-      relative: (raw) => env.paths.root.relativize(raw),
+      // The surface's ONE argv normalization seam — the reporting projection, so the pure
+      // commands (`schema get --output skeleton <target>`) and the `--reviews` report read the
+      // same out-of-tree fact the work commands' frame does.
+      relative: (raw) => env.paths.root.callerPath(raw),
       stdin: seams.stdin ?? (() => readFileSync(0, "utf8")),
       provisioner: env.provision,
       ...(seams.io === undefined ? {} : { io: seams.io }),
@@ -274,6 +291,7 @@ export class Boot {
       gate,
       authority: new Authority(),
       drift,
+      lineRows: new LineRows({ lines, drifts: drift }),
       inflight,
       child,
       ledger,
@@ -449,7 +467,7 @@ export class Boot {
 
   /** The base artifact's read/write resolution over one argv `--plan`. */
   static baseOf(env: Env, reads: GraphReads, planArg: string): BaseResolution {
-    const rel = env.paths.root.relativize(planArg);
+    const rel = env.paths.root.callerPath(planArg);
     const verdict = Boot.verdictOf(reads.index, reads.readRepo, rel, reads.readRepo(rel));
     if (verdict.kind !== "ok") {
       return {
@@ -641,7 +659,7 @@ export class Boot {
         readonly slug: string;
         readonly target: string;
       } {
-    const rel = env.paths.root.relativize(target.value);
+    const rel = env.paths.root.callerPath(target.value);
     const verdict = Boot.verdictOf(index, readRepo, rel, readRepo(rel));
     return verdict.kind === "ok"
       ? verdict.slug

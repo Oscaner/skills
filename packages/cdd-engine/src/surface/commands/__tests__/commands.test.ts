@@ -109,11 +109,11 @@ const stubRun = (
   ({
     advance: async (request: FrameRequest) => {
       calls.advance.push(request);
-      return answers.advance ?? { kind: "usage", reason: { kind: "no-frame", command: "x" } };
+      return answers.advance ?? { kind: "usage", reason: { kind: "read-failure", target: "x.md" } };
     },
     previewOf: async (request: FrameRequest) => {
       calls.preview.push(request);
-      return answers.preview ?? { kind: "usage", reason: { kind: "no-frame", command: "x" } };
+      return answers.preview ?? { kind: "usage", reason: { kind: "read-failure", target: "x.md" } };
     },
   }) as unknown as Run;
 

@@ -27,6 +27,14 @@
 // read face `env/workspace` does not own — a listing of the workspace's own children — is
 // injected, so this file touches no filesystem.
 //
+// The document itself is the FROZEN one: `{plan?, timeoutCount, engineSelfWrittenCount,
+// engineRecoveryCount, harnessAbortCount, waves: [...]}`, each row keyed by its `wave` cell
+// (a wave's task group, a document word, or `branch`). The engine that shipped before this
+// tree wrote that document, every consumer workspace holds one, and the corpus fixtures
+// declare it, so a reader of another shape would answer `null` on a legal tree and reset the
+// history it was supposed to carry. What this tree ADDS is additive: a row may also carry
+// the review-batch count, the rulings and the re-grades.
+//
 // Rule zero (over the 200-line class limit): the ledger is ONE object with one invariant
 // (one fact, one writer) and one persist point; splitting it by reader would put the same
 // document behind several writers, which is exactly the defect the invariant names.
@@ -36,7 +44,7 @@ import type { Workspace } from "../../env/workspace/workspace.ts";
 import { type ArtifactRead, ArtifactReads, type ArtifactSource } from "./artifact-reads.ts";
 import { ArtifactIdentity, type ArtifactKind, type Artifacts } from "./artifacts.ts";
 import { ROUND_OPS, RoundIdentity, type RoundOp } from "./identity.ts";
-import { type Drift, REVIEWED_KINDS, ReviewedIdentity, type ReviewedKind } from "./reviewed.ts";
+import { type Drift, ReviewedIdentity, type ReviewedKind } from "./reviewed.ts";
 import { type RegradeRecord, type RulingRecord, Rulings } from "./rulings.ts";
 
 /** The terminal verdict of one dispatched round — the completion flag and the tree-clean
@@ -81,30 +89,56 @@ export interface RoundRecordInit {
   readonly carrierDigest?: string | null;
 }
 
+/** The progress document's four counter cells — the frozen key set at zero. This tree
+ *  increments none of them; they ride through a read/write pair untouched so a document the
+ *  shipped engine wrote keeps its own bookkeeping. */
+export const COUNTER_ZERO = {
+  timeoutCount: 0,
+  engineSelfWrittenCount: 0,
+  engineRecoveryCount: 0,
+  harnessAbortCount: 0,
+} as const;
+
+/** The persisted reviewed-version cell — the frozen document's own union: a document line
+ *  binds a `doc-revision`, a wave line a `brief-revision`, and the two never mix on one row. */
+export type PersistedReviewed =
+  | { readonly kind: "doc-revision"; readonly doc: string; readonly doc_hash: string }
+  | { readonly kind: "brief-revision"; readonly plan: string; readonly brief_hash: string };
+
 /** One line's persisted record — the row the ledger document holds. The snake_case keys are
  *  the FILE's contract (an engine artifact, not a consumer surface); the class's accessors
- *  are the API. */
+ *  are the API. `wave` is the frozen row key: a wave's task group, a document word, or
+ *  `branch` — the line word is derived from it, never stored beside it. */
 interface LedgerRow {
-  readonly key: string;
+  readonly wave: string;
   readonly rounds?: readonly RoundRecord[];
-  readonly plan_tasks?: readonly number[];
-  readonly doc_hash?: string;
+  readonly planTasks?: readonly number[];
+  readonly reviewedRevision?: PersistedReviewed;
+  /** The line's review-batch count — this tree's own cell (the frozen document counts
+   *  nothing per line), absent on a row no review opened. */
   readonly batch?: number;
-  readonly reviewed?: {
-    readonly kind: ReviewedKind;
-    readonly path: string;
-    readonly hash: string;
-  };
   readonly rulings?: readonly RulingRecord[];
   readonly regrades?: readonly RegradeRecord[];
 }
 
-/** The ledger's persisted document — the one file this class writes. */
+/** The ledger write one round lands, as a consumer states it: the row's own coordinate
+ *  (`progress.waves["1"]`) and the op it books under. Both are the document's facts, so a
+ *  sentence about the write reads them instead of spelling them. */
+export interface RoundWrite {
+  readonly row: string;
+  readonly op: RoundOp;
+}
+
+/** The ledger's persisted document — the one file this class writes, in the frozen shape. */
 export interface LedgerDocument {
   /** The `--plan` path recorded at first create. */
   readonly plan?: string;
-  /** The recorded lines, in first-write order. */
-  readonly lines: readonly LedgerRow[];
+  readonly timeoutCount: number;
+  readonly engineSelfWrittenCount: number;
+  readonly engineRecoveryCount: number;
+  readonly harnessAbortCount: number;
+  /** The recorded lines, in first-write order — the frozen `waves` container. */
+  readonly waves: readonly LedgerRow[];
 }
 
 /** One wave line as the readers see it. */
@@ -194,6 +228,11 @@ export class Ledger {
   /** The ledger document's workspace name — the one file this class writes. */
   static readonly FILE = "progress.json";
 
+  /** The row container's spelling in a `would record:` row — the document's own stem and
+   *  its container cell, so the sentence a dry run prints and the file it would write can
+   *  never name two coordinates. */
+  static readonly ROW_CONTAINER = "progress.waves";
+
   readonly #workspace: Workspace;
   readonly #names: () => readonly string[];
   readonly #artifacts: Artifacts | null;
@@ -211,18 +250,26 @@ export class Ledger {
   // -------------------------------------------------------------------------
 
   /** The ledger document as recorded; null when nothing is there yet (the ledger never
-   *  invents state). */
+   *  invents state). A document whose row container is not an array is not this engine's
+   *  document: the answer is null, the same absent fact as a missing file. */
   read(): LedgerDocument | null {
     const read = this.#workspace.readJson(Ledger.FILE);
     if (read.kind !== "ok") return null;
     const value = read.value as Partial<LedgerDocument> | null;
-    if (value === null || typeof value !== "object" || !Array.isArray(value.lines)) return null;
-    return { ...(typeof value.plan === "string" ? { plan: value.plan } : {}), lines: value.lines };
+    if (value === null || typeof value !== "object" || !Array.isArray(value.waves)) return null;
+    return {
+      ...(typeof value.plan === "string" ? { plan: value.plan } : {}),
+      timeoutCount: Ledger.#counterOf(value.timeoutCount),
+      engineSelfWrittenCount: Ledger.#counterOf(value.engineSelfWrittenCount),
+      engineRecoveryCount: Ledger.#counterOf(value.engineRecoveryCount),
+      harnessAbortCount: Ledger.#counterOf(value.harnessAbortCount),
+      waves: value.waves.filter((row) => typeof (row as LedgerRow | undefined)?.wave === "string"),
+    };
   }
 
-  /** The empty document — a fresh session's starting point. */
+  /** The empty document — a fresh session's starting point, in the frozen fixed key set. */
   empty(): LedgerDocument {
-    return { lines: [] };
+    return { ...COUNTER_ZERO, waves: [] };
   }
 
   /** The ledger's ONE write point: the atomic write of the whole document. */
@@ -230,19 +277,23 @@ export class Ledger {
     this.#workspace.writeJson(Ledger.FILE, document);
   }
 
-  /** One row, or undefined. */
-  static rowOf(document: LedgerDocument | null, key: string): LedgerRow | undefined {
-    return document?.lines.find((row) => row.key === key);
+  /** One line's row, or undefined — read by the line WORD, and folded to the document's own
+   *  key cell here so a caller never spells the persisted key. */
+  static rowOf(document: LedgerDocument | null, line: string): LedgerRow | undefined {
+    const key = RoundIdentity.rowKeyOf(line);
+    return document?.waves.find((row) => row.wave === key);
   }
 
-  /** The document with one row replaced (or appended) — the immutable update every writer
-   *  funnels through, so no writer mutates a row in place. */
-  #withRow(document: LedgerDocument, key: string, update: (row: LedgerRow) => LedgerRow) {
-    const index = document.lines.findIndex((row) => row.key === key);
-    const lines = [...document.lines];
-    if (index === -1) lines.push(update({ key }));
-    else lines[index] = update(lines[index] as LedgerRow);
-    return { ...document, lines };
+  /** The document with one line's row replaced (or appended) — the immutable update every
+   *  writer funnels through, so no writer mutates a row in place. An unknown cell a row
+   *  already carries survives the spread: this tree adds cells, it never drops one. */
+  #withRow(document: LedgerDocument, line: string, update: (row: LedgerRow) => LedgerRow) {
+    const key = RoundIdentity.rowKeyOf(line);
+    const index = document.waves.findIndex((row) => row.wave === key);
+    const waves = [...document.waves];
+    if (index === -1) waves.push(update({ wave: key }));
+    else waves[index] = update(waves[index] as LedgerRow);
+    return { ...document, waves };
   }
 
   // -------------------------------------------------------------------------
@@ -289,7 +340,7 @@ export class Ledger {
   /** Every booked round of one document, flattened in row order — the ONE collector the
    *  crash read takes its input from, so no reader re-walks the rows itself. */
   nodeRecordsOf(document: LedgerDocument | null): readonly RoundRecord[] {
-    return (document?.lines ?? []).flatMap((row) => row.rounds ?? []);
+    return (document?.waves ?? []).flatMap((row) => row.rounds ?? []);
   }
 
   /** The crashed rounds as cells, one per round identity, in `(cycle, attempt)` order: a
@@ -323,28 +374,31 @@ export class Ledger {
 
   /** The wave lines, in the document's first-write order. */
   waveLines(): readonly WaveLine[] {
-    return this.#rowsOf("wave").map((row) => ({
-      line: row.key,
-      taskIds: RoundIdentity.taskIdsOfWord(row.key),
-      rounds: [...(row.rounds ?? [])],
-      planTasks: row.plan_tasks === undefined ? null : [...row.plan_tasks],
-      reviewed: Ledger.#reviewedOf(row),
-    }));
+    return this.#rowsOf("wave").map((row) => {
+      const line = RoundIdentity.lineWordOfRowKey(row.wave);
+      return {
+        line,
+        taskIds: RoundIdentity.taskIdsOfWord(line),
+        rounds: [...(row.rounds ?? [])],
+        planTasks: row.planTasks === undefined ? null : [...row.planTasks],
+        reviewed: Ledger.#reviewedOf(row),
+      };
+    });
   }
 
   /** The document review lines, in the document's first-write order. The reviewed version
-   *  is DERIVED from the row's own `doc_hash` cell — one persisted fact, one read face. */
+   *  is DERIVED from the row's one persisted cell — one fact, one read face. */
   docLines(): readonly DocLine[] {
-    return this.#rowsOf("doc").map((row) => ({
-      line: row.key,
-      rounds: [...(row.rounds ?? [])],
-      docHash: row.doc_hash ?? null,
-      batch: row.batch ?? 0,
-      reviewed:
-        row.doc_hash === undefined
-          ? null
-          : new ReviewedIdentity({ kind: "document", path: row.key, hash: row.doc_hash }),
-    }));
+    return this.#rowsOf("doc").map((row) => {
+      const reviewed = Ledger.#reviewedOf(row);
+      return {
+        line: RoundIdentity.lineWordOfRowKey(row.wave),
+        rounds: [...(row.rounds ?? [])],
+        docHash: reviewed !== null && reviewed.kind === "document" ? reviewed.hash : null,
+        batch: row.batch ?? 0,
+        reviewed,
+      };
+    });
   }
 
   /** The branch line, or null when the branch has no record. */
@@ -352,7 +406,7 @@ export class Ledger {
     const row = this.#rowsOf("branch")[0];
     if (row === undefined) return null;
     return {
-      line: row.key,
+      line: RoundIdentity.lineWordOfRowKey(row.wave),
       rounds: [...(row.rounds ?? [])],
       reviewed: Ledger.#reviewedOf(row),
     };
@@ -366,14 +420,14 @@ export class Ledger {
    *  existing snapshot is never overwritten, because the fact it records is historical. */
   closeWave(line: string, planTasks: readonly number[]): void {
     const document = this.read() ?? this.empty();
-    if (Ledger.rowOf(document, line)?.plan_tasks !== undefined) return;
-    this.#write(this.#withRow(document, line, (row) => ({ ...row, plan_tasks: [...planTasks] })));
+    if (Ledger.rowOf(document, line)?.planTasks !== undefined) return;
+    this.#write(this.#withRow(document, line, (row) => ({ ...row, planTasks: [...planTasks] })));
   }
 
   /** A wave line's snapshot, or null while the wave is open (and on a row recorded before
    *  the snapshot existed — the absent fact is never reconstructed). */
   planTasksOf(line: string): readonly number[] | null {
-    const snapshot = Ledger.rowOf(this.read(), line)?.plan_tasks;
+    const snapshot = Ledger.rowOf(this.read(), line)?.planTasks;
     return snapshot === undefined ? null : [...snapshot];
   }
 
@@ -383,35 +437,35 @@ export class Ledger {
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
-        reviewed: { kind: reviewed.kind, path: reviewed.path, hash: reviewed.hash },
+        reviewedRevision: Ledger.#persistedRef(reviewed),
       })),
     );
   }
 
   /** The version one line reviewed, or null when none was recorded. */
   reviewedOf(line: string): ReviewedIdentity | null {
-    return Ledger.#reviewedOf(Ledger.rowOf(this.read(), line) ?? { key: line });
+    return Ledger.#reviewedOf(Ledger.rowOf(this.read(), line) ?? { wave: line });
   }
 
-  /** Record one document review batch: the version it read (`doc_hash`) and the increment
-   *  of the line's batch counter. A document's SECOND review is batch 2 — the counter is
-   *  the line's own history, never a re-derivation from its rounds. `doc_hash` is the
-   *  LATEST reviewed version: each review overwrites it, so the drift read always compares
-   *  against the newest review rather than the first one. Only a review opens a batch — a fix
-   *  moves the version through `recordReviewedDoc` and leaves this counter alone. */
+  /** Record one document review batch: the version it read and the increment of the line's
+   *  batch counter. A document's SECOND review is batch 2 — the counter is the line's own
+   *  history, never a re-derivation from its rounds. The version cell is the LATEST reviewed
+   *  one: each review overwrites it, so the drift read always compares against the newest
+   *  review rather than the first one. Only a review opens a batch — a fix moves the version
+   *  through `recordReviewedDoc` and leaves this counter alone. */
   recordDocReview(line: string, content: string): void {
     const document = this.read() ?? this.empty();
     const hash = ReviewedIdentity.hashOf(content);
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
-        doc_hash: hash,
+        reviewedRevision: { kind: "doc-revision", doc: line, doc_hash: hash },
         batch: (row.batch ?? 0) + 1,
       })),
     );
   }
 
-  /** Record the version a FIX round produced — the SAME `doc_hash` cell a review writes, with
+  /** Record the version a FIX round produced — the SAME version cell a review writes, with
    *  the line's review-batch counter untouched. A fix moves the recorded version (it edits the
    *  document it judges) but it is no review batch: only `recordDocReview` opens one, so the
    *  counter counts reviews and nothing else. */
@@ -421,14 +475,18 @@ export class Ledger {
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
-        doc_hash: hash,
+        reviewedRevision: { kind: "doc-revision", doc: line, doc_hash: hash },
       })),
     );
   }
 
-  /** A document line's recorded reviewed digest, or null before its first review. */
+  /** A document line's recorded reviewed digest, or null before its first review (and when
+   *  the recorded digest is not one this tree can compare). */
   docHashOf(line: string): string | null {
-    return Ledger.rowOf(this.read(), line)?.doc_hash ?? null;
+    const row = Ledger.rowOf(this.read(), line);
+    if (row === undefined) return null;
+    const reviewed = Ledger.#reviewedOf(row);
+    return reviewed !== null && reviewed.kind === "document" ? reviewed.hash : null;
   }
 
   /** The drift read: the recorded reviewed version against the document's CURRENT bytes.
@@ -479,6 +537,24 @@ export class Ledger {
   // artifacts — the path accessor, the observation set, the orphan face
   // -------------------------------------------------------------------------
 
+  /** The coordinate one round's record lands on, as a `would record:` row spells it —
+   *  `progress.waves["1"]`. The container cell and the row key are the document's own, so a
+   *  sentence about the write and the write itself cannot name two rows. */
+  static rowCoordinateOf(line: string): string {
+    return `${Ledger.ROW_CONTAINER}["${RoundIdentity.rowKeyOf(line)}"]`;
+  }
+
+  /** The paths one round would WRITE, on the repo-relative basis, in the naming rule's
+   *  order — the draft the child lands first, the round's report and, where the rule
+   *  prescribes one, the test-evidence file. A consumer reads this value; it never composes
+   *  a name, so the forecast and the write are the same derivation. */
+  writeSetOf(line: string, op: RoundOp, cycle: number, attempt: number): readonly string[] {
+    const round = new RoundIdentity({ line, op, cycle, attempt });
+    return ArtifactIdentity.prescribedOf(round).map((kind) =>
+      String(this.#workspace.relOf(ArtifactIdentity.nameOf(round, kind))),
+    );
+  }
+
   /** The carrier path one record resolves — THE only accessor of that fact. The identity
    *  comes from the record's four cells; the ladder reads the finalized carrier first (the
    *  round's answer) and the child's draft second, and answers `""` when neither landed. */
@@ -507,20 +583,21 @@ export class Ledger {
     if (artifacts === null) return [];
     const reads = new ArtifactReads({ artifacts, source: this.#source() });
     const observations: ArtifactObservation[] = [];
-    for (const row of this.read()?.lines ?? []) {
+    for (const row of this.read()?.waves ?? []) {
       for (const record of row.rounds ?? []) {
         if (record.op !== "review") continue;
-        const { type, key } = this.#targetOf(row.key);
+        const line = RoundIdentity.lineWordOfRowKey(row.wave);
+        const { type, key } = this.#targetOf(line);
         const carrier = this.carrierPathOf(type, key, record);
         observations.push({
-          line: row.key,
+          line,
           kind: "rulings",
           cycle: record.cycle,
           attempt: record.attempt,
           carrier,
           read: reads.read(
             new RoundIdentity({
-              line: row.key,
+              line,
               op: record.op,
               cycle: record.cycle,
               attempt: record.attempt,
@@ -568,8 +645,8 @@ export class Ledger {
 
   /** The rows of one line kind, in document order. */
   #rowsOf(kind: "wave" | "doc" | "branch"): readonly LedgerRow[] {
-    return (this.read()?.lines ?? []).filter(
-      (row) => RoundIdentity.splitLineWord(row.key).kind === kind,
+    return (this.read()?.waves ?? []).filter(
+      (row) => RoundIdentity.lineKindOfRowKey(row.wave) === kind,
     );
   }
 
@@ -612,15 +689,47 @@ export class Ledger {
     };
   }
 
-  /** One row's recorded reviewed version, or null. */
+  /** One row's persisted reviewed version, or null when the row records none this tree can
+   *  compare. The digest cell is the frozen one, and a digest of another algorithm (or no
+   *  digest at all) is not a fact this read can judge against: the answer is null — "no
+   *  recorded version" — never a fabricated drift. */
   static #reviewedOf(row: LedgerRow): ReviewedIdentity | null {
-    const reviewed = row.reviewed;
-    if (reviewed === undefined || !REVIEWED_KINDS.includes(reviewed.kind)) return null;
-    return new ReviewedIdentity({
-      kind: reviewed.kind,
-      path: reviewed.path,
-      hash: reviewed.hash,
-    });
+    const ref = row.reviewedRevision;
+    if (ref === undefined) return null;
+    const facts = Ledger.#reviewedFactsOf(ref);
+    if (facts === null) return null;
+    try {
+      return new ReviewedIdentity(facts);
+    } catch {
+      return null;
+    }
+  }
+
+  /** The frozen reviewed-revision union folded to the identity's own facts — the ONE place
+   *  the persisted kind words meet `ReviewedKind`. An unknown kind is no fact. */
+  static #reviewedFactsOf(
+    ref: PersistedReviewed,
+  ): { kind: ReviewedKind; path: string; hash: string } | null {
+    if (ref.kind === "doc-revision") {
+      return { kind: "document", path: ref.doc, hash: ref.doc_hash };
+    }
+    if (ref.kind === "brief-revision") {
+      return { kind: "brief", path: ref.plan, hash: ref.brief_hash };
+    }
+    return null;
+  }
+
+  /** One identity as the document's frozen cell — the inverse fold of `#reviewedFactsOf`. */
+  static #persistedRef(reviewed: ReviewedIdentity): PersistedReviewed {
+    return reviewed.kind === "document"
+      ? { kind: "doc-revision", doc: reviewed.path, doc_hash: reviewed.hash }
+      : { kind: "brief-revision", plan: reviewed.path, brief_hash: reviewed.hash };
+  }
+
+  /** One counter cell as recorded — a document written by another engine, or one hand-edited
+   *  to a non-number, answers the zero rather than poisoning a later read. */
+  static #counterOf(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
   }
 
   /** The next un-registered cycle of one op — latest on record + 1 (1 when none). */

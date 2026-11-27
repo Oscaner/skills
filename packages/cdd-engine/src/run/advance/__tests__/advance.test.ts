@@ -2031,7 +2031,19 @@ describe("the dry run", () => {
     expect(fx.ledger.rounds(RoundIdentity.lineWordOf("wave", "1"))).toEqual([]);
     expect(existsSync(fx.options.workspace.root.path)).toBe(false);
     if (outcome.kind !== "pass") return;
-    expect(outcome.brief).toBe("brief.md");
+    // The read input and the write facts arrive on the repo-relative basis — the one basis
+    // the dry run's names are printed in, so a producer never hands the render face a second
+    // spelling.
+    expect(outcome.brief).toBe(".kairos/cdd/p9/brief.md");
+    // The write set is the naming rule's ORDER and condition: the draft the child lands (never
+    // the sealed `final`), the round's report and the evidence file a work round prescribes.
+    expect(outcome.writes).toEqual([
+      ".kairos/cdd/p9/tasks-1-implement-1.json",
+      ".kairos/cdd/p9/tasks-1-implement-1-report.md",
+      ".kairos/cdd/p9/tasks-1-implement-1-test-evidence.json",
+    ]);
+    // The ledger row is the document's own key — the wave's task group, not the line word.
+    expect(outcome.ledger).toEqual({ row: 'progress.waves["1"]', op: "implement" });
     expect(fx.lines.wavePhaseOf("1")).toBe("implement");
   });
 

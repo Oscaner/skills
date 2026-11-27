@@ -37,6 +37,12 @@ export const BRANCH_LINE_WORD = "branch";
 /** The wave line word's spine — `tasks-<comma-separated ids>`. */
 export const WAVE_LINE_PREFIX = "tasks-";
 
+/** The wave row's KEY shape — the task-group ids, comma-separated. The progress document
+ *  keys a wave row by this cell (the frozen `wave` cell), so the fold below is the only
+ *  place the persisted key and the ledger's line word meet. A document word and `branch`
+ *  never match it. */
+const WAVE_KEY = /^\d+(,\d+)*$/;
+
 /** The cells one round identity carries. */
 export interface RoundIdentityFacts {
   /** The line word (`tasks-1,2` · `phase-spec` · `branch`). */
@@ -132,6 +138,26 @@ export class RoundIdentity {
     return word.startsWith(WAVE_LINE_PREFIX)
       ? { kind: "wave", key: word.slice(WAVE_LINE_PREFIX.length) }
       : { kind: word === BRANCH_LINE_WORD ? "branch" : "doc", key: word };
+  }
+
+  /** The persisted ROW key of one line word — the cell the progress document holds. A wave
+   *  row is keyed by its task group (`1,2`), every other row by its own word. The inverse
+   *  of `lineWordOfRowKey`, and the ONE fold between the document's cell and the ledger's
+   *  line grammar. */
+  static rowKeyOf(word: string): string {
+    return RoundIdentity.splitLineWord(word).key;
+  }
+
+  /** The line kind one persisted row key names, read off the key's own shape. */
+  static lineKindOfRowKey(key: string): LineKind {
+    if (WAVE_KEY.test(key)) return "wave";
+    return key === BRANCH_LINE_WORD ? "branch" : "doc";
+  }
+
+  /** The line word a persisted row key spells — `rowKeyOf`'s inverse, so a reader of the
+   *  document never re-spells the wave spine. */
+  static lineWordOfRowKey(key: string): string {
+    return RoundIdentity.lineKindOfRowKey(key) === "wave" ? `${WAVE_LINE_PREFIX}${key}` : key;
   }
 
   static #assertPositive(value: number, cell: string): void {

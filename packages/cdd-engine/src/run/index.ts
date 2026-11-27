@@ -50,7 +50,7 @@ import type {
   ReadFailure,
   Usage,
 } from "./advance/frame.ts";
-import type { AdvanceOutcome, Lifecycle, LifecycleReads } from "./advance/lifecycle.ts";
+import { type AdvanceOutcome, Lifecycle, type LifecycleReads } from "./advance/lifecycle.ts";
 import type { LinePhase, LineState } from "./advance/line-phase.ts";
 import type { NextHop } from "./advance/next.ts";
 import type { Pipeline } from "./advance/pipeline.ts";
@@ -64,7 +64,7 @@ import type { Refusal, RefusalState } from "./gate/refusal.ts";
 import { Artifacts } from "./ledger/artifacts.ts";
 import { CarrierLine } from "./ledger/carrier-line.ts";
 import { RoundIdentity } from "./ledger/identity.ts";
-import type { ArtifactObservation, RoundRecordInit } from "./ledger/ledger.ts";
+import type { ArtifactObservation, RoundRecordInit, RoundWrite } from "./ledger/ledger.ts";
 import {
   type BranchLine,
   type CrashedRound,
@@ -412,13 +412,17 @@ export type BoardOutcome =
 
 /** `previewOf`'s declared answer — the `--dry-run` face's whole value set. */
 export type PreviewOutcome =
-  /** The one dispatch that WOULD run: its frame, the host fact, the brief's name and the
-   *  same read-only `checked` rows the real dispatch will carry. */
+  /** The one dispatch that WOULD run: its frame, the host fact, the read input and the write
+   *  facts, on the repo-relative basis, plus the same read-only `checked` rows the real
+   *  dispatch will carry. Every name here is a fact the read produced — the render face joins
+   *  them and spells none of them. */
   | {
       readonly kind: "pass";
       readonly frame: FrameFacts;
       readonly host: string;
       readonly brief: string;
+      readonly writes: readonly string[];
+      readonly ledger: RoundWrite;
       readonly checked: readonly CheckedRow[];
     }
   /** The in-flight gate holds the tree. */
@@ -717,8 +721,18 @@ export class Run {
       frame,
       host: this.#host(),
       // The brief's cell follows the SAME target-row cell the landing reads: off the task
-      // face no brief lands, so a preview names none.
-      brief: TargetFaces.advancesBatch(frame.type) ? this.#briefName(frame) : "",
+      // face no brief lands, so a preview names none — and on it the cell is the read
+      // input's repo-relative coordinate, the same basis every other name here takes.
+      brief: TargetFaces.advancesBatch(frame.type)
+        ? String(this.#workspace.relOf(this.#briefName(frame)))
+        : "",
+      writes: this.#ledger.writeSetOf(
+        frame.key,
+        Lifecycle.opOf(frame.phase),
+        frame.round,
+        frame.attempt,
+      ),
+      ledger: { row: Ledger.rowCoordinateOf(frame.key), op: Lifecycle.opOf(frame.phase) },
       checked: verdict.checked,
     };
   }

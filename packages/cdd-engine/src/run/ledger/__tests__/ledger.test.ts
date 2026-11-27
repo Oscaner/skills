@@ -158,9 +158,12 @@ describe("the document review line", () => {
     expect(second?.docHash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
     expect(ledger.docDriftOf("phase-spec", "the body as re-reviewed")).toBe("same");
     expect(ledger.docDriftOf("phase-spec", "the body as reviewed")).toBe("drift");
-    // The row's own persisted cell IS the digest — one fact, one home.
+    // The row's own persisted cell IS the digest — one fact, one home, in the frozen
+    // document's reviewed-revision cell.
     const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
-    expect(raw.lines[0].doc_hash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
+    expect(raw.waves[0].reviewedRevision.doc_hash).toBe(
+      ReviewedIdentity.hashOf("the body as re-reviewed"),
+    );
   });
 
   it("moves the version a fix produced without opening a review batch", () => {
@@ -199,6 +202,86 @@ describe("the document review line", () => {
   });
 });
 
+describe("the frozen progress document", () => {
+  /** One round record, as the shipped engine's document holds it. */
+  const round = (op: "implement" | "review" | "fix"): RoundRecord => ({
+    op,
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: verdict(true),
+    violations: [],
+    carrierDigest: null,
+  });
+
+  /** The document the shipped engine writes — what every consumer workspace holds and what
+   *  the corpus fixtures declare. */
+  const frozen = () => ({
+    plan: "docs/kairos/plans/p9.md",
+    timeoutCount: 0,
+    engineSelfWrittenCount: 2,
+    engineRecoveryCount: 0,
+    harnessAbortCount: 0,
+    waves: [
+      {
+        wave: "1",
+        rounds: [round("implement"), round("review")],
+        reviewedRevision: {
+          kind: "brief-revision",
+          plan: "docs/kairos/plans/p9.md",
+          brief_hash: "cafe",
+        },
+        planTasks: [1],
+      },
+      { wave: "branch", rounds: [round("review")] },
+    ],
+  });
+
+  it("reads the rows, rounds and cells the shipped engine wrote", () => {
+    // A reader of its own shape would answer null here and reset the history of every legal
+    // tree — the wave key is the task GROUP, so the row folds back to the line word.
+    const { ledger, workspace } = fixture();
+    workspace.writeJson(Ledger.FILE, frozen());
+    const document = ledger.read();
+    expect(document?.engineSelfWrittenCount).toBe(2);
+    expect(ledger.waveLines().map((line) => line.line)).toEqual(["tasks-1"]);
+    expect(ledger.waveLines()[0]?.taskIds).toEqual([1]);
+    expect(ledger.waveLines()[0]?.rounds.map((entry) => entry.op)).toEqual(["implement", "review"]);
+    expect(ledger.planTasksOf("tasks-1")).toEqual([1]);
+    expect(ledger.nodeRecordsOf(document)).toHaveLength(3);
+    expect(ledger.branchLine()?.line).toBe("branch");
+    // A digest of another algorithm is no comparable version — null, never a fabricated
+    // drift against this engine's own hash.
+    expect(ledger.reviewedOf("tasks-1")).toBeNull();
+  });
+
+  it("writes the document back in the frozen shape, on the frozen row key", () => {
+    const { ledger, workspace } = fixture();
+    workspace.writeJson(Ledger.FILE, frozen());
+    ledger.recordRound("tasks-1", { op: "fix", cycle: 1, attempt: 1 });
+    const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
+    // The container and the fixed counter set survive: this tree adds a cell, it never
+    // rewrites the document's shape.
+    expect(Object.keys(raw).sort()).toEqual([
+      "engineRecoveryCount",
+      "engineSelfWrittenCount",
+      "harnessAbortCount",
+      "plan",
+      "timeoutCount",
+      "waves",
+    ]);
+    expect(raw.engineSelfWrittenCount).toBe(2);
+    // One line, one row: the round lands on the row the read resolved, never a second row
+    // keyed by the line word.
+    expect(raw.waves.map((row: { wave: string }) => row.wave)).toEqual(["1", "branch"]);
+    expect(ledger.rounds("tasks-1").map((entry) => entry.op)).toEqual([
+      "implement",
+      "review",
+      "fix",
+    ]);
+  });
+});
+
 describe("the artifact identity", () => {
   it("derives the name from the four cells and reads the identity back off it", () => {
     const round = new RoundIdentity({ line: "tasks-1", op: "implement", cycle: 1, attempt: 2 });
@@ -223,6 +306,41 @@ describe("the artifact identity", () => {
     expect(artifacts.names()).toEqual(["branch-review-1.c1.json"]);
     // A different kind of the same round is its own artifact.
     expect(artifacts.register(round, "report").name).toBe("branch-review-1-report.md");
+  });
+});
+
+describe("the prescribed write set", () => {
+  it("names the draft, the report and only the evidence a work round prescribes", () => {
+    const { ledger } = fixture();
+    // A wave's implement round: the child's draft, the report and the test-evidence file.
+    expect(ledger.writeSetOf("tasks-1", "implement", 1, 1)).toEqual([
+      ".kairos/cdd/p9/tasks-1-implement-1.json",
+      ".kairos/cdd/p9/tasks-1-implement-1-report.md",
+      ".kairos/cdd/p9/tasks-1-implement-1-test-evidence.json",
+    ]);
+    // A review round prescribes no evidence file…
+    expect(ledger.writeSetOf("tasks-1", "review", 1, 1)).toEqual([
+      ".kairos/cdd/p9/tasks-1-review-1.json",
+      ".kairos/cdd/p9/tasks-1-review-1-report.md",
+    ]);
+    // …and neither does a work round on a DOCUMENT line: the phase-spec fix writes two
+    // files, so the shape is the line's as much as the op's.
+    expect(ledger.writeSetOf("phase-spec", "fix", 1, 1)).toEqual([
+      ".kairos/cdd/p9/phase-spec-fix-1.json",
+      ".kairos/cdd/p9/phase-spec-fix-1-report.md",
+    ]);
+    // The carrier is the DRAFT name every time; a later attempt keeps its own segment.
+    expect(ledger.writeSetOf("tasks-1", "implement", 1, 2)[0]).toBe(
+      ".kairos/cdd/p9/tasks-1-implement-1-a2.json",
+    );
+  });
+
+  it("states a round's ledger row in the document's own spelling", () => {
+    // The row key and the container cell are the document's, so a sentence about the write
+    // and the write itself cannot name two rows.
+    expect(Ledger.rowCoordinateOf("tasks-1,2")).toBe('progress.waves["1,2"]');
+    expect(Ledger.rowCoordinateOf("phase-spec")).toBe('progress.waves["phase-spec"]');
+    expect(Ledger.rowCoordinateOf("branch")).toBe('progress.waves["branch"]');
   });
 });
 
@@ -471,7 +589,7 @@ describe("the observation set", () => {
     const [first, second] = observed;
     // The carrier the observation names is the ONE accessor's answer, byte-identical.
     const persisted = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
-    const records = persisted.lines[0].rounds as RoundRecord[];
+    const records = persisted.waves[0].rounds as RoundRecord[];
     expect(first?.carrier).toBe(ledger.carrierPathOf("phase-spec", "phase-spec", records[0]));
     expect(first?.carrier).toBe(".kairos/cdd/p9/phase-spec-review-1.c1.json");
     // Cycle 1's sidecar conforms; cycle 2 has no carrier at all — two different reads.
@@ -532,7 +650,7 @@ describe("the slice boundary", () => {
     ledger.recordDocReview("plan", "body");
     expect(existsSync(workspace.resolve(Ledger.FILE))).toBe(true);
     const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
-    expect(raw.lines.map((line: { key: string }) => line.key)).toEqual(["tasks-1", "plan"]);
+    expect(raw.waves.map((line: { wave: string }) => line.wave)).toEqual(["1", "plan"]);
     // The bytes end with exactly one newline — the workspace write face's rule.
     expect(readFileSync(workspace.resolve(Ledger.FILE), "utf8").endsWith("}\n")).toBe(true);
   });

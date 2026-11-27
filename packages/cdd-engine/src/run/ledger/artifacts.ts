@@ -135,6 +135,17 @@ export class ArtifactIdentity {
     }
   }
 
+  /** The artifact kinds one round PRESCRIBES, in the order a consumer names them: the
+   *  draft the child writes, the round's report and — where the naming rule prescribes
+   *  one — the test-evidence file. Two conditions decide the evidence slot, and both read
+   *  the identity's own cells: the round must be a WORK round (a review prescribes no
+   *  evidence) and its line must not be a document shape (the four document words never
+   *  prescribe one). A caller holding the round therefore never restates the condition. */
+  static prescribedOf(round: RoundIdentity): readonly ArtifactKind[] {
+    const evidence = round.op !== "review" && round.lineKind !== "doc";
+    return evidence ? ["draft", "report", "evidence"] : ["draft", "report"];
+  }
+
   /** The reverse direction: the artifact one on-disk name belongs to, or null for a name
    *  no kind renders (an unknown name is an OBSERVATION, never a refusal). The
    *  `.c<cycle>` tag must agree with the stem's own cycle, or the name belongs to no

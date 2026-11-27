@@ -45,7 +45,7 @@ import { Capsule } from "../capsule.ts";
 import { type GraphTree, GraphView } from "../graph.ts";
 import { type InitFacts, InitRenderer } from "../init.ts";
 import { IssueBodyRenderer } from "../issue.ts";
-import { Preview } from "../preview.ts";
+import { Preview, type PreviewPass } from "../preview.ts";
 import { RouteRenderer } from "../route.ts";
 import { PromptBandsRenderer, REVIEW_VARIANTS, TEMPLATE_PROMPT, WORK_MODES } from "../templates.ts";
 import { FAILURE_REASONS, type FailureValue, USAGE_BYTES, UsageFace } from "../usage.ts";
@@ -249,6 +249,32 @@ const passFrame = (): Parameters<Preview["passBlock"]>[0]["frame"] =>
     pipeline: { specType: null, specPath: null, planPath: null, graph: null },
     workspace: { dir: "p9", id: "p9" },
     phase: "implement",
+    round: 1,
+    attempt: 1,
+  }) as unknown as Parameters<Preview["passBlock"]>[0]["frame"];
+
+/** A document round's frame facts — a `fix` round on the phase specification. */
+const docFixFrame = (): Parameters<Preview["passBlock"]>[0]["frame"] =>
+  ({
+    kind: "frame",
+    command: "fix",
+    recover: false,
+    type: "phase-spec",
+    slug: "p9",
+    key: "phase-spec",
+    doc: "docs/kairos/specs/p9-design.md",
+    planPath: null,
+    planText: null,
+    graph: null,
+    emptyFileTasks: new Set(),
+    tasks: [],
+    target: { type: "phase-spec", id: "docs/kairos/specs/p9-design.md" },
+    program: null,
+    overall: null,
+    identity: { type: "phase-spec", doc: null, plan: null },
+    pipeline: { specType: null, specPath: null, planPath: null, graph: null },
+    workspace: { dir: "p9", id: "p9" },
+    phase: "fix",
     round: 1,
     attempt: 1,
   }) as unknown as Parameters<Preview["passBlock"]>[0]["frame"];
@@ -927,11 +953,26 @@ describe("the brief", () => {
   });
 });
 
+/** The passing preview's fact set for a wave implement round — the read's own values, on
+ *  the repo-relative basis. */
+const wavePass = (over: Partial<PreviewPass> = {}): PreviewPass => ({
+  frame: passFrame(),
+  host: "pi",
+  brief: ".kairos/cdd/p9/tasks-1-brief.md",
+  writes: [
+    ".kairos/cdd/p9/tasks-1-implement-1.json",
+    ".kairos/cdd/p9/tasks-1-implement-1-report.md",
+    ".kairos/cdd/p9/tasks-1-implement-1-test-evidence.json",
+  ],
+  ledger: { row: 'progress.waves["1"]', op: "implement" },
+  ...over,
+});
+
 describe("the preview", () => {
   const preview = new Preview(words, route);
 
   it("renders the pass block as the header plus five rows, with no route and no checked face", () => {
-    const rows = preview.passBlock({ frame: passFrame(), host: "pi", brief: "tasks-1-brief.md" });
+    const rows = preview.passBlock(wavePass());
     expect(rows[0]).toBe("cdd implement: preview (no repo changes)");
     const labels = rows.slice(1).map((row) => row.trim().split(":")[0]);
     expect(labels).toEqual(["step", "reads", "would write", "would record", "child"]);
@@ -941,15 +982,51 @@ describe("the preview", () => {
     expect(rows.join("\n")).toContain("would re-render from the current plan");
   });
 
+  it("prints the recorded passing cell byte for byte", () => {
+    // The frozen face 7 (`f7.preview.passing.stdout`): the names the round WOULD write are
+    // repo-relative, the carrier is the draft the child lands (never the sealed `final`),
+    // and the ledger row is the document's own key. A renderer that composed any of those —
+    // or that appended a slot the naming rule does not prescribe — reds here.
+    expect(preview.passBlock(wavePass()).join("\n")).toBe(
+      [
+        "cdd implement: preview (no repo changes)",
+        "  step:        implement round 1 — wave 1",
+        "  reads:       .kairos/cdd/p9/tasks-1-brief.md (would re-render from the current plan)",
+        "  would write: .kairos/cdd/p9/tasks-1-implement-1.json · .kairos/cdd/p9/tasks-1-implement-1-report.md · .kairos/cdd/p9/tasks-1-implement-1-test-evidence.json",
+        '  would record: progress.waves["1"].rounds += { op: implement, cycle: 1, attempt: 1 }',
+        "  child:       pi -p --mode text",
+      ].join("\n"),
+    );
+  });
+
+  it("prints a document round's two write slots and its own ledger row key", () => {
+    // The doc-shape arm: a `fix` round on a phase specification prescribes NO evidence file
+    // (`ArtifactIdentity.prescribedOf` drops it, and the renderer never adds one), and the
+    // row key is the document word — the same spelling the persisted document holds.
+    const rows = preview.passBlock(
+      wavePass({
+        frame: docFixFrame(),
+        brief: "docs/kairos/specs/p9-design.md",
+        writes: [
+          ".kairos/cdd/p9/phase-spec-fix-1.json",
+          ".kairos/cdd/p9/phase-spec-fix-1-report.md",
+        ],
+        ledger: { row: 'progress.waves["phase-spec"]', op: "fix" },
+      }),
+    );
+    expect(rows[3]).toBe(
+      "  would write: .kairos/cdd/p9/phase-spec-fix-1.json · .kairos/cdd/p9/phase-spec-fix-1-report.md",
+    );
+    expect(rows[4]).toBe(
+      '  would record: progress.waves["phase-spec"].rounds += { op: fix, cycle: 1, attempt: 1 } · reviewedRevision(doc)',
+    );
+    expect(rows.join("\n")).not.toContain("test-evidence");
+  });
+
   it("appends the orphan drafts to the reads row, and zero bytes when there are none", () => {
-    const bare = preview.passBlock({ frame: passFrame(), host: "", brief: "b.md" });
+    const bare = preview.passBlock(wavePass({ host: "" }));
     expect(bare[2]).not.toContain("orphan drafts");
-    const withOrphans = preview.passBlock({
-      frame: passFrame(),
-      host: "",
-      brief: "b.md",
-      orphans: ["a.json", "b.json"],
-    });
+    const withOrphans = preview.passBlock(wavePass({ host: "", orphans: ["a.json", "b.json"] }));
     expect(withOrphans[2]?.endsWith(" · orphan drafts: a.json · b.json")).toBe(true);
     expect(withOrphans[0]).toBe(bare[0]);
   });

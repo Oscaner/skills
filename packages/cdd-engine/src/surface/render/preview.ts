@@ -22,6 +22,11 @@
 // heading with its per-row values is the checked family's. What this file owns is layout
 // only.
 //
+// The pass block's VALUES arrive as facts, never as names this file derives: the read input,
+// the paths the round would write and the ledger row it would record all come from the read
+// that produced them (`Run#previewOf`). A render face that spelled a carrier name or a
+// ledger coordinate would be a second home for the naming rule and the document's row shape.
+//
 // Module-level exports are the types and the class — zero bare functions.
 
 import { HOSTS } from "../../env/process/host.ts";
@@ -30,9 +35,7 @@ import type { RouteTarget } from "../../run/advance/target-faces.ts";
 import type { RoundPhase } from "../../run/dispatch/child.ts";
 import type { InFlightState } from "../../run/dispatch/inflight.ts";
 import type { CheckedRow } from "../../run/gate/preflight.ts";
-import type { ArtifactKind } from "../../run/ledger/artifacts.ts";
-import { ArtifactIdentity } from "../../run/ledger/artifacts.ts";
-import { RoundIdentity, type RoundOp } from "../../run/ledger/identity.ts";
+import type { RoundWrite } from "../../run/ledger/ledger.ts";
 import type { Words } from "../words/words.ts";
 import type { RouteRenderer } from "./route.ts";
 
@@ -46,12 +49,17 @@ const HEADER_TAIL = "preview (no repo changes)";
 /** The one passing preview's facts — the read's own values plus the orphan drafts the
  *  workspace carries (the `reads:` row's suffix). */
 export interface PreviewPass {
-  /** The round's frame — the five rows' whole source. */
+  /** The round's frame — the step row, the record's own cells and the write-back leg. */
   readonly frame: FrameFacts;
   /** The dispatch host fact (`""` when no harness marker matched). */
   readonly host: string;
-  /** The brief's workspace-relative name. */
+  /** The round's read input, on the repo-relative basis (`""` off the task face). */
   readonly brief: string;
+  /** The paths the round would write, repo-relative, in the naming rule's order — the
+   *  draft, the report and (where one is prescribed) the test-evidence file. */
+  readonly writes: readonly string[];
+  /** The ledger write the round would land. */
+  readonly ledger: RoundWrite;
   /** The workspace names no recorded round claims. */
   readonly orphans?: readonly string[];
 }
@@ -75,8 +83,8 @@ export class Preview {
     const rows: readonly (readonly [string, string])[] = [
       ["step:", this.#stepOf(frame)],
       ["reads:", `${this.#readsOf(frame, pass.brief)}${this.#orphanSuffix(pass.orphans ?? [])}`],
-      ["would write:", this.#writesOf(frame)],
-      ["would record:", this.#recordsOf(frame)],
+      ["would write:", this.#writesOf(pass.writes)],
+      ["would record:", this.#recordsOf(frame, pass.ledger)],
       ["child:", this.#childOf(pass.host)],
     ];
     return [
@@ -159,22 +167,18 @@ export class Preview {
     return `${this.#words.boardWords().reads.orphanDrafts}${orphans.join(this.#words.boardWords().reads.join)}`;
   }
 
-  /** The artifacts the round would write — the carrier, the report and, on a work round,
-   *  the test-evidence file, all named by the ONE name rule. */
-  #writesOf(frame: FrameFacts): string {
-    const identity = Preview.#identityOf(frame);
-    const kinds: readonly ArtifactKind[] =
-      Preview.#opOf(frame) === "review" ? ["final", "report"] : ["final", "report", "evidence"];
-    return kinds.map((kind) => ArtifactIdentity.nameOf(identity, kind)).join(" · ");
+  /** The artifacts the round would write — the paths the read handed over, joined in the
+   *  order it named them. */
+  #writesOf(writes: readonly string[]): string {
+    return writes.join(" · ");
   }
 
-  /** The ledger writes the round would record — the round's own coordinate plus the leg a
-   *  completed round binds (a wave line its brief projection, a document line its document,
-   *  the branch line its plan). */
-  #recordsOf(frame: FrameFacts): string {
-    const op = Preview.#opOf(frame);
+  /** The ledger writes the round would record — the row the read named, the round's own
+   *  coordinate, plus the leg a completed round binds (a wave line its brief projection, a
+   *  document line its document, the branch line its plan). */
+  #recordsOf(frame: FrameFacts, ledger: RoundWrite): string {
     const parts = [
-      `progress.waves["${frame.key}"].rounds += { op: ${op}, cycle: ${frame.round}, attempt: ${frame.attempt} }`,
+      `${ledger.row}.rounds += { op: ${ledger.op}, cycle: ${frame.round}, attempt: ${frame.attempt} }`,
     ];
     const leg = Preview.#reviewedLegOf(frame.phase, frame.target?.type ?? null);
     if (leg !== null) parts.push(leg);
@@ -198,20 +202,5 @@ export class Preview {
     if (host === "") return "";
     const row = HOSTS[host as keyof typeof HOSTS];
     return row === undefined ? "" : `${host} ${row.invoke}`;
-  }
-
-  /** The round's identity, as the name rule reads it. */
-  static #identityOf(frame: FrameFacts): RoundIdentity {
-    return new RoundIdentity({
-      line: frame.key,
-      op: Preview.#opOf(frame),
-      cycle: frame.round,
-      attempt: frame.attempt,
-    });
-  }
-
-  /** The ledger op a phase records under — a branch review rides `review`. */
-  static #opOf(frame: FrameFacts): RoundOp {
-    return frame.phase === "branch-review" ? "review" : frame.phase;
   }
 }

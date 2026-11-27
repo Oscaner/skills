@@ -10,12 +10,15 @@
 // difference to be seen. It touches no new-tree producer — which is why "the harness itself
 // is red-able" holds from the day the corpus lands, not from the day the first producer does.
 
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { RepoRoot } from "../../src/env/paths/root.ts";
+import { WorkspaceRoot } from "../../src/env/workspace/workspace.ts";
+import { Ledger } from "../../src/run/ledger/ledger.ts";
 import { WORDS } from "../../src/surface/words/words.ts";
-import { OVERALL_REL, SPEC_REL, treeFixture } from "./fixtures/trees.ts";
+import { materialize, OVERALL_REL, PHASE_SLUG, SPEC_REL, treeFixture } from "./fixtures/trees.ts";
 import { CELLS, type Probe, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
 import {
   BASELINE_FILE,
@@ -712,6 +715,32 @@ describe("the skeleton cells", () => {
     expect(other).not.toBe(frozen);
     expect(other).toContain("date: 2001-02-03");
     expect(frozen).toContain(`date: ${CORPUS.frozenDate}`);
+  });
+});
+
+describe("the fact layer over the corpus document", () => {
+  it("reads the fixture tree's own progress.json through the new ledger", () => {
+    // The corpus declares the FROZEN document — the shape the shipped engine writes — and
+    // the `entry` cells read ONE fixture tree through both engines. So the new fact layer
+    // owes this read: the fixture's rows, on the fixture's own key spelling, with the rounds
+    // it records. A ledger that read only its own container would answer null here (and on
+    // every live workspace), which is the diff this arm sees.
+    const repo = materialize(treeFixture("wave", { rounds: "review" }));
+    try {
+      const workspace = new WorkspaceRoot({
+        basis: RepoRoot.of(repo),
+        now: () => 0,
+        baseName: "base.json",
+      }).at(PHASE_SLUG);
+      const ledger = new Ledger({ workspace, names: () => [] });
+      expect(ledger.read()).not.toBeNull();
+      const [line] = ledger.waveLines();
+      expect(line?.line).toBe("tasks-1");
+      expect(line?.rounds.map((record) => record.op)).toEqual(["implement", "review"]);
+      expect(ledger.rounds("tasks-1")).toHaveLength(2);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
 

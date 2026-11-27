@@ -84,7 +84,7 @@ import {
 import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
-import type { Child, DispatchFrame, TerminationCause } from "../dispatch/child.ts";
+import type { Child, DispatchFrame, RoundPhase, TerminationCause } from "../dispatch/child.ts";
 import {
   CONTRACT_VIOLATION,
   type EvidenceRead,
@@ -488,7 +488,7 @@ export class Lifecycle {
       ...Lifecycle.#writeBackOf(touched),
     ];
     const round = this.#ledger.recordRound(frame.key, {
-      op: Lifecycle.#opOf(frame.phase),
+      op: Lifecycle.opOf(frame.phase),
       cycle: frame.round,
       attempt: frame.attempt,
       // The dispatch baseline belongs to the RECORD, not to a local: it is the group baseline
@@ -517,7 +517,7 @@ export class Lifecycle {
   /** The round's own-bytes fact, measured only where a binding could read it: an implement
    *  round binds nothing, so it is not measured and books nothing. */
   #touchedOf(frame: FrameFacts, base: string | null): boolean | null | undefined {
-    if (Lifecycle.#opOf(frame.phase) === "implement") return undefined;
+    if (Lifecycle.opOf(frame.phase) === "implement") return undefined;
     return this.#reads.touchedDoc(frame, base);
   }
 
@@ -543,7 +543,7 @@ export class Lifecycle {
     touched: boolean | null | undefined,
   ): void {
     if (!completed) return;
-    const op = Lifecycle.#opOf(frame.phase);
+    const op = Lifecycle.opOf(frame.phase);
     if (op === "implement") return;
     if (op === "fix" && touched === false) return;
     if (TargetFaces.advancesBatch(frame.type)) {
@@ -646,7 +646,7 @@ export class Lifecycle {
    *  withholds the booking's `targetAction`: a review round that persisted no judge carrier and
    *  an implement round that committed nothing are refused here, never completed by omission. */
   #completionOf(frame: FrameFacts, facts: CompletionFacts): readonly RoundViolation[] {
-    const verdict = CompletionCriteria.judge(Lifecycle.#opOf(frame.phase), facts);
+    const verdict = CompletionCriteria.judge(Lifecycle.opOf(frame.phase), facts);
     if (verdict.kind === "violation") {
       return [{ grade: "hard", cause: CONTRACT_VIOLATION, message: verdict.message }];
     }
@@ -691,7 +691,7 @@ export class Lifecycle {
       // and this cell can never disagree about one file.
       evidenceOk: evidence === null || evidence.read.kind === "ok",
     };
-    if (Lifecycle.#opOf(frame.phase) !== "fix") return facts;
+    if (Lifecycle.opOf(frame.phase) !== "fix") return facts;
     const requesting = this.#reads.requesting(frame);
     return {
       ...facts,
@@ -715,8 +715,7 @@ export class Lifecycle {
    *  target row's audit face — so no branch here re-spells the verb or the type. */
   static #owesEvidence(frame: FrameFacts): boolean {
     return (
-      Handoff.planeOf(Lifecycle.#opOf(frame.phase)) === "work" &&
-      !TargetFaces.isDocShape(frame.type)
+      Handoff.planeOf(Lifecycle.opOf(frame.phase)) === "work" && !TargetFaces.isDocShape(frame.type)
     );
   }
 
@@ -768,8 +767,9 @@ export class Lifecycle {
     return "review";
   }
 
-  /** The ledger op one phase word books under. */
-  static #opOf(phase: FrameFacts["phase"]): "implement" | "review" | "fix" {
+  /** The ledger op one phase word books under — the ONE fold, so a reader stating what a
+   *  round would record reads it here instead of re-deriving it. */
+  static opOf(phase: RoundPhase): "implement" | "review" | "fix" {
     return phase === "branch-review" ? "review" : phase;
   }
 

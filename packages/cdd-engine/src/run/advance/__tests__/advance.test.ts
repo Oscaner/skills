@@ -48,6 +48,7 @@ import {
   DispositionsCriterion,
   FIX_ZERO_COMMITS,
   type Finding,
+  type FixDisposition,
   type JudgeInput,
   type LedgerFacts,
   RULE_REGISTRY,
@@ -1175,7 +1176,7 @@ describe("the drift reopen and the closure terminal", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: "APPROVED",
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     // The fix's own commit touched the document it judges.
     fx.touchedDoc.value = true;
@@ -1215,7 +1216,7 @@ describe("the drift reopen and the closure terminal", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: "APPROVED",
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     fx.touchedDoc.value = false;
     const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
@@ -1245,7 +1246,7 @@ describe("the drift reopen and the closure terminal", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: "APPROVED",
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     // The range cannot be read (no baseline, or an unreadable repository): NOTHING was measured,
     // which is not the same fact as "measured, and it touched nothing".
@@ -1347,7 +1348,7 @@ describe("the fix completion criterion", () => {
     const criterion = CompletionCriteria.of("fix");
     const requested = [{ id: "F1", summary: "the first thing" }];
     expect(
-      criterion.judge(facts({ dispositions: { F1: { decision: "fixed" } }, requested })),
+      criterion.judge(facts({ dispositions: { F1: { status: "fixed" } }, requested })),
     ).toEqual({ kind: "done", observations: [] });
   });
 
@@ -1355,7 +1356,7 @@ describe("the fix completion criterion", () => {
     const criterion = new DispositionsCriterion();
     const verdict = criterion.judge(
       facts({
-        dispositions: { F1: { decision: "fixed" }, F9: { decision: "fixed" } },
+        dispositions: { F1: { status: "fixed" }, F9: { status: "fixed" } },
         requested: [
           { id: "F1", summary: "kept" },
           { id: "F2", summary: "the missing thing. And more." },
@@ -1369,24 +1370,39 @@ describe("the fix completion criterion", () => {
     expect(verdict.message).not.toContain("\n");
   });
 
-  it("refuses a reasonless rejection and counts the two decisions", () => {
+  it("refuses a reasonless rejection and counts the two statuses", () => {
     const criterion = new DispositionsCriterion();
     const rejected = criterion.judge(
       facts({
-        dispositions: { F1: { decision: "rejected" } },
+        dispositions: { F1: { status: "rejected" } },
         requested: [{ id: "F1", summary: "a" }],
       }),
     );
     expect(rejected.kind).toBe("violation");
     const summary = DispositionsCriterion.summaryOf({
-      F1: { decision: "fixed" },
-      F2: { decision: "rejected", reason: "not a defect" },
+      F1: { status: "fixed" },
+      F2: { status: "rejected", reason: "not a defect" },
     });
     expect(summary).toEqual({ fixed: 1, rejected: 1 });
-    expect(DispositionsCriterion.summaryOf({ F1: { decision: "fixed" } })).toEqual({
+    expect(DispositionsCriterion.summaryOf({ F1: { status: "fixed" } })).toEqual({
       fixed: 1,
       rejected: 0,
     });
+  });
+
+  it("refuses a cell the wire vocabulary does not declare", () => {
+    const criterion = new DispositionsCriterion();
+    // The frozen dispatch prompt declares the cell as `{ "status": "fixed" | "rejected" }`, so
+    // any other word is a shape refusal — never a row the summary counts as neither value.
+    const wrongWord = { F1: { decision: "fixed" } } as unknown as Readonly<
+      Record<string, FixDisposition>
+    >;
+    const verdict = criterion.judge(
+      facts({ dispositions: wrongWord, requested: [{ id: "F1", summary: "a" }] }),
+    );
+    expect(verdict.kind).toBe("violation");
+    if (verdict.kind !== "violation") return;
+    expect(verdict.message).toContain('disposition "F1" declares status undefined');
   });
 
   it("books the empty input, the summary pairing and the zero commits as observations", () => {
@@ -1471,6 +1487,39 @@ describe("the capsule summary", () => {
     expect(raised.kind).toBe("dispatch");
     if (raised.kind !== "dispatch") return;
     expect(raised.capsule).toEqual({});
+  });
+
+  it("carries the fix round's two counts as the capsule fact beside the note's own cell", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "warn", summary: "a warn", id: "F1" }],
+      status: null,
+    });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    fx.requesting.findings = [
+      { severity: "warn", summary: "a warn", id: "F1" },
+      { severity: "warn", summary: "another", id: "F2" },
+    ];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: {
+        F1: { status: "fixed" },
+        F2: { status: "rejected", reason: "not a defect" },
+      },
+    });
+    const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
+    expect(fix.kind).toBe("dispatch");
+    if (fix.kind !== "dispatch") return;
+    // Two counts, derived from the same table the round was judged by — data, never a sentence:
+    // the template and its slots belong to the render face.
+    expect(fix.capsule.dispositionCounts).toEqual({ fixed: 1, rejected: 1 });
+    // The note keeps its OWN cell: a fix round has no regrade note, so the judge face's cell
+    // stays absent rather than borrowing the counts' row.
+    expect(fix.capsule.summary).toBeUndefined();
   });
 });
 
@@ -1708,7 +1757,7 @@ describe("the fix completion judgment", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: null,
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
     expect(outcome.kind).toBe("dispatch");
@@ -1733,7 +1782,7 @@ describe("the fix completion judgment", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: "APPROVED",
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
     expect(outcome.kind).toBe("dispatch");
@@ -1754,7 +1803,7 @@ describe("the fix completion judgment", () => {
     fx.carriedByKey.set("fix:1", {
       findings: null,
       status: "APPROVED",
-      dispositions: { F1: { decision: "fixed" } },
+      dispositions: { F1: { status: "fixed" } },
     });
     const outcome = await fx.run.advance(waveRequest({ command: "fix" }));
     expect(outcome.kind).toBe("dispatch");

@@ -29,14 +29,17 @@
 // Module-level exports are types, the declared sentences and the registry — zero
 // behaviour-carrying bare functions.
 
-/** One finding's disposition decision — the two declared values. */
+/** One finding's disposition status — the two declared values, spelled as the frozen dispatch
+ *  prompt spells the cell. */
 export type FixDecision = "fixed" | "rejected";
 
-/** One finding's disposition: what the fix round did with it, and why. */
+/** One finding's disposition: what the fix round did with it, and why. The cell is `status` —
+ *  the wire word the dispatch prompt the child reads declares; a table written under any other
+ *  spelling is refused by shape, never counted as neither value. */
 export interface FixDisposition {
-  /** The decision. */
-  readonly decision: FixDecision;
-  /** The stated reason — required by a `rejected` decision (a reasonless rejection is a
+  /** The status. */
+  readonly status: FixDecision;
+  /** The stated reason — required by a `rejected` status (a reasonless rejection is a
    *  shape the table refuses, not a disposition). */
   readonly reason?: string;
 }
@@ -194,11 +197,6 @@ export const FIX_LEGACY_INPUT =
 export const FIX_ZERO_COMMITS =
   "the fix round committed nothing — the dispositions are its own statement";
 
-/** The one shape refusal a disposition table can carry that is not a missing key: a rejected
- *  finding with no stated reason. */
-const REASONLESS_REJECTION =
-  "a rejected finding states no reason — a rejection without a reason is not a disposition";
-
 /** The absent-carrier refusal — a fix round is judged by its dispositions, so a round with no
  *  table has not concluded. */
 const NO_DISPOSITIONS =
@@ -215,7 +213,8 @@ const firstSentence = (text: string): string => {
  * DispositionsCriterion — the fix round's completion. Invariant: the round is done when its
  * disposition table covers the requested finding set EXACTLY — a missing key and an unknown
  * key are both refusals, and both differences ride ONE message so the child receives the whole
- * repair list at once.
+ * repair list at once. Beyond coverage, a row must keep the table's shape: the cell is the
+ * wire word the dispatch prompt declares, and a rejection states its reason.
  */
 export class DispositionsCriterion implements CompletionCriterion {
   judge(facts: CompletionFacts): CompletionVerdict {
@@ -225,17 +224,14 @@ export class DispositionsCriterion implements CompletionCriterion {
     const keys = requested.map((finding) => DispositionsCriterion.keyOf(finding));
     const missing = keys.filter((key) => dispositions[key] === undefined);
     const unknown = Object.keys(dispositions).filter((key) => !keys.includes(key));
-    const reasonless = Object.entries(dispositions).filter(
-      ([key, value]) =>
-        keys.includes(key) && value.decision === "rejected" && (value.reason ?? "").trim() === "",
-    );
-    if (reasonless.length > 0) return { kind: "violation", message: REASONLESS_REJECTION };
     if (missing.length > 0 || unknown.length > 0) {
       return {
         kind: "violation",
         message: DispositionsCriterion.#coverageMessage(requested, keys, missing, unknown),
       };
     }
+    const shape = DispositionsCriterion.#shapeRefusal(dispositions);
+    if (shape !== null) return { kind: "violation", message: shape };
     return { kind: "done", observations: DispositionsCriterion.#observations(facts, requested) };
   }
 
@@ -244,9 +240,28 @@ export class DispositionsCriterion implements CompletionCriterion {
   static summaryOf(dispositions: Readonly<Record<string, FixDisposition>>): FixSummary {
     const rows = Object.values(dispositions);
     return {
-      fixed: rows.filter((row) => row.decision === "fixed").length,
-      rejected: rows.filter((row) => row.decision === "rejected").length,
+      fixed: rows.filter((row) => row.status === "fixed").length,
+      rejected: rows.filter((row) => row.status === "rejected").length,
     };
+  }
+
+  /** The table's own SHAPE — the two refusals a row can carry beyond a missing key, each
+   *  naming its row: a `status` outside the declared vocabulary, and a rejection with no reason.
+   *  Read off the parsed carrier, so the cell is `unknown` here: the type states the declared
+   *  vocabulary, never what a child wrote to disk. */
+  static #shapeRefusal(dispositions: Readonly<Record<string, FixDisposition>>): string | null {
+    for (const [key, row] of Object.entries(dispositions)) {
+      const cell = row as { readonly status?: unknown; readonly reason?: unknown } | null;
+      const status = cell?.status;
+      if (status !== "fixed" && status !== "rejected") {
+        return `disposition "${key}" declares status ${JSON.stringify(status)} — use \`fixed\` or \`rejected\``;
+      }
+      const reason = cell?.reason;
+      if (status === "rejected" && (typeof reason !== "string" || reason.trim().length === 0)) {
+        return `disposition "${key}" is rejected without a reason — a rejection must state why`;
+      }
+    }
+    return null;
   }
 
   /** The pairing key of one requested finding — the engine-written id, else the summary. */

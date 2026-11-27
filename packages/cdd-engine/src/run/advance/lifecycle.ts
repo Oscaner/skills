@@ -75,7 +75,12 @@
 const WRITE_BACK_UNMEASURED =
   "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound";
 
-import { CompletionCriteria, type CompletionFacts } from "../../docs/judging/completion.ts";
+import {
+  CompletionCriteria,
+  type CompletionFacts,
+  DispositionsCriterion,
+  type FixSummary,
+} from "../../docs/judging/completion.ts";
 import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
@@ -120,11 +125,17 @@ export interface StepResult {
   readonly route: Route | null;
 }
 
-/** The capsule's summary facts — the ONE regrade note a judge round contributes. An absent
- *  `summary` means the cell is not rendered at all (zero empty slot, zero shifted slot). */
+/** The capsule's summary facts — the ONE note a judge round contributes and the ONE pair of
+ *  counts a fix round contributes. Both fill the capsule's single summary ROW; the cells stay
+ *  apart so neither face composes the other's value. An absent cell means the row is not
+ *  rendered at all (zero empty slot, zero shifted slot). */
 export interface CapsuleFacts {
   /** The composed note (`docs/judging/criteria.ts#regradeNote`'s own value). */
   readonly summary?: string;
+  /** The fix round's two disposition counts — DATA, from the same table the round's criterion
+   *  judged: the template (`fixed N · rejected M`) and its slot order belong to the render
+   *  face, which fills them from this cell. Absent off the fix face. */
+  readonly dispositionCounts?: FixSummary;
 }
 
 /** One step's answer — the closed set the facade hands the shell. */
@@ -557,11 +568,19 @@ export class Lifecycle {
     return this.#waveGate.derivedWave(frame.graph, closed);
   }
 
-  /** The judge round's capsule summary — the ONE composition of the downgrade note. A work
-   *  round contributes nothing here; a judge round feeds the two partitions of the carrier's
-   *  findings (each read from the dispatch segment's own judgment) to the criterion slice's
-   *  `regradeNote`, and an absent note leaves the cell out entirely. */
+  /** The capsule's summary fact of ONE round — the ONE composition of the downgrade note, and the
+   *  ONE derivation of the fix round's counts. A judge round feeds the two partitions of the
+   *  carrier's findings (each read from the dispatch segment's own judgment) to the criterion
+   *  slice's `regradeNote`, and an absent note leaves the cell out entirely; a fix round hands
+   *  over the two counts of the table its criterion judged, and the words stay on the render
+   *  face. The two cells never cross: a work round composes no note, a judge round counts no
+   *  disposition. */
   #capsuleOf(frame: FrameFacts, carried: CarriedFacts): CapsuleFacts {
+    if (frame.phase === "fix") {
+      return {
+        dispositionCounts: DispositionsCriterion.summaryOf(carried.dispositions ?? {}),
+      };
+    }
     if (frame.phase !== "review" && frame.phase !== "branch-review") return {};
     const current = carried.findings ?? [];
     const prior = this.#reads.priorFindings(frame);

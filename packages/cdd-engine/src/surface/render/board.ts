@@ -156,15 +156,19 @@ export class BoardView {
     return `${HEADER}: ${value.slug}`;
   }
 
-  /** The tree fact block — occupancy, orphans, crashed rounds, the standing refusal. It ends
-   *  at the last fact row: the document rows follow in the same block, as the frozen face
-   *  prints them. */
+  /** The tree fact block — occupancy, orphans, crashed rounds, the standing refusal. The
+   *  block is set off from the document rows by one blank column whenever it carries more
+   *  than the free occupancy sentence: a held or corrupt lock, an orphan, a crashed round or
+   *  a standing refusal each open the block, so the reader sees where the facts end. */
   #factRows(value: BoardValue): readonly string[] {
     const rows: string[] = [];
     const occupancy = value.rows.find((row) => row.kind === "in-flight");
     if (occupancy !== undefined && occupancy.kind === "in-flight") {
       rows.push(this.#inFlightRow(occupancy.state));
     }
+    // A dead or live holder occupies the tree exactly like an orphan or a crash does, so it
+    // opens the block too; only the `absent` state prints the free sentence inside the flow.
+    const held = occupancy !== undefined && occupancy.state.kind !== "absent";
     const facts = value.facts;
     for (const orphan of facts.orphans) {
       const row = this.#words.boardWords().facts.orphan;
@@ -178,10 +182,11 @@ export class BoardView {
       rows.push(`  ${row.label} ${tokens.join(row.join)}`);
     }
     rows.push(...this.#refusalRows(facts.refusal));
-    // A fact block that carries more than the occupancy row is set off from the document rows
-    // by one blank column; the occupancy row alone is not, and prints in the same block.
     const more =
-      facts.orphans.length > 0 || facts.crashed.length > 0 || facts.refusal.kind !== "absent";
+      held ||
+      facts.orphans.length > 0 ||
+      facts.crashed.length > 0 ||
+      facts.refusal.kind !== "absent";
     return more ? [...rows, BLANK] : rows;
   }
 

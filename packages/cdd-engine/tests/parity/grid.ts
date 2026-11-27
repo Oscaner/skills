@@ -752,6 +752,22 @@ export const UNITS: readonly Unit[] = [
     },
   },
   {
+    key: "f6.board.held",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // A LIVE holder is the fact block's fourth opener: no orphan draft, no crashed round and
+    // no standing refusal beside it, so the block is opened by the occupancy alone and the
+    // blank column between it and the document rows is judged on its own. Every other board
+    // cell runs a holder-less tree, where the free in-flight sentence prints inside the flow.
+    probe: {
+      fixture: "inflight",
+      options: { holder: LIVE_HOLDER },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
     key: "f6.board.art.anomalous",
     face: "f6",
     route: "normal",

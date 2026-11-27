@@ -543,6 +543,35 @@ describe("the board", () => {
     expect(occupancyOnly[3]).toContain("plan");
   });
 
+  it("opens the fact block on a standing dispatch — the held and corrupt shapes too", () => {
+    // The occupancy is the block's fourth opener: a holder's row is followed by the blank
+    // column that separates the facts from the document rows, exactly as an orphan, a
+    // crashed round or a refusal opens the block.
+    const held = board.render(
+      boardValue({
+        rows: [
+          {
+            kind: "in-flight",
+            state: { kind: "held", record: holder(), alive: true, targetGone: [] },
+          },
+          docRow("plan"),
+        ],
+      }),
+    );
+    expect(held[2]).toContain("in-flight: pid 42");
+    expect(held[3]).toBe("");
+    expect(held[4]).toContain("plan");
+    // A corrupt record with its lock left behind is the block's other holding shape.
+    const corrupt = board.render(
+      boardValue({
+        rows: [{ kind: "in-flight", state: { kind: "corrupt", locked: true } }, docRow("plan")],
+      }),
+    );
+    expect(corrupt[2]).toContain("in-flight:");
+    expect(corrupt[3]).toBe("");
+    expect(corrupt[4]).toContain("plan");
+  });
+
   it("prints no artifact row on a tree with no observation, switch or no switch", () => {
     expect(board.render(boardValue())).toEqual(
       board.render(boardValue(), { notes: false, artifacts: true }),

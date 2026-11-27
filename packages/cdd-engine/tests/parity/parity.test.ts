@@ -269,6 +269,24 @@ describe("the render corpus the board and capsule cells read", () => {
     expect(bare).not.toContain("crashed:");
   }, 120_000);
 
+  it("records the held board — the fact block is set off from the document rows", async () => {
+    // A standing dispatch is a tree fact like an orphan, a crashed round or a refusal: the
+    // occupancy row OPENS the block, so one blank column stands between it and the document
+    // rows. A BoardView that reads only the other three openers prints the two rows adjacent,
+    // which is what this cell's recorded bytes diff against.
+    const rows = (await liveOf("f6.board.held")).split("\n");
+    const occupancy = rows.findIndex((row) => row.startsWith("  in-flight: pid "));
+    expect(occupancy).toBeGreaterThan(-1);
+    expect(rows[occupancy + 1]).toBe("");
+    expect(rows[occupancy + 2]).toMatch(/^ {2}overall {2}/);
+    // The holder-less neighbour prints the free sentence INSIDE the flow: no blank column,
+    // so the cell above is not reading a separation the block prints unconditionally.
+    const free = (await liveOf("f6.board.unexpanded")).split("\n");
+    const sentence = free.findIndex((row) => row.startsWith("  in-flight: free"));
+    expect(sentence).toBeGreaterThan(-1);
+    expect(free[sentence + 1]).toMatch(/^ {2}overall {2}/);
+  }, 120_000);
+
   it("records an anomalous artifact round on the default face and both arms under --artifacts", async () => {
     expect(await liveOf("f6.board.art.anomalous")).toContain("! misplaced");
     const all = await liveOf("f6.board.art.all");

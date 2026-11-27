@@ -620,6 +620,12 @@ class BoardCarriers {
  * Run — one phase's run. Invariant: facts first, and every advance is derived from them
  * (see the file's header). This wave's surface is the fact layer's read face plus the gate
  * the round machinery consults; the round verbs arrive with the segments that own them.
+ *
+ * Rule zero (over the 200-line class limit): the split considered is the board projection
+ * (`#phasesOf` · `#rowsOf` · `#roundsOf` · `#docOf`) — the one block no caller composes with.
+ * Moving it out would hand a second object the same ledger, in-flight and pipeline reads this
+ * class's invariants bind, and the fact layer would then be assembled twice; the cohesion of
+ * one assembly outweighs the line count.
  */
 export class Run {
   /** The fact layer's read face. */

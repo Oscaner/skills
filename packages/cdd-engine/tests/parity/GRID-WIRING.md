@@ -281,6 +281,9 @@ go red.
 | f6.board.crashed.stdout | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.crashed.stderr | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.crashed.exit-code | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.held.stdout | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.held.stderr | T15 | surface/render/board.ts#BoardView | normal |
+| f6.board.held.exit-code | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.art.anomalous.stdout | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.art.anomalous.stderr | T15 | surface/render/board.ts#BoardView | normal |
 | f6.board.art.anomalous.exit-code | T15 | surface/render/board.ts#BoardView | normal |

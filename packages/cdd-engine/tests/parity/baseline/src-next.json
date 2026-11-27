@@ -735,6 +735,18 @@
       "state": "recorded",
       "value": "0"
     },
+    "f6.board.held.stdout": {
+      "state": "recorded",
+      "value": "cdd board: p9\n\n  in-flight: pid <pid> · op: implement · cycle: 1 · attempt: 1 · slug: p9 · wave: 1\n\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶\n  branch   ○ open\n\n  next:    review --type phase-spec --spec docs/kairos/specs/p9-design.md\n  reason:  task-open\n\nprogress: ✔ done · ▶ current · ○ pending\n"
+    },
+    "f6.board.held.stderr": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f6.board.held.exit-code": {
+      "state": "recorded",
+      "value": "0"
+    },
     "f6.board.art.anomalous.stdout": {
       "state": "recorded",
       "value": "cdd board: p9\n\n  in-flight: free — no dispatch holds this tree\n  overall  p9-overall.md   v1.0 · Approved\n  spec     p9-design.md    v1.0 · Draft   review 1 ✓+1\n  plan     p9.md           v1.0\n  wave     W1 {1}  ▶  implement 1 ✓\n  branch   ○ open\n\n  art:     phase-spec · rulings   ! misplaced\n           derived  .kairos/cdd/p9/phase-spec-review-1.c1.rulings.json\n           found    .kairos/cdd/p9/phase-spec-review-1.rulings.json\n\n  next:    fix --type phase-spec --spec docs/kairos/specs/p9-design.md --reviews .kairos/cdd/p9/phase-spec-review-1.c1.json (confirm the reviews handoff · if a finding needs a ruling, record it at .kairos/cdd/p9/phase-spec-review-1.c1.rulings.json)\n  reason:  pending-fix\n\nprogress: ✔ done · ▶ current · ○ pending\n"

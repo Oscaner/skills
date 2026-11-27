@@ -27,6 +27,7 @@ import {
   RecordingStepRunner,
 } from "./fixtures/non-tree.ts";
 import {
+  OVERALL_REL,
   PLAN_REL,
   SPEC_REL,
   TREE_SHAPES,
@@ -677,6 +678,16 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/render/capsule.ts#Capsule",
     probe: { fixture: "empty", argv: [], render: "capsule:failure" },
   },
+  {
+    key: "f5.capsule.summary",
+    face: "f5",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/capsule.ts#Capsule",
+    // The summary cell is its OWN frame: a summary row plus a hop renders four rows, which
+    // the two status faces above (no summary, no hop) can never show.
+    probe: { fixture: "empty", argv: [], render: "capsule:summary" },
+  },
   // ---- face 6: the board, notes unexpanded and expanded ---------------------------
   {
     key: "f6.board.unexpanded",
@@ -712,6 +723,73 @@ export const UNITS: readonly Unit[] = [
     // or a corpus that stops replaying a standing refusal — must red here instead of
     // staying green on the fixture's recorded prose.
     probe: { fixture: "refused", argv: ["board", "--plan", PLAN] },
+  },
+  {
+    key: "f6.board.orphan",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // The orphan knob is the row's only input: the same tree without it prints no such row.
+    probe: {
+      fixture: "wave",
+      options: { rounds: "review", orphanDraft: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f6.board.crashed",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // No review carrier beside it: the crashed round is the row this probe isolates, so the
+    // tree carries no unclaimed draft to report as a second fact.
+    probe: {
+      fixture: "wave",
+      options: { crashedRound: true },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f6.board.art.anomalous",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // The default face prints anomalies alone: a misplaced sidecar is the row's input.
+    probe: { fixture: "wave", argv: ["board", "--plan", PLAN], before: reviewThenMisplace },
+  },
+  {
+    key: "f6.board.art.all",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // Two arms in ONE inventory: the healthy review round reads `ok`, the plan review round
+    // with no sidecar reads `absent` — both printed only under `--artifacts`.
+    probe: {
+      fixture: "wave",
+      options: { artifactArms: true },
+      argv: ["board", "--plan", PLAN, "--artifacts"],
+    },
+  },
+  {
+    key: "f6.board.program",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    // The program board's only shape: `--plan` naming the charter itself.
+    probe: { fixture: "overall", argv: ["board", "--plan", OVERALL_REL] },
+  },
+  {
+    key: "f6.board.program.art",
+    face: "f6",
+    route: "normal",
+    task: "T15",
+    producer: "surface/render/board.ts#BoardView",
+    probe: { fixture: "overall", argv: ["board", "--plan", OVERALL_REL, "--artifacts"] },
   },
   // ---- face 7: the dry-run preview ------------------------------------------------
   {

@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { WORDS } from "../../src/surface/words/words.ts";
+import { OVERALL_REL, SPEC_REL, treeFixture } from "./fixtures/trees.ts";
 import { CELLS, type ProbeReading, rosterTable, TREE_SHAPES_TEXT } from "./grid.ts";
 import {
   BASELINE_FILE,
@@ -105,12 +106,28 @@ const FAKE_READING: ProbeReading = {
 };
 
 describe("the corpus is on the tree", () => {
-  it("registers the seven tree shapes, the three non-tree fixtures and the frozen date", () => {
-    expect(TREE_SHAPES_TEXT.length).toBe(7);
+  it("registers every declared tree shape, the non-tree fixtures and the frozen date", () => {
+    // The declaration is the count: `TREE_SHAPES_TEXT` is the only place the shape set is
+    // written, so the assertion reads it rather than a number that would have to be edited
+    // beside it (an edited literal is a claim nobody verified).
+    expect(new Set(TREE_SHAPES_TEXT).size).toBe(TREE_SHAPES_TEXT.length);
+    for (const shape of TREE_SHAPES_TEXT) {
+      const fixture = treeFixture(shape, { holder: { pid: 1, startedAt: 0 } });
+      expect(fixture.shape, shape).toBe(shape);
+      expect(fixture.files.length, shape).toBeGreaterThanOrEqual(0);
+    }
+    // `overall` is a DOCUMENT-KIND shape: a charter plus the one phase specification whose
+    // `program:` names it — not a wider wave or a half-written ledger, which is what the
+    // `TreeOptions` knobs express.
+    const overall = treeFixture("overall");
+    const paths = overall.files.map((file) => file.path);
+    expect(paths).toContain(OVERALL_REL);
+    expect(paths).toContain(SPEC_REL);
+    const spec = overall.files.find((file) => file.path === SPEC_REL);
+    expect(spec?.text).toContain("program: ");
     for (const name of ["non-tree.ts", "trees.ts"]) {
       expect(existsSync(path.join(PARITY_ROOT, "fixtures", name))).toBe(true);
     }
-    expect(existsSync(path.join(PARITY_ROOT, "fixtures", "non-tree.ts"))).toBe(true);
   });
 
   it("is collected by an execution face: the engine's include carries this home", () => {
@@ -212,6 +229,56 @@ describe("the baseline", () => {
     }
     const recorded = Object.values(baseline.cells).filter((entry) => entry.value.length > 0);
     expect(recorded.length).toBeGreaterThan(CELLS.length / 4);
+  });
+});
+
+/** One cell's recorded bytes — the baseline's own expectation, read as a fact. */
+const recordedOf = (cell: string): string => {
+  const baseline = JSON.parse(readFileSync(BASELINE_FILE, "utf8")) as Baseline;
+  return baseline.cells[cell]?.value ?? "";
+};
+
+describe("the render corpus the board and capsule cells read", () => {
+  it("records the board's orphan row from the fixture's own draft knob", () => {
+    const value = recordedOf("f6.board.orphan.stdout");
+    expect(value).toContain("orphan: ");
+    expect(value).toContain(" — no recorded round owns it");
+    // The row is between the occupancy row and the document rows — the fixture's shape, not
+    // a row appended at the end.
+    expect(value.indexOf("orphan:")).toBeLessThan(value.indexOf("overall"));
+  });
+
+  it("records the board's crashed row — one token, and no orphan beside it", () => {
+    const value = recordedOf("f6.board.crashed.stdout");
+    expect(value).toContain("crashed: implement 2·a1");
+    // A tree that also planted a review carrier would print an orphan row for it; this
+    // probe carries none, so the crashed row is the only observation.
+    expect(value).not.toContain("orphan:");
+  });
+
+  it("records an anomalous artifact round on the default face and both arms under --artifacts", () => {
+    expect(recordedOf("f6.board.art.anomalous.stdout")).toContain("! misplaced");
+    const all = recordedOf("f6.board.art.all.stdout");
+    expect(all).toContain("   ok");
+    expect(all).toContain("   absent");
+    expect(all).toContain("c1·a1");
+  });
+
+  it("records the program board and its own artifact seat as two different cells", () => {
+    const program = recordedOf("f6.board.program.stdout");
+    expect(program).toContain("next:    done");
+    expect(program).toContain("  phase ");
+    expect(program).not.toContain("art:");
+    expect(recordedOf("f6.board.program.art.stdout")).toContain("art:");
+  });
+
+  it("records the capsule's summary frame as four rows — status, summary, next, reason", () => {
+    const rows = recordedOf("f5.capsule.summary.stdout").split("\n");
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatch(/^status: /);
+    expect(rows[1]).toContain("fixed ");
+    expect(rows[2]).toMatch(/^next: /);
+    expect(rows[3]).toMatch(/^reason: /);
   });
 });
 

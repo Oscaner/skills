@@ -56,6 +56,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DocType } from "../../src/docs/identity/types.ts";
 import { Documents } from "../../src/docs/index.ts";
+import { Clock } from "../../src/env/process/clock.ts";
+import { Capsule as NewCapsule } from "../../src/surface/render/capsule.ts";
+import { RouteRenderer } from "../../src/surface/render/route.ts";
+import { PromptBandsRenderer } from "../../src/surface/render/templates.ts";
+import { Words as NewWords } from "../../src/surface/words/words.ts";
 import { declaredRegistries } from "../../src-next/contract/declare.ts";
 import { Projector } from "../../src-next/contract/project.ts";
 import { Capsule } from "../../src-next/face/capsule.ts";
@@ -565,15 +570,88 @@ export class RenderProbe {
     ].join("\n");
   }
 
-  /** The capsule's two status faces. */
+  /** The capsule's status faces and its summary cell. */
   static #capsule(kind: string): string {
     const capsule = new Capsule(new Words());
-    const handoff = ".kairos/cdd/p9/tasks-1-implement-1.json";
+    const handoff = CAPSULE_HANDOFF;
+    if (kind === "summary") {
+      const hop = {
+        face: "phase-spec",
+        target: { kind: "spec", type: "phase-spec", id: "docs/kairos/specs/p9-design.md" },
+        hop: "fix",
+        to: null,
+        reason: "pending-fix",
+        route: { kind: "fix", reviews: ".kairos/cdd/p9/phase-spec-review-1.c1.json" },
+      };
+      return capsule
+        .emit("CHANGES_REQUESTED", handoff, hop as never, false, CAPSULE_SUMMARY)
+        .join("\n");
+    }
     const lines =
       kind === "failure" ? capsule.emit("BLOCKED", handoff) : capsule.emit("APPROVED", handoff);
     return lines.join("\n");
   }
 }
+
+/** The handoff cell both capsule recordings use — the corpus's one carrier coordinate. */
+const CAPSULE_HANDOFF = ".kairos/cdd/p9/tasks-1-implement-1.json";
+
+/** The summary cell the capsule's summary frame carries. */
+const CAPSULE_SUMMARY = "fixed 3 · rejected 1";
+
+/** The new tree's prompt bands — the two families driven in process, so a band is compared
+ *  as bytes rather than through a command that would have to assemble a dispatch. */
+const PROMPT_DRIVER: NewTreeDriver = {
+  async run(probe: Probe): Promise<ProbeReading> {
+    const key = probe.render ?? "";
+    const [, name = ""] = key.split(":");
+    const renderer = new PromptBandsRenderer();
+    const stdout = key.startsWith("review:")
+      ? renderer.review(name as never)
+      : renderer.prompt(name as never);
+    return { stdout, stderr: "", exitCode: 0 };
+  },
+};
+
+/** The new tree's capsule face — the same facts the old recorder drives, so the two sides
+ *  differ only in the reader. */
+const CAPSULE_DRIVER: NewTreeDriver = {
+  async run(probe: Probe): Promise<ProbeReading> {
+    const [, kind] = (probe.render ?? "").split(":");
+    const words = new NewWords({ clock: new Clock(() => 0) });
+    const capsule = new NewCapsule(words, new RouteRenderer(words));
+    if (kind === "summary") {
+      return {
+        stdout: capsule
+          .emit({
+            status: "CHANGES_REQUESTED",
+            handoff: CAPSULE_HANDOFF,
+            summary: CAPSULE_SUMMARY,
+            hop: {
+              face: "phase-spec",
+              target: { type: "phase-spec", id: "docs/kairos/specs/p9-design.md" },
+              hop: "fix",
+              to: null,
+              reason: "pending-fix",
+              route: {
+                kind: "fix",
+                reviews: ".kairos/cdd/p9/phase-spec-review-1.c1.json" as never,
+              },
+            },
+          })
+          .join("\n"),
+        stderr: "",
+        exitCode: 0,
+      };
+    }
+    const status = kind === "failure" ? "BLOCKED" : "APPROVED";
+    return {
+      stdout: capsule.emit({ status, handoff: CAPSULE_HANDOFF }).join("\n"),
+      stderr: "",
+      exitCode: 0,
+    };
+  },
+};
 
 /** How the new tree answers one probe: the driver a wave registers when the entry it
  *  drives lands on the new tree. */
@@ -730,7 +808,12 @@ export const registrationWaveOf = (
  *  `seam` and the remaining render families land with their own waves; entry cells read as
  *  NAMED-DEFERRED until T17 registers the real process driver, which stays in this file
  *  written and unregistered for that wave. */
-export const NEW_TREE = NewTree.of([["render:skeleton", SKELETON_DRIVER]]);
+export const NEW_TREE = NewTree.of([
+  ["render:skeleton", SKELETON_DRIVER],
+  ["render:prompt", PROMPT_DRIVER],
+  ["render:review", PROMPT_DRIVER],
+  ["render:capsule", CAPSULE_DRIVER],
+]);
 
 /** Record the whole corpus from the live old tree. Each cell's state is DERIVED from the
  *  producer's landing on the new tree, so a re-record after a producer arrives advances

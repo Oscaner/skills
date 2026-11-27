@@ -5,15 +5,18 @@ sets and materialized into a fresh git-initialised temp tree per probe: the engi
 resolves its root from the git top level, so a fixture is a real repository, never a
 mocked path.
 
-Seven TREE shapes (one per declaration in `trees.ts`) and three NON-TREE fixtures
-(`non-tree.ts`): the `init` `PATH` stand-in plus its injected step runner, the
-`issue render` stdin findings body, and the frozen run date the skeleton assembler takes
-as a constructor argument.
+The TREE shapes declared in `trees.ts` (one entry per shape, no second list) and three
+NON-TREE fixtures (`non-tree.ts`): the `init` `PATH` stand-in plus its injected step
+runner, the `issue render` stdin findings body, and the frozen run date the skeleton
+assembler takes as a constructor argument.
 
 ## The shapes and their knobs
 
 A shape is the tree's KIND; `TreeOptions` is the state that kind carries, so a cell that
-needs a wider wave or a half-written ledger does not invent an eighth shape:
+needs a wider wave or a half-written ledger turns a knob instead of minting a shape.
+`overall` is the one shape that is NOT a knob's state: it is a DOCUMENT KIND — a charter plus
+the phase specification whose `program:` names it — and only that shape's board is the
+program's, so no knob of the other shapes can stand in for it:
 
 | knob | what it sets |
 | --- | --- |
@@ -23,6 +26,9 @@ needs a wider wave or a half-written ledger does not invent an eighth shape:
 | `snapshot` | whether a closed row keeps its plan-task set — the wave gate's append exemption reads it |
 | `holder` | the two in-flight shapes' holder facts; `"live"` asks the harness to resolve this process |
 | `corruptLock` | plants the corrupt in-flight record WITH its lock left behind (the third holding shape) |
+| `orphanDraft` | `materialize` drops one handoff draft no recorded round claims — the board's `orphan:` row |
+| `crashedRound` | books one round whose verdict withheld its target action and carries a HARD violation — the board's `crashed:` row |
+| `artifactArms` | carries the inventory's two arms: a review round whose rulings sidecar sits at its rendered name (read `ok`) and a review round whose carrier stands but whose sidecar is absent (read `absent`) |
 
 The three cause fixtures the refusal cells need are shapes with knobs, never new shapes:
 a wide wave is `wave` + `tasks: 4`; a split is `wave` + `tasks: 2` requested as one task;
@@ -191,6 +197,28 @@ cdd board: p9
 cdd implement: cannot dispatch a implement round — wrong-phase · next: review --type phase-spec --spec docs/kairos/specs/p9-design.md
 checked:
   tree-clean
+```
+
+### `overall`
+
+`cdd board --plan docs/kairos/specs/p9-overall.md` (exit 0)
+
+```
+cdd board: p9-overall
+
+  overall  p9-overall.md   v1.0 · Approved   review 1 ✓
+
+  phase p9  Draft   wave W1…   title: P9 spec
+
+  next:    done
+```
+
+`cdd board --plan docs/kairos/specs/p9-overall.md --artifacts` (exit 0) adds the program
+seat's own observation — the charter line's review round reads `absent`, so the row appears
+only with the switch open:
+
+```
+  art:     overall · rulings · c1·a1   absent
 ```
 
 Closure and the wave gate's causes are read off the same declarations: a `closed` row

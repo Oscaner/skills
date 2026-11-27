@@ -17,7 +17,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { FROZEN_DATE } from "./non-tree.ts";
 
-/** The seven tree shapes of the corpus. */
+/** The tree shapes of the corpus. `overall` is a DOCUMENT-KIND shape — a charter plus the
+ *  one phase specification whose `program:` names it — not a wider tree of the same kind: it
+ *  is the only shape whose board is the program's, so the two program-board cells read it and
+ *  nothing else can. */
 export type TreeShape =
   | "empty"
   | "wave"
@@ -25,7 +28,8 @@ export type TreeShape =
   | "refused"
   | "doc-drift"
   | "stale-holder"
-  | "branch-closed";
+  | "branch-closed"
+  | "overall";
 
 /** The corpus's shapes, in the order the register lists them. */
 export const TREE_SHAPES: readonly TreeShape[] = [
@@ -36,6 +40,7 @@ export const TREE_SHAPES: readonly TreeShape[] = [
   "doc-drift",
   "stale-holder",
   "branch-closed",
+  "overall",
 ];
 
 /** One file a fixture tree carries. */
@@ -347,6 +352,8 @@ export interface TreeFixture {
   readonly shape: TreeShape;
   /** The files the tree carries (beyond the git scaffolding). */
   readonly files: readonly FixtureFile[];
+  /** Whether `materialize` drops a handoff draft no recorded round owns. */
+  readonly orphanDraft?: boolean;
   /** Directories the tree carries — the lock behind a corrupt in-flight record is a
    *  directory, not a file (the record's own bytes are unreadable, the lock is what the
    *  holder left behind). */
@@ -378,6 +385,15 @@ export interface TreeOptions {
    *  shape (`kind: corrupt` + `locked`), planted in the comparer's temp tree rather than
    *  declared as a shape of its own. */
   readonly corruptLock?: boolean;
+  /** Drop one handoff draft the ledger records no round for — the board's `orphan:` row's
+   *  only input. A tree without it prints no such row, so the two states are two probes. */
+  readonly orphanDraft?: boolean;
+  /** Book one CRASHED round on the wave row — a verdict that withheld its target action
+   *  and a HARD violation beside it. The board's `crashed:` row's only input. */
+  readonly crashedRound?: boolean;
+  /** Carry the artifact inventory's two arms: a healthy review round whose rulings sidecar
+   *  reads `ok`, and a review round on the plan line with no sidecar at all (`absent`). */
+  readonly artifactArms?: boolean;
 }
 
 /** The in-flight record's two paths — the record and the lock directory beside it. */
@@ -417,6 +433,37 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     text: `${JSON.stringify({ status: "APPROVED", findings: [], notes: [CHILD_NOTE] }, null, 2)}\n`,
   };
   const withCarrier = rounds === "review" || rounds === "closed";
+  const knobs = options.orphanDraft === true ? { orphanDraft: true } : {};
+  const crashedProgress = (): FixtureFile => ({
+    path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+    text: `${JSON.stringify(crashedWaveProgress(), null, 2)}\n`,
+  });
+  /** The healthy arm's three files: the record's carrier, its legal sidecar, and the
+   *  absence arm's record beside them. */
+  const artifactFiles = (): readonly FixtureFile[] => [
+    {
+      path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+      text: `${JSON.stringify(artifactArmProgress(), null, 2)}\n`,
+    },
+    {
+      path: PHASE_SPEC_CARRIER,
+      text: `${JSON.stringify({ status: "APPROVED", findings: [{ id: "F1", severity: "warn", summary: "a finding" }] }, null, 2)}\n`,
+    },
+    {
+      // The plan line's review carrier — present, so the round is OBSERVED; its sidecar is
+      // deliberately absent, which is the `absent` arm of the inventory.
+      path: `.kairos/cdd/${PHASE_SLUG}/plan-review-1.c1.json`,
+      text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
+    },
+    {
+      path: PHASE_SPEC_RULINGS,
+      text: `${JSON.stringify({ carrier: "phase-spec-review-1.c1.json", rulings: [{ finding: "F1", ruling: "ACCEPTED" }] }, null, 2)}\n`,
+    },
+  ];
+  const extra = (): readonly FixtureFile[] => [
+    ...(options.crashedRound === true ? [crashedProgress()] : []),
+    ...(options.artifactArms === true ? artifactFiles() : []),
+  ];
   const corruptLock = (): TreeFixture => ({
     shape,
     files: [...docsFor(), progress("none"), { path: inFlightPaths().record, text: '{"pid": 1, ' }],
@@ -427,11 +474,51 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
 
   switch (shape) {
     case "empty":
-      return { shape, files: [] };
+      return { shape, files: [...extra()], ...knobs };
     case "wave":
       return {
         shape,
-        files: [...docsFor(), progress(rounds), base, ...(withCarrier ? [reviewCarrier] : [])],
+        files: [
+          ...docsFor(),
+          progress(rounds),
+          base,
+          ...(withCarrier ? [reviewCarrier] : []),
+          ...extra(),
+        ],
+        ...knobs,
+      };
+    case "overall":
+      // The program's shape: the charter and the one phase specification whose `program:`
+      // names it, each with its own workspace document. The plan rides along so the phase
+      // row's read has a document; no base artifact, because the program board resolves none.
+      return {
+        shape,
+        files: [
+          ...docsFor(),
+          {
+            // The program seat's own document: one review round on the charter's line, which
+            // is what the program board's `art:` inventory observes (its sidecar is absent, so
+            // the row prints only under `--artifacts`).
+            path: `.kairos/cdd/${PHASE_SLUG}-overall/progress.json`,
+            text: `${JSON.stringify(
+              { ...emptyProgress(), waves: [{ wave: "overall", rounds: [round("review")] }] },
+              null,
+              2,
+            )}\n`,
+          },
+          {
+            // The charter's own review carrier: present, sidecar absent — the program seat's
+            // one observation.
+            path: `.kairos/cdd/${PHASE_SLUG}-overall/overall-review-1.c1.json`,
+            text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
+          },
+          {
+            path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+            text: `${JSON.stringify(emptyProgress(), null, 2)}\n`,
+          },
+          ...extra(),
+        ],
+        ...knobs,
       };
     case "inflight": {
       if (holder === undefined) throw new Error("the `inflight` fixture needs holder facts");
@@ -441,7 +528,9 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
           ...docsFor(),
           progress(rounds),
           { path: inFlightPaths().record, text: inFlightText(inFlightRecord(holder)) },
+          ...extra(),
         ],
+        ...knobs,
       };
     }
     case "refused":
@@ -454,7 +543,9 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
             text: `${JSON.stringify(emptyProgress(), null, 2)}\n`,
           },
           { path: ".kairos/cdd/refusal.json", text: inFlightText(refusalRecord()) },
+          ...extra(),
         ],
+        ...knobs,
       };
     case "doc-drift":
       return {
@@ -478,13 +569,61 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
             path: inFlightPaths().record,
             text: inFlightText(inFlightRecord(holder, "docs/kairos/plans/gone.md")),
           },
+          ...extra(),
         ],
+        ...knobs,
       };
     }
     case "branch-closed":
-      return { shape, files: [...docsFor(), progress("closed"), base, reviewCarrier] };
+      return {
+        shape,
+        files: [...docsFor(), progress("closed"), base, reviewCarrier, ...extra()],
+        ...knobs,
+      };
   }
 };
+
+/** One CRASHED round record — the verdict withheld its target action and a HARD violation
+ *  is booked beside it, which is the board's `crashed:` row's whole judgment. */
+const crashedRound = (): Record<string, unknown> => ({
+  op: "implement",
+  cycle: 2,
+  attempt: 1,
+  dispatchBase: null,
+  verdict: { treeClean: true, targetAction: false },
+  violations: [{ grade: "hard", cause: "no commits" }],
+});
+
+/** The wave row carrying the crashed round. */
+const crashedWaveProgress = (): Record<string, unknown> => ({
+  ...emptyProgress(),
+  waves: [
+    {
+      wave: "1",
+      rounds: [round("implement"), crashedRound()],
+      reviewedRevision: { kind: "brief-revision", plan: PLAN_REL, brief_hash: "cafe" },
+      planTasks: [1],
+    },
+  ],
+});
+
+/** The phase-spec review carrier — the healthy review round's own bytes, whose finding ids
+ *  the sidecar must name. */
+const PHASE_SPEC_CARRIER = `.kairos/cdd/${PHASE_SLUG}/phase-spec-review-1.c1.json`;
+
+/** The legal rulings sidecar — the healthy arm (`ok`): it sits at its RENDERED name (the
+ *  cycle tag included), answers its carrier and names one finding the carrier declares. */
+const PHASE_SPEC_RULINGS = `.kairos/cdd/${PHASE_SLUG}/phase-spec-review-1.c1.rulings.json`;
+
+/** The two doc lines the artifact arms observe — one healthy round each, one of them with no
+ *  sidecar (the `absent` arm). The `plan` review round writes no sidecar on purpose. */
+const artifactArmProgress = (): Record<string, unknown> => ({
+  ...emptyProgress(),
+  waves: [
+    { wave: "phase-spec", rounds: [round("review")] },
+    { wave: "plan", rounds: [round("review")] },
+  ],
+});
 
 /** The base artifact the plan-carrying shapes plant. */
 const baseArtifact = (): string =>
@@ -519,6 +658,15 @@ export const materialize = (fixture: TreeFixture): string => {
   }
   for (const directory of fixture.directories ?? []) {
     mkdirSync(path.join(repo, directory), { recursive: true });
+  }
+  if (fixture.orphanDraft === true) {
+    // A handoff DRAFT the ledger records no round for: the artifact name grammar reads it as
+    // a round's draft, the progress document claims no such round, so the board lists it as an
+    // orphan. Planting it here (not in the fixture's file list) keeps the knob a materialize
+    // concern, exactly like the lock directory behind a corrupt record.
+    const draft = path.join(repo, `.kairos/cdd/${PHASE_SLUG}/tasks-1-implement-2.json`);
+    mkdirSync(path.dirname(draft), { recursive: true });
+    writeFileSync(draft, '{"status": "APPROVED"}\n', "utf8");
   }
   spawnSync("git", ["add", "-A"], { cwd: repo });
   spawnSync("git", ["commit", "-q", "-m", "fixture"], { cwd: repo });

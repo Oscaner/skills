@@ -439,7 +439,6 @@ export class Lifecycle {
       termination: occupancy.value.termination,
       base,
     });
-    const capsule = this.#capsuleOf(frame, carried);
     return {
       kind: "dispatch",
       result: {
@@ -450,7 +449,7 @@ export class Lifecycle {
         round: booked.round,
         route: booked.route,
       },
-      capsule,
+      capsule: booked.capsule,
       checked: verdict.checked,
     };
   }
@@ -471,16 +470,20 @@ export class Lifecycle {
        *  carries one. */
       readonly base: string | null;
     },
-  ): { round: RoundRecord; route: Route | null } {
+  ): { round: RoundRecord; route: Route | null; capsule: CapsuleFacts } {
     // The two reads the booking owns happen ONCE, before the record is written: the round's
     // own-bytes fact (the binding's gate, and the blindness it books) and the evidence read
     // (the criterion's `evidenceOk` cell AND the round's hard entry).
     const touched = this.#touchedOf(frame, dispatch.base);
     const evidence = Lifecycle.#owesEvidence(frame) ? this.#reads.evidence(frame) : null;
+    // The completion facts are assembled ONCE too: the criterion judges them and the capsule's
+    // fix counts read the SAME pair back, so a row the round was never judged on is not
+    // counted on the summary line either.
+    const facts = this.#completionFactsOf(frame, carried, dispatch.base, evidence);
     const violations = [
       ...Lifecycle.#violationsOf(carried, dispatch.findings),
       ...Lifecycle.#dispatchViolationsOf(dispatch),
-      ...this.#completionOf(frame, carried, dispatch.base, evidence),
+      ...this.#completionOf(frame, facts),
       ...Lifecycle.#evidenceOf(evidence),
       ...Lifecycle.#writeBackOf(touched),
     ];
@@ -508,7 +511,7 @@ export class Lifecycle {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
     this.#bindReviewed(frame, landed, round.verdict.targetAction, touched);
-    return { round, route };
+    return { round, route, capsule: this.#capsuleOf(frame, carried, facts) };
   }
 
   /** The round's own-bytes fact, measured only where a binding could read it: an implement
@@ -572,13 +575,16 @@ export class Lifecycle {
    *  ONE derivation of the fix round's counts. A judge round feeds the two partitions of the
    *  carrier's findings (each read from the dispatch segment's own judgment) to the criterion
    *  slice's `regradeNote`, and an absent note leaves the cell out entirely; a fix round hands
-   *  over the two counts of the table its criterion judged, and the words stay on the render
-   *  face. The two cells never cross: a work round composes no note, a judge round counts no
-   *  disposition. */
-  #capsuleOf(frame: FrameFacts, carried: CarriedFacts): CapsuleFacts {
+   *  over the two counts of the SAME table-and-request pair its criterion judged, and the words
+   *  stay on the render face. The two cells never cross: a work round composes no note, a judge
+   *  round counts no disposition. */
+  #capsuleOf(frame: FrameFacts, carried: CarriedFacts, facts: CompletionFacts): CapsuleFacts {
     if (frame.phase === "fix") {
       return {
-        dispositionCounts: DispositionsCriterion.summaryOf(carried.dispositions ?? {}),
+        dispositionCounts: DispositionsCriterion.summaryOf(
+          facts.dispositions ?? {},
+          facts.requested ?? [],
+        ),
       };
     }
     if (frame.phase !== "review" && frame.phase !== "branch-review") return {};
@@ -639,16 +645,8 @@ export class Lifecycle {
    *  at most one refusal plus the soft observations, and the refusal is the hard entry that
    *  withholds the booking's `targetAction`: a review round that persisted no judge carrier and
    *  an implement round that committed nothing are refused here, never completed by omission. */
-  #completionOf(
-    frame: FrameFacts,
-    carried: CarriedFacts,
-    base: string | null,
-    evidence: EvidenceFile | null,
-  ): readonly RoundViolation[] {
-    const verdict = CompletionCriteria.judge(
-      Lifecycle.#opOf(frame.phase),
-      this.#completionFactsOf(frame, carried, base, evidence),
-    );
+  #completionOf(frame: FrameFacts, facts: CompletionFacts): readonly RoundViolation[] {
+    const verdict = CompletionCriteria.judge(Lifecycle.#opOf(frame.phase), facts);
     if (verdict.kind === "violation") {
       return [{ grade: "hard", cause: CONTRACT_VIOLATION, message: verdict.message }];
     }

@@ -236,9 +236,17 @@ export class DispositionsCriterion implements CompletionCriterion {
   }
 
   /** The two counts the round's summary line renders — counts only; the words are the word
-   *  table's and the slots are the render face's. */
-  static summaryOf(dispositions: Readonly<Record<string, FixDisposition>>): FixSummary {
-    const rows = Object.values(dispositions);
+   *  table's and the slots are the render face's. It reads the SAME pair the judgment reads —
+   *  the table and the requested finding set, intersected through `keyOf` — so a row no
+   *  finding names is never counted on a round the criterion refused for naming it. */
+  static summaryOf(
+    dispositions: Readonly<Record<string, FixDisposition>>,
+    requested: readonly RequestedFinding[],
+  ): FixSummary {
+    const wanted = new Set(requested.map((finding) => DispositionsCriterion.keyOf(finding)));
+    const rows = Object.entries(dispositions)
+      .filter(([key]) => wanted.has(key))
+      .map(([, row]) => row);
     return {
       fixed: rows.filter((row) => row.status === "fixed").length,
       rejected: rows.filter((row) => row.status === "rejected").length,

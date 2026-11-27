@@ -1379,13 +1379,34 @@ describe("the fix completion criterion", () => {
       }),
     );
     expect(rejected.kind).toBe("violation");
-    const summary = DispositionsCriterion.summaryOf({
-      F1: { status: "fixed" },
-      F2: { status: "rejected", reason: "not a defect" },
-    });
+    const requested = [
+      { id: "F1", summary: "a" },
+      { id: "F2", summary: "b" },
+    ];
+    const summary = DispositionsCriterion.summaryOf(
+      {
+        F1: { status: "fixed" },
+        F2: { status: "rejected", reason: "not a defect" },
+      },
+      requested,
+    );
     expect(summary).toEqual({ fixed: 1, rejected: 1 });
-    expect(DispositionsCriterion.summaryOf({ F1: { status: "fixed" } })).toEqual({
+    expect(DispositionsCriterion.summaryOf({ F1: { status: "fixed" } }, requested)).toEqual({
       fixed: 1,
+      rejected: 0,
+    });
+  });
+
+  it("counts only the requested rows when the table also carries an unknown key", () => {
+    // The request names `F1` alone: `F9` is a row no finding names, so the round is refused
+    // for it AND the summary line must not report it — both faces read the same pair.
+    expect(
+      DispositionsCriterion.summaryOf({ F1: { status: "fixed" }, F9: { status: "fixed" } }, [
+        { id: "F1", summary: "the only row" },
+      ]),
+    ).toEqual({ fixed: 1, rejected: 0 });
+    expect(DispositionsCriterion.summaryOf({ F1: { status: "fixed" } }, [])).toEqual({
+      fixed: 0,
       rejected: 0,
     });
   });
@@ -1520,6 +1541,34 @@ describe("the capsule summary", () => {
     // The note keeps its OWN cell: a fix round has no regrade note, so the judge face's cell
     // stays absent rather than borrowing the counts' row.
     expect(fix.capsule.summary).toBeUndefined();
+  });
+
+  it("counts only the requested rows when the fix carrier names a finding no review reported", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "warn", summary: "a warn", id: "F1" }],
+      status: null,
+    });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    fx.requesting.findings = [{ severity: "warn", summary: "a warn", id: "F1" }];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: {
+        F1: { status: "fixed" },
+        // No finding names this row: the round is REFUSED for it, and the summary line reads
+        // the same table-and-request pair — so the capsule never overstates a refused round.
+        F9: { status: "fixed" },
+      },
+    });
+    const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
+    expect(fix.kind).toBe("dispatch");
+    if (fix.kind !== "dispatch") return;
+    expect(fix.result.round.verdict.targetAction).toBe(false);
+    expect(fix.capsule.dispositionCounts).toEqual({ fixed: 1, rejected: 0 });
   });
 });
 

@@ -163,6 +163,18 @@ describe("the document review line", () => {
     expect(raw.lines[0].doc_hash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
   });
 
+  it("moves the version a fix produced without opening a review batch", () => {
+    const { ledger } = fixture();
+    ledger.recordDocReview("phase-spec", "the body as reviewed");
+    // A fix edits the document it judges: the recorded version follows its bytes, but the
+    // line's review-batch counter counts reviews — one review plus one fix is ONE batch.
+    ledger.recordReviewedDoc("phase-spec", "the body after the fix");
+    const line = ledger.docLines()[0];
+    expect(line?.docHash).toBe(ReviewedIdentity.hashOf("the body after the fix"));
+    expect(line?.batch).toBe(1);
+    expect(ledger.docDriftOf("phase-spec", "the body after the fix")).toBe("same");
+  });
+
   it("answers `same` for the reviewed bytes and `drift` once the document moved", () => {
     const { ledger } = fixture();
     ledger.recordDocReview("plan", "plan v1");

@@ -26,7 +26,9 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import { TaskBlocks } from "../../docs/grammar/task-blocks.ts";
 import { TARGET_TYPE_VALUES } from "../../docs/identity/types.ts";
+import { FileDeclarations } from "../../docs/judging/invariants.ts";
 import { TaskGraph } from "../../docs/judging/task-graph.ts";
 import type { RepoPath, RepoRoot } from "../../env/paths/root.ts";
 import type { SlugIndex } from "../../env/paths/slug-index.ts";
@@ -171,6 +173,11 @@ export interface FrameScene {
   readonly planText: string | null;
   /** The plan's graph, when the plan read produced one. */
   readonly graph: TaskGraph | null;
+  /** The plan tasks whose `Files` declaration names no path — the verification-wave cell a
+   *  round's completion judgment reads. The PLAN DOCUMENT is the only source (never the
+   *  diff), and a plan that is absent, unreadable or broken declares no row, so a wave never
+   *  reads as a verification wave on a plan this assembly could not see. */
+  readonly emptyFileTasks: ReadonlySet<number>;
   /** The requested task ids, ascending. */
   readonly tasks: readonly number[];
   /** The render target the `next:` literal reads. */
@@ -211,15 +218,33 @@ export type FrameOutcome =
   | Usage
   | ReadFailure;
 
-/** The graph construction's one guarded entry — a plan whose block grammar breaks yields no
- *  graph, and the frame then declares no task set (the plan read's own failure belongs to the
- *  document slice). */
-const graphOf = (text: string): TaskGraph | null => {
+/** The plan's task blocks — the ONE extraction this assembly makes, so the graph and the
+ *  empty-`Files` cell read the same blocks. A plan whose block grammar breaks yields no
+ *  extraction (the absence is a declared fact downstream, never a throw): the plan read's
+ *  failure belongs to the document slice. */
+const blocksOf = (text: string): TaskBlocks | null => {
   try {
-    return TaskGraph.parse(text);
+    return TaskBlocks.parse(text, "plan");
   } catch {
     return null;
   }
+};
+
+/** The graph of one extraction — no extraction, no graph, and the frame then declares no task
+ *  set. */
+const graphOf = (blocks: TaskBlocks | null): TaskGraph | null =>
+  blocks === null ? null : new TaskGraph(blocks);
+
+/** The tasks of one extraction whose `Files` declaration names no path. An empty result is a
+ *  REAL claim ("this plan changes files"), so the read fails SAFE: an absent section, a blank
+ *  value and a placeholder declare zero paths, and an unrecognized value stays a path. */
+const emptyFilesOf = (blocks: TaskBlocks | null): ReadonlySet<number> => {
+  const empty = new Set<number>();
+  if (blocks === null) return empty;
+  for (const block of blocks.blocks()) {
+    if (FileDeclarations.of(block).length === 0) empty.add(block.id);
+  }
+  return empty;
 };
 
 /**
@@ -252,7 +277,8 @@ export class Frame {
     if (plan !== null && plan.kind === "read-failure") {
       return { kind: "read-failure", target: plan.target };
     }
-    const graph = plan !== null && plan.kind === "text" ? graphOf(plan.value) : null;
+    const blocks = plan !== null && plan.kind === "text" ? blocksOf(plan.value) : null;
+    const graph = graphOf(blocks);
     const unknown = Frame.#unknownTaskOf(taskIds.ids, graph);
     if (unknown !== null) {
       return {
@@ -277,6 +303,7 @@ export class Frame {
       planPath: planPath === null ? null : String(planPath),
       planText: plan !== null && plan.kind === "text" ? plan.value : null,
       graph,
+      emptyFileTasks: emptyFilesOf(blocks),
       tasks: taskIds.ids,
       target,
       program: identity.program,

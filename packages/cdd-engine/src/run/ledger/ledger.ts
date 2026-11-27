@@ -397,7 +397,8 @@ export class Ledger {
    *  of the line's batch counter. A document's SECOND review is batch 2 — the counter is
    *  the line's own history, never a re-derivation from its rounds. `doc_hash` is the
    *  LATEST reviewed version: each review overwrites it, so the drift read always compares
-   *  against the newest review rather than the first one. */
+   *  against the newest review rather than the first one. Only a review opens a batch — a fix
+   *  moves the version through `recordReviewedDoc` and leaves this counter alone. */
   recordDocReview(line: string, content: string): void {
     const document = this.read() ?? this.empty();
     const hash = ReviewedIdentity.hashOf(content);
@@ -406,6 +407,21 @@ export class Ledger {
         ...row,
         doc_hash: hash,
         batch: (row.batch ?? 0) + 1,
+      })),
+    );
+  }
+
+  /** Record the version a FIX round produced — the SAME `doc_hash` cell a review writes, with
+   *  the line's review-batch counter untouched. A fix moves the recorded version (it edits the
+   *  document it judges) but it is no review batch: only `recordDocReview` opens one, so the
+   *  counter counts reviews and nothing else. */
+  recordReviewedDoc(line: string, content: string): void {
+    const document = this.read() ?? this.empty();
+    const hash = ReviewedIdentity.hashOf(content);
+    this.#write(
+      this.#withRow(document, line, (row) => ({
+        ...row,
+        doc_hash: hash,
       })),
     );
   }

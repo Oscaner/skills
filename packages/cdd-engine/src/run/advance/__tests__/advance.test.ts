@@ -14,7 +14,9 @@
 //     clears the door's fact, and a preview changes neither;
 //   · the six hop cells, the soft cap's ONE threshold and the wave gate's five rows with their
 //     neighbour arms and their row order;
-//   · the drift reopen and the closure terminal;
+//   · the drift reopen and the closure terminal — a fix binds only the version its OWN commits
+//     produced (an untouched fix leaves the previous binding standing), and only a review opens
+//     a review batch;
 //   · the `fix` completion criterion — the coverage judgment, its one message and its three
 //     soft observations;
 //   · the capsule summary — the ONE `regradeNote` composition, all three arms;
@@ -179,12 +181,22 @@ const planTextOf = (repo: string) => (rel: RepoPath) => {
   }
 };
 
-/** A plan document's front matter — the identity the frame reads its slug off. */
-const planDoc = (tasks: readonly { readonly id: number; readonly dependsOn: string }[]): string =>
-  `---\ntitle: 'p9 plan'\ndoc-type: plan\nslug: '${SLUG}'\n---\n\n## Design\n\n${planBody(tasks)}`;
+/** One task's declared `Files` row — a task that changes one file. */
+const DEFAULT_FILES: readonly string[] = ["- Create: `a.ts`"];
 
-/** One plan body: a task block per id, each declaring `DependsOn`. */
-const planBody = (tasks: readonly { readonly id: number; readonly dependsOn: string }[]): string =>
+/** A plan document's front matter — the identity the frame reads its slug off. */
+const planDoc = (
+  tasks: readonly { readonly id: number; readonly dependsOn: string }[],
+  files: readonly string[] = DEFAULT_FILES,
+): string =>
+  `---\ntitle: 'p9 plan'\ndoc-type: plan\nslug: '${SLUG}'\n---\n\n## Design\n\n${planBody(tasks, files)}`;
+
+/** One plan body: a task block per id, each declaring `DependsOn` and one `Files` section. An
+ *  empty `files` list declares the section and keeps it blank — the verification-wave shape. */
+const planBody = (
+  tasks: readonly { readonly id: number; readonly dependsOn: string }[],
+  files: readonly string[] = DEFAULT_FILES,
+): string =>
   tasks
     .map((task) =>
       [
@@ -196,7 +208,7 @@ const planBody = (tasks: readonly { readonly id: number; readonly dependsOn: str
         "",
         "#### Files",
         "",
-        "- Create: `a.ts`",
+        ...files,
         "",
         "#### Consumes",
         "",
@@ -289,6 +301,9 @@ interface Fixture {
   };
   readonly commits: { count: number };
   readonly groupBase: { value: string | null };
+  /** Whether the round's own commits touched the input it binds — the fix binding's gate, a
+   *  fact the REAL read derives from `dispatchBase..HEAD`'s path set. */
+  readonly touchedDoc: { value: boolean };
   /** The brief face's two renders: the landed bytes (which carry the round context) and the
    *  task-only projection a wave round binds. */
   readonly briefBytes: { content: string; reviewed: string };
@@ -327,6 +342,7 @@ const fixture = (): Fixture => {
   } = { findings: [] };
   const commits = { count: 1 };
   const groupBase: { value: string | null } = { value: "base" };
+  const touchedDoc = { value: false };
   const briefBytes = { content: "brief bytes\n", reviewed: "task body\n" };
   const lines = new LinePhase({
     facts: ledger,
@@ -427,6 +443,7 @@ const fixture = (): Fixture => {
     requesting: () => requesting,
     commits: () => commits.count,
     groupBase: () => groupBase.value,
+    touchedDoc: () => touchedDoc.value,
     blockerRun: (facts) => lines.blockerRunOf(facts.key, facts.type, facts.round),
   };
   const waveGate = new WaveGate();
@@ -479,6 +496,7 @@ const fixture = (): Fixture => {
     requesting,
     commits,
     groupBase,
+    touchedDoc,
     briefBytes,
     lifecycle,
     options,
@@ -487,7 +505,11 @@ const fixture = (): Fixture => {
 };
 
 /** A wave plan of one task, plus its identity document. */
-const oneTaskPlan = (fx: Fixture, tasks = [{ id: 1, dependsOn: "none" }]): void => {
+const oneTaskPlan = (
+  fx: Fixture,
+  tasks = [{ id: 1, dependsOn: "none" }],
+  files: readonly string[] = DEFAULT_FILES,
+): void => {
   writeDoc(
     fx.repo,
     OVERALL_REL,
@@ -500,7 +522,7 @@ const oneTaskPlan = (fx: Fixture, tasks = [{ id: 1, dependsOn: "none" }]): void 
     { title: "spec", docType: "phase-spec", slug: SLUG, program: "program-1" },
     "# spec\n\nplan: p9\n",
   );
-  writeFileSync(path.join(fx.repo, PLAN_REL), planDoc(tasks), "utf8");
+  writeFileSync(path.join(fx.repo, PLAN_REL), planDoc(tasks, files), "utf8");
 };
 
 /** The wave request of that plan. */
@@ -1125,6 +1147,8 @@ describe("the drift reopen and the closure terminal", () => {
       status: "APPROVED",
       dispositions: { F1: { decision: "fixed" } },
     });
+    // The fix's own commit touched the document it judges.
+    fx.touchedDoc.value = true;
     const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
     expect(fix.kind).toBe("dispatch");
     if (fix.kind !== "dispatch") return;
@@ -1133,6 +1157,45 @@ describe("the drift reopen and the closure terminal", () => {
     // fix's own bytes are not a drift against the line it just concluded.
     expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(postFix));
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).not.toBe("reopened");
+    // ONE review batch, whatever the fix wrote: a fix moves the recorded version, it is not a
+    // second review of the line.
+    expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
+  });
+
+  it("keeps an untouched fix from binding bytes it never delivered", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "warn", summary: "a warn", id: "F1" }],
+      status: null,
+    });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    const reviewed = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(reviewed));
+    // The document moves in a commit OUTSIDE any round. Drift never outranks a pending fix, so
+    // the line reads `open` at its fix hop — and the movement stays an unreviewed fact.
+    writeFileSync(path.join(fx.repo, SPEC_REL), `${reviewed}\namended out of round\n`, "utf8");
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("open");
+    // The fix round edits only code: its own commits never touched the document it judges, so it
+    // produced no version and the review's binding stands — the movement is NOT laundered into
+    // "reviewed", and the line keeps saying the document moved.
+    fx.requesting.findings = [{ severity: "warn", summary: "a warn", id: "F1" }];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    fx.touchedDoc.value = false;
+    const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
+    expect(fix.kind).toBe("dispatch");
+    if (fix.kind !== "dispatch") return;
+    expect(fix.result.round.verdict.targetAction).toBe(true);
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(reviewed));
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
+    // No review batch was opened by the fix either.
+    expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
   });
 
   it("binds a wave review to its task-only projection, never to the landed bytes", async () => {
@@ -1359,6 +1422,21 @@ describe("the booked verdict", () => {
     expect(fx.lines.wavePhaseOf("1")).toBe("review");
   });
 
+  it("binds nothing on a review round whose child exited non-zero", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // The doc face's own review: the binding's gate rides the BOOKED verdict, so a child that
+    // never delivered its conclusion records no version at all.
+    fx.runner.code = 1;
+    const failed = await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL });
+    expect(failed.kind).toBe("dispatch");
+    if (failed.kind !== "dispatch") return;
+    expect(failed.result.round.verdict.targetAction).toBe(false);
+    expect(fx.ledger.docHashOf("phase-spec")).toBeNull();
+    expect(fx.ledger.reviewedOf("phase-spec")).toBeNull();
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("open");
+  });
+
   it("withholds it from a carrier that concluded BLOCKED, under its own cause", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
@@ -1404,6 +1482,36 @@ describe("the booked verdict", () => {
     ).toContain("the group committed nothing since its baseline base");
     expect(implement.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toBeNull();
     expect(implement.lines.wavePhaseOf("1")).toBe("implement");
+  });
+
+  it("reads the verification-wave shape off the plan's own Files declaration", async () => {
+    // A wave whose every member declares no file change: the plan's `Files` section is the ONE
+    // source of that shape, and it must stay REACHABLE — otherwise a wave that declared no
+    // diff still books "committed nothing", a refusal its own declaration never earned.
+    const fx = fixture();
+    oneTaskPlan(fx, [{ id: 1, dependsOn: "none" }], []);
+    const assembled = fx.frame.of(waveRequest());
+    expect(assembled.kind).toBe("frame");
+    if (assembled.kind !== "frame") return;
+    expect([...assembled.emptyFileTasks]).toEqual([1]);
+    // The same cell over a plan that declares a file: no verification shape.
+    const ordinary = fixture();
+    oneTaskPlan(ordinary);
+    const plain = ordinary.frame.of(waveRequest());
+    expect(plain.kind).toBe("frame");
+    if (plain.kind !== "frame") return;
+    expect([...plain.emptyFileTasks]).toEqual([]);
+    // A zero-commit round in that wave is judged on the evidence it owes, never on a commit its
+    // declaration never promised.
+    fx.commits.count = 0;
+    const judged = await fx.run.advance(waveRequest());
+    expect(judged.kind).toBe("dispatch");
+    if (judged.kind !== "dispatch") return;
+    const hard = judged.result.round.violations
+      .filter((row) => row.grade === "hard")
+      .map((row) => row.message);
+    expect(hard.some((message) => message.includes("still owes green evidence"))).toBe(true);
+    expect(hard.some((message) => message.includes("committed nothing"))).toBe(false);
   });
 });
 

@@ -37,7 +37,10 @@
 //     cell: a document line records `doc_hash`, a wave line records the task-only `brief`
 //     projection that landed for that dispatch. `review` and `branch-review` bind the version
 //     they judged; `fix` binds the version it PRODUCED, so its own edits cannot reopen the line
-//     it just closed; an implement round binds nothing.
+//     it just closed — which is why a fix binds only when its own commits touched the input it
+//     judges: a fix that edited nothing produced no version, and recording the bytes some
+//     out-of-round movement left behind would launder them as reviewed; an implement round binds
+//     nothing.
 //
 //   · THE LINE LEG RUNS BEFORE THE LANDING. The wave gate is the task face's own pre-flight:
 //     a request its five rows refuse is never dispatched, and the refusal rides the same
@@ -158,9 +161,14 @@ export interface LifecycleLedger {
   recordRound(line: string, init: RoundRecordInit): RoundRecord;
   closeWave(line: string, planTasks: readonly number[]): void;
   recordDocReview(line: string, content: string): void;
+  /** Record the version a FIX round produced — the same `doc_hash` cell a review writes, with
+   *  the line's review-batch counter untouched: a fix moves the version it edited, but it opens
+   *  no review batch. */
+  recordReviewedDoc(line: string, content: string): void;
   /** Record the version a WAVE line reviewed — its task-only brief projection. Each line kind
    *  has ONE reviewed cell: a document line's version is the ledger's own `doc_hash`
-   *  (`recordDocReview`), a wave line's is this `brief` identity, and no line writes both. */
+   *  (`recordDocReview` / `recordReviewedDoc`), a wave line's is this `brief` identity, and no
+   *  line writes both. */
   recordReviewed(line: string, reviewed: ReviewedIdentity): void;
 }
 
@@ -204,6 +212,13 @@ export interface LifecycleReads {
   /** The group's dispatch baseline — the HEAD a zero-commit refusal names; null when the
    *  group carries none. */
   readonly groupBase: (frame: FrameFacts) => string | null;
+  /** Whether THIS round's own commits touched the input the round binds — a document line's
+   *  document, a wave line's plan. The git read (`dispatchBase..HEAD`'s path set) and the
+   *  comparison against that coordinate are the seam's, because the repository basis is: this
+   *  segment does no path work, so the fact arrives folded. `false` when the frame names no
+   *  input or the range cannot be read — a fix whose own bytes are unproven produced no
+   *  version, and the previous binding then stands. */
+  readonly touchedDoc: (frame: FrameFacts) => boolean;
   /** The consecutive-blocker run the round at `frame.round` closes — the soft cap's ONE
    *  counter, read off the line's completed review rounds. */
   readonly blockerRun: (frame: FrameFacts) => number;
@@ -418,14 +433,21 @@ export class Lifecycle {
    *  reopen reads back. The binding rides the BOOKED verdict (`targetAction`): a round that
    *  withheld its target action reviewed or produced nothing, so it binds nothing. Each line
    *  kind has ONE cell: a document line records `doc_hash`, a wave line records the task-only
-   *  `brief` projection that landed for that dispatch, and no line writes both. A `fix` is in
-   *  the set because it EDITS the document it judges — without its own binding a completed fix
-   *  would leave the pre-fix revision on record and its own bytes would read as an out-of-round
-   *  drift the moment it closed its line. A work round concluded about no bytes and binds
-   *  nothing. */
+   *  `brief` projection that landed for that dispatch, and no line writes both.
+   *
+   *  A `review` / `branch-review` binds the version it JUDGED. A `fix` is in the set because it
+   *  EDITS the input it judges — without its own binding a completed fix would leave the pre-fix
+   *  revision on record and its own bytes would read as an out-of-round drift the moment it
+   *  closed its line — so it binds the version it PRODUCED, and only when its OWN commits
+   *  touched that input: a fix that edited nothing produced no version, and binding the current
+   *  bytes anyway would record an out-of-round movement as reviewed and close a line no round
+   *  has read. Only a review OPENS a batch: a fix moves the recorded version and leaves the
+   *  line's review-batch counter alone. */
   #bindReviewed(frame: FrameFacts, landed: LandedBrief, completed: boolean): void {
     if (!completed) return;
-    if (Lifecycle.#opOf(frame.phase) === "implement") return;
+    const op = Lifecycle.#opOf(frame.phase);
+    if (op === "implement") return;
+    if (op === "fix" && !this.#reads.touchedDoc(frame)) return;
     if (TargetFaces.advancesBatch(frame.type)) {
       if (landed.reviewed === undefined) return;
       this.#ledger.recordReviewed(
@@ -436,7 +458,8 @@ export class Lifecycle {
     }
     const text = frame.doc === null ? null : this.#reads.docText(frame);
     if (frame.doc === null || text === null) return;
-    this.#ledger.recordDocReview(frame.key, text);
+    if (op === "fix") this.#ledger.recordReviewedDoc(frame.key, text);
+    else this.#ledger.recordDocReview(frame.key, text);
   }
 
   /** The ready batch a closure reads — the plan's next open wave once THIS round's wave is
@@ -539,11 +562,14 @@ export class Lifecycle {
       carrierWritten: carried.status !== null || carried.findings !== null,
       findings: carried.findings,
       waveTasks: frame.tasks,
-      // The two VERIFICATION cells are the work plane's own facts — the plan's empty-`Files`
-      // read and the evidence gate — so they keep their declared empty values here: a wave that
-      // declares no file change is refused rather than completed on an absent fact, never
-      // approved on a gate this segment cannot see.
-      emptyFileTasks: new Set<number>(),
+      // The empty-`Files` cell is the PLAN's own declaration, read once at the frame assembly
+      // (`FrameScene#emptyFileTasks`) and carried here: a wave whose every member declares no
+      // file change IS the verification shape, so that shape stays reachable instead of reading
+      // every such wave as "committed nothing". The evidence cell has no producer in this tree
+      // — the evidence gate is a separate segment this phase does not own — so it keeps its
+      // declared `false`: a verification wave reads the evidence refusal, never a completion on
+      // an absent read.
+      emptyFileTasks: frame.emptyFileTasks,
       evidenceOk: false,
     };
     if (Lifecycle.#opOf(frame.phase) !== "fix") return facts;

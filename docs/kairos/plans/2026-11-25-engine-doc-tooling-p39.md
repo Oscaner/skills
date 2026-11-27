@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.55
+version: v0.56
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -394,7 +394,6 @@ pin 齐（预览与真跑同源的**缝**——两次 `plan()` 结果字节相�
 - Modify: `packages/cdd-engine/tests/parity/fixtures/trees.ts`（板面的四个差异各一株树：章程行带 review + fix 两轮、旧引擎的 cycle-less 产物组 + 一个目录、一次崩过又重派的周期、一份 review 之后又动过的身份文档；外加 `{REPO}` 占位与 `files()` 的两条读面）
 - Modify: `packages/cdd-engine/tests/parity/baseline/src-next.json`（只追加四格，由 `record.ts` 从旧树录）
 - Create: `packages/cdd-engine/src/run/dispatch/__tests__/handoff.test.ts`（`sectionText` 的四个 (plane, evidence) 组合逐字节钉住）
-- Modify: `packages/cdd-engine/src/run/advance/__tests__/advance.test.ts`、`packages/cdd-engine/src/run/ledger/__tests__/ledger.test.ts`、`packages/cdd-engine/src/env/paths/__tests__/paths.test.ts`（新增读面的同片 pin：章程坐席、记录里记下的载体路径、cycle-less 归属、`files()` 与 `names()` 的分工）（本片各格的比较项）
 
 #### Consumes
 - 旧树的 `contract/review-criteria.ts`（含 `LENS_QUESTION_ROWS`）· `contract/completion-criterion.ts#CompletionCriteria` · `contract/wave-width.ts#MAX_TASKS_PER_WAVE` · `render/skeleton.ts#SkeletonAssembler#compose`（读行为与四族的分支集）
@@ -841,6 +840,7 @@ pin 齐（动词集与值域 · 壳零文件 IO 零判定零拼装 · 壳调用�
 - Modify: `packages/cdd-engine/src/run/advance/line-phase.ts`（读不出的载体不判闭合）
 - Modify: `packages/cdd-engine/src/env/process/host.ts`（`isHostId`：检测读数到表行的唯一收窄）
 - Create: `packages/cdd-engine/src/run/advance/__tests__/reads.test.ts`（空渲染零 spawn · 无宿主回已声明的拒绝 · 两个变体原样过）
+- Modify: `packages/cdd-engine/src/run/advance/__tests__/advance.test.ts`、`packages/cdd-engine/src/run/ledger/__tests__/ledger.test.ts`、`packages/cdd-engine/src/env/paths/__tests__/paths.test.ts`（新增读面的同片 pin：章程坐席、记录里记下的载体路径、cycle-less 归属、`files()` 与 `names()` 的分工）（本片各格的比较项）
 
 #### Consumes
 - 四片的入口（`Env` · `Documents` · `Run` · `Cli`）· spec §2.2 的八个面
@@ -1062,3 +1062,4 @@ pin 齐（恰好一条且字节相同 · 删掉拼装即红 · 空 prompt 零 sp
 | v0.53 | 2026-11-27 | docs-fix 轮四十四（F1 · F2 为 warn，内容面落地，未放宽判据；F3 落在 spec 内容、F4 落在结构面，均在本轮写权之外，原样交编排者）：**派发帧的每一格入参各有了主人**——`assembleDispatchFrame` 原先只收 `frame` 与 `briefPath`，而 `DispatchFrame` 里由 `host` 派生的 `command` / `args` 前缀 / `env`、模板渲染的 `values`、`cwd` 与 `log` 既没有参数也没有声明的供给者（`FrameFacts` 里没有宿主、没有模板值、也没有日志坐标），于是 T20 的 pin 按测试自己传进去的那一行全绿，而生产链仍要替这几格做一次无人判的选择；本轮把入参收成声明过的参数对象 `DispatchAssembly`（参数多于四个，按 Constraints 收成参数对象），每格点名供给者：`values` 取 T12 的 `run/dispatch/values.ts#DispatchValues` · `host` 取 T5 `env/process/host.ts#HostDetect` 那一次探测（T11 的 `no-host` 站已拒掉无宿主派发，故派发时必有值）· `cwd` 取 `env/index.ts#Paths#root` 的绝对形（树腿扫描根与孩子 spawn 目录同一个值）· `log` 取 `env/workspace/workspace.ts#Workspace#roundLogOf` 的坐标与它经 `env/paths/root.ts#RepoRoot#resolve` 的绝对形（同一文件的两个拼写），T20 的 Steps 补一条各格来源的成对臂、Acceptance 与 Consumes 同批收口，T17 的 `reads.ts` 那一句「直接转发」点明其余入参由那条读自己的读面供给（F1）；**基冲突那一条真跑臂带上必填的 `--source`**——`cdd base set --plan <…> --base <请求基>` 缺 `--source` 会被解析层拒成 `required option` 单行，根本走不到 `base already set to … pass --force to override` 那一字节，两半都补 `--source plan-field`（与语料格的拼法同形），否则 W10 的臂在正确实现上红、而唯一便宜的转绿法是去断解析层那句（F2）。F3（spec §2.2 面 5 的 capsule 四槽 · §2.3 的 `overall` 形态与形态计数 · 验收里 changeset 级别的措辞）落在 spec 内容、F4（`DependsOn` 的载体 / 时钟 / 环境 / 类型边）落在结构面，均在本轮写权之外，原样交编排者回填；本轮新点名的两个供给者也另欠 T20 → T3 与 T20 → T5 两条边，同属编排者写权。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |
 | v0.54 | 2026-11-27 | wave fix 轮（F1 · F2 · F3 · F4 · F5 为 blocker、F6 · F7 · F8 · F9 · F10 · F11 为 warn，全部落地，未放宽判据）：**实时树的四处板面差异按旧行为收敛，各处各配一株语料树与一格**——① 章程行的轮次记在**程序**工作区，`BoardReads#charterSeat` 交出那一个坐席的轮次与载体、`Run#rowsOf` 只对 `overall` 那一行改读它（`f6.board.charter`）；② 旧引擎 mint 的 cycle-less 名字没有身份但有 kind（`ArtifactIdentity#lineAndKindOf`），孤儿面的归属两档回到旧树（记录里记下的 `carrierPath` 基名 + 身份），观察集只读**文件**（`DirectoryListing#files`——`scratch/` 是目录，不是产物），而只保留 wave 族的 brief 才是引擎写过的名字，别的 `-brief.md` 仍是观察（`f6.board.legacy`，另修好了 p7 上旧树多出的七行）；③ `Ledger#carrierPathOf` 的第 ① 步先答记录自己的 `carrierPath`——重派过的周期里由身份推导的名字会落到兄弟 attempt 的那份上，pass 轮的 notes 因此回到 pass 轮（`f6.board.reattempt`）；④ 文档动过而路由在退出侧时 `Pipeline#hopOf` 把路由换成它欠的那次 review（`f6.board.doc-face-drift`），闭行交接不再吞掉同一读报告出来的 drift；四处各把修法回退 ⇒ 那一格红。**两条把「类型说的就是代码靠的」补齐**——`AdvanceReads#dispatchFrame` 在 `host` 不是已声明的表行时答 `{ kind: "no-host" }` 而不再把空串塞进 `HostId`（`env/process/host.ts#isHostId` 是那道收窄），`Lifecycle#advance` 收到它就重判同一份 pre-flight 上下文、回它的 station 拒绝；`LinePhase#roundRoute` 在读不出载体时回 `null`（读不出的轮次不判闭合，旧树同此），`CarriedFacts#readable` 是那一格——这一条也修好了 p22 的 `W4 {7}` 标记。**三处覆盖欠账各补一条 pin**——空渲染零 spawn 那一臂落在 `run/advance/__tests__/reads.test.ts`（把转发换成「先 spawn 再判空」即红）；`Handoff#sectionText` 的四个 (plane, evidence) 组合在 `run/dispatch/__tests__/handoff.test.ts` 逐字节钉住；`parity.test.ts` 的 `T17` 字面删掉，注册波只从表派生。**一次调用一份世界**——`DocWorld` 在组合根建一次，`Documents`、`AdvanceReads` 与每个 `phaseRun` 收同一个实例，`composition.test.ts` 数构造点，章程板面因此不再每相位扫一遍文档树（实测 user 时间 12.1s → 10.3s，余下成本是事实层每次访问重读 `progress.json`，不在本任务写面）。`smoke.integration.test.ts` 改成自带夹具（临时仓里写并提交三份文档），不再从 `tests/parity/` 借，翻面删除语料后它仍可跑。语料的 `{REPO}` 占位与 `STALE_DIGEST` 是这两株树的夹具事实：记录里的 `carrierPath` 是绝对路径、drift 的 `doc_hash` 必须是**合法的 40 位 sha1**（短字面会被身份读成「没有记录」而不判 drift）。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-27） |
 | v0.55 | 2026-11-27 | **编排者的错位修正（`single-create` 拒了计划评审 45）**：第十一浪的 fix 轮把它收敛时改的七个文件（`run/ledger/ledger.ts` · `run/ledger/artifacts.ts` · `run/index.ts` · `run/advance/pipeline.ts` · `run/advance/line-phase.ts` · `env/process/host.ts` · `run/advance/__tests__/reads.test.ts`）误写进了 **T9（`docs/` 判据表那一波）** 的 Files；`single-create` 因此拒了评审——同一路径在计划里只能被点名一次，而 T13 已 `Create` 过 `pipeline.ts` 与 `line-phase.ts`。七行整体搬进它们真正的落点 **T17**，任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-27） |
+| v0.56 | 2026-11-27 | **编排者的错位修正（`single-create` 二度拒）**：`src/run/advance/__tests__/advance.test.ts` 在 T9 被 `Modify` 提到，而 T13 才 `Create` 它——判据要求 `Create` 是该路径的第一次声明。该行搬进 T17（第十一波收敛的真实落点）。全表 25 处重复声明里只有这一处违反「先 Create 后 Modify」 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-27） |

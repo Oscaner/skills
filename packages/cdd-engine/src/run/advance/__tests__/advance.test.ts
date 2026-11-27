@@ -46,6 +46,7 @@ import {
   CompletionCriteria,
   type CompletionFacts,
   DispositionsCriterion,
+  docBodyOf,
   FIX_ZERO_COMMITS,
   type Finding,
   type FixDisposition,
@@ -1238,9 +1239,54 @@ describe("the drift reopen and the closure terminal", () => {
     expect(reviewed.kind).toBe("dispatch");
     expect(fx.ledger.docLines().map((line) => line.line)).toEqual(["phase-spec"]);
     const content = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
-    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(content));
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(content)));
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
     writeFileSync(path.join(fx.repo, SPEC_REL), `${content}\nagain\n`, "utf8");
+    expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(true);
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
+  });
+
+  it("digests the reviewed BODY, so a registration write never reopens the line", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    const reviewed = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    // The recorded cell is a digest of the document's BODY — the projection every consumer
+    // workspace already holds — so a frozen 40-hex cell still compares here, and the raw file
+    // is deliberately NOT what it digests.
+    const cell = fx.ledger.docHashOf("phase-spec");
+    expect(cell).toBe(ReviewedIdentity.hashOf(docBodyOf(reviewed)));
+    expect(cell).toMatch(/^[0-9a-f]{40}$/);
+    expect(cell).not.toBe(ReviewedIdentity.hashOf(reviewed));
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
+    // The front-matter head is a closed-out registration: a version bump moves the file, never
+    // the body the round read.
+    writeFileSync(
+      path.join(fx.repo, SPEC_REL),
+      reviewed.replace("version: v0.1", "version: v0.2"),
+      "utf8",
+    );
+    expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(false);
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
+    // A `## Change history` row is the other registration face — the same answer.
+    const bumped = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    writeFileSync(
+      path.join(fx.repo, SPEC_REL),
+      `${bumped}\n## Change history\n\n- v0.3 — the review landed\n`,
+      "utf8",
+    );
+    expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(false);
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
+    // A substantive body edit is the movement the reopen exists for.
+    const registered = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    writeFileSync(
+      path.join(fx.repo, SPEC_REL),
+      registered.replace("plan: p9", "plan: p9, edited"),
+      "utf8",
+    );
     expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(true);
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
   });
@@ -1274,8 +1320,16 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fix.result.round.verdict.targetAction).toBe(true);
     // The binding moved with the round: the recorded version is the POST-fix revision, so the
     // fix's own bytes are not a drift against the line it just concluded.
-    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(postFix));
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(postFix)));
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).not.toBe("reopened");
+    // The WRITE side projects too: a registration write after the fix (a version bump) is not
+    // a body move, so the line keeps the version the fix bound.
+    writeFileSync(
+      path.join(fx.repo, SPEC_REL),
+      postFix.replace("version: v0.1", "version: v0.2"),
+      "utf8",
+    );
+    expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(false);
     // ONE review batch, whatever the fix wrote: a fix moves the recorded version, it is not a
     // second review of the line.
     expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
@@ -1292,7 +1346,7 @@ describe("the drift reopen and the closure terminal", () => {
       (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
     ).toBe("dispatch");
     const reviewed = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
-    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(reviewed));
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(reviewed)));
     // The document moves in a commit OUTSIDE any round. Drift never outranks a pending fix, so
     // the line reads `open` at its fix hop — and the movement stays an unreviewed fact.
     writeFileSync(path.join(fx.repo, SPEC_REL), `${reviewed}\namended out of round\n`, "utf8");
@@ -1311,7 +1365,7 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fix.kind).toBe("dispatch");
     if (fix.kind !== "dispatch") return;
     expect(fix.result.round.verdict.targetAction).toBe(true);
-    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(reviewed));
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(reviewed)));
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
     // No review batch was opened by the fix either.
     expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
@@ -1345,7 +1399,7 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fix.result.round.verdict.targetAction).toBe(true);
     // An unmeasurable round keeps today's binding: the fix DID edit the document it judges, so
     // refusing to bind would reopen the line on bytes the round delivered.
-    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(postFix));
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(postFix)));
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).not.toBe("reopened");
     expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
     // … and the blindness itself is on record, in the old tree's own sentence.

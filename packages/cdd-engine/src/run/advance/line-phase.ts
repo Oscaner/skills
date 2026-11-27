@@ -18,6 +18,7 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import { docBodyOf } from "../../docs/grammar/doc-body.ts";
 import type { FixDisposition } from "../../docs/judging/completion.ts";
 import type { RoundPhase } from "../dispatch/child.ts";
 import type { RoundFinding } from "../dispatch/handoff.ts";
@@ -41,10 +42,12 @@ export type LineState =
 export interface LineReads {
   /** One line's rounds, in `(cycle, attempt)` order. */
   rounds(key: string): readonly RoundRecord[];
-  /** The recorded version against the document's CURRENT bytes. `null` when the line
+  /** The recorded version against the document's CURRENT reviewed BODY. `null` when the line
    *  recorded none (only present facts land), so this read is also the "was it reviewed at
-   *  all" cell. */
-  docDriftOf(key: string, content: string): Drift | null;
+   *  all" cell. The bytes handed in are the projection
+   *  (`docs/grammar/doc-body.ts#docBodyOf`) — front matter and `## Change history` already
+   *  stripped, exactly as the recorded cell was digested — never the raw file. */
+  docDriftOf(key: string, body: string): Drift | null;
   /** The version a line recorded, whatever its kind — the wave line's `brief` identity comes
    *  from here, the document line's `doc_hash` from `docDriftOf`. `null` when none was
    *  recorded. */
@@ -52,7 +55,9 @@ export interface LineReads {
 }
 
 /** A document's current bytes, resolved by the caller's own read face; null when it cannot
- *  be read (no drift evidence either way). */
+ *  be read (no drift evidence either way). The provider hands the FILE's bytes: the projection
+ *  onto the reviewed body happens at the two reads below, so no provider can hand a slice the
+ *  recorded cell was never digested from. */
 export type DocumentText = (path: string) => string | null;
 
 /** The two facts a recorded round contributes to a route — the carrier's own cells. */
@@ -184,7 +189,11 @@ export class LinePhase {
     if (doc === null) return false;
     const content = this.#text(doc);
     if (content === null) return false;
-    if (this.#facts.docDriftOf(key, content) !== "drift") return false;
+    // The compared slice is the reviewed BODY: the projection strips the front-matter head and
+    // the `## Change history` register — the two closed-out registration faces — and it is what
+    // the recorded cell was digested from. Digging the raw file here would reopen a reviewed
+    // line on a version bump, and would read every cell the shipped engine wrote as a drift.
+    if (this.#facts.docDriftOf(key, docBodyOf(content)) !== "drift") return false;
     return NextRoutes.onExitSide(this.routeOf(key, type));
   }
 

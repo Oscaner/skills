@@ -467,10 +467,11 @@ export class Ledger {
    *  history, never a re-derivation from its rounds. The version cell is the LATEST reviewed
    *  one: each review overwrites it, so the drift read always compares against the newest
    *  review rather than the first one. Only a review opens a batch — a fix moves the version
-   *  through `recordReviewedDoc` and leaves this counter alone. */
-  recordDocReview(line: string, content: string): void {
+   *  through `recordReviewedDoc` and leaves this counter alone. `body` is the PROJECTED body
+   *  (`docs/grammar/doc-body.ts#docBodyOf`), the slice `docDriftOf` compares. */
+  recordDocReview(line: string, body: string): void {
     const document = this.read() ?? this.empty();
-    const hash = ReviewedIdentity.hashOf(content);
+    const hash = ReviewedIdentity.hashOf(body);
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
@@ -484,9 +485,9 @@ export class Ledger {
    *  the line's review-batch counter untouched. A fix moves the recorded version (it edits the
    *  document it judges) but it is no review batch: only `recordDocReview` opens one, so the
    *  counter counts reviews and nothing else. */
-  recordReviewedDoc(line: string, content: string): void {
+  recordReviewedDoc(line: string, body: string): void {
     const document = this.read() ?? this.empty();
-    const hash = ReviewedIdentity.hashOf(content);
+    const hash = ReviewedIdentity.hashOf(body);
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
@@ -504,16 +505,19 @@ export class Ledger {
     return reviewed !== null && reviewed.kind === "document" ? reviewed.hash : null;
   }
 
-  /** The drift read: the recorded reviewed version against the document's CURRENT bytes.
-   *  Null when the line recorded no comparable version (only present facts land). The
+  /** The drift read: the recorded reviewed version against the document's CURRENT reviewed
+   *  body. Null when the line recorded no comparable version (only present facts land). The
    *  comparison is the record's own — it digests the current bytes on the basis the recorded
    *  cell was written on, so a document the shipped engine reviewed is judged against that
-   *  engine's sha1 rather than read as "no record". */
-  docDriftOf(line: string, content: string): Drift | null {
+   *  engine's sha1 rather than read as "no record". `body` is the projection the caller made
+   *  (`docs/grammar/doc-body.ts#docBodyOf`): this read carries no second projection, so the
+   *  write binding and this comparison always hash one slice.
+   */
+  docDriftOf(line: string, body: string): Drift | null {
     const row = Ledger.rowOf(this.read(), line);
     const reviewed = row === undefined ? null : Ledger.#reviewedOf(row);
     if (reviewed === null || reviewed.kind !== "document") return null;
-    return reviewed.driftFrom(content);
+    return reviewed.driftFrom(body);
   }
 
   // -------------------------------------------------------------------------
@@ -776,7 +780,11 @@ export class Ledger {
 
   /** One recorded round with the cells an older or hand-written row may omit defaulted —
    *  the shape this class's readers index without a guard. A record with no declared op or
-   *  no cycle/attempt coordinate is not a round this engine books. */
+   *  no cycle/attempt coordinate is not a round this engine books. The recorded object is
+   *  OVERLAID, never rebuilt: the record shape is a union across engines (a superseded fix
+   *  carries a `supersededBy` stamp, an older document names a `carrierPath`), and this fold's
+   *  output is what every writer persists — a record rebuilt to the seven declared cells would
+   *  delete the cells this tree does not read from the document's only copy. */
   static #recordOf(entry: unknown): RoundRecord | null {
     if (entry === null || typeof entry !== "object") return null;
     const raw = entry as Partial<RoundRecord>;
@@ -784,6 +792,7 @@ export class Ledger {
     if (typeof op !== "string" || !ROUND_OPS.includes(op as RoundOp)) return null;
     if (typeof raw.cycle !== "number" || typeof raw.attempt !== "number") return null;
     return {
+      ...raw,
       op: op as RoundOp,
       cycle: raw.cycle,
       attempt: raw.attempt,

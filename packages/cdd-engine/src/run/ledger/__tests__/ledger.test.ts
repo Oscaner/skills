@@ -336,6 +336,29 @@ describe("the frozen progress document", () => {
     }
   });
 
+  it("keeps a record cell this tree does not declare when it rewrites the document", () => {
+    // A consumer document's record carries cells THIS tree never writes: the shipped engine
+    // stamps the fix a later round superseded (`supersededBy`) and older documents name the
+    // round's own carrier path. `read()` is what every writer persists, so a fold that rebuilds
+    // a record to the seven declared cells deletes them from the document's only copy — and the
+    // shipped engine then reads that superseded round as current.
+    const { ledger, workspace } = fixture();
+    const stamped = {
+      ...round("fix"),
+      supersededBy: { op: "fix", cycle: 2, attempt: 1 },
+      carrierPath: ".kairos/cdd/p9/tasks-1-fix-1-a1.c1.json",
+    };
+    workspace.writeJson(Ledger.FILE, {
+      ...frozen(),
+      waves: [{ wave: "1", rounds: [round("implement"), stamped] }],
+    });
+    // A write of a cell UNRELATED to the rounds: the wave's plan-task snapshot.
+    ledger.closeWave("tasks-1", [1]);
+    const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
+    expect(raw.waves[0].planTasks).toEqual([1]);
+    expect(raw.waves[0].rounds).toEqual([round("implement"), stamped]);
+  });
+
   it("writes the document back in the frozen shape, on the frozen row key", () => {
     const { ledger, workspace } = fixture();
     workspace.writeJson(Ledger.FILE, frozen());

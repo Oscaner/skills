@@ -75,6 +75,7 @@
 const WRITE_BACK_UNMEASURED =
   "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound";
 
+import { docBodyOf } from "../../docs/grammar/doc-body.ts";
 import {
   CompletionCriteria,
   type CompletionFacts,
@@ -206,11 +207,11 @@ export interface EvidenceFile {
 export interface LifecycleLedger {
   recordRound(line: string, init: RoundRecordInit): RoundRecord;
   closeWave(line: string, planTasks: readonly number[]): void;
-  recordDocReview(line: string, content: string): void;
+  recordDocReview(line: string, body: string): void;
   /** Record the version a FIX round produced — the same `doc_hash` cell a review writes, with
    *  the line's review-batch counter untouched: a fix moves the version it edited, but it opens
    *  no review batch. */
-  recordReviewedDoc(line: string, content: string): void;
+  recordReviewedDoc(line: string, body: string): void;
   /** Record the version a WAVE line reviewed — its task-only brief projection. Each line kind
    *  has ONE reviewed cell: a document line's version is the ledger's own `doc_hash`
    *  (`recordDocReview` / `recordReviewedDoc`), a wave line's is this `brief` identity, and no
@@ -239,7 +240,9 @@ export interface LifecycleReads {
   /** The plan's task set, read at the closure point (a wave row's historical snapshot). */
   readonly planTasks: () => readonly number[];
   /** The reviewed document's CURRENT bytes, for the review line's version binding; null when
-   *  the frame has no document. */
+   *  the frame has no document. These are the FILE's bytes: the binding projects them onto the
+   *  reviewed body (`docs/grammar/doc-body.ts#docBodyOf`) before recording, which is the same
+   *  slice the drift read compares. */
   readonly docText: (frame: FrameFacts) => string | null;
   /** Whether a stale in-flight record names the round this frame dispatches (the abort
    *  takeover's own factual cell). */
@@ -556,8 +559,13 @@ export class Lifecycle {
     }
     const text = frame.doc === null ? null : this.#reads.docText(frame);
     if (frame.doc === null || text === null) return;
-    if (op === "fix") this.#ledger.recordReviewedDoc(frame.key, text);
-    else this.#ledger.recordDocReview(frame.key, text);
+    // The bound version is the document's reviewed BODY — the projection that strips the
+    // front-matter head and the `## Change history` register, which is the slice `LinePhase`'s
+    // drift read compares and the slice every consumer workspace's cell was digested from. A
+    // raw binding would leave a line reopening on the next registration write.
+    const body = docBodyOf(text);
+    if (op === "fix") this.#ledger.recordReviewedDoc(frame.key, body);
+    else this.#ledger.recordDocReview(frame.key, body);
   }
 
   /** The ready batch a closure reads — the plan's next open wave once THIS round's wave is

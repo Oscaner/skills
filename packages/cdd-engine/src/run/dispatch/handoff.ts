@@ -19,6 +19,12 @@
 // (`over-budget` · `stalled` · `signal`) name cut-short rounds only, and none of them
 // describes a draft's shape.
 //
+// THE EVIDENCE FILE IS THE SECOND CONTRACT, and it is declared here beside the carrier's:
+// both are the child's writable surface, so one walk judges both and neither can grow a key
+// list of its own. Its read keeps four arms apart — never written, not JSON, conforming, and
+// parsed-but-off-contract — because folding `malformed` into `missing` would tell an operator
+// the wrong defect, and its refusal builder is the ONE place those arms become a round entry.
+//
 // THE READ-BACK IS TIERED, like the declaration it walks: a slot the child OWES (the
 // plane's required set) that breaks its declaration REFUSES the draft, while a DECORATIVE
 // slot (declared, not required — both planes' `notes`, the work plane's `dispositions`, the
@@ -47,6 +53,7 @@
 // behaviour-carrying bare functions.
 
 import { type ParseError, parse, printParseErrorCode } from "jsonc-parser";
+import type { JsonRead } from "../../env/workspace/base-artifact.ts";
 import type { RoundOp } from "../ledger/identity.ts";
 import type { RoundViolation } from "../ledger/ledger.ts";
 
@@ -145,6 +152,47 @@ interface CheckOut {
 /** One walk's accumulating problems — the `path: reason` wording's source. */
 type Problem = { readonly path: string; readonly reason: string };
 
+/** One declared contract's cell type — a scalar, or a nested contract (the evidence file's
+ *  `typecheck` object). */
+type CellType = "string" | "integer" | "boolean" | EvidenceContract;
+
+/** One declared contract: the cells it may carry and the ones it owes. The evidence file
+ *  is the work plane's SECOND contract, declared here beside the carrier's because both are
+ *  the child's writable surface — one walk judges both, so neither can grow a key list of
+ *  its own. */
+interface EvidenceContract {
+  readonly required: readonly string[];
+  readonly cells: Readonly<Record<string, CellType>>;
+}
+
+/** The test-evidence file's declaration — exactly the shape the dispatch prompt shows the
+ *  child (`OUTPUT_EVIDENCE`), so the prompt and the read-back stay one contract. */
+const EVIDENCE_CONTRACT: EvidenceContract = {
+  required: ["command", "exit_code", "passed", "warnings_count", "typecheck"],
+  cells: {
+    command: "string",
+    exit_code: "integer",
+    passed: "boolean",
+    warnings_count: "integer",
+    behavior_change: "boolean",
+    typecheck: {
+      required: ["command", "exit_code", "passed"],
+      cells: { command: "string", exit_code: "integer", passed: "boolean" },
+    },
+  },
+};
+
+/** The evidence file's read — the workspace's tri-state JSON read (`env/workspace`) walked
+ *  against the contract above. The four arms are DISTINCT facts: a file never written, a
+ *  file that is not JSON, a file that parses and conforms, and a file that parses but breaks
+ *  the contract (carrying its problem list). A corrupt file is never misreported as absent,
+ *  and `missing` is never folded into `breached`. */
+export type EvidenceRead =
+  | { readonly kind: "missing" }
+  | { readonly kind: "malformed" }
+  | { readonly kind: "ok" }
+  | { readonly kind: "breached"; readonly problems: readonly string[] };
+
 /**
  * Handoff — one declaration, three readings. Invariant: a draft is judged by what is on
  * disk, and the conclusion is derived from the findings (see the file's header).
@@ -204,6 +252,38 @@ export class Handoff {
       grade: "hard",
       cause: CONTRACT_VIOLATION,
       message: `the handoff draft breaks the handoff contract — ${read.problems.join("; ")}`,
+    };
+  }
+
+  /** The test-evidence file's read-back — the evidence gate's ONE input. The parse is the
+   *  workspace's (its tri-state JSON read, handed in already performed), so this face judges
+   *  SHAPE alone and reads no file. */
+  static evidenceOf(read: JsonRead<unknown>): EvidenceRead {
+    if (read.kind === "ok") {
+      const problems: Problem[] = [];
+      Handoff.#checkContract(EVIDENCE_CONTRACT, read.value, "", problems);
+      return problems.length === 0
+        ? { kind: "ok" }
+        : { kind: "breached", problems: problems.map(Handoff.#problemLine) };
+    }
+    return { kind: read.kind };
+  }
+
+  /** The round violation one evidence read earns, or null when the file is green — the ONE
+   *  place the three refusal arms become a graded entry. The completion criterion's
+   *  `evidenceOk` cell reads the SAME value, so a round can never be refused on evidence the
+   *  criterion called green (or completed on evidence it called red). */
+  static evidenceViolationOf(read: EvidenceRead, target: string): RoundViolation | null {
+    if (read.kind === "ok") return null;
+    return {
+      grade: "hard",
+      cause: CONTRACT_VIOLATION,
+      message:
+        read.kind === "breached"
+          ? `the test evidence at ${target} violates the contract: ${read.problems.join("; ")}`
+          : read.kind === "missing"
+            ? `the test evidence at ${target} was not written`
+            : `the test evidence at ${target} is malformed JSON`,
     };
   }
 
@@ -400,6 +480,50 @@ export class Handoff {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       Handoff.#refuse(out, key, "expected an object", owed);
     }
+  }
+
+  /** One declared contract's walk — the required sweep, then every present cell judged at
+   *  its own declaration. Strict by construction: every mismatch is a problem, because the
+   *  evidence file owes every cell its contract names. */
+  static #checkContract(
+    contract: EvidenceContract,
+    value: unknown,
+    path: string,
+    out: Problem[],
+  ): void {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      out.push({ path, reason: "expected a JSON object" });
+      return;
+    }
+    const row = value as Record<string, unknown>;
+    for (const key of contract.required) {
+      if (row[key] === undefined) out.push({ path: Handoff.#at(path, key), reason: "required" });
+    }
+    for (const [key, cell] of Object.entries(contract.cells)) {
+      const present = row[key];
+      if (present === undefined) continue;
+      const at = Handoff.#at(path, key);
+      if (typeof cell !== "string") {
+        Handoff.#checkContract(cell, present, at, out);
+        continue;
+      }
+      const reason = Handoff.#cellReason(cell, present);
+      if (reason !== null) out.push({ path: at, reason });
+    }
+  }
+
+  /** One cell's path — the root cell is bare, a nested one is dotted. */
+  static #at(path: string, key: string): string {
+    return path.length === 0 ? key : `${path}.${key}`;
+  }
+
+  /** A scalar cell's declared type, judged: the reason it breaks, or null when it keeps it.
+   *  An `integer` cell refuses a fractional number — the evidence's exit codes and warning
+   *  counts are whole by declaration. */
+  static #cellReason(cell: "string" | "integer" | "boolean", value: unknown): string | null {
+    if (cell === "string") return typeof value === "string" ? null : "expected a string";
+    if (cell === "boolean") return typeof value === "boolean" ? null : "expected a boolean";
+    return typeof value === "number" && Number.isInteger(value) ? null : "expected an integer";
   }
 
   /** The `notes` slot — string rows only. A row inside a PRESENT slot is owed: the slot's

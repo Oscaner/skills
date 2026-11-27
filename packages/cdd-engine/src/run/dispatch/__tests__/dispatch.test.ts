@@ -618,6 +618,69 @@ describe("the handoff read-back", () => {
   });
 });
 
+describe("the evidence read-back", () => {
+  const green = {
+    command: "pnpm test",
+    exit_code: 0,
+    passed: true,
+    warnings_count: 0,
+    typecheck: { command: "pnpm tsc --noEmit", exit_code: 0, passed: true },
+  };
+
+  it("keeps the read's three failure shapes apart — a corrupt file is never 'not written'", () => {
+    expect(Handoff.evidenceOf({ kind: "missing" })).toEqual({ kind: "missing" });
+    expect(Handoff.evidenceOf({ kind: "malformed" })).toEqual({ kind: "malformed" });
+    expect(Handoff.evidenceOf({ kind: "ok", value: green })).toEqual({ kind: "ok" });
+    // The refusal each shape earns names its OWN cause, so an operator can tell a child that
+    // never wrote the file from one that wrote bytes the engine could not parse.
+    expect(Handoff.evidenceViolationOf({ kind: "missing" }, "e.json")?.message).toBe(
+      "the test evidence at e.json was not written",
+    );
+    expect(Handoff.evidenceViolationOf({ kind: "malformed" }, "e.json")?.message).toBe(
+      "the test evidence at e.json is malformed JSON",
+    );
+    expect(Handoff.evidenceViolationOf({ kind: "ok" }, "e.json")).toBeNull();
+  });
+
+  it("walks the declared contract strictly — every owed cell, at its own path", () => {
+    const missing = Handoff.evidenceOf({ kind: "ok", value: { passed: true } });
+    expect(missing.kind).toBe("breached");
+    if (missing.kind !== "breached") return;
+    expect(missing.problems).toEqual([
+      "command: required",
+      "exit_code: required",
+      "warnings_count: required",
+      "typecheck: required",
+    ]);
+    const wrongTypes = Handoff.evidenceOf({
+      kind: "ok",
+      value: {
+        command: 3,
+        exit_code: 0.5,
+        passed: "yes",
+        warnings_count: 1,
+        typecheck: { command: "tsc", passed: true },
+      },
+    });
+    expect(wrongTypes.kind).toBe("breached");
+    if (wrongTypes.kind !== "breached") return;
+    expect(wrongTypes.problems).toEqual([
+      "command: expected a string",
+      "exit_code: expected an integer",
+      "passed: expected a boolean",
+      "typecheck.exit_code: required",
+    ]);
+    // The one message carries the whole problem list, and the optional cell is judged only
+    // when it is present.
+    const violation = Handoff.evidenceViolationOf(wrongTypes, "e.json");
+    expect(violation?.grade).toBe("hard");
+    expect(violation?.cause).toBe(CONTRACT_VIOLATION);
+    expect(violation?.message).toBe(
+      "the test evidence at e.json violates the contract: command: expected a string; exit_code: expected an integer; passed: expected a boolean; typecheck.exit_code: required",
+    );
+  });
+});
+
 describe("the conclusion — three ways, derived from the findings", () => {
   const finding = (severity: RoundFinding["severity"]): RoundFinding => ({
     severity,

@@ -65,7 +65,7 @@ import { Clock } from "../../../env/process/clock.ts";
 import { Lock } from "../../../env/process/lock.ts";
 import { WorkspaceRoot } from "../../../env/workspace/workspace.ts";
 import { Child } from "../../dispatch/child.ts";
-import type { RoundFinding } from "../../dispatch/handoff.ts";
+import type { EvidenceRead, RoundFinding } from "../../dispatch/handoff.ts";
 import { InFlight } from "../../dispatch/inflight.ts";
 import { Authority } from "../../gate/authority.ts";
 import { type DocJudgment, PreFlight } from "../../gate/preflight.ts";
@@ -96,6 +96,9 @@ const ADVANCE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 
 /** The engine package's `src` root. */
 const SRC_DIR = path.resolve(ADVANCE_DIR, "../..");
+
+/** The dispatch baseline the fixture's dispatch reads — the value both records must carry. */
+const HEAD_SHA = "9f1c0de5ba5eba11d15c0ffee0123456789abcd";
 
 /** A fixed instant and day. */
 const FIXED_NOW = 1_700_000_000_000;
@@ -299,11 +302,18 @@ interface Fixture {
     reviews?: string;
     rulings?: string;
   };
-  readonly commits: { count: number };
+  readonly commits: { count: number; bases: string[] };
   readonly groupBase: { value: string | null };
+  /** The HEAD this dispatch starts from — the dispatch baseline the step reads ONCE and
+   *  records on both writes. */
+  readonly head: { value: string | null };
   /** Whether the round's own commits touched the input it binds — the fix binding's gate, a
-   *  fact the REAL read derives from `dispatchBase..HEAD`'s path set. */
-  readonly touchedDoc: { value: boolean };
+   *  fact the REAL read derives from `dispatchBase..HEAD`'s path set. `null` is the
+   *  UNMEASURABLE range (no baseline, or an unreadable repository). */
+  readonly touchedDoc: { value: boolean | null; bases: (string | null)[] };
+  /** The test-evidence file's read — the evidence gate's one input — and how many times the
+   *  step asked for it (one read per round, none on a face that owes no file). */
+  readonly evidence: { read: EvidenceRead; reads: number };
   /** The brief face's two renders: the landed bytes (which carry the round context) and the
    *  task-only projection a wave round binds. */
   readonly briefBytes: { content: string; reviewed: string };
@@ -340,9 +350,16 @@ const fixture = (): Fixture => {
     reviews?: string;
     rulings?: string;
   } = { findings: [] };
-  const commits = { count: 1 };
+  const commits = { count: 1, bases: [] as string[] };
   const groupBase: { value: string | null } = { value: "base" };
-  const touchedDoc = { value: false };
+  const head: { value: string | null } = { value: HEAD_SHA };
+  const touchedDoc: { value: boolean | null; bases: (string | null)[] } = {
+    value: false,
+    bases: [],
+  };
+  // A work round owes green evidence by default: the gate passes unless a pin states the file's
+  // own failure, so no completion pin has to pay for a fact it is not about.
+  const evidence: { read: EvidenceRead; reads: number } = { read: { kind: "ok" }, reads: 0 };
   const briefBytes = { content: "brief bytes\n", reviewed: "task body\n" };
   const lines = new LinePhase({
     facts: ledger,
@@ -441,9 +458,20 @@ const fixture = (): Fixture => {
     stale: () => false,
     reopenRequested: () => false,
     requesting: () => requesting,
-    commits: () => commits.count,
+    commits: (base) => {
+      commits.bases.push(base);
+      return commits.count;
+    },
     groupBase: () => groupBase.value,
-    touchedDoc: () => touchedDoc.value,
+    head: async () => head.value,
+    touchedDoc: (_frame, base) => {
+      touchedDoc.bases.push(base);
+      return touchedDoc.value;
+    },
+    evidence: (facts) => {
+      evidence.reads += 1;
+      return { target: `evidence-${facts.round}.json`, read: evidence.read };
+    },
     blockerRun: (facts) => lines.blockerRunOf(facts.key, facts.type, facts.round),
   };
   const waveGate = new WaveGate();
@@ -496,7 +524,9 @@ const fixture = (): Fixture => {
     requesting,
     commits,
     groupBase,
+    head,
     touchedDoc,
+    evidence,
     briefBytes,
     lifecycle,
     options,
@@ -1198,6 +1228,46 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
   });
 
+  it("keeps a fix's binding standing when its own bytes cannot be measured, and books why", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.carriedByKey.set("review:1", {
+      findings: [{ severity: "warn", summary: "a warn", id: "F1" }],
+      status: null,
+    });
+    expect(
+      (await fx.run.advance({ command: "review", type: "phase-spec", spec: SPEC_REL })).kind,
+    ).toBe("dispatch");
+    const preFix = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    writeFileSync(path.join(fx.repo, SPEC_REL), `${preFix}\nthe fix's own edit\n`, "utf8");
+    const postFix = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
+    fx.requesting.findings = [{ severity: "warn", summary: "a warn", id: "F1" }];
+    fx.carriedByKey.set("fix:1", {
+      findings: null,
+      status: "APPROVED",
+      dispositions: { F1: { decision: "fixed" } },
+    });
+    // The range cannot be read (no baseline, or an unreadable repository): NOTHING was measured,
+    // which is not the same fact as "measured, and it touched nothing".
+    fx.touchedDoc.value = null;
+    const fix = await fx.run.advance({ command: "fix", type: "phase-spec", spec: SPEC_REL });
+    expect(fix.kind).toBe("dispatch");
+    if (fix.kind !== "dispatch") return;
+    expect(fix.result.round.verdict.targetAction).toBe(true);
+    // An unmeasurable round keeps today's binding: the fix DID edit the document it judges, so
+    // refusing to bind would reopen the line on bytes the round delivered.
+    expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(postFix));
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).not.toBe("reopened");
+    expect(fx.ledger.docLines().map((line) => line.batch)).toEqual([1]);
+    // … and the blindness itself is on record, in the old tree's own sentence.
+    const soft = fix.result.round.violations
+      .filter((row) => row.grade === "soft")
+      .map((row) => row.message);
+    expect(soft).toContain(
+      "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound",
+    );
+  });
+
   it("binds a wave review to its task-only projection, never to the landed bytes", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
@@ -1484,6 +1554,54 @@ describe("the booked verdict", () => {
     expect(implement.lines.wavePhaseOf("1")).toBe("implement");
   });
 
+  it("records the dispatch baseline it measured on both records", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // A round that ended abnormally leaves its in-flight record standing, so both halves of the
+    // ONE measured baseline are readable after the step: the booked round and the postmortem.
+    fx.runner.code = 1;
+    const stepped = await fx.run.advance(waveRequest());
+    expect(stepped.kind).toBe("dispatch");
+    if (stepped.kind !== "dispatch") return;
+    expect(stepped.result.round.dispatchBase).toBe(HEAD_SHA);
+    expect(
+      fx.ledger.rounds(RoundIdentity.lineWordOf("wave", "1")).map((row) => row.dispatchBase),
+    ).toEqual([HEAD_SHA]);
+    const holding = await fx.run.inflight.inspect();
+    expect(holding.kind).toBe("held");
+    if (holding.kind !== "held") return;
+    expect(holding.record.dispatchBase).toBe(HEAD_SHA);
+  });
+
+  it("completes on the baseline it measured, and names that sha when the group committed nothing", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // No earlier record carries a baseline: the group's first round IS its own baseline, so the
+    // judgment reads the HEAD this dispatch measured and is about to record.
+    fx.groupBase.value = null;
+    fx.commits.count = 3;
+    const done = await fx.run.advance(waveRequest());
+    expect(done.kind).toBe("dispatch");
+    if (done.kind !== "dispatch") return;
+    expect(done.result.round.verdict.targetAction).toBe(true);
+    expect(done.result.round.dispatchBase).toBe(HEAD_SHA);
+    // The count came off THAT baseline — one measured HEAD, never a second invention.
+    expect(fx.commits.bases).toEqual([HEAD_SHA]);
+
+    // The zero-commit arm then names the recorded sha: with no baseline it could not print the
+    // second half of its sentence at all.
+    const zero = fixture();
+    oneTaskPlan(zero);
+    zero.groupBase.value = null;
+    zero.commits.count = 0;
+    const empty = await zero.run.advance(waveRequest());
+    expect(empty.kind).toBe("dispatch");
+    if (empty.kind !== "dispatch") return;
+    expect(
+      empty.result.round.violations.filter((row) => row.grade === "hard").map((row) => row.message),
+    ).toContain(`the group committed nothing since its baseline ${HEAD_SHA}`);
+  });
+
   it("reads the verification-wave shape off the plan's own Files declaration", async () => {
     // A wave whose every member declares no file change: the plan's `Files` section is the ONE
     // source of that shape, and it must stay REACHABLE — otherwise a wave that declared no
@@ -1502,8 +1620,9 @@ describe("the booked verdict", () => {
     if (plain.kind !== "frame") return;
     expect([...plain.emptyFileTasks]).toEqual([]);
     // A zero-commit round in that wave is judged on the evidence it owes, never on a commit its
-    // declaration never promised.
+    // declaration never promised — and with NO green evidence it refuses on that true gap.
     fx.commits.count = 0;
+    fx.evidence.read = { kind: "missing" };
     const judged = await fx.run.advance(waveRequest());
     expect(judged.kind).toBe("dispatch");
     if (judged.kind !== "dispatch") return;
@@ -1512,6 +1631,68 @@ describe("the booked verdict", () => {
       .map((row) => row.message);
     expect(hard.some((message) => message.includes("still owes green evidence"))).toBe(true);
     expect(hard.some((message) => message.includes("committed nothing"))).toBe(false);
+    // WITH green evidence the shape COMPLETES: a verification wave is reachable end to end, not
+    // a plan shape the tree refuses forever.
+    const green = fixture();
+    oneTaskPlan(green, [{ id: 1, dependsOn: "none" }], []);
+    green.commits.count = 0;
+    const done = await green.run.advance(waveRequest());
+    expect(done.kind).toBe("dispatch");
+    if (done.kind !== "dispatch") return;
+    expect(done.result.round.verdict.targetAction).toBe(true);
+    expect(
+      done.result.round.violations.filter((row) => row.grade === "soft").map((row) => row.message),
+    ).toContain(
+      "the implement round committed nothing — every task of this wave declares an empty `Files`, so the round concluded on its green evidence as a verification wave",
+    );
+  });
+
+  it("refuses a work round whose test evidence is missing or off-contract", async () => {
+    // The evidence gate is a WORK round's own debt on a task face; the file's three failure
+    // shapes each book their own hard entry and withhold the target action.
+    const missing = fixture();
+    oneTaskPlan(missing);
+    missing.evidence.read = { kind: "missing" };
+    const unwritten = await missing.run.advance(waveRequest());
+    expect(unwritten.kind).toBe("dispatch");
+    if (unwritten.kind !== "dispatch") return;
+    expect(unwritten.result.round.verdict.targetAction).toBe(false);
+    // ONE read answers both consumers, so the round never pays for two reads of one file.
+    expect(missing.evidence.reads).toBe(1);
+    expect(unwritten.result.round.violations.map((row) => row.message)).toContain(
+      "the test evidence at evidence-1.json was not written",
+    );
+
+    const breached = fixture();
+    oneTaskPlan(breached);
+    breached.evidence.read = { kind: "breached", problems: ["passed: expected a boolean"] };
+    const offContract = await breached.run.advance(waveRequest());
+    expect(offContract.kind).toBe("dispatch");
+    if (offContract.kind !== "dispatch") return;
+    expect(offContract.result.round.verdict.targetAction).toBe(false);
+    expect(offContract.result.round.violations.map((row) => row.message)).toContain(
+      "the test evidence at evidence-1.json violates the contract: passed: expected a boolean",
+    );
+  });
+
+  it("asks no evidence of a face that owes none", async () => {
+    // A judge round owes findings and a document face owes its document: the evidence read is
+    // never consulted there, so a missing evidence file cannot gate either.
+    const fx = fixture();
+    oneTaskPlan(fx);
+    fx.evidence.read = { kind: "missing" };
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    const reviewed = await fx.run.advance({
+      command: "review",
+      type: "phase-spec",
+      spec: SPEC_REL,
+    });
+    expect(reviewed.kind).toBe("dispatch");
+    if (reviewed.kind !== "dispatch") return;
+    expect(reviewed.result.round.verdict.targetAction).toBe(true);
+    const messages = reviewed.result.round.violations.map((row) => row.message);
+    expect(messages.some((message) => message.includes("test evidence"))).toBe(false);
+    expect(fx.evidence.reads).toBe(0);
   });
 });
 

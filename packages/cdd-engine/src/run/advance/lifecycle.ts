@@ -26,6 +26,19 @@
 //     failed skeleton landing: no child starts, no cycle and no attempt moves, and the
 //     declared value goes back untouched (its bytes belong to the render face).
 //
+//   · THE DISPATCH BASELINE IS MEASURED ONCE, AND WRITTEN TWICE. The HEAD the dispatch
+//     starts from is read at one point in the step (after the last refusal, before the
+//     in-flight record exists) and recorded on BOTH writes — the in-flight record and the
+//     round record — because two facts are read off it: the round's own range (`touchedDoc`)
+//     and the group baseline a completion judgment names. A step that read it twice, or wrote
+//     it to one record and not the other, would leave the judgment and the postmortem talking
+//     about two different HEADs.
+//
+//   · THE EVIDENCE READ HAS ONE PRODUCER AND TWO CONSUMERS. The test-evidence file is read
+//     once, in the booking, and its verdict fills the completion criterion's `evidenceOk` cell
+//     and the round's hard entry — a round never pays for two reads of one file, and a round
+//     can never be refused on evidence the criterion called green.
+//
 //   · THE CARRIER READ-BACK IS CHECKED. The round's findings and work status arrive through
 //     the dispatch segment's checked read (a digest mismatch throws there), so a tampered
 //     carrier is never judged as if the round had produced those bytes.
@@ -40,7 +53,8 @@
 //     it just closed — which is why a fix binds only when its own commits touched the input it
 //     judges: a fix that edited nothing produced no version, and recording the bytes some
 //     out-of-round movement left behind would launder them as reviewed; an implement round binds
-//     nothing.
+//     nothing. An UNMEASURABLE range is not that case — nothing was measured, so the binding
+//     stands and the round books `WRITE_BACK_UNMEASURED`.
 //
 //   · THE LINE LEG RUNS BEFORE THE LANDING. The wave gate is the task face's own pre-flight:
 //     a request its five rows refuse is never dispatched, and the refusal rides the same
@@ -53,12 +67,25 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+/** The write-back gate's own observation — a round that could not MEASURE whether its own
+ *  commits touched the input it binds keeps the previous binding and books this fact, so the
+ *  blindness is on record instead of passing as "untouched". The old tree's sentence, byte
+ *  for byte: an operator reading a ledger row should not have to learn a second wording for
+ *  the same blindness. */
+const WRITE_BACK_UNMEASURED =
+  "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound";
+
 import { CompletionCriteria, type CompletionFacts } from "../../docs/judging/completion.ts";
 import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
 import type { Child, DispatchFrame, TerminationCause } from "../dispatch/child.ts";
-import { CONTRACT_VIOLATION, Handoff, type RoundFinding } from "../dispatch/handoff.ts";
+import {
+  CONTRACT_VIOLATION,
+  type EvidenceRead,
+  Handoff,
+  type RoundFinding,
+} from "../dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "../dispatch/inflight.ts";
 import type { Authority } from "../gate/authority.ts";
 import type {
@@ -155,6 +182,14 @@ interface LandedBrief {
   readonly reviewed?: string;
 }
 
+/** The evidence gate's input: the file's workspace coordinate (the artifact identity's own
+ *  name) and its read-back. One read answers two consumers — the criterion's `evidenceOk` cell
+ *  and the round's hard entry — so a round never pays for two reads of one file. */
+export interface EvidenceFile {
+  readonly target: string;
+  readonly read: EvidenceRead;
+}
+
 /** The lifecycle's write face over the fact layer — the events one step lands, each through
  *  the ledger's ONE writer. */
 export interface LifecycleLedger {
@@ -208,17 +243,29 @@ export interface LifecycleReads {
     readonly rulings?: string;
   };
   /** The commits the round's group produced since its baseline. */
-  readonly commits: (frame: FrameFacts) => number;
-  /** The group's dispatch baseline — the HEAD a zero-commit refusal names; null when the
-   *  group carries none. */
+  readonly commits: (base: string) => number;
+  /** The group's RECORDED dispatch baseline — the EARLIEST round record's `dispatchBase` on
+   *  this line, and the HEAD a zero-commit refusal names. Null while no record carries one (a
+   *  group's first dispatch, before this step writes its own record): the step then falls back
+   *  to the HEAD it just measured, which IS the record the booking is about to write. */
   readonly groupBase: (frame: FrameFacts) => string | null;
+  /** The HEAD this dispatch starts from — the round's own dispatch baseline, read ONCE per
+   *  step (in `advance`, after the last refusal and before the in-flight record exists). Both
+   *  records carry this one value and `touchedDoc` measures its range against it, so the step
+   *  never invents a baseline a record does not hold. Null on a tree with no HEAD (a non-repo,
+   *  or a branch with no commit yet). */
+  readonly head: () => Promise<string | null>;
   /** Whether THIS round's own commits touched the input the round binds — a document line's
-   *  document, a wave line's plan. The git read (`dispatchBase..HEAD`'s path set) and the
-   *  comparison against that coordinate are the seam's, because the repository basis is: this
-   *  segment does no path work, so the fact arrives folded. `false` when the frame names no
-   *  input or the range cannot be read — a fix whose own bytes are unproven produced no
-   *  version, and the previous binding then stands. */
-  readonly touchedDoc: (frame: FrameFacts) => boolean;
+   *  document, a wave line's plan. The git read (`base..HEAD`'s path set) and the comparison
+   *  against that coordinate are the seam's, because the repository basis is: this segment does
+   *  no path work, so the fact arrives folded. THREE answers, and the third is the one that
+   *  matters: `true` / `false` off a READABLE range, and `null` when the range cannot be read
+   *  (no baseline, an unreadable repository). `null` is not `false` — nothing was measured, so
+   *  the binding stands and the round books `WRITE_BACK_UNMEASURED`. */
+  readonly touchedDoc: (frame: FrameFacts, base: string | null) => boolean | null;
+  /** The round's test-evidence file as the evidence gate reads it. Read once in the booking;
+   *  a face that owes no evidence file is never asked. */
+  readonly evidence: (frame: FrameFacts) => EvidenceFile;
   /** The consecutive-blocker run the round at `frame.round` closes — the soft cap's ONE
    *  counter, read off the line's completed review rounds. */
   readonly blockerRun: (frame: FrameFacts) => number;
@@ -311,7 +358,13 @@ export class Lifecycle {
     }
     const landing = await this.#land(frame);
     if (landing.kind === "write-failure") return landing;
-    return this.#dispatch(frame, landing.landed, verdict);
+    // THE DISPATCH BASELINE — measured once, written twice. It anchors this round's own range
+    // (`touchedDoc`) and, on a group's first round, is the group baseline its completion
+    // judgment names, so it is taken HERE: after the last refusal and before the in-flight
+    // record exists. Reading it anywhere else would let the record and the judgment disagree
+    // about the HEAD this dispatch started from.
+    const base = await this.#reads.head();
+    return this.#dispatch(frame, landing.landed, verdict, base);
   }
 
   /** Land the brief, or answer its declared failure — the ONE write before the child exists.
@@ -340,6 +393,7 @@ export class Lifecycle {
     frame: FrameFacts,
     landed: LandedBrief,
     verdict: PreFlightVerdict,
+    base: string | null,
   ): Promise<AdvanceOutcome> {
     const record = await this.#inflight.recordOf({
       pid: process.pid,
@@ -350,7 +404,10 @@ export class Lifecycle {
       cycle: frame.round,
       attempt: frame.attempt,
       plan: frame.planPath,
-      dispatchBase: null,
+      // The same measured HEAD the booked round records: a crash postmortem reads this cell
+      // to know where the dead round started, and a step that invented a second baseline here
+      // would leave the two records disagreeing about one dispatch.
+      dispatchBase: base,
     });
     const occupancy = await this.#inflight.occupy(
       record,
@@ -369,6 +426,7 @@ export class Lifecycle {
       findings: Lifecycle.#baselineOf(verdict.findings ?? []),
       code: occupancy.value.code,
       termination: occupancy.value.termination,
+      base,
     });
     const capsule = this.#capsuleOf(frame, carried);
     return {
@@ -398,17 +456,30 @@ export class Lifecycle {
       readonly findings: readonly RoundFinding[];
       readonly code: number | null;
       readonly termination: TerminationCause | null;
+      /** The dispatch baseline this round records — the group's start when no earlier record
+       *  carries one. */
+      readonly base: string | null;
     },
   ): { round: RoundRecord; route: Route | null } {
+    // The two reads the booking owns happen ONCE, before the record is written: the round's
+    // own-bytes fact (the binding's gate, and the blindness it books) and the evidence read
+    // (the criterion's `evidenceOk` cell AND the round's hard entry).
+    const touched = this.#touchedOf(frame, dispatch.base);
+    const evidence = Lifecycle.#owesEvidence(frame) ? this.#reads.evidence(frame) : null;
     const violations = [
       ...Lifecycle.#violationsOf(carried, dispatch.findings),
       ...Lifecycle.#dispatchViolationsOf(dispatch),
-      ...this.#completionOf(frame, carried),
+      ...this.#completionOf(frame, carried, dispatch.base, evidence),
+      ...Lifecycle.#evidenceOf(evidence),
+      ...Lifecycle.#writeBackOf(touched),
     ];
     const round = this.#ledger.recordRound(frame.key, {
       op: Lifecycle.#opOf(frame.phase),
       cycle: frame.round,
       attempt: frame.attempt,
+      // The dispatch baseline belongs to the RECORD, not to a local: it is the group baseline
+      // the completion judgment reads back on every later round of this line.
+      dispatchBase: dispatch.base,
       verdict: {
         treeClean: true,
         targetAction: !violations.some((violation) => violation.grade === "hard"),
@@ -425,8 +496,15 @@ export class Lifecycle {
     ) {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
-    this.#bindReviewed(frame, landed, round.verdict.targetAction);
+    this.#bindReviewed(frame, landed, round.verdict.targetAction, touched);
     return { round, route };
+  }
+
+  /** The round's own-bytes fact, measured only where a binding could read it: an implement
+   *  round binds nothing, so it is not measured and books nothing. */
+  #touchedOf(frame: FrameFacts, base: string | null): boolean | null | undefined {
+    if (Lifecycle.#opOf(frame.phase) === "implement") return undefined;
+    return this.#reads.touchedDoc(frame, base);
   }
 
   /** Bind the version this round reviewed to its OWN line — the one written fact a drift
@@ -441,13 +519,19 @@ export class Lifecycle {
    *  closed its line — so it binds the version it PRODUCED, and only when its OWN commits
    *  touched that input: a fix that edited nothing produced no version, and binding the current
    *  bytes anyway would record an out-of-round movement as reviewed and close a line no round
-   *  has read. Only a review OPENS a batch: a fix moves the recorded version and leaves the
-   *  line's review-batch counter alone. */
-  #bindReviewed(frame: FrameFacts, landed: LandedBrief, completed: boolean): void {
+   *  has read. An UNMEASURABLE range is not that case: nothing was measured, so the bind stands
+   *  and the round has booked `WRITE_BACK_UNMEASURED`. Only a review OPENS a batch: a fix moves
+   *  the recorded version and leaves the line's review-batch counter alone. */
+  #bindReviewed(
+    frame: FrameFacts,
+    landed: LandedBrief,
+    completed: boolean,
+    touched: boolean | null | undefined,
+  ): void {
     if (!completed) return;
     const op = Lifecycle.#opOf(frame.phase);
     if (op === "implement") return;
-    if (op === "fix" && !this.#reads.touchedDoc(frame)) return;
+    if (op === "fix" && touched === false) return;
     if (TargetFaces.advancesBatch(frame.type)) {
       if (landed.reviewed === undefined) return;
       this.#ledger.recordReviewed(
@@ -536,10 +620,15 @@ export class Lifecycle {
    *  at most one refusal plus the soft observations, and the refusal is the hard entry that
    *  withholds the booking's `targetAction`: a review round that persisted no judge carrier and
    *  an implement round that committed nothing are refused here, never completed by omission. */
-  #completionOf(frame: FrameFacts, carried: CarriedFacts): readonly RoundViolation[] {
+  #completionOf(
+    frame: FrameFacts,
+    carried: CarriedFacts,
+    base: string | null,
+    evidence: EvidenceFile | null,
+  ): readonly RoundViolation[] {
     const verdict = CompletionCriteria.judge(
       Lifecycle.#opOf(frame.phase),
-      this.#completionFactsOf(frame, carried),
+      this.#completionFactsOf(frame, carried, base, evidence),
     );
     if (verdict.kind === "violation") {
       return [{ grade: "hard", cause: CONTRACT_VIOLATION, message: verdict.message }];
@@ -555,22 +644,35 @@ export class Lifecycle {
    *  ledger, the carrier read and the git read. The verb-specific cells are filled for the
    *  verb that reads them: an implement round's commit and wave cells, a judge round's carrier
    *  findings, a fix round's disposition table and the request it must cover. */
-  #completionFactsOf(frame: FrameFacts, carried: CarriedFacts): CompletionFacts {
+  #completionFactsOf(
+    frame: FrameFacts,
+    carried: CarriedFacts,
+    base: string | null,
+    evidence: EvidenceFile | null,
+  ): CompletionFacts {
+    // ONE baseline for the whole bundle: the group's RECORDED baseline, else the HEAD this
+    // dispatch just measured and the booking is about to write — a group's first round has no
+    // record yet, and without the fallback every group would refuse on a baseline it never
+    // lacked.
+    const groupBase = this.#reads.groupBase(frame) ?? base;
     const facts: CompletionFacts = {
-      commits: this.#reads.commits(frame),
-      groupBase: this.#reads.groupBase(frame),
+      // A group that measured no baseline counts nothing: the criterion refuses on `groupBase`
+      // first (counting needs a HEAD to count from), so this cell is never consulted there.
+      commits: groupBase === null ? 0 : this.#reads.commits(groupBase),
+      groupBase,
       carrierWritten: carried.status !== null || carried.findings !== null,
       findings: carried.findings,
       waveTasks: frame.tasks,
       // The empty-`Files` cell is the PLAN's own declaration, read once at the frame assembly
       // (`FrameScene#emptyFileTasks`) and carried here: a wave whose every member declares no
       // file change IS the verification shape, so that shape stays reachable instead of reading
-      // every such wave as "committed nothing". The evidence cell has no producer in this tree
-      // — the evidence gate is a separate segment this phase does not own — so it keeps its
-      // declared `false`: a verification wave reads the evidence refusal, never a completion on
-      // an absent read.
+      // every such wave as "committed nothing".
       emptyFileTasks: frame.emptyFileTasks,
-      evidenceOk: false,
+      // The evidence gate's OWN result, from the ONE read the booking performed: a face that
+      // owes no evidence file has nothing to gate, and a file that is missing, malformed or
+      // off-contract is NOT green — the same value also booked its hard entry, so the refusal
+      // and this cell can never disagree about one file.
+      evidenceOk: evidence === null || evidence.read.kind === "ok",
     };
     if (Lifecycle.#opOf(frame.phase) !== "fix") return facts;
     const requesting = this.#reads.requesting(frame);
@@ -580,6 +682,32 @@ export class Lifecycle {
       requested: requesting.findings,
       matchedBySummary: Lifecycle.#pairedBySummary(requesting.findings),
     };
+  }
+
+  /** The evidence gate's graded entry — the SAME read the criterion's `evidenceOk` cell
+   *  consumed, mapped through the contract's own refusal builder so the bytes stay one
+   *  spelling. A face that owes no evidence file books nothing. */
+  static #evidenceOf(evidence: EvidenceFile | null): readonly RoundViolation[] {
+    if (evidence === null) return [];
+    const violation = Handoff.evidenceViolationOf(evidence.read, evidence.target);
+    return violation === null ? [] : [violation];
+  }
+
+  /** Whether this round's face owes a test-evidence file: a WORK round (implement · fix) on a
+   *  non-document target. Both cells come from a declaration — the verb's carrier plane and the
+   *  target row's audit face — so no branch here re-spells the verb or the type. */
+  static #owesEvidence(frame: FrameFacts): boolean {
+    return (
+      Handoff.planeOf(Lifecycle.#opOf(frame.phase)) === "work" &&
+      !TargetFaces.isDocShape(frame.type)
+    );
+  }
+
+  /** The write-back blindness as a graded entry — SOFT, because the round still concluded: it
+   *  kept the previous binding and states why it could not measure its own bytes. */
+  static #writeBackOf(touched: boolean | null | undefined): readonly RoundViolation[] {
+    if (touched !== null) return [];
+    return [{ grade: "soft", cause: CONTRACT_VIOLATION, message: WRITE_BACK_UNMEASURED }];
   }
 
   /** Whether the requesting carrier carried no finding id, so the dispositions pair by

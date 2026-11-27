@@ -463,21 +463,66 @@ export class Cli {
   }
 
   /**
-   * One dispatch step's declared answer.
+   * One dispatch step's declared answer — its capsule on the standard stream and the
+   * `checked:` rows on the diagnostic one, in the order a real dispatch reports them: the
+   * status line with its summary and its two route rows, then the rows that ran.
    *
-   * The `dispatch` arm does NOT render here. Its capsule needs three cells the step does not
-   * put on `AdvanceOutcome` — the round's conclusion word, its carrier coordinate, and the
-   * `NextHop` the `next:` / `reason:` rows are read from (`StepResult` carries the route's
-   * `Route`, not the hop). A capsule rendered without them would print a status line with no
-   * word, so this arm refuses by NAME: a loud gap beats a plausible-looking wrong byte.
+   * The cells are the step's OWN (`AdvanceOutcome#face`), so this face spells no status word
+   * and no route: the conclusion is the carrier's, the hop is the pipeline's, and the fix
+   * round's summary is the word table's template filled with the counts the criterion judged.
+   * The exit code follows the same value: a failure conclusion exits 1 and a completed round
+   * exits 0.
    */
   #reportAdvance(outcome: AdvanceOutcome, request: FrameRequest): number {
-    if (outcome.kind === "dispatch") throw new Error(CAPSULE_CELLS_ABSENT);
+    if (outcome.kind === "dispatch") return this.#reportCapsule(outcome);
     if (outcome.kind === "held") return this.#reportHeld(outcome.state, outcome.checked);
     if (outcome.kind === "blocked") {
       return this.#reportBlocked(outcome.verdict, outcome.leg, request, outcome.checked);
     }
     return this.#reportUsage(outcome, request.command);
+  }
+
+  /** One round's capsule — the step's own cells, the ONE summary composition and the rows it
+   *  ran, then its exit code. */
+  #reportCapsule(outcome: Extract<AdvanceOutcome, { kind: "dispatch" }>): number {
+    const face = outcome.face;
+    const failed = this.#failureStatus(face.status);
+    // A completed round always states its carrier coordinate and its hop: the ledger resolves
+    // one path for every booked round and the step derives one hop per dispatch. A missing
+    // cell is therefore an UNWIRED read, and a capsule with `handoff: ` or without its route
+    // rows is the plausible-looking wrong byte this face exists to refuse.
+    if (!failed && (face.handoff === "" || face.hop === null))
+      throw new Error(CAPSULE_READS_ABSENT);
+    const summary = this.#summaryOf(outcome.capsule);
+    const rows = this.capsuleRows({
+      status: face.status,
+      handoff: face.handoff,
+      ...(summary === undefined ? {} : { summary }),
+      ...(face.crashRecord ? { crashRecord: true } : {}),
+      hop: face.hop,
+    });
+    this.#writeLines("stdout", rows, 0);
+    this.#writeChecked(outcome.checked);
+    return failed ? 1 : 0;
+  }
+
+  /** The capsule's summary row — the ONE cell the round's own facts fill, in the order the
+   *  step states them: the composed note, else the fix round's two counts through the word
+   *  table's own template. Absent when the round contributed neither. */
+  #summaryOf(capsule: StepCapsule): string | undefined {
+    if (capsule.summary !== undefined) return capsule.summary;
+    const counts = capsule.dispositionCounts;
+    if (counts === undefined) return undefined;
+    return this.words.dispositionsSummary(counts.fixed, counts.rejected);
+  }
+
+  /** Whether one conclusion word belongs to the capsule's failure family — READ OFF the word
+   *  table's own key rows (a failure status drops the `handoff` key, so the two reads differ
+   *  by that one row), never a second list of statuses in this file. */
+  #failureStatus(status: string): boolean {
+    return (
+      this.words.capsuleKeys(status, false).length !== this.words.capsuleKeys(status, true).length
+    );
   }
 
   /** The in-flight gate's hold — the `CDD_BLOCKED` anchor, the holder's own report, then the
@@ -752,10 +797,17 @@ export class Cli {
   }
 }
 
-/** One dispatch step's capsule cells, as this surface needs and does not have them. */
-const CAPSULE_CELLS_ABSENT =
-  "cdd: the dispatch step's capsule is not renderable at the surface — AdvanceOutcome carries " +
-  "the round's route but not its conclusion word, its carrier coordinate or its NextHop";
+/** The two cells a completed round's capsule cannot do without, as the surface would
+ *  otherwise print them empty: the carrier coordinate (`LifecycleLedger#handoffOf`) and the
+ *  line's hop (`LifecycleReads#hopOf`). Both are the advance segment's readings, so a surface
+ *  wired without them names the absence instead of printing a capsule with a missing slot. */
+const CAPSULE_READS_ABSENT =
+  "cdd: the dispatch step's capsule has no carrier coordinate or no hop — the run's handoff " +
+  "read and its hop read are not wired on this surface";
+
+/** One dispatch step's summary cells, as the step hands them over — the round's composed note
+ *  and, on the fix face, the two counts its criterion judged. */
+type StepCapsule = Extract<AdvanceOutcome, { kind: "dispatch" }>["capsule"];
 
 /** The work verbs' expected phase — the verb's own word, or the target row's review lead. */
 const CDD_PHASE_OF = {

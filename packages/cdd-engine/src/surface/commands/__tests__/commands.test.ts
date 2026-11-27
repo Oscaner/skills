@@ -31,7 +31,14 @@ import type { RepoPath } from "../../../env/paths/root.ts";
 import type { ProvisionRequest, ProvisionStep } from "../../../env/provision/init.ts";
 import type { BaseArtifact, BaseRead, BaseWrite } from "../../../env/workspace/base-artifact.ts";
 import type { FrameRequest } from "../../../run/advance/frame.ts";
-import type { AdvanceOutcome, PreviewOutcome, Run } from "../../../run/index.ts";
+import type { DispatchFace } from "../../../run/advance/lifecycle.ts";
+import type {
+  AdvanceOutcome,
+  NextHop,
+  PreviewOutcome,
+  Run,
+  StepResult,
+} from "../../../run/index.ts";
 import { Cli, FAILURE_REASONS, USAGE_BYTES } from "../../index.ts";
 import type { InitLine } from "../../render/init.ts";
 import { BaseCommand } from "../base.ts";
@@ -109,6 +116,35 @@ const stubRun = (
       return answers.preview ?? { kind: "usage", reason: { kind: "no-frame", command: "x" } };
     },
   }) as unknown as Run;
+
+/** One dispatch step's own result, as the surface hands it back — the value a stub advances
+ *  with when a pin is about the capsule and not about the round. */
+const DISPATCH_RESULT: StepResult = {
+  code: 0,
+  log: "round.log",
+  termination: null,
+  brief: "",
+  round: {
+    op: "implement",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+  } as never,
+  route: { kind: "review" },
+};
+
+/** One line's next hop — the object both the capsule and the board render, so the pin asserts
+ *  the two route rows come from ONE value. */
+const REVIEW_HOP: NextHop = {
+  face: "phase-spec",
+  target: { type: "phase-spec", id: "docs/kairos/specs/p9-design.md" },
+  hop: "review",
+  to: null,
+  reason: "task-open",
+  route: { kind: "review" },
+};
 
 /** A capturing io pair and the surface over it. */
 class Harness {
@@ -570,40 +606,111 @@ describe("the exit-code table", () => {
     expect(harness.stderr).toContain("pid 42");
   });
 
-  it("the dispatch arm is a NAMED refusal, never a plausible-looking wrong byte", async () => {
-    // The capsule needs the round's conclusion word, its carrier coordinate and its hop —
-    // none of which `AdvanceOutcome` carries. A surface that printed a status line without
-    // its word would look almost right, which is worse than refusing.
+  it("renders one dispatch step's capsule from the step's own cells, then the rows that ran", async () => {
+    // The shell composes nothing: the conclusion word, the carrier coordinate and the hop are
+    // the step's own, so this face prints three slots and two route rows without deciding
+    // either. The `checked:` rows ride the diagnostic stream, where a real dispatch reports
+    // them.
     const calls: RunCalls = { advance: [], preview: [] };
     const harness = new Harness({
       run: stubRun(calls, {
         advance: {
           kind: "dispatch",
-          result: {
-            code: 0,
-            log: "round.log",
-            termination: null,
-            brief: "",
-            round: {
-              op: "implement",
-              cycle: 1,
-              attempt: 1,
-              dispatchBase: null,
-              verdict: { treeClean: true, targetAction: true },
-              violations: [],
-              carrierDigest: null,
-            },
-            route: { kind: "review" },
-          },
+          result: DISPATCH_RESULT,
           capsule: {},
+          face: {
+            status: "APPROVED",
+            handoff: ".kairos/cdd/p9/tasks-1-implement-1.c1.json",
+            crashRecord: false,
+            hop: REVIEW_HOP,
+          },
+          checked: [{ row: "tree-clean", reading: { kind: "ran" } }],
+        },
+      }),
+    });
+    const code = await harness.cli.run(["implement", "--tasks", "1", "--plan", "p.md"]);
+    expect(code).toBe(0);
+    expect(harness.stdout.split("\n")).toEqual([
+      "status: APPROVED · handoff: .kairos/cdd/p9/tasks-1-implement-1.c1.json",
+      "next: review --type phase-spec --spec docs/kairos/specs/p9-design.md",
+      "reason: task-open",
+      "",
+    ]);
+    expect(harness.stderr).toContain("tree-clean");
+  });
+
+  it("prints a failure round's status word alone and exits 1", async () => {
+    // The failure face carries no hop (a capsule that ended a round prints no route row) and
+    // writes no crash record, so the status line is the whole capsule — exactly the declared
+    // failure shape, never a `handoff:` coordinate the round did not write.
+    const calls: RunCalls = { advance: [], preview: [] };
+    const harness = new Harness({
+      run: stubRun(calls, {
+        advance: {
+          kind: "dispatch",
+          result: DISPATCH_RESULT,
+          capsule: {},
+          face: { status: "BLOCKED", handoff: "", crashRecord: false, hop: null },
           checked: [],
         },
       }),
     });
     const code = await harness.cli.run(["implement", "--tasks", "1", "--plan", "p.md"]);
     expect(code).toBe(1);
-    expect(harness.stderr).toContain("not renderable at the surface");
-    expect(harness.stdout).toBe("");
+    expect(harness.stdout).toBe("status: BLOCKED\n");
+  });
+
+  it("names the absence when a completed round's capsule has no carrier coordinate or no hop", async () => {
+    // The two cells are the run's own reads. Printing `handoff: ` or dropping the route rows
+    // would look almost right, so an unwired step refuses BY NAME instead — the same rule the
+    // surface follows for an unwired entry.
+    for (const face of [
+      { status: "APPROVED", handoff: "", crashRecord: false, hop: REVIEW_HOP },
+      {
+        status: "APPROVED",
+        handoff: ".kairos/cdd/p9/tasks-1-implement-1.c1.json",
+        crashRecord: false,
+        hop: null,
+      },
+    ] satisfies readonly DispatchFace[]) {
+      const harness = new Harness({
+        run: stubRun(
+          { advance: [], preview: [] },
+          {
+            advance: { kind: "dispatch", result: DISPATCH_RESULT, capsule: {}, face, checked: [] },
+          },
+        ),
+      });
+      const code = await harness.cli.run(["implement", "--tasks", "1", "--plan", "p.md"]);
+      expect(code).toBe(1);
+      expect(harness.stdout).toBe("");
+      expect(harness.stderr).toContain("the run's handoff read and its hop read are not wired");
+    }
+  });
+
+  it("fills a fix round's summary row from the counts its criterion judged", async () => {
+    // The template belongs to the word table; the counts belong to the round. Neither face
+    // spells the other's value, so the row is the table's own bytes with the two numbers.
+    const calls: RunCalls = { advance: [], preview: [] };
+    const harness = new Harness({
+      run: stubRun(calls, {
+        advance: {
+          kind: "dispatch",
+          result: DISPATCH_RESULT,
+          capsule: { dispositionCounts: { fixed: 3, rejected: 1 } },
+          face: {
+            status: "APPROVED",
+            handoff: ".kairos/cdd/p9/tasks-1-fix-1.c1.json",
+            crashRecord: false,
+            hop: REVIEW_HOP,
+          },
+          checked: [],
+        },
+      }),
+    });
+    const code = await harness.cli.run(["fix", "--type", "wave", "--tasks", "1", "--plan", "p.md"]);
+    expect(code).toBe(0);
+    expect(harness.stdout.split("\n")[1]).toBe("fixed 3 · rejected 1");
   });
 });
 

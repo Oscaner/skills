@@ -801,13 +801,22 @@ export const registrationWaveOf = (
   waves: ReadonlyMap<string, string> = REGISTRATION_WAVES,
 ): string | null => waves.get(kind) ?? null;
 
-/** The new tree's execution face as it stands: the skeleton renderer, and nothing else. The
+/** The new tree's execution face as it stands: the four render families, and nothing else. The
  *  first wave registered the process `entry` as a placeholder, and it answered nothing (the
  *  composition root still throws `not wired yet`), so registering it made every entry-kind
  *  cell look wired while the tree held an empty process — retired in the provisioning wave.
- *  `seam` and the remaining render families land with their own waves; entry cells read as
- *  NAMED-DEFERRED until T17 registers the real process driver, which stays in this file
- *  written and unregistered for that wave. */
+ *  `entry` cells read as NAMED-DEFERRED until T17 registers the real process driver, which
+ *  stays in this file written and unregistered for that wave.
+ *
+ *  `seam` is declared to T16 and still has no driver, for a reason worth naming rather than
+ *  leaving as a table row: the driver IS the composition root — it assembles `Env` →
+ *  `Documents` → `Run` → `Cli` over the fixture, which means the whole `LifecycleReads` seam
+ *  set, the four pre-dispatch station rows and the document world `Documents#judge` reads
+ *  through. The last of those has no production adapter anywhere in `src/`, so a driver here
+ *  would have to invent a second one inside the test surface. The command face's own gate —
+ *  the dispatch capsule — landed: `AdvanceOutcome#face` carries the conclusion word, the
+ *  carrier coordinate and the hop, so the value a driver renders exists; what it does not yet
+ *  have is a tree to render it over. */
 export const NEW_TREE = NewTree.of([
   ["render:skeleton", SKELETON_DRIVER],
   ["render:prompt", PROMPT_DRIVER],

@@ -90,6 +90,7 @@ import {
   CONTRACT_VIOLATION,
   type EvidenceRead,
   Handoff,
+  type HandoffConclusion,
   type RoundFinding,
 } from "../dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "../dispatch/inflight.ts";
@@ -104,7 +105,7 @@ import type { RoundRecord, RoundRecordInit, RoundViolation } from "../ledger/led
 import { ReviewedIdentity } from "../ledger/reviewed.ts";
 import type { FrameFacts, UsageReason } from "./frame.ts";
 import type { CarriedFacts } from "./line-phase.ts";
-import { NextRoutes, type RoundFacts, type Route } from "./next.ts";
+import { type NextHop, NextRoutes, type RoundFacts, type Route } from "./next.ts";
 import { TargetFaces } from "./target-faces.ts";
 import type { WaveGate, WaveInput, WaveVerdict } from "./wave.ts";
 
@@ -139,12 +140,36 @@ export interface CapsuleFacts {
   readonly dispositionCounts?: FixSummary;
 }
 
+/** The dispatch's RENDERABLE face — the cells the capsule prints and only the step holds. The
+ *  surface renders one capsule from this value and composes nothing: a face without them would
+ *  have to invent the round's conclusion word and its hop, which is the one thing a render
+ *  face must never do. */
+export interface DispatchFace {
+  /** The round's conclusion word — the work carrier's own declared status, or a judge
+   *  carrier's findings rolled up through the dispatch segment's ONE conclusion
+   *  (`run/dispatch/handoff.ts#Handoff#conclusionOf`). */
+  readonly status: HandoffConclusion | "BLOCKED";
+  /** The round's carrier coordinate — the `handoff:` slot. Empty when the ledger answers no
+   *  path for the record (a round that wrote no carrier, or a step wired without the read). */
+  readonly handoff: string;
+  /** Whether the failure face wrote a crash record — the failure capsule's second key. The new
+   *  tree keeps no crash writer, so an engine round answers `false`: the failure face prints
+   *  its status word alone, never a coordinate it did not write. */
+  readonly crashRecord: boolean;
+  /** The line's ONE next hop — the very object the board's `next:` row renders, so the two
+   *  faces cannot state two hops. Null on the failure face, where a capsule prints no route
+   *  row at all. */
+  readonly hop: NextHop | null;
+}
+
 /** One step's answer — the closed set the facade hands the shell. */
 export type AdvanceOutcome =
   | {
       readonly kind: "dispatch";
       readonly result: StepResult;
       readonly capsule: CapsuleFacts;
+      /** The capsule's own cells — the status line, its summary and its route rows. */
+      readonly face: DispatchFace;
       readonly checked: readonly CheckedRow[];
     }
   /** The structural leg refused before the dispatch. */
@@ -217,6 +242,10 @@ export interface LifecycleLedger {
    *  (`recordDocReview` / `recordReviewedDoc`), a wave line's is this `brief` identity, and no
    *  line writes both. */
   recordReviewed(line: string, reviewed: ReviewedIdentity): void;
+  /** The carrier coordinate the booked round wrote, as the `handoff:` slot prints it. ONE
+   *  read: the ledger resolves a record's carrier path and this segment never spells one.
+   *  Absent leaves the slot with the empty coordinate rather than a path no writer produced. */
+  readonly handoffOf?: (record: RoundRecord) => string;
 }
 
 /** The step's reads and side-effect seams — every one of them is a fact the composition root
@@ -283,6 +312,11 @@ export interface LifecycleReads {
   /** The consecutive-blocker run the round at `frame.round` closes — the soft cap's ONE
    *  counter, read off the line's completed review rounds. */
   readonly blockerRun: (frame: FrameFacts) => number;
+  /** The line's ONE next hop for this frame — the very object the board's `next:` row
+   *  renders (`run/advance/pipeline.ts#Pipeline#hopOf` over the frame's own pipeline cells),
+   *  so the capsule and the board state one hop. Absent → the capsule prints no route row
+   *  rather than a hop no face would agree with. */
+  readonly hopOf?: (frame: FrameFacts) => NextHop | null;
 }
 
 /** The construction facts. */
@@ -453,6 +487,7 @@ export class Lifecycle {
         route: booked.route,
       },
       capsule: booked.capsule,
+      face: booked.face,
       checked: verdict.checked,
     };
   }
@@ -473,7 +508,12 @@ export class Lifecycle {
        *  carries one. */
       readonly base: string | null;
     },
-  ): { round: RoundRecord; route: Route | null; capsule: CapsuleFacts } {
+  ): {
+    round: RoundRecord;
+    route: Route | null;
+    capsule: CapsuleFacts;
+    face: DispatchFace;
+  } {
     // The two reads the booking owns happen ONCE, before the record is written: the round's
     // own-bytes fact (the binding's gate, and the blindness it books) and the evidence read
     // (the criterion's `evidenceOk` cell AND the round's hard entry).
@@ -514,7 +554,36 @@ export class Lifecycle {
       this.#ledger.closeWave(frame.key, this.#reads.planTasks());
     }
     this.#bindReviewed(frame, landed, round.verdict.targetAction, touched);
-    return { round, route, capsule: this.#capsuleOf(frame, carried, facts) };
+    return {
+      round,
+      route,
+      capsule: this.#capsuleOf(frame, carried, facts),
+      face: this.#faceOf(frame, carried, round),
+    };
+  }
+
+  /** The capsule's own cells — the round's conclusion word, its carrier coordinate and the
+   *  line's one hop. The word is the carrier's own (`BLOCKED` / `APPROVED` on a work round),
+   *  else the judge carrier's findings rolled up by the dispatch segment's ONE conclusion; the
+   *  hop is the injected pipeline assembly, and the FAILURE face carries none, because a
+   *  capsule that ended a round prints no route row (the route's absence is the crossing). */
+  #faceOf(frame: FrameFacts, carried: CarriedFacts, round: RoundRecord): DispatchFace {
+    const status = Lifecycle.#conclusionOf(carried);
+    const failed = status === "BLOCKED";
+    return {
+      status,
+      handoff: this.#ledger.handoffOf?.(round) ?? "",
+      crashRecord: false,
+      hop: failed ? null : (this.#reads.hopOf?.(frame) ?? null),
+    };
+  }
+
+  /** The round's conclusion word. The work carrier DECLARES it (`BLOCKED` withholds the
+   *  round's target action); a judge carrier declares findings instead, so the word is their
+   *  roll-up — the two planes' ONE source, never a second judgment. */
+  static #conclusionOf(carried: CarriedFacts): HandoffConclusion | "BLOCKED" {
+    if (carried.status === "BLOCKED") return "BLOCKED";
+    return Handoff.conclusionOf(carried.findings ?? []);
   }
 
   /** The round's own-bytes fact, measured only where a binding could read it: an implement

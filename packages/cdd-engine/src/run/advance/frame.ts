@@ -119,6 +119,12 @@ export interface DocFacts {
   readonly docType: TargetType | null;
   /** The `program:` the document declares (the parent charter's slug). */
   readonly program: string | null;
+  /** The declared `version:`, when the document states one — the board row's `v<n>` cell. */
+  readonly version: string | null;
+  /** The declared `status:`, when the document states one — the board row's second cell. */
+  readonly status: string | null;
+  /** The declared `title:`, when the document states one — the program board's annotation. */
+  readonly title: string | null;
 }
 
 /** The readers the assembly composes from — `env/` and `docs/` behind one narrow seam. */

@@ -305,26 +305,31 @@ export class RouteRenderer {
   }
 
   /** The one-way fix hop's literal — `fix --type <type> <type-arg> --reviews <path>`, plus
-   *  the declared readback sentence when the hop carries the sidecar it consumed. */
+   *  the declared readback sentence when the hop carries the sidecar it consumed. The
+   *  sentence is the word table's row with the route's own `rulings` path in its slot, and a
+   *  hop that carries none omits it whole — this face derives no name and prints no empty
+   *  slot. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
     if (route.reviews === undefined) return this.#words.routeWord("fix");
     const verb = this.#words.routeWord("fix");
     const type = target?.type ?? null;
     const id = target?.id ?? "";
     const reviews = route.reviews;
+    const readback =
+      route.rulings === undefined ? "" : ` ${this.#words.fixReadbackWord(route.rulings)}`;
     if (type === "wave") {
-      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}`;
+      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
     if (type === "plan") {
-      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("reviews")} ${reviews}`;
+      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
     if (type === "branch") {
-      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}`;
+      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
     if (type === null) {
-      return `${verb} ${this.#flag("reviews")} ${reviews}`;
+      return `${verb} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
-    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${id} ${this.#flag("reviews")} ${reviews}`;
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${id} ${this.#flag("reviews")} ${reviews}${readback}`;
   }
 
   /** The face-to-face handoff — the pipeline entry: a skill reference fills the declared

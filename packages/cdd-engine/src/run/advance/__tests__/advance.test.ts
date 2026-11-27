@@ -71,7 +71,7 @@ import { InFlight } from "../../dispatch/inflight.ts";
 import { Authority } from "../../gate/authority.ts";
 import { type DocJudgment, PreFlight } from "../../gate/preflight.ts";
 import { Refusal } from "../../gate/refusal.ts";
-import { type BoardRow, Run, type RunOptions } from "../../index.ts";
+import { type BoardOutcome, type BoardRow, Run, type RunOptions } from "../../index.ts";
 import { CarrierLine } from "../../ledger/carrier-line.ts";
 import { RoundIdentity } from "../../ledger/identity.ts";
 import { Ledger } from "../../ledger/ledger.ts";
@@ -131,15 +131,18 @@ const writeDoc = (
     readonly docType: string;
     readonly slug: string;
     readonly program?: string;
+    readonly version?: string;
+    readonly status?: string;
   },
   body = "# body\n",
 ): void => {
   const absolute = path.join(repo, rel);
   mkdirSync(path.dirname(absolute), { recursive: true });
   const program = head.program === undefined ? "" : `program: '${head.program}'\n`;
+  const status = head.status === undefined ? "" : `status: ${head.status}\n`;
   writeFileSync(
     absolute,
-    `---\ntitle: '${head.title}'\ndoc-type: ${head.docType}\nslug: '${head.slug}'\n${program}---\n\n${body}`,
+    `---\ntitle: '${head.title}'\ndoc-type: ${head.docType}\nslug: '${head.slug}'\nversion: ${head.version ?? "v0.1"}\n${status}${program}---\n\n${body}`,
     "utf8",
   );
 };
@@ -159,6 +162,8 @@ const docFactsOf =
       const text = readFileSync(path.join(repo, rel), "utf8");
       const docType = /^doc-type:\s*(\S+)\s*$/m.exec(text)?.[1] ?? null;
       const program = /^program:\s*'?([^'\n]+)'?\s*$/m.exec(text)?.[1] ?? null;
+      const head = (key: string): string | null =>
+        new RegExp(`^${key}:\\s*'?([^'\\n]+)'?\\s*$`, "m").exec(text)?.[1]?.trim() ?? null;
       return {
         slug: slugOf(text),
         docType:
@@ -169,6 +174,9 @@ const docFactsOf =
             ? docType
             : null,
         program,
+        version: head("version"),
+        status: head("status"),
+        title: head("title"),
       };
     } catch {
       return null;
@@ -506,6 +514,7 @@ const fixture = (): Fixture => {
     stepReads: reads,
     briefName: () => "brief.md",
     host: () => "pi",
+    board: { docFacts: docFactsOf(repo), phases: () => [] },
   };
   return {
     repo,
@@ -772,11 +781,91 @@ describe("the declared failures", () => {
     const planBoard = await fx.run.boardOf(planRequest);
     expect(planBoard.kind).toBe("board");
     if (planBoard.kind !== "board") return;
-    expect(planBoard.rows.find((row) => row.kind === "doc")?.state).toBe("closed");
+    const planRow = planBoard.rows.find(
+      (row): row is Extract<BoardRow, { kind: "doc" }> => row.kind === "doc" && row.line === "plan",
+    );
+    expect(planRow?.state).toBe("closed");
     expect(await fx.run.advance(planRequest)).toEqual({
       kind: "usage",
       reason: { kind: "no-frame", command: "review" },
     });
+  });
+
+  it("answers the board's identity, a document row's header cells and the branch row", async () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    const request = { command: "review", type: "phase-spec" as const, spec: SPEC_REL };
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    expect((await fx.run.advance(request)).kind).toBe("dispatch");
+    const board = await fx.run.boardOf({ command: "board", type: "plan", plan: PLAN_REL });
+    expect(board.kind).toBe("board");
+    if (board.kind !== "board") return;
+    // The header's value is the tree's own identity, and a document row carries the document's
+    // declared header cells beside its label — the face spells neither.
+    expect(board.slug).toBe(SLUG);
+    const spec = board.rows.find(
+      (row): row is Extract<BoardRow, { kind: "doc" }> =>
+        row.kind === "doc" && row.line === "phase-spec",
+    );
+    expect(spec?.doc).toEqual({
+      name: "2026-01-01-p9.md",
+      version: "v0.1",
+      status: null,
+      title: "spec",
+    });
+    expect(spec?.rounds).toEqual([
+      { op: "review", cycle: 1, attempt: 1, passed: true, findings: 0, notes: [] },
+    ]);
+    // The branch line is a row of its own, and a node board groups no phase.
+    expect(board.rows.filter((row) => row.kind === "branch")).toHaveLength(1);
+    expect(board.phases).toEqual([]);
+  });
+
+  it("composes a program row from the phase's own board read", () => {
+    const own: BoardOutcome = {
+      kind: "board",
+      slug: SLUG,
+      rows: [
+        { kind: "in-flight", state: { kind: "absent" } },
+        {
+          kind: "next",
+          hop: {
+            face: null,
+            target: null,
+            hop: null,
+            to: null,
+            reason: "task-open",
+            route: null,
+          },
+        },
+        {
+          kind: "doc",
+          line: "phase-spec",
+          doc: { name: "2026-01-01-p9.md", version: "v0.1", status: "Draft", title: "P9 spec" },
+          state: "closed",
+          rounds: [],
+        },
+        { kind: "wave", line: "tasks-1", tasks: [1], phase: null, closed: false, rounds: [] },
+        { kind: "branch", state: "open", rounds: [] },
+      ],
+      facts: { orphans: [], crashed: [], refusal: { kind: "absent" } },
+      observed: [],
+      phases: [],
+    };
+    expect(Run.phaseOf(SLUG, own)).toEqual({
+      slug: SLUG,
+      status: "Draft",
+      title: "P9 spec",
+      wave: "W1",
+      cells: [
+        { key: "spec", rounds: [] },
+        { key: "branch", rounds: [] },
+      ],
+    });
+    // A usage answer is no row: a phase whose documents do not resolve never prints one.
+    expect(Run.phaseOf(SLUG, { kind: "usage", reason: { kind: "missing-plan-or-spec" } })).toBe(
+      null,
+    );
   });
 
   it("names the unknown task from the plan, not from a literal list", async () => {

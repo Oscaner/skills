@@ -21,7 +21,9 @@
 //   · `initPreview` / `initProgress` / `initGreen` / `initFailure` — the bootstrap face's
 //     four exits, each carrying its own stream;
 //   · `checkedBlock` / `refusalBody` / `refusalDetails` / `lineRefusal` — the route face's
-//     shared assemblies, so a shell prints one refusal with one spelling.
+//     shared assemblies, so a shell prints one refusal with one spelling;
+//   · `prompt` / `review` — the two dispatch prompt bands, so the dispatch face reads a
+//     band through this door like every other consumer byte.
 //
 // The collaborators are constructed HERE and nowhere else — one word table, one route
 // renderer, every renderer over them — so the capsule and the board cannot read two tables.
@@ -48,6 +50,11 @@ import type { PreviewPass } from "./render/preview.ts";
 import { Preview } from "./render/preview.ts";
 import type { RefusalVerdict } from "./render/route.ts";
 import { RouteRenderer } from "./render/route.ts";
+import {
+  PromptBandsRenderer,
+  type ReviewVariantRow,
+  type WorkModeRowKey,
+} from "./render/templates.ts";
 import type { UsageInput, UsageReport } from "./render/usage.ts";
 import { UsageFace } from "./render/usage.ts";
 import { Words } from "./words/words.ts";
@@ -75,11 +82,19 @@ export { Preview, type PreviewPass } from "./render/preview.ts";
 export type { RefusalVerdict } from "./render/route.ts";
 export { type RouteChannelRow, type RouteChannels, RouteRenderer } from "./render/route.ts";
 export {
+  type BandRow,
+  type PromptBands,
+  PromptBandsRenderer,
+  REVIEW_VARIANTS,
+  type ReviewVariantRow,
+  TEMPLATE_PROMPT,
+  WORK_MODES,
+  type WorkModeRowKey,
+} from "./render/templates.ts";
+export {
   FAILURE_REASONS,
-  FAILURE_VALUE_KINDS,
   type FailureValue,
   USAGE_BYTES,
-  USAGE_REASON_KINDS,
   type UsageByteRow,
   type UsageContext,
   UsageFace,
@@ -151,6 +166,8 @@ export class Cli {
   readonly init: InitRenderer;
   /** The wave board's three sections. */
   readonly graph: GraphView;
+  /** The two prompt bands — one renderer over the declared rows. */
+  readonly prompts: PromptBandsRenderer;
 
   constructor(opts: CliOptions = {}) {
     this.words = new Words({ clock: opts.clock ?? new Clock() });
@@ -168,6 +185,17 @@ export class Cli {
     this.brief = new BriefRenderer();
     this.init = new InitRenderer();
     this.graph = new GraphView(this.words);
+    this.prompts = new PromptBandsRenderer();
+  }
+
+  /** One work mode's dispatch prompt band. */
+  prompt(mode: WorkModeRowKey): string {
+    return this.prompts.prompt(mode);
+  }
+
+  /** One target type's review prompt band. */
+  review(type: ReviewVariantRow["key"]): string {
+    return this.prompts.review(type);
   }
 
   /** One misuse or declared failure's bytes. */

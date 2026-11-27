@@ -9,7 +9,8 @@
 //   · the capsule — three slots, the two line labels, the fixed slot order, and the
 //     disposition summary template filling to its own shape;
 //   · one spelling only — a sentence this table owns may appear NOWHERE else under `src/`
-//     outside the table's own home, and the two legend tails differ by the scope word alone;
+//     outside the table's own home, and the two legend tails are ONE template one scope word
+//     apart (the current wave's row annotation is a separate word);
 //   · the board's fact block and artifact rows — every label readable, and the two
 //     continuation contracts (the board's and the gate's) kept apart;
 //   · the issue type set and the word-table class — the types derived from ONE declaration,
@@ -215,18 +216,33 @@ describe("one spelling only", () => {
     ).toEqual([]);
   });
 
-  it("carries the three progress markers once, and two legend tails one word apart", () => {
-    const { markers, legend, scopes } = WORDS.board.progress;
+  it("carries the three progress markers once, and one legend template two scopes fill", () => {
+    const { markers, legend, scopes, annotation } = WORDS.board.progress;
     expect(Object.values(markers)).toEqual(["✔", "▶", "○"]);
+    // ONE template: the three markers and the scope word are SLOTS, never re-spelled.
+    expect(legend).toContain("{done}");
+    expect(legend).toContain("{current}");
+    expect(legend).toContain("{pending}");
+    expect(legend).toContain("{scope}");
+    const words = new Words({ clock: pinnedClock() });
     for (const scope of ["board", "graph"] as const) {
-      expect(legend[scope]).toContain(markers.done);
-      expect(legend[scope]).toContain(markers.current);
-      expect(legend[scope]).toContain(markers.pending);
-      expect(legend[scope]).toContain(scopes[scope]);
+      const tail = words.legendTail(scope);
+      expect(tail).toContain(markers.done);
+      expect(tail).toContain(markers.current);
+      expect(tail).toContain(markers.pending);
+      expect(tail).toContain(scopes[scope]);
+      expect(tail).not.toContain("{");
     }
-    // ONE template, one scope word: the board's tail is the graph's tail with its scope
-    // narrowed — a renderer that wrote a whole `progress:` tail itself would break this.
-    expect(legend.graph.replace(scopes.graph, scopes.board)).toBe(legend.board);
+    // ONE scope word: the board's tail is the graph's tail with its scope narrowed — a
+    // renderer that wrote a whole `progress:` tail itself would break this.
+    expect(words.legendTail("graph").replace(scopes.graph, scopes.board)).toBe(
+      words.legendTail("board"),
+    );
+    // The current wave's ROW annotation is its own word — the legend's scope names the two
+    // boards' difference and never rides a row.
+    expect(words.currentWaveAnnotation()).toBe(annotation);
+    expect(annotation).not.toBe(scopes.graph);
+    expect(annotation).not.toBe(scopes.board);
     expect(WORDS.board.titles.progress).toBe("progress:");
   });
 });

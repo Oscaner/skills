@@ -243,13 +243,41 @@ export interface BoardFactWords {
   readonly crashed: BoardFactRowWords;
 }
 
-/** The board's progress vocabulary — the glyphs, the two scopes and the two legend tails. */
+/** The board's progress vocabulary — the glyphs, the two scopes, the row annotation and the
+ *  ONE legend template the two boards fill. */
 export interface ProgressWords {
   readonly markers: Readonly<Record<"done" | "current" | "pending", string>>;
-  /** The one word the two boards differ by. */
+  /** The one word the two boards differ by — the LEGEND's scope word, and nothing else. */
   readonly scopes: Readonly<Record<"board" | "graph", string>>;
-  /** The legend tails — ONE template, two scopes. */
-  readonly legend: Readonly<Record<"board" | "graph", string>>;
+  /** The current wave's ROW annotation (`← <annotation>`) — a different word from the
+   *  legend's scope, so the two cells can never be read as one. */
+  readonly annotation: string;
+  /** The legend tail's ONE template — the three markers and the scope word filled in. */
+  readonly legend: string;
+}
+
+/** One round token's vocabulary — the judgement glyph column and its three appends. */
+export interface BoardTokenWords {
+  /** The three judgement glyphs: a completed round, a failed attempt, a recovered one. */
+  readonly judgement: Readonly<Record<"passed" | "failed" | "recovered", string>>;
+  /** The re-dispatch superscript (`a{attempt}`) — `attempt === 1` prints none of it. */
+  readonly attempts: string;
+  /** A count cell (`+{count}`) — the graded findings and the note rows share the template. */
+  readonly count: string;
+  /** The folded note segment's word (`notes +M`). */
+  readonly notes: string;
+}
+
+/** The program board's row cells — the phase label, its status fallback, the wave cell and
+ *  the title annotation. */
+export interface BoardProgramWords {
+  readonly phase: string;
+  readonly title: string;
+  /** The phase's wave cell — the derived wave label plus the ellipsis that stands for the
+   *  phase's further waves (`W1…`). */
+  readonly wave: string;
+  /** The status a phase row prints when its document declares none. */
+  readonly pending: string;
 }
 
 /** The board family. */
@@ -258,6 +286,15 @@ export interface BoardWords {
   readonly titles: Readonly<Record<"graph" | "waveBoard" | "progress", string>>;
   readonly progress: ProgressWords;
   readonly facts: BoardFactWords;
+  /** The document lines' label words — a phase specification and a single specification are
+   *  both the `spec` line. */
+  readonly lines: Readonly<Record<"overall" | "spec" | "plan", string>>;
+  /** A document row's declared absence. */
+  readonly doc: { readonly absent: string };
+  /** The two line-state words the branch row prints. */
+  readonly states: Readonly<Record<"closed" | "open", string>>;
+  readonly tokens: BoardTokenWords;
+  readonly program: BoardProgramWords;
   /** The preview's `reads:` row and its orphan-draft suffix. */
   readonly reads: {
     readonly label: string;
@@ -441,13 +478,15 @@ export const WORDS = {
     titles: { graph: "graph:", waveBoard: "wave board:", progress: "progress:" },
     progress: {
       markers: { done: "✔", current: "▶", pending: "○" },
-      /** The one word the two boards differ by. */
+      /** The one word the two boards' LEGENDS differ by. */
       scopes: { board: "current", graph: "current wave" },
-      /** The two legend tails — the SAME template, one scope word apart. */
-      legend: {
-        board: "progress: ✔ done · ▶ current · ○ pending",
-        graph: "progress: ✔ done · ▶ current wave · ○ pending",
-      },
+      /** The current wave's row annotation — the graph view's own mark. It is NOT the
+       *  legend's scope word: the two cells are different facts of the same board, so one
+       *  word cannot serve both. */
+      annotation: "in-flight",
+      /** The legend tail's ONE template — `{done}` / `{current}` / `{pending}` are the
+       *  declared markers and `{scope}` is the board's own scope word. */
+      legend: "progress: {done} done · {current} {scope} · {pending} pending",
     },
     facts: {
       /** The orphan row's join is an em dash — the record has no round, so the name and the
@@ -458,6 +497,22 @@ export const WORDS = {
       crashed: { label: "crashed:", join: " · " },
     },
     reads: { label: "reads:", orphanDrafts: " · orphan drafts: ", join: " · " },
+    /** The document lines' own words. */
+    lines: { overall: "overall", spec: "spec", plan: "plan" },
+    /** A row whose document does not read: the absence, never a fabricated cell. */
+    doc: { absent: "(none)" },
+    /** The branch row's two state words — the reopened state prints `open` because the line
+     *  IS open again. */
+    states: { closed: "closed", open: "open" },
+    /** One round token's vocabulary. */
+    tokens: {
+      judgement: { passed: "✓", failed: "✗", recovered: "✗→✓" },
+      attempts: "a{attempt}",
+      count: "+{count}",
+      notes: "notes",
+    },
+    /** The program board's row cells. */
+    program: { phase: "phase", title: "title:", wave: "{label}…", pending: "Pending" },
   },
   artifacts: {
     label: "art:",
@@ -476,6 +531,10 @@ export const WORDS = {
     fix: "fix",
     implement: "implement",
     handoffRef: "route to {ref} skill",
+    /** The fix hop's readback sentence — the finding-to-ruling instruction the fix round
+     *  owes, with `{path}` the rulings sidecar the hop consumed. A RESULT sentence, never a
+     *  naming rule: the path arrives as a value, so no reader derives one from it. */
+    fixReadback: "(confirm the reviews handoff · if a finding needs a ruling, record it at {path})",
     docType:
       "the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     docTypeValue:
@@ -681,6 +740,22 @@ export class Words {
     return WORDS.board;
   }
 
+  /** One board's legend tail — the ONE template, filled from the declared markers and that
+   *  board's scope word. */
+  legendTail(scope: "board" | "graph"): string {
+    const progress = WORDS.board.progress;
+    return progress.legend
+      .replace("{done}", progress.markers.done)
+      .replace("{current}", progress.markers.current)
+      .replace("{pending}", progress.markers.pending)
+      .replace("{scope}", progress.scopes[scope]);
+  }
+
+  /** The current wave's row annotation (`← <word>`) — never the legend's scope word. */
+  currentWaveAnnotation(): string {
+    return WORDS.board.progress.annotation;
+  }
+
   /** The whole artifact family. */
   artifactWords(): ArtifactWords {
     return WORDS.artifacts;
@@ -702,6 +777,11 @@ export class Words {
   /** The pipeline skill-ref instruction phrase, filled with the per-host reference form. */
   handoffRefWord(ref: string): string {
     return WORDS.route.handoffRef.replace("{ref}", ref);
+  }
+
+  /** The fix hop's readback sentence, with the rulings sidecar's path in its slot. */
+  fixReadbackWord(path: string): string {
+    return WORDS.route.fixReadback.replace("{path}", path);
   }
 
   /** The issue type set — derived from its ONE declaration, never re-typed. */

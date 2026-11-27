@@ -20,6 +20,7 @@ import { regradeNote } from "../../../docs/judging/criteria.ts";
 import type { RepoPath } from "../../../env/paths/root.ts";
 import { Clock } from "../../../env/process/clock.ts";
 import type { ProvisionStep } from "../../../env/provision/init.ts";
+import type { UsageReason } from "../../../run/advance/frame.ts";
 import type { NextHop } from "../../../run/advance/next.ts";
 import type { WaveVerdict } from "../../../run/advance/wave.ts";
 import type { InFlightRecord } from "../../../run/dispatch/inflight.ts";
@@ -27,7 +28,10 @@ import type { CheckedRow, PreFlightVerdict } from "../../../run/gate/preflight.t
 import type { RefusalFacts, RefusalState } from "../../../run/gate/refusal.ts";
 import type {
   ArtifactObservation,
+  BoardDoc,
   BoardFacts,
+  BoardPhase,
+  BoardRound,
   BoardRow,
   CrashedRound,
 } from "../../../run/index.ts";
@@ -42,14 +46,40 @@ import { IssueBodyRenderer } from "../issue.ts";
 import { Preview } from "../preview.ts";
 import { RouteRenderer } from "../route.ts";
 import { PromptBandsRenderer, REVIEW_VARIANTS, TEMPLATE_PROMPT, WORK_MODES } from "../templates.ts";
-import {
-  FAILURE_REASONS,
-  FAILURE_VALUE_KINDS,
-  type FailureValue,
-  USAGE_BYTES,
-  USAGE_REASON_KINDS,
-  UsageFace,
-} from "../usage.ts";
+import { FAILURE_REASONS, type FailureValue, USAGE_BYTES, UsageFace } from "../usage.ts";
+
+/** The usage members, as the UNION's own projection: a mapped type over `UsageReason["kind"]`
+ *  cannot miss a member (the compiler demands every key) and cannot name a non-member (the
+ *  value is that key), so this map is not a list maintained beside the union — it is the
+ *  union, spelled out where a pin can read it. An array typed `satisfies readonly …[]` would
+ *  only close one direction: a forgotten member would pass, and the pin would then compare the
+ *  table against a strict subset of itself. */
+const USAGE_MEMBERS: Readonly<{ readonly [M in UsageReason["kind"]]: M }> = {
+  "missing-tasks": "missing-tasks",
+  "missing-skeleton-target": "missing-skeleton-target",
+  "extra-target": "extra-target",
+  "missing-plan-or-spec": "missing-plan-or-spec",
+  "unknown-task": "unknown-task",
+  "dry-run-scope": "dry-run-scope",
+  "read-failure": "read-failure",
+  "write-failure": "write-failure",
+  "base-conflict": "base-conflict",
+  "board-unmatched": "board-unmatched",
+  "board-unreadable": "board-unreadable",
+  "base-absent": "base-absent",
+  "no-frame": "no-frame",
+};
+
+/** The declared failure values, closed the same way — the translation table's domain. */
+const FAILURE_VALUES: Readonly<{ readonly [M in FailureValue["kind"]]: M }> = {
+  "read-failure": "read-failure",
+  "write-failure": "write-failure",
+  "base-conflict": "base-conflict",
+  absent: "absent",
+  corrupt: "corrupt",
+  "missing-target": "missing-target",
+  "extra-target": "extra-target",
+};
 
 /** The pinned clock — every in-flight row's two instants are the injected clock's. */
 const CLOCK = new Clock(() => 1_700_000_000_000);
@@ -86,26 +116,56 @@ const FIX_HOP: NextHop = {
   route: { kind: "fix", reviews: rel(".kairos/cdd/p9/spec-review-1.c1.json") },
 };
 
-/** One document row. */
+/** One round, as a line's token reads it. */
+const round = (over: Partial<BoardRound> = {}): BoardRound => ({
+  op: "implement",
+  cycle: 1,
+  attempt: 1,
+  passed: true,
+  findings: 0,
+  notes: [],
+  ...over,
+});
+
+/** One document row — the document's header cells plus the line's rounds. */
 const docRow = (
   line: string,
-  state: "closed" | "reopened" | "open" = "closed",
-  rounds = 1,
-  batch = 1,
-): BoardRow => ({ kind: "doc", line, state, rounds, batch });
+  over: {
+    readonly state?: "closed" | "reopened" | "open";
+    readonly doc?: BoardDoc | null;
+    readonly rounds?: readonly BoardRound[];
+  } = {},
+): BoardRow => ({
+  kind: "doc",
+  line,
+  state: over.state ?? "closed",
+  doc:
+    over.doc === undefined
+      ? { name: `${line}.md`, version: "v1.0", status: "Draft", title: null }
+      : over.doc,
+  rounds: over.rounds ?? [],
+});
 
 /** One wave row. */
 const waveRow = (
   tasks: readonly number[],
   phase: "implement" | "review" | "fix" | "branch-review" | null = null,
   closed = false,
-): BoardRow => ({ kind: "wave", line: `tasks-${tasks.join(",")}`, tasks, phase, closed });
+  rounds: readonly BoardRound[] = [],
+): BoardRow => ({ kind: "wave", line: `tasks-${tasks.join(",")}`, tasks, phase, closed, rounds });
+
+/** The branch row. */
+const branchRow = (
+  state: "closed" | "reopened" | "open" = "open",
+  rounds: readonly BoardRound[] = [],
+): BoardRow => ({ kind: "branch", state, rounds });
 
 /** The tree's empty fact block. */
 const NO_FACTS: BoardFacts = { orphans: [], crashed: [], refusal: { kind: "absent" } };
 
 /** One board value — the shape the round layer hands a board. */
 const boardValue = (over: Partial<BoardValue> = {}): BoardValue => ({
+  slug: "p9",
   rows: [
     { kind: "in-flight", state: { kind: "absent" } },
     { kind: "next", hop: FIX_HOP },
@@ -276,6 +336,24 @@ describe("the route face — one assembly point", () => {
     expect(route.boardRows(other)[0]).toBe(`  next:    ${route.nextValue(other)}`);
   });
 
+  it("appends the fix readback sentence only when the hop consumed a rulings sidecar", () => {
+    const rulings = rel(".kairos/cdd/p9/spec-review-1.c1.rulings.json");
+    const bare = route.nextValue(FIX_HOP) ?? "";
+    // A hop with no sidecar ends at its `--reviews` path: the sentence is omitted whole.
+    expect(bare.endsWith(".c1.json")).toBe(true);
+    const withRulings: NextHop = {
+      ...FIX_HOP,
+      route: { kind: "fix", reviews: rel(".kairos/cdd/p9/spec-review-1.c1.json"), rulings },
+    };
+    const value = route.nextValue(withRulings) ?? "";
+    // One value: the literal, then the declared sentence with the route's own path in it.
+    expect(value).toBe(`${bare} ${words.fixReadbackWord(rulings)}`);
+    expect(value.endsWith(`record it at ${rulings})`)).toBe(true);
+    // Both faces of the one hop carry it, and the sentence is not a second assembly.
+    expect(route.capsuleRows(withRulings)[0]).toBe(`next: ${value}`);
+    expect(route.boardRows(withRulings)[0]).toBe(`  next:    ${value}`);
+  });
+
   it("prints the board's `(none)` degradation with no reason row", () => {
     expect(route.boardRows(null)).toEqual(["  next:    (none)"]);
     expect(route.capsuleRows(null)).toEqual([]);
@@ -369,7 +447,12 @@ describe("the route face — one assembly point", () => {
     expect(board).toContain(
       `  W1  T1${words.boardWords().progress.markers.done} · T2${words.boardWords().progress.markers.current}`,
     );
-    expect(board.endsWith(words.boardWords().progress.legend.graph)).toBe(true);
+    // The current wave's row carries its OWN annotation word — the legend's scope word is
+    // the two boards' difference and never rides this cell.
+    const currentRow = board.split("\n").find((row) => row.startsWith("  W1  ")) ?? "";
+    expect(currentRow.endsWith(`   ← ${words.currentWaveAnnotation()}`)).toBe(true);
+    expect(currentRow).not.toContain(words.boardWords().progress.scopes.graph);
+    expect(board.endsWith(words.legendTail("graph"))).toBe(true);
     expect(new GraphView(words).render(tree())).toBe(board);
   });
 });
@@ -378,9 +461,12 @@ describe("the board", () => {
   const board = new BoardView(words, route);
 
   it("prints the note count folded by default and the bodies under --notes", () => {
+    const notes = ["the guard is missing", "the guard is missing twice"];
     const value = boardValue({
-      rows: [{ kind: "in-flight", state: { kind: "absent" } }, waveRow([1], null, true)],
-      notes: { "tasks-1": ["the guard is missing", "the guard is missing twice"] },
+      rows: [
+        { kind: "in-flight", state: { kind: "absent" } },
+        waveRow([1], null, true, [round({ op: "review", notes })]),
+      ],
     });
     const folded = board.render(value).join("\n");
     expect(folded).toContain("notes +2");
@@ -439,6 +525,16 @@ describe("the board", () => {
     expect(index("in-flight:")).toBeLessThan(index("orphan:"));
     expect(index("orphan:")).toBeLessThan(index("crashed:"));
     expect(index("crashed:")).toBeLessThan(index("plan"));
+    // A fact block carrying MORE than the occupancy row is set off from the document rows by
+    // one blank column; the occupancy row alone shares the block with them.
+    expect(rows[index("crashed:") + 1]).toBe("");
+    const occupancyOnly = board.render(
+      boardValue({
+        rows: [{ kind: "in-flight", state: { kind: "absent" } }, docRow("plan")],
+      }),
+    );
+    expect(occupancyOnly[2]).toContain("in-flight:");
+    expect(occupancyOnly[3]).toContain("plan");
   });
 
   it("prints no artifact row on a tree with no observation, switch or no switch", () => {
@@ -489,27 +585,99 @@ describe("the board", () => {
   });
 
   it("lays the program board out as the charter row, its phase rows and the program terminal", () => {
+    const phase: BoardPhase = {
+      slug: "p9",
+      status: "Draft",
+      title: "P9 spec",
+      wave: "W1",
+      cells: [],
+    };
     const value = boardValue({
       rows: [
         { kind: "in-flight", state: { kind: "absent" } },
-        docRow("overall"),
+        docRow("overall", {
+          doc: { name: "p9-overall.md", version: "v1.0", status: "Approved", title: null },
+          rounds: [round({ op: "review" })],
+        }),
         docRow("phase-spec"),
       ],
+      phases: [phase],
     });
     const rows = board.renderProgram(value);
     const body = rows.join("\n");
-    expect(body).toContain("overall");
-    expect(body).toContain("phase-spec");
+    // The charter row is a document row at the charter's altitude — name, header cells and
+    // the charter's own round tokens.
+    expect(body).toContain(
+      `  overall  p9-overall.md   v1.0 · Approved   review 1 ${words.boardWords().tokens.judgement.passed}`,
+    );
+    // The phase row names its slug, its status, its wave cell and its title.
+    expect(body).toContain("  phase p9  Draft   wave W1…   title: P9 spec");
+    // No tree fact block, and no `reason:` row: the program's own terminal is the last row.
+    expect(body).not.toContain("in-flight:");
     expect(body).toContain("next:    done");
     expect(body).not.toContain("reason:");
-    expect(body.endsWith(words.boardWords().progress.legend.board)).toBe(true);
+    expect(body.endsWith(words.legendTail("board"))).toBe(true);
+  });
+
+  it("prints a document row as the name, the header cells and the line's round tokens", () => {
+    const rows = board.render(
+      boardValue({
+        rows: [
+          { kind: "in-flight", state: { kind: "absent" } },
+          { kind: "next", hop: FIX_HOP },
+          docRow("overall", {
+            doc: { name: "p9-overall.md", version: "v1.0", status: "Approved", title: null },
+          }),
+          docRow("phase-spec", {
+            doc: { name: "p9-design.md", version: "v1.0", status: "Draft", title: null },
+            rounds: [round({ op: "review", findings: 1 })],
+          }),
+          docRow("plan", {
+            doc: { name: "p9.md", version: "v1.0", status: null, title: null },
+            rounds: [round({ op: "review" })],
+          }),
+          waveRow([1], null, true, [round(), round({ op: "review", notes: ["a note"] })]),
+          branchRow("open"),
+        ],
+      }),
+    );
+    // The name column is the widest name, so the version column aligns down the block; a
+    // phase specification is the `spec` line, never its `--type` spelling.
+    expect(rows).toContain("  overall  p9-overall.md   v1.0 · Approved");
+    expect(rows).toContain("  spec     p9-design.md    v1.0 · Draft   review 1 ✓+1");
+    expect(rows).toContain("  plan     p9.md           v1.0   review 1 ✓");
+    expect(rows).toContain("  wave     W1 {1}  ✔  implement 1 ✓ · review 1 ✓ notes +1");
+    expect(rows).toContain("  branch   ○ open");
+  });
+
+  it("merges a verb's successes into one token and expands each failed attempt", () => {
+    const rows = board.render(
+      boardValue({
+        rows: [
+          waveRow([1], "review", false, [
+            round(),
+            round({ cycle: 2, passed: false }),
+            round({ cycle: 2, attempt: 2 }),
+          ]),
+        ],
+      }),
+    );
+    // The success face is the `{succeeded}/{attempts}` ratio once the verb has a failure, and
+    // the failure token names its own cycle — the recovered edge marks the same cycle's next
+    // attempt, and the merged token carries no superscript.
+    expect(rows.join("\n")).toContain("implement 2/3 ✓ · implement 2 ✗→✓");
+    const failed = board.render(
+      boardValue({
+        rows: [waveRow([1], null, true, [round(), round({ cycle: 2, passed: false })])],
+      }),
+    );
+    expect(failed.join("\n")).toContain("implement 1/2 ✓ · implement 2 ✗");
   });
 
   it("hands the regrade note through untouched — no composition at a render site", () => {
     const note = regradeNote(1, ["a second-order guard"]) ?? "";
     const value = boardValue({
-      rows: [waveRow([1], null, true)],
-      notes: { "tasks-1": [note] },
+      rows: [waveRow([1], null, true, [round({ op: "review", regrade: note })])],
     });
     expect(board.render(value, { notes: true, artifacts: false }).join("\n")).toContain(note);
     expect(FOLDED_BOARD).toEqual({ notes: false, artifacts: false });
@@ -788,13 +956,20 @@ describe("the usage face", () => {
   });
 
   it("declares one row per union member, with a resolvable producer on every row", () => {
-    expect(Object.keys(USAGE_BYTES).sort()).toEqual([...USAGE_REASON_KINDS].sort());
-    for (const row of Object.values(USAGE_BYTES)) {
+    // The member set is the union's own projection, so this compares the TABLE against the
+    // members it serves — never the table against a hand-written subset of itself.
+    expect(Object.keys(USAGE_BYTES).sort()).toEqual(Object.keys(USAGE_MEMBERS).sort());
+    for (const member of Object.values(USAGE_MEMBERS)) {
+      expect(USAGE_BYTES[member], member).toBeDefined();
+      const row = USAGE_BYTES[member];
       const [module, symbol] = row.producer.split("#");
       expect(module?.length ?? 0).toBeGreaterThan(0);
       expect(symbol?.length ?? 0).toBeGreaterThan(0);
     }
-    expect(Object.keys(FAILURE_REASONS).sort()).toEqual([...FAILURE_VALUE_KINDS].sort());
+    expect(Object.keys(FAILURE_REASONS).sort()).toEqual(Object.keys(FAILURE_VALUES).sort());
+    for (const value of Object.values(FAILURE_VALUES)) {
+      expect(FAILURE_REASONS[value], value).toBeInstanceOf(Function);
+    }
   });
 
   it("prints the usage-shaped family as the injected line plus one error row", () => {
@@ -925,6 +1100,16 @@ describe("the surface door", () => {
     const boardRows = cli.boardRows(boardValue());
     expect(capsuleRows[1]).toBe(`next: ${route.nextValue(FIX_HOP)}`);
     expect(boardRows.join("\n")).toContain(`  next:    ${route.nextValue(FIX_HOP)}`);
+    // The prompt bands arrive through the same door: a consumer byte never reaches into the
+    // render folder, and both entries read the ONE declared table.
+    expect(cli.prompts).toBeInstanceOf(PromptBandsRenderer);
+    for (const mode of WORK_MODES) {
+      expect(cli.prompt(mode)).toBe(new PromptBandsRenderer().prompt(mode));
+    }
+    for (const type of TARGET_TYPE_VALUES) {
+      expect(cli.review(type)).toBe(new PromptBandsRenderer().review(type));
+      expect(cli.review(type)).toContain(`**Criteria — ${type}:**`);
+    }
   });
 
   it("routes a misuse through the usage face and the body through the issue face", async () => {

@@ -4,7 +4,9 @@
 // INVARIANT — one declared value, one row of the byte table: the members of the usage union
 // and the rows of `USAGE_BYTES` are the same set (both are typed against one union, so a
 // member without a row does not compile and a row without a member does not either), and no
-// shell spells a byte of its own.
+// shell spells a byte of its own. The closure is the TYPE's: a runtime companion array beside
+// the union would only check one direction, so a member it forgot would leave the table
+// looking complete while a row went unexercised.
 //
 // The two shapes are not one shape. Judged by the SHAPE, never by what the value lacks:
 //   · the usage shape — the command node's own usage line, then `error: <message>`, exit 2.
@@ -41,26 +43,6 @@ export interface UsageReport {
   readonly exitCode: number;
 }
 
-/** The usage union's member names, as the one runtime companion of the type. Both
- *  directions are checked at compile time: `satisfies` refuses a name the union does not
- *  declare, and the table below is typed `Record<UsageReason["kind"], …>`, so a member with
- *  no row fails to compile. */
-export const USAGE_REASON_KINDS = [
-  "missing-tasks",
-  "missing-skeleton-target",
-  "extra-target",
-  "missing-plan-or-spec",
-  "unknown-task",
-  "dry-run-scope",
-  "read-failure",
-  "write-failure",
-  "base-conflict",
-  "board-unmatched",
-  "board-unreadable",
-  "base-absent",
-  "no-frame",
-] as const satisfies readonly UsageReason["kind"][];
-
 /** The declared failure values the round layer produces — the translation table's domain.
  *  `kind` collides with the usage union's member names on purpose where the value and the
  *  member are the same fact (`read-failure` · `write-failure`); the two base-read variants
@@ -73,18 +55,6 @@ export type FailureValue =
   | { readonly kind: "corrupt"; readonly target: string }
   | { readonly kind: "missing-target" }
   | { readonly kind: "extra-target"; readonly target: string };
-
-/** The declared failure values, as the one runtime companion of the type (the translation
- *  table's key set is typed against the union, so both directions are compile-checked). */
-export const FAILURE_VALUE_KINDS = [
-  "read-failure",
-  "write-failure",
-  "base-conflict",
-  "absent",
-  "corrupt",
-  "missing-target",
-  "extra-target",
-] as const satisfies readonly FailureValue["kind"][];
 
 /** The context one row renders with — the command path a message names and the injected
  *  usage line. */

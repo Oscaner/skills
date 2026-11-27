@@ -2,39 +2,60 @@
 // The board — one tree's progress, laid out from VALUES.
 //
 // INVARIANT — the board CONNECTS facts and judges none: every row it prints comes from the
-// value the round layer handed it (the in-flight state, the one next hop, the document and
-// wave lines, the tree's three fact families and the artifact observation set), and every
-// word it prints is a row of the word table. It reads no ledger, opens no file and resolves
-// no name, so a board can never disagree with the command that produced the facts.
+// value the round layer handed it (the tree's identity, the in-flight state, the one next
+// hop, the document lines with their header cells and round facts, the wave lines, the branch
+// line, the tree's three fact families, the charter's phase rows and the artifact observation
+// set), and every word it prints is a row of the word table. It reads no ledger, opens no
+// file and resolves no name, so a board can never disagree with the command that produced the
+// facts.
 //
 // Two render paths, one class, because a program board is the same board read at the
 // charter's altitude:
-//   · the NODE board — the tree's occupancy, its fact block, one row per document line and
-//     per wave line, then the `next:` / `reason:` pair;
+//   · the NODE board — the tree's occupancy and its fact block, one row per document line and
+//     per wave line, the branch row, then the `next:` / `reason:` pair;
 //   · the PROGRAM board — the charter's own row, one row per phase specification the charter
-//     groups, then the program's own terminal (`next:    done`).
-// Both paths print the same fact block, the same `art:` observation block and the same
-// legend; they differ only in the rows between them.
+//     groups, then the program's own terminal (`next:    done`). It prints no tree fact block:
+//     the charter row is that board's whole header.
+// Both paths print the same artifact block and the same legend; they differ only in the rows
+// between them.
 //
-// Three render attachments, each with a named input:
-//   · the carried rows (`BoardRow[]`) — the occupancy row and the hop;
+// One row's cells are its FACTS, never a pre-rendered string: a document row is its label, the
+// document's name / version / status and the line's rounds; a wave row is its label, its task
+// scope, its marker and its rounds; the branch row is its state and its rounds. A line's round
+// tokens are composed HERE (the display site): each verb's succeeding rounds merge into ONE
+// token, every failed attempt expands into its own, and the three appends — `+N` findings, the
+// downgrade note, `notes +M` — ride the token they belong to, in that order.
+//
+// The three render attachments, each with a named input:
 //   · the tree fact block (`BoardFacts`) — the orphan drafts, the crashed rounds and the
 //     standing refusal, each already read by the ledger / refusal layer;
 //   · the artifact observation set (`ArtifactObservation[]`) — the default face prints the
-//     ANOMALOUS rounds only, `--artifacts` prints every observation with its round
-//     coordinate.
+//     ANOMALOUS rounds only, `--artifacts` prints every observation with its round coordinate;
+//   · the charter's phase rows (`BoardPhase[]`) — the program board's own cells.
 //
-// Two display switches, and neither judges: `--notes` opens the folded note bodies the
-// default keeps as a count, `--artifacts` opens the whole artifact inventory.
+// Two display switches, and neither judges: `--notes` opens the folded note bodies the default
+// keeps as a count, `--artifacts` opens the whole artifact inventory.
 //
 // Module-level exports are the types, the two display values and the class — zero bare
 // functions.
 
-import { REGRADE_NOTE_SEPARATOR } from "../../docs/judging/criteria.ts";
+import {
+  displayReason,
+  REGRADE_NOTE_SEPARATOR,
+  reviewKindOf,
+} from "../../docs/judging/criteria.ts";
 import type { NextHop } from "../../run/advance/next.ts";
 import type { InFlightState } from "../../run/dispatch/inflight.ts";
 import type { RefusalState } from "../../run/gate/refusal.ts";
-import type { ArtifactObservation, BoardFacts, BoardRow } from "../../run/index.ts";
+import {
+  type ArtifactObservation,
+  type BoardDoc,
+  type BoardFacts,
+  type BoardPhase,
+  type BoardRound,
+  type BoardRow,
+  Run,
+} from "../../run/index.ts";
 import type { ArtifactRead } from "../../run/ledger/artifact-reads.ts";
 import type { Words } from "../words/words.ts";
 import type { RouteRenderer } from "./route.ts";
@@ -47,11 +68,22 @@ const LABEL_WIDTH = 9;
  *  `art:` header. */
 const CONTINUATION = "           ";
 
-/** The folded note token — the one word of the notes segment. */
-const NOTES_TOKEN = "notes";
-
 /** The board's header — the command's own name, the same word the command surface spells. */
 const HEADER = "cdd board";
+
+/** The board's blank column — the one separator between a board's sections. */
+const BLANK = "";
+
+/** The gap between a document row's cells — the same three columns the artifact block keeps
+ *  between its head and its state word. */
+const CELL_GAP = "   ";
+
+/** The phase row's title ceiling — a longer title is cut and marked with an ellipsis. */
+const PHASE_TITLE_MAX = 60;
+
+/** The verb render order of a line's round tokens — the stable display order the aggregated
+ *  cells follow (an unexpected verb appends after these, never dropped). */
+const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "fix"];
 
 /** What the board PRINTS — the two switches, and nothing it judges. */
 export interface BoardDisplay {
@@ -64,26 +96,28 @@ export interface BoardDisplay {
 /** The folded default — no note bodies, the anomalous artifact rows only. */
 export const FOLDED_BOARD: BoardDisplay = { notes: false, artifacts: false };
 
-/** The board's whole input: the three fact cells one round-layer read produced. */
+/** The board's whole input: the tree's identity plus the fact cells one round-layer read
+ *  produced. */
 export interface BoardValue {
-  /** The carried rows — the occupancy, the one hop, every document line, every wave line. */
+  /** The tree's workspace identity — the header's one value. */
+  readonly slug: string;
+  /** The carried rows — the occupancy, the one hop, every document line, every wave line and
+   *  the branch line. */
   readonly rows: readonly BoardRow[];
   /** The tree's three fact families. */
   readonly facts: BoardFacts;
   /** The artifact observation set, already ordered by `(cycle, attempt)`. */
   readonly observed: readonly ArtifactObservation[];
-  /** The child notes one line's latest review carrier carries, keyed by the line word. The
-   *  default face prints the COUNT alone; `--notes` appends the bodies in the same position,
-   *  so only the bytes after the count move. */
-  readonly notes?: Readonly<Record<string, readonly string[]>>;
+  /** The charter's phase rows — a program board's own cells, empty on a node board. */
+  readonly phases?: readonly BoardPhase[];
 }
 
 /** Which of the two layouts a board renders. */
 export type BoardShape = "node" | "program";
 
 /**
- * BoardView — the board's ONE renderer. Invariant: one facts value renders one board, and
- * the display switches change what is printed, never what is judged (see the file's header).
+ * BoardView — the board's ONE renderer. Invariant: one facts value renders one board, and the
+ * display switches change what is printed, never what is judged (see the file's header).
  */
 export class BoardView {
   readonly #words: Words;
@@ -96,29 +130,31 @@ export class BoardView {
 
   /** The node board — the tree at one document's altitude. */
   render(value: BoardValue, display: BoardDisplay = FOLDED_BOARD): readonly string[] {
-    return this.#render(value, display, "node");
+    return [
+      this.#header(value),
+      BLANK,
+      ...this.#factRows(value),
+      ...this.#nodeRows(value, display),
+      BLANK,
+      this.#words.legendTail("board"),
+    ];
   }
 
   /** The program board — the charter's altitude: the charter row, its grouped phase rows,
    *  and the program's terminal. */
   renderProgram(value: BoardValue, display: BoardDisplay = FOLDED_BOARD): readonly string[] {
-    return this.#render(value, display, "program");
+    const lines = [this.#header(value), BLANK, ...this.#programRows(value, display)];
+    return [...lines, BLANK, this.#words.legendTail("board")];
   }
 
-  /** One board's whole byte set — the shared frame, then the shape's own rows. */
-  #render(value: BoardValue, display: BoardDisplay, shape: BoardShape): readonly string[] {
-    const words = this.#words;
-    const lines: string[] = [HEADER, ""];
-    const facts = this.#factRows(value);
-    if (facts.length > 0) lines.push(...facts, "");
-    lines.push(
-      ...(shape === "program" ? this.#programRows(value, display) : this.#nodeRows(value, display)),
-    );
-    lines.push("", words.boardWords().progress.legend.board);
-    return lines;
+  /** The header — the command word and the tree's own identity. */
+  #header(value: BoardValue): string {
+    return `${HEADER}: ${value.slug}`;
   }
 
-  /** The tree fact block — occupancy, orphans, crashed rounds, the standing refusal. */
+  /** The tree fact block — occupancy, orphans, crashed rounds, the standing refusal. It ends
+   *  at the last fact row: the document rows follow in the same block, as the frozen face
+   *  prints them. */
   #factRows(value: BoardValue): readonly string[] {
     const rows: string[] = [];
     const occupancy = value.rows.find((row) => row.kind === "in-flight");
@@ -138,7 +174,11 @@ export class BoardView {
       rows.push(`  ${row.label} ${tokens.join(row.join)}`);
     }
     rows.push(...this.#refusalRows(facts.refusal));
-    return rows;
+    // A fact block that carries more than the occupancy row is set off from the document rows
+    // by one blank column; the occupancy row alone is not, and prints in the same block.
+    const more =
+      facts.orphans.length > 0 || facts.crashed.length > 0 || facts.refusal.kind !== "absent";
+    return more ? [...rows, BLANK] : rows;
   }
 
   /** The occupancy row — the holder's identity, the corrupt shapes, or the free sentence.
@@ -177,79 +217,221 @@ export class BoardView {
     ];
   }
 
-  /** The node board's own rows: every document line, every wave line, the artifact block,
-   *  then the hop's two rows. */
+  /** The node board's own rows: every document line, every wave line, the branch row, the
+   *  artifact block, then the hop's two rows. */
   #nodeRows(value: BoardValue, display: BoardDisplay): readonly string[] {
+    const rows = [...this.#docRows(value, display), ...this.#waveRows(value, display)];
+    const branch = value.rows.find(
+      (row): row is Extract<BoardRow, { kind: "branch" }> => row.kind === "branch",
+    );
+    if (branch !== undefined) rows.push(this.#branchRow(branch, display));
+    const artifacts = this.#artifactRows(value.observed, display);
+    if (artifacts.length > 0) rows.push(BLANK, ...artifacts);
+    return [...rows, BLANK, ...this.#route.boardRows(this.#hopOf(value))];
+  }
+
+  /** The program board's own rows: the charter row, one row per grouped phase specification,
+   *  the program seat's artifact block, then the program's terminal. */
+  #programRows(value: BoardValue, display: BoardDisplay): readonly string[] {
+    const docs = value.rows.filter(
+      (row): row is Extract<BoardRow, { kind: "doc" }> => row.kind === "doc",
+    );
+    const charter = docs.find((row) => reviewKindOf(Run.docTypeOf(row.line)) === "overall");
     const rows: string[] = [];
-    let waveIndex = 0;
-    for (const row of value.rows) {
-      if (row.kind === "doc") {
-        rows.push(
-          this.#docRow(row.line, row.state, row.rounds, row.batch) +
-            this.#notesTail(value, row.line, display),
-        );
+    if (charter !== undefined) {
+      rows.push(this.#docRow(charter, display, charter.doc?.name.length ?? 0));
+    }
+    rows.push(BLANK);
+    for (const phase of value.phases ?? []) rows.push(this.#phaseRow(phase, display));
+    const seat =
+      charter === undefined
+        ? []
+        : this.#artifactRows(
+            value.observed.filter((observation) => observation.line === charter.line),
+            display,
+          );
+    if (seat.length > 0) rows.push(BLANK, ...seat);
+    rows.push(BLANK, `  next:    ${this.#words.routeWord("done")}`);
+    return rows;
+  }
+
+  /** One document row per recorded line — the label, the document's name and header cells,
+   *  then the line's round tokens. */
+  #docRows(value: BoardValue, display: BoardDisplay): readonly string[] {
+    const docs = value.rows.filter(
+      (row): row is Extract<BoardRow, { kind: "doc" }> => row.kind === "doc",
+    );
+    // The name column is fixed-width: every name is padded to the widest one, so the version
+    // column aligns down the block.
+    const width = Math.max(0, ...docs.map((row) => row.doc?.name.length ?? 0));
+    return docs.map((row) => this.#docRow(row, display, width));
+  }
+
+  /** One document row — `  <label>  <name>   <version> · <status>   <tokens>`. A row whose
+   *  document does not read prints the declared absence instead of a cell it never had. */
+  #docRow(row: Extract<BoardRow, { kind: "doc" }>, display: BoardDisplay, width: number): string {
+    const label = `  ${this.#labelOf(row.line).padEnd(LABEL_WIDTH)}`;
+    const doc: BoardDoc | null = row.doc;
+    if (doc === null) return `${label}${this.#words.boardWords().doc.absent}`.trimEnd();
+    const meta = [doc.version, doc.status].filter((cell) => cell !== null).join(" · ");
+    const tokens = this.#tokensOf(row.rounds, display);
+    const cells = [doc.name.padEnd(width), meta, tokens].filter((cell) => cell !== "");
+    return `${label}${cells.join(CELL_GAP)}`.trimEnd();
+  }
+
+  /** One document line's label — the line's DOC-KIND word: a phase specification and a
+   *  single specification are both the `spec` line on a board. */
+  #labelOf(line: string): string {
+    const kind = reviewKindOf(Run.docTypeOf(line));
+    const lines = this.#words.boardWords().lines;
+    return kind === "overall" || kind === "plan" ? lines[kind] : lines.spec;
+  }
+
+  /** One wave row per recorded wave line — the derived label, its task scope, the marker and
+   *  the line's tokens. The marker column is fixed-width, so the markers align into one. */
+  #waveRows(value: BoardValue, display: BoardDisplay): readonly string[] {
+    const waves = value.rows.filter(
+      (row): row is Extract<BoardRow, { kind: "wave" }> => row.kind === "wave",
+    );
+    const labels = waves.map((row, index) => `W${index + 1} {${row.tasks.join(",")}}`);
+    const width = Math.max(0, ...labels.map((label) => label.length));
+    const markers = this.#words.boardWords().progress.markers;
+    return waves.map((row, index) => {
+      const marker = row.closed
+        ? markers.done
+        : row.phase === null
+          ? markers.pending
+          : markers.current;
+      const tokens = this.#tokensOf(row.rounds, display);
+      const head = `${"wave".padEnd(LABEL_WIDTH)}${(labels[index] ?? "").padEnd(width)}  ${marker}`;
+      return `  ${head}${tokens === "" ? "" : `  ${tokens}`}`.trimEnd();
+    });
+  }
+
+  /** The branch row — its state word and its rounds. A closed line is done, a reopened one is
+   *  current, and an untouched one is pending; the reopened state prints the `open` word
+   *  because the line IS open again. */
+  #branchRow(row: Extract<BoardRow, { kind: "branch" }>, display: BoardDisplay): string {
+    const markers = this.#words.boardWords().progress.markers;
+    const states = this.#words.boardWords().states;
+    const marker =
+      row.state === "closed"
+        ? markers.done
+        : row.state === "reopened"
+          ? markers.current
+          : markers.pending;
+    const word = row.state === "closed" ? states.closed : states.open;
+    const tokens = this.#tokensOf(row.rounds, display);
+    const head = `${"branch".padEnd(LABEL_WIDTH)}${marker} ${word}`;
+    return `  ${head}${tokens === "" ? "" : `  ${tokens}`}`.trimEnd();
+  }
+
+  /** One program-board phase row — `phase <slug>  <status>   <cells>   title: <title>`. The
+   *  cells print only when the phase's own line carries a round: a cell with no token says
+   *  nothing rather than printing an empty key. */
+  #phaseRow(phase: BoardPhase, display: BoardDisplay): string {
+    const program = this.#words.boardWords().program;
+    const status = phase.status ?? program.pending;
+    const cells: string[] = [];
+    for (const cell of phase.cells) {
+      const tokens = this.#tokensOf(cell.rounds, display);
+      if (tokens !== "") cells.push(`${cell.key} ${tokens}`);
+    }
+    if (phase.wave !== null) {
+      cells.push(`wave ${program.wave.replace("{label}", phase.wave)}`);
+    }
+    const tail = cells.length === 0 ? "" : `${CELL_GAP}${cells.join(REGRADE_NOTE_SEPARATOR)}`;
+    const title = this.#titleNote(phase.title, program.title);
+    return `  ${program.phase} ${phase.slug}  ${status}${tail}${title}`;
+  }
+
+  /** The phase row's title annotation — trimmed, and cut to the declared ceiling with an
+   *  ellipsis. An absent or blank title notes nothing. */
+  #titleNote(title: string | null, label: string): string {
+    const trimmed = title?.trim() ?? "";
+    if (trimmed === "") return "";
+    const shown =
+      trimmed.length <= PHASE_TITLE_MAX ? trimmed : `${trimmed.slice(0, PHASE_TITLE_MAX - 1)}…`;
+    return `${CELL_GAP}${label} ${shown}`;
+  }
+
+  /** One line's round tokens — one per verb in the declared order, a verb's succeeding rounds
+   *  merged into ONE token and each failed attempt expanded into its own, so a failure never
+   *  drifts to the line's tail. */
+  #tokensOf(rounds: readonly BoardRound[], display: BoardDisplay): string {
+    const tokens: string[] = [];
+    const extra = [...new Set(rounds.map((round) => round.op))].filter(
+      (op) => !VERB_ORDER.includes(op),
+    );
+    for (const verb of [...VERB_ORDER, ...extra]) {
+      const ofVerb = rounds.filter((round) => round.op === verb);
+      const passed = ofVerb.filter((round) => round.passed);
+      const failed = ofVerb.filter((round) => !round.passed);
+      if (passed.length > 0) {
+        const body =
+          failed.length === 0
+            ? `${passed.length}${this.#attemptSuffix(passed[passed.length - 1])}`
+            : `${passed.length}/${passed.length + failed.length}`;
+        tokens.push(this.#token(verb, body, this.#judgement().passed, passed, display));
       }
-      if (row.kind === "wave") {
-        waveIndex += 1;
-        rows.push(
-          this.#waveRow(waveIndex, row.tasks, row.phase !== null, row.closed) +
-            this.#notesTail(value, row.line, display),
+      for (const round of failed) {
+        tokens.push(
+          this.#token(
+            verb,
+            `${round.cycle}${this.#attemptSuffix(round)}`,
+            this.#failureMark(round, passed),
+            [round],
+            display,
+          ),
         );
       }
     }
-    const artifacts = this.#artifactRows(value.observed, display);
-    if (artifacts.length > 0) rows.push("", ...artifacts);
-    rows.push("", ...this.#route.boardRows(this.#hopOf(value)));
-    return rows;
+    return tokens.join(this.#words.capsuleSeparator());
   }
 
-  /** The program board's own rows: the charter row, one row per grouped phase
-   *  specification, the artifact block, then the program's terminal. */
-  #programRows(value: BoardValue, display: BoardDisplay): readonly string[] {
-    const docs = value.rows.filter((row) => row.kind === "doc");
-    const rows = docs.map((row) =>
-      row.kind === "doc" ? this.#docRow(row.line, row.state, row.rounds, row.batch) : "",
+  /** One token — `{verb} {body} {mark}` followed by its three appends in their fixed order:
+   *  the graded findings count (`+N`), the downgrade note, and the child's `notes +M` segment
+   *  whose bodies print only under `--notes` (the count never moves with the switch). */
+  #token(
+    verb: string,
+    body: string,
+    mark: string,
+    run: readonly BoardRound[],
+    display: BoardDisplay,
+  ): string {
+    const tokens = this.#words.boardWords().tokens;
+    const count = (value: number): string => tokens.count.replace("{count}", String(value));
+    const findings = run.reduce((total, round) => total + round.findings, 0);
+    const notes = run.flatMap((round) => round.regrade ?? []);
+    const note = notes.length === 0 ? "" : ` ${notes.join(REGRADE_NOTE_SEPARATOR)}`;
+    const noteRows = run.flatMap((round) => round.notes);
+    const bodies = display.notes
+      ? noteRows.map((row) => `${REGRADE_NOTE_SEPARATOR}${displayReason(row)}`).join("")
+      : "";
+    const segment =
+      noteRows.length === 0 ? "" : ` ${tokens.notes} ${count(noteRows.length)}${bodies}`;
+    return `${verb} ${body} ${mark}${findings === 0 ? "" : count(findings)}${note}${segment}`;
+  }
+
+  /** One round's re-dispatch superscript — an `a1` never appears. */
+  #attemptSuffix(round: BoardRound | undefined): string {
+    if (round === undefined || round.attempt === 1) return "";
+    return this.#words.boardWords().tokens.attempts.replace("{attempt}", String(round.attempt));
+  }
+
+  /** One failed attempt's mark — `✗→✓` when the SAME cycle's next attempt completed, `✗`
+   *  otherwise: recovery reads exactly that one edge, and a later cycle's success is
+   *  historical. */
+  #failureMark(round: BoardRound, passed: readonly BoardRound[]): string {
+    const recovered = passed.some(
+      (other) => other.cycle === round.cycle && other.attempt === round.attempt + 1,
     );
-    const artifacts = this.#artifactRows(value.observed, display);
-    if (artifacts.length > 0) rows.push("", ...artifacts);
-    rows.push("", `  next:    ${this.#words.routeWord("done")}`);
-    return rows;
+    return recovered ? this.#judgement().recovered : this.#judgement().failed;
   }
 
-  /** The notes segment of one line's row — ` notes +M` folded, ` notes +M; <body>…`
-   *  expanded. Zero bytes when the line carries no note, and the count never moves with the
-   *  switch: only what follows it does. */
-  #notesTail(value: BoardValue, line: string, display: BoardDisplay): string {
-    const notes = value.notes?.[line] ?? [];
-    if (notes.length === 0) return "";
-    const head = ` ${NOTES_TOKEN} +${notes.length}`;
-    return display.notes
-      ? `${head}${REGRADE_NOTE_SEPARATOR}${notes.join(REGRADE_NOTE_SEPARATOR)}`
-      : head;
-  }
-
-  /** One document line's row — its line word, its state marker and the two counts the
-   *  ledger recorded. A zero cell is not printed: an absent count is zero bytes, never a
-   *  `0` the reader has to interpret. */
-  #docRow(line: string, state: string, rounds: number, batch: number): string {
-    const markers = this.#words.boardWords().progress.markers;
-    const marker =
-      state === "closed" ? markers.done : state === "open" ? markers.pending : markers.current;
-    const counts = [
-      rounds === 0 ? "" : `rounds ${rounds}`,
-      batch === 0 ? "" : `batch ${batch}`,
-    ].filter((cell) => cell !== "");
-    const tail = counts.length === 0 ? "" : ` · ${counts.join(" · ")}`;
-    return `  ${line.padEnd(LABEL_WIDTH)}${marker} ${state}${tail}`;
-  }
-
-  /** One wave line's row — the derived wave label, its task scope in braces and the wave's
-   *  marker. A closed wave is done; an open wave with an open round is the current one. */
-  #waveRow(index: number, tasks: readonly number[], open: boolean, closed: boolean): string {
-    const markers = this.#words.boardWords().progress.markers;
-    const marker = closed ? markers.done : open ? markers.current : markers.pending;
-    const scope = `{${tasks.join(",")}}`;
-    return `  ${"wave".padEnd(LABEL_WIDTH)}W${index} ${scope}  ${marker}`;
+  /** The three judgement glyphs. */
+  #judgement(): Readonly<{ passed: string; failed: string; recovered: string }> {
+    return this.#words.boardWords().tokens.judgement;
   }
 
   /** The board's `art:` block — the anomalous rounds by default, every observed round under

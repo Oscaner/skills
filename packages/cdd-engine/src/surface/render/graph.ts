@@ -53,11 +53,13 @@ export class GraphView {
       board.titles.waveBoard,
       ...rows,
       "",
-      board.progress.legend.graph,
+      this.#words.legendTail("graph"),
     ].join("\n");
   }
 
-  /** One row per derived wave, in order; the current wave is marked as such. */
+  /** One row per derived wave, in order; the current wave is marked as such. Its
+   *  annotation is the graph view's OWN row word — the legend's scope word names the two
+   *  boards' difference and would silently change this cell if it were reused here. */
   #rowsOf(tree: GraphTree): readonly string[] {
     const current = tree.waves.findIndex((wave) => wave.some((id) => !tree.done.has(id)));
     return tree.waves.map((wave, index) => {
@@ -65,9 +67,7 @@ export class GraphView {
         .map((id) => `T${id}${this.#marker(tree, id, index === current)}`)
         .join(" · ");
       const row = `  W${index + 1}  ${tasks}`;
-      return index === current
-        ? `${row}   ← ${this.#words.boardWords().progress.scopes.graph}`
-        : row;
+      return index === current ? `${row}   ← ${this.#words.currentWaveAnnotation()}` : row;
     });
   }
 

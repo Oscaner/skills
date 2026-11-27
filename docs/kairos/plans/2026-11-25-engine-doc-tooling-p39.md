@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.58
+version: v0.59
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -956,20 +956,20 @@ spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：�
 
 #### Produces
 - changeset：本任务写相位收口的那一份 `.changeset/p39-rebuild-in-src.md`，声明 `@oscaner-skills/cdd-engine` 的 **patch**——翻面只改发布入口与构建指向，不搬消费者字节，故 D74 下它是 `patch`；W4 落的 `.changeset/p39-run-env-docs-segments.md` **不动**，它声明的是 **`minor`**（那一份自己的正文写着一条消费面字节移动：树级拒绝记录的 `detail` 格改由门自己的结论作数据、`cdd board` 的 `refused:` 行逐字印它），所以两份**同包不同级**——changesets 按最高级别把版本升一次、注记按份各成一条，相位因此在发布面读作 `minor`。两份声明按「四切片落地 / 翻面收口」分工：切片那一份讲引擎的四个切片在 `src/` 立起来，本任务这一份讲发布入口改指新树、旧树整棵删除——翻面是这一相位里唯一改了入口与构建指向的一步，折进切片那一份就让它在发布注记里认不出来；判据读的是本任务那一份文件本身（`pnpm exec changeset status` 不作判据：切片那一份已让同一条读数在本步之前就是绿的）
-- `slice-invariants.test.ts`：四个一级切片的入口类注释第一行存在且非空；`run/` 四段各一句；每片对外成员数 < 该片实现文件数（深度判据的可核形态）
+- `slice-invariants.test.ts`：四个一级切片的入口类注释第一行存在且非空；`run/` 四段各一句；**深度判据**判一条关系——「每片入口类的公开转发行不超过该片的实现文件数」。计数单位是入口类原型上的公开成员（转发行：每一行把一次调用交给片内某个实现模块），**不含构造函数、也不含注入的协作者格**——`readonly words` / `readonly route` / `readonly prompts` 那一排是入口已经构造好的实现交给消费者的把手，不是门面自己发明的一行，把两类格算在一起的那个读数是**类成员口径**（`surface/index.ts#Cli` 在它下面比该片的实现文件数还宽），本判据不用它。上限取「不超过」而不是「小于」，因为门面一行一模块正是这一层的深度形态（`surface/index.ts#Cli` 的转发行与该片文件数今天正好落在同一条线上，严格小于会把交付的设计读成缺陷）；它仍判深度，因为一条转发行必须由一个实现文件背书——门面自己长出一行而片上不增模块即红。判据读原型成员集与文件集两个树上事实，不写字面计数。spec 验收 #5 的「对外成员数远小于其实现文件数」按本行口径由编排者同批回填（本计划不改 spec）
 - `AGENTS.md` 的切片表（若与 T18 的改指分开落地）
 
 #### Steps
 - 写 changeset — checkable: `git ls-files --cached --others --exclude-standard .changeset/` 的输出里有 `p39-rebuild-in-src.md` 这一行（本步在提交之前跑，故未跟踪的新生文件也要算进来——只写 `git ls-files` 会漏掉它），该文件的 front matter 是 `"@oscaner-skills/cdd-engine": patch`，且同一份里没有 `@oscaner-skills/kairos` 行；不写这一份 ⇒ 该行缺席、本条红，包名或级别写错 ⇒ 同一条红
 - 写可删除性 pin（spec 验收 #1） — checkable: 三条各一处注册，且删掉一个单元只缺那一行——命令壳的文件集与注册表行集双向相等；板面每个投影行一处注册；判据每条一行规则（删一个壳文件 ⇒ 测试点名那一行注册，不多不少）
 - 写不变量可核 pin — checkable: 抹掉任一切片入口类注释的第一行 ⇒ 测试红
-- 写深度判据 pin — checkable: 给某片人为加十个对外成员而实现文件不变 ⇒ 测试红
+- 写深度判据 pin — checkable: 给 `packages/cdd-engine/src/surface/index.ts#Cli` 加十个公开方法（该片的实现文件一个不加）⇒ 测试红——该片的门面今天正好落在上限上，多一行即越界；配一条邻居臂：给该片新落一个实现文件、同时加一行转发 ⇒ 仍绿（判据判的是「一行一模块」这条关系，不是某个绝对条数）；退回「注入格加转发行的类成员口径」会让 `surface/` 在正确实现上红，那正是本判据换单位的原因
 - 更新 AGENTS.md 的目录表 — checkable: 表里五个面换成四切片，且每个切片一句不变量
 - 全绿 — checkable: `pnpm run validate` exit 0
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
-本相位那一份 changeset（`.changeset/p39-rebuild-in-src.md`）出现在 `git ls-files --cached --others --exclude-standard .changeset/` 的读数里、front matter 为 `@oscaner-skills/cdd-engine` 的 `patch`、无 `packages/kairos` 行，切片声明那一份不动（判据读文件本身，不读 `changeset status` 的读数）；四条不变量（四切片 + `run/` 四段）可核；深度判据可红；可删除性三处各一行注册（删一个单元只缺那一行）；`AGENTS.md` 的目录表与树上四切片一致；`pnpm run validate` exit 0。
+本相位那一份 changeset（`.changeset/p39-rebuild-in-src.md`）出现在 `git ls-files --cached --others --exclude-standard .changeset/` 的读数里、front matter 为 `@oscaner-skills/cdd-engine` 的 `patch`、无 `packages/kairos` 行，切片声明那一份不动（判据读文件本身，不读 `changeset status` 的读数）；四条不变量（四切片 + `run/` 四段）可核；深度判据按「入口类转发行不超过该片实现文件数」判、可红可回（加十行不增文件即红，加一行并加它那一份实现文件即绿）；可删除性三处各一行注册（删一个单元只缺那一行）；`AGENTS.md` 的目录表与树上四切片一致；`pnpm run validate` exit 0。
 
 #### DependsOn
 18
@@ -1072,3 +1072,4 @@ pin 齐（恰好一条且字节相同 · 删掉拼装即红 · 空 prompt 零 sp
 | v0.56 | 2026-11-27 | **编排者的错位修正（`single-create` 二度拒）**：`src/run/advance/__tests__/advance.test.ts` 在 T9 被 `Modify` 提到，而 T13 才 `Create` 它——判据要求 `Create` 是该路径的第一次声明。该行搬进 T17（第十一波收敛的真实落点）。全表 25 处重复声明里只有这一处违反「先 Create 后 Modify」 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-27） |
 | v0.57 | 2026-11-27 | docs-fix 轮四十五（F1 为 blocker，F2 · F3 · F4 · F5 为 warn，全部内容面落地，未放宽判据；F6 落在结构面、F7 落在 spec，均在本轮写权之外，原样交编排者）：**说明符扫描器不随禁门死**——`tests/support/module-specifiers.ts#specifiersIn` 是通用的模块说明符读取器，`run/gate` · `run/dispatch` · `run/advance` · `surface/words` 的测试面都静态 import 它，故 T18 删去那条 `Delete` 与「同批删除」的句子、只退役禁门，T1 的 Files 与 Produces 收下它的 `Create` 行（F1）；**派发帧的 `prompts` 那一格入参有了主人**——T20 的 `DispatchAssembly` 每格点名供给者，`prompts` 取 T15 的 `surface/render/templates.ts#PromptBandsRenderer`，补两条臂（换带渲染器 ⇒ prompt 字节变；选不到带 ⇒ `empty-prompt`），T17 的直接转发句同批收下这一格，于是「`run/dispatch` 不 import `surface/render`」有了凭据（F2）；**零残留的判据够得着它点名的靶子**——`handoff.test.ts` 的旧树路径注释与 `words.test.ts` 对 `tests/parity/parity.test.ts` 的引用进 T18 的 Files 与步骤，那个更便宜的绿（收窄 grep）因此不成立（F3）；**交付树上无主的那几件各得 `Create` 行**——`tests/support/module-specifiers.ts` 归 T1、`docs/grammar/types.ts` 归 T4、`docs/grammar/doc-syntax.ts` 归 T10、`.changeset/p39-run-env-docs-segments.md` 归 T9（F4）；**`HostDetect` 从改指清单里退出**——新树的探针是 `detectHost: HostProbe`，T5 · T17 · T20 三处同批改口，为它补同名导出即第二份拼写（F5）。F6（T20 与逐片 `tests/parity/**` 写者的 `DependsOn` 债务）落在结构面、F7（spec §2.2 面 5 的胶囊四槽 · §2.3 的形态计数 · 验收里 changeset 级别的措辞）落在 spec 内容，均在本轮写权之外。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |
 | v0.58 | 2026-11-27 | docs-fix 轮四十六（F1 为 blocker、F2 为 warn，两条内容面落地，未放宽判据；F3 落在结构面、F4 落在 spec 内容，均在本轮写权之外，原样交编排者）：**T18 的 Acceptance 与 Produces 说同一件事**——v0.57 把 Files · Produces · Steps 三处改成「只退役禁门、扫描器留在树上」，Acceptance 那一句却仍写「两树禁门与它的扫描器已删」，照它做即删掉 `tests/support/module-specifiers.ts` 并让 `run/gate` · `run/dispatch` · `run/advance` · `surface/words` 四个测试面在收集期模块解析失败；本轮把那句改成与 Produces 同口：两树禁门已删，通用的模块说明符读取器 `tests/support/module-specifiers.ts#specifiersIn` 留在树上、片内方向 pin 仍从它取值，不以惰性守卫换绿（F1）；**那个文件的头部注释有了授权的写面**——它的文件头仍写着「读取器随翻面与禁门一起退役」（正是 v0.57 撤掉的那一句），而 Acceptance 的零命中域含「树外测试文件」、机械判据的 grep 只覆盖 `src` 与 `vitest.config.ts`，于是没有一行授权改它；T18 的 Files 收下 `Modify: packages/cdd-engine/tests/support/module-specifiers.ts`（头部注释改指通用读取器、去掉 `src-next` 举例），零残留那一步点明那条 grep 是最窄的一条而本文件落在 Acceptance 的域内（F2）。F3（T20 → 3, 5, 7, 12 与八条 parity 写者到 T2 的边）落在结构面、F4（spec §2.2 面 5 的胶囊四槽 · §2.3 的形态计数 · 验收里 changeset 级别的措辞）落在 spec 内容，均在本轮写权之外，原样交编排者回填。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |
+| v0.59 | 2026-11-27 | docs-fix 轮四十七（F1 为 blocker、F2 · F3 为 warn：F1 内容面落地，未放宽判据；F2 落在 spec 内容、F3 落在结构面，均在本轮写权之外，原样交编排者）：**深度判据换了计数单位并写下它为什么仍判深度**——T19 的 pin 原写「每片对外成员数 < 该片实现文件数」，而交付的 `surface/index.ts#Cli` 在类成员口径下比该片实现文件数更宽（注入的协作者格与转发行算在一起），W13 照字面写就在正确实现上红；本轮把单位改成「入口类原型上的公开转发行」（不含构造函数与注入格），上限取「不超过」——门面一行一模块正是这一层的深度形态，而一条转发行必须由一个实现文件背书，故加十行不增文件仍红、加一行并加它那一份实现文件仍绿；spec 验收 #5 的「远小于」措辞归编排者同批回填。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-27） |

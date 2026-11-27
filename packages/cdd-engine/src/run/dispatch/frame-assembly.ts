@@ -56,7 +56,11 @@ export interface DispatchFrameSource {
 
 /** One round-context line, as the render face declares it — the line with its `{{TOKEN}}`
  *  slot, and what an empty value prints (`drop` the line, or the bare literal `none`).
- *  `surface/render/templates.ts#ContextLine` satisfies it structurally. */
+ *  `surface/render/templates.ts#ContextLine` satisfies it structurally. These two cells are the
+ *  whole of what this COMPOSITION reads: the declaration's exigibility arms are a gate input
+ *  (the station-row producer, `run/advance/reads.ts`, task T17), so this shape stays narrower
+ *  than the declaration on purpose — widening it here would hand the composition a judgment it
+ *  has no use for. */
 export interface PromptBandLine {
   readonly line: string;
   readonly absent: "drop" | "none";

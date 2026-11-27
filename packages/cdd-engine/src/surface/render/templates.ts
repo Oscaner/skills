@@ -29,9 +29,17 @@
 // Two more declarations ride the same plane, because the expansion's two inputs are data:
 //   · the round-context LAYOUT — one declared line per cell each row renders, with the
 //     three-state rule kept on the line itself: a value renders the line, an empty value
-//     drops it (`drop`) or prints the bare literal `none`; whether a dispatch MUST supply a
-//     cell is the dispatch-input gate's judgment, so no "empty but required" state exists
-//     here;
+//     drops it (`drop`) or prints the bare literal `none`. What this table does NOT declare
+//     yet is EXIGIBILITY — the arms that make a cell required on one target type and optional
+//     on another, the `path` bit a missing-file refusal answers, and the `written` bit that
+//     exempts the file the engine landed itself from an existence read. Nothing in this tree
+//     reads those today: the four pre-dispatch stations reach
+//     `run/gate/preflight.ts#PreFlight` as a ready `DispatchRowReading[]`, and the producer
+//     that assembles them belongs to `run/advance/reads.ts` — task T17, not written yet. That producer owes the
+//     `dispatch-input` row — and it owes declaring the arms HERE, because a second exigibility
+//     table beside these layouts is the drift this declaration exists to prevent. Until it
+//     lands, an empty value answers one question only: does the line render; nothing refuses a
+//     required cell, so no "empty but required" state exists here;
 //   · the CLAUSE PARTIALS — the eleven discipline sentences the shells name by `cl:<key>`,
 //     one home, so a clause is written once and resolved once.
 // The assembly composes those bytes (the prompt a child receives); this module only declares
@@ -51,8 +59,13 @@ export const WORK_MODES: readonly WorkModeRowKey[] = ["implement", "fix", "docs-
 
 /** One round-context line's declaration — the rendered line (a heading, a blank line, or a
  *  `- \`TOKEN\`: {{TOKEN}}` cell) plus what its EMPTY value prints. There is no third state:
- *  exigibility is the dispatch-input gate's judgment, and a line with no value has exactly
- *  the two shapes below. */
+ *  a line with no value has exactly the two shapes below.
+ *
+ *  Exigibility is deliberately not a field YET, and it is nobody else's private business
+ *  either: the arms, the `path` bit and the `written` bit are owed by the station-row producer
+ *  (`run/advance/reads.ts`, task T17), which assembles the `dispatch-input` reading the gate
+ *  refuses on. That producer owes declaring them HERE — the round-context declaration is this
+ *  table's, so the arms join it instead of becoming a second exigibility table beside it. */
 export interface ContextLine {
   /** The rendered line. */
   readonly line: string;

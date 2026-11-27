@@ -138,6 +138,16 @@ export interface RoundCoordinate {
   readonly attempt: number;
 }
 
+/** The requesting carrier one fix frame resolves — the three-branch priority's answer. `path`
+ *  is the carrier the dispatch names (`null` when a record resolves none, and off the fix
+ *  face); `record` is the same-cycle review record it answers, `null` on the flag and family
+ *  branches; `identity` is the coordinate its ruling sidecar is named from. */
+export interface RequestingCarrierRead {
+  readonly path: string | null;
+  readonly record: RoundRecord | null;
+  readonly identity: RoundIdentity | null;
+}
+
 /**
  * CarrierReads — one line's checked carrier read. Invariant: a record's carrier path is the
  * name its own round identity renders (the finalized carrier, else the draft the round wrote),
@@ -418,21 +428,23 @@ export class AdvanceReads implements LifecycleReads {
   }
 
   /** The requesting review's carrier, as a fix round reads it — its findings and the two
-   *  coordinates the fix hop carries. Empty off the fix face. */
+   *  coordinates the fix hop carries. Empty off the fix face and when the carrier resolves no
+   *  path (an unresolvable name has no findings to read). */
   requesting(frame: FrameFacts): {
     readonly findings: readonly RoundFinding[];
     readonly reviews?: string;
     readonly rulings?: string;
   } {
-    if (frame.phase !== "fix") return { findings: [] };
     const requester = this.#requesterOf(frame);
-    if (requester === null) return { findings: [] };
+    if (requester?.path == null) return { findings: [] };
     const text = this.#readRel(requester.path);
     const read = text === null ? null : Handoff.read(text, "judge");
     return {
       findings: read !== null && read.kind === "compliant" ? Handoff.findingsOf(read.draft) : [],
-      reviews: String(requester.path),
-      rulings: String(this.#relOfName(requester.identity, "rulings")),
+      reviews: requester.path,
+      ...(requester.identity === null
+        ? {}
+        : { rulings: String(this.#relOfName(requester.identity, "rulings")) }),
     };
   }
 
@@ -500,11 +512,13 @@ export class AdvanceReads implements LifecycleReads {
     briefPath: string,
     artifact: ArtifactSnapshot,
   ): Readonly<Record<string, string>> {
-    const identity = this.#identityOf(frame);
     const scene = this.#sceneOf(frame, briefPath);
     return DispatchValues.compose(
       {
-        op: identity.op,
+        // The VERB is the command's, never the line's derived phase: a fix request on a line
+        // still at implement is refused by the line leg, but the prompt it would have carried
+        // is composed first, and `INPUT_REVIEWS` is the fix face's own cell.
+        op: AdvanceReads.#commandOpOf(frame.command),
         type: frame.type,
         // The ROW is the command's own mode, never the line's derived phase: a command that
         // asked for `implement` on a line already at review is judged against the round it
@@ -687,9 +701,13 @@ export class AdvanceReads implements LifecycleReads {
    *  sidecar the fix face reads. */
   #artifactOf(frame: FrameFacts): ArtifactSnapshot {
     const requester = this.#requesterOf(frame);
-    const reviewsPath = requester === null ? null : String(requester.path);
-    if (requester !== null) {
-      const text = this.#readRel(requester.path);
+    const reviewsPath = requester?.path ?? null;
+    // The bytes judged are the carrier the dispatch NAMES (the flag included), against the
+    // digest the same-cycle record remembers — the shipped engine's pair: a flag pointing at
+    // one carrier while the cycle's review recorded another is exactly the tamper this row
+    // exists to state.
+    if (requester !== null && requester.record !== null && reviewsPath !== null) {
+      const text = this.#readRel(reviewsPath);
       const current = text === null ? null : CarrierLine.digestOf(AdvanceReads.#parseOrNull(text));
       const mismatch = CarrierLine.mismatch(requester.record.carrierDigest, current);
       if (mismatch !== null) {
@@ -699,32 +717,26 @@ export class AdvanceReads implements LifecycleReads {
           carrier: {
             // The diagnostic names the ABSOLUTE carrier a reader opens; the value's path
             // cells stay on the repository basis.
-            line: this.#o.paths.root.resolve(requester.path as RepoPath),
+            line: this.#o.paths.root.resolve(reviewsPath as RepoPath),
             recorded: CarrierLine.sha8(mismatch.recorded),
             current: CarrierLine.sha8(mismatch.current),
           },
         };
       }
     }
-    return { kind: "read", reviewsPath, read: this.#sidecarOf(frame, requester) };
+    return { kind: "read", reviewsPath, read: this.#sidecarOf(requester) };
   }
 
-  /** The ruling sidecar's read — the fix face alone carries one. */
-  #sidecarOf(
-    frame: FrameFacts,
-    requester: {
-      readonly record: RoundRecord;
-      readonly path: RepoPath;
-      readonly identity: RoundIdentity;
-    } | null,
-  ): ArtifactRead {
-    if (frame.phase !== "fix" || requester === null) return { kind: "absent" };
+  /** The ruling sidecar's read — the fix face alone carries one. The carrier reference is the
+   *  requesting path with the digest the record remembers, `null` when it remembers none: the
+   *  sidecar's findings are still judged against the carrier's own ids, with zero comparison. */
+  #sidecarOf(requester: RequestingCarrierRead | null): ArtifactRead {
+    if (requester?.path == null || requester.identity == null) return { kind: "absent" };
     const reads = new ArtifactReads({ artifacts: this.#o.artifacts, source: this.#sourceOf() });
-    const carrier =
-      requester.record.carrierDigest === null
-        ? null
-        : { path: requester.path, digest: requester.record.carrierDigest };
-    return reads.read(requester.identity, "rulings", carrier);
+    return reads.read(requester.identity, "rulings", {
+      path: requester.path as RepoPath,
+      digest: requester.record === null ? null : requester.record.carrierDigest,
+    });
   }
 
   /** The workspace read faces the artifact reads are taken over. */
@@ -743,49 +755,91 @@ export class AdvanceReads implements LifecycleReads {
     };
   }
 
-  /** The requesting review record of a fix frame — the same-contract line at the same cycle,
-   *  latest attempt, with the carrier path its record renders. */
-  #requesterOf(frame: FrameFacts): {
-    readonly record: RoundRecord;
-    readonly path: RepoPath;
-    readonly identity: RoundIdentity;
-  } | null {
-    if (frame.phase !== "fix") return null;
-    const records = this.#recordsOf(frame).filter(
-      (record) => record.op === "review" && record.cycle === frame.round,
-    );
-    const record = records.reduce<RoundRecord | null>(
-      (newest, candidate) =>
-        newest === null || candidate.attempt >= newest.attempt ? candidate : newest,
-      null,
-    );
-    if (record === null) return null;
+  /** The requesting carrier a fix frame resolves — the ONE three-branch priority the shipped
+   *  engine states (`RequestingCarrier.path`): the explicit `--reviews` flag, then the
+   *  carrier path the same-cycle review record remembers, then the review family's resolved
+   *  name for the cycle. Two readers ask it (the dispatch's `INPUT_REVIEWS` cell and the
+   *  completion criterion's input findings), so the order and the judgments live here alone.
+   *
+   *  `path` is null on a record that resolves no carrier (the dispatch-input gate words that
+   *  `empty-value`) and off the fix face. `identity` is the coordinate a sidecar is named
+   *  from: the record's own when there is a record, else the carrier's own attributed name —
+   *  a `--reviews` value names a file whose round is readable off the name itself. */
+  #requesterOf(frame: FrameFacts): RequestingCarrierRead | null {
+    // The fix FACE is the command the caller typed, never the line's derived phase: a fix
+    // request on a line still at implement is exactly the request the line leg refuses, and it
+    // still carries the carrier its prompt names.
+    if (frame.command !== "fix") return null;
+    const record = this.#requestingRecordOf(frame);
+    const path = this.#reviewsPathOf(frame, record);
+    return { path, record, identity: this.#requestedIdentityOf(frame, path, record) };
+  }
+
+  /** The identity the requesting carrier's sidecar is named from — the record's own coordinate
+   *  when there is a record, else the carrier NAME's attribution (a `--reviews` value names a
+   *  file whose round is readable off the name itself). */
+  #requestedIdentityOf(
+    frame: FrameFacts,
+    path: string | null,
+    record: RoundRecord | null,
+  ): RoundIdentity | null {
+    if (record !== null) {
+      return new RoundIdentity({
+        line: frame.key,
+        op: record.op,
+        cycle: record.cycle,
+        attempt: record.attempt,
+      });
+    }
+    if (path === null) return null;
+    const name = path.split("/").pop() ?? path;
+    return this.#o.artifacts.attribute(name)?.round ?? null;
+  }
+
+  /** The three branches of the requesting carrier, in the shipped order. A record that resolves
+   *  no carrier ends the walk (the unrecorded face, worded `empty-value`); only a cycle that
+   *  records NO review falls back to the family name, which the gate can then word
+   *  `target-absent` when that name is not on disk. */
+  #reviewsPathOf(frame: FrameFacts, record: RoundRecord | null): string | null {
+    if (frame.reviews !== null) return frame.reviews;
+    if (record === null) return String(this.#reviewFamilyPathOf(frame));
+    const recorded = this.#o.ledger.carrierPathOf(frame.type, frame.key, record);
+    return recorded === "" ? null : String(recorded);
+  }
+
+  /** The review family's name for this frame's CYCLE — the "fall back with the cycle only"
+   *  rule. It never carries the asking dispatch's attempt: a fix retried at attempt 2 would
+   *  otherwise ask for an `-a2` name the cycle's review never wrote, and a cycle with no
+   *  review record has no recorded attempt to inherit either. */
+  #reviewFamilyPathOf(frame: FrameFacts): RepoPath {
     const identity = new RoundIdentity({
       line: frame.key,
-      op: record.op,
-      cycle: record.cycle,
-      attempt: record.attempt,
+      op: "review",
+      cycle: frame.round,
+      attempt: 1,
     });
-    const path = this.#carrierPathOfIdentity(identity);
-    return path === null ? null : { record, path, identity };
+    return this.#o.workspace.relOf(ArtifactIdentity.nameOf(identity, "final"));
+  }
+
+  /** The same-cycle review record this fix frame answers — the latest attempt of the
+   *  same-contract line at the same cycle (a re-dispatched review supersedes its predecessor,
+   *  the same rule the round-read gate applies). Null when the line records no review here. */
+  #requestingRecordOf(frame: FrameFacts): RoundRecord | null {
+    return this.#recordsOf(frame)
+      .filter((record) => record.op === "review" && record.cycle === frame.round)
+      .reduce<RoundRecord | null>(
+        (newest, candidate) =>
+          newest === null || candidate.attempt >= newest.attempt ? candidate : newest,
+        null,
+      );
   }
 
   /** The identity the `artifact` report names — the requesting carrier's own. */
   #requesterIdentityOf(): RoundIdentity {
     const frame = this.#requireFrame();
     const requester = this.#requesterOf(frame);
-    if (requester !== null) return requester.identity;
+    if (requester?.identity != null) return requester.identity;
     return this.#identityOf(frame);
-  }
-
-  /** One round identity's carrier path — the recorded name, then the draft the round wrote
-   *  before the engine materialized it. Null when neither exists. */
-  #carrierPathOfIdentity(identity: RoundIdentity): RepoPath | null {
-    for (const kind of ["final", "draft"] as const) {
-      const rel = this.#relOfName(identity, kind);
-      if (this.#readRel(rel) !== null) return rel;
-    }
-    return null;
   }
 
   /** One round identity's artifact name, repo-relative. */
@@ -853,7 +907,7 @@ export class AdvanceReads implements LifecycleReads {
     if (!(frame.type === "plan" || frame.type === "wave" || frame.type === "branch")) return null;
     if (frame.planPath === null || frame.planText === null || frame.graph === null) return null;
     return {
-      input: AdvanceReads.#judgeInputOf(frame, "plan", frame.planPath, frame.planText, frame.graph),
+      input: AdvanceReads.#judgeInputOf("plan", frame.planPath, frame.planText, frame.graph),
       facts: this.#ledgerFactsOf(frame),
     };
   }
@@ -865,13 +919,15 @@ export class AdvanceReads implements LifecycleReads {
     const text = this.#readRel(frame.doc);
     if (text === null) return null;
     const declared = AdvanceReads.#declaredTypeOf(text) ?? (frame.type as DocType);
-    return AdvanceReads.#judgeInputOf(frame, declared, frame.doc, text, frame.graph);
+    return AdvanceReads.#judgeInputOf(declared, frame.doc, text, frame.graph);
   }
 
   /** One judged document's input — the plan's layers and edge issues ride the plan document
-   *  alone, so the layer-reading rule yields on every other shape. */
+   *  alone, so the layer-reading rule yields on every other shape. No phase coordinate is one
+   *  of the judgment's inputs: a cross-document chain reads the Phase inventory's own row ids
+   *  off the parent charter, and a document SLUG is not one of those ids — handing one in
+   *  fabricated a `cross-doc-chain` finding against every charter. */
   static #judgeInputOf(
-    frame: FrameFacts,
     docKey: DocType,
     path: string,
     content: string,
@@ -881,7 +937,6 @@ export class AdvanceReads implements LifecycleReads {
       docKey,
       path: path as RepoPath,
       content,
-      phaseId: frame.slug,
       // The plan's topological layers ride the graph gate's OWN derivation, so a document
       // judged on a line that registers a plan reads the same layer set the wave gate will
       // dispatch against. A cycled plan never reaches here: the `graph` row refuses first.
@@ -953,6 +1008,12 @@ export class AdvanceReads implements LifecycleReads {
   /** The ledger op one frame's phase books under. */
   static #opOf(frame: FrameFacts): "implement" | "review" | "fix" {
     return frame.phase === "branch-review" ? "review" : frame.phase;
+  }
+
+  /** The round verb one COMMAND word names — `branch-review` folds to its own word's op, and
+   *  every non-work word reads as a review (only the fix face consumes this cell). */
+  static #commandOpOf(command: string): "implement" | "review" | "fix" {
+    return command === "implement" || command === "fix" ? command : "review";
   }
 
   /** Whether one record precedes this frame's round on the line. */

@@ -192,6 +192,24 @@ const UNDECLARED_TASK = "9";
 /** The carrier a phase-spec review round leaves behind — the fix face's `--reviews`. */
 const REVIEWS = `.kairos/cdd/p9/phase-spec-review-1.c1.json`;
 
+/** A carrier the caller names EXPLICITLY while no review round is on record — the DRAFT
+ *  spelling, which no family-name derivation produces (the cycle's own name carries its
+ *  `.c<cycle>` tag). The file matters as much as the flag: the resolution's FIRST branch is
+ *  the only one that can reach a name the ledger does not hold, and the family fallback
+ *  would word the cycle's absent name `target-absent` instead. */
+const FLAGGED_REVIEWS = `.kairos/cdd/p9/phase-spec-review-1.json`;
+
+/** The flagged carrier's bytes — the shape a review round lands (findings, no status). */
+const FLAGGED_CARRIER = `${JSON.stringify(
+  {
+    findings: [
+      { id: "F1", severity: "blocker", lens: "behaviour", summary: "the guard is missing" },
+    ],
+  },
+  null,
+  2,
+)}\n`;
+
 /** The rulings sidecar a review round may carry — the `artifact` station's input. Its
  *  name drops the `.c<cycle>` tag, so it attributes to the reviewed round's identity
  *  while sitting off the rendered name: the `misplaced` arm. */
@@ -213,6 +231,17 @@ const reviewSpecArgv = ["review", "--type", "phase-spec", "--spec", SPEC];
 
 /** The phase-spec fix argv — the carrier the review round wrote. */
 const fixSpecArgv = ["fix", "--type", "phase-spec", "--spec", SPEC, "--reviews", REVIEWS];
+
+/** The same face with the caller's own carrier and NO review round on record. */
+const fixFlaggedArgv = [
+  "fix",
+  "--type",
+  "phase-spec",
+  "--spec",
+  SPEC,
+  "--reviews",
+  FLAGGED_REVIEWS,
+];
 
 /** A preview argv — the `--dry-run` face (face 7) over one tree. */
 const previewOf = (options?: TreeOptions): Probe => ({
@@ -445,6 +474,38 @@ export const UNITS: readonly Unit[] = [
     task: "T16",
     producer: "surface/commands/fix.ts#FixCommand",
     probe: { fixture: "wave", argv: fixSpecArgv, dispatch: true, before: reviewThenMisplace },
+  },
+  {
+    key: "f1.fix.refusal.reviews-flag",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    // The requesting carrier's FIRST branch: a `--reviews` value the caller names, with NO
+    // review round on record. The dispatch therefore reaches the line leg (`task-open` — the
+    // round the line actually owes) instead of answering `dispatch-input · INPUT_REVIEWS`, and
+    // the family fallback would answer the cycle's absent name instead of this one.
+    probe: {
+      fixture: "wave",
+      argv: fixFlaggedArgv,
+      dispatch: true,
+      before: [{ write: { path: FLAGGED_REVIEWS, text: FLAGGED_CARRIER } }],
+    },
+  },
+  {
+    key: "f1.fix.refusal.reviews-family",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    // The requesting carrier's THIRD branch: no flag and no review record, so the cycle's
+    // resolved family name is composed and found ABSENT — `target-absent`, the workspace
+    // repair, never `empty-value` (which prescribes producing a record that was never owed).
+    probe: {
+      fixture: "wave",
+      argv: ["fix", "--type", "phase-spec", "--spec", SPEC],
+      dispatch: true,
+    },
   },
   {
     key: "f1.fix.failure",
@@ -1206,6 +1267,21 @@ export const UNITS: readonly Unit[] = [
       options: { planDrift: true },
       argv: ["implement", "--tasks", "1", "--plan", PLAN, "--dry-run"],
       dispatch: true,
+    },
+  },
+  {
+    key: "f7.preview.overall",
+    face: "f7",
+    route: "refusal",
+    task: "T17",
+    producer: "run/advance/reads.ts#AdvanceReads",
+    // A CHARTER dispatch: the pre-flight's whole `checked:` block on the program face. The
+    // document rows are judged here rather than yielded, so the width rule reports the run it
+    // made (never `info (plan layers: unavailable)` on a face that has no layers to miss) and
+    // the cross-document chain answers the parent inventory's own ids.
+    probe: {
+      fixture: "overall",
+      argv: ["review", "--type", "overall", "--spec", OVERALL_REL, "--dry-run"],
     },
   },
   {

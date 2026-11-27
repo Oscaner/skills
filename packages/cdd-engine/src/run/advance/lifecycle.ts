@@ -424,7 +424,24 @@ export class Lifecycle {
     // with nothing owed answers its closure. Both rows are refusals, so neither state can reach
     // the landing.
     if (frame.state === "reopened") return { verdict: this.#rows.elsewhereOf(hop), tree: null };
+    // An OPEN line sitting at another phase owes the round the frontier names, not the one this
+    // request asked for — the shipped engine's lookahead refusal, which prints the HOP's own
+    // reason (`task-open` · `pending-fix` · …) beside the command that would run it. The wave
+    // face reaches its equivalent row through the gate above (`wrong-phase`), so this arm names
+    // the verb mismatch for every face the gate does not judge.
+    if (frame.state === "open" && !Lifecycle.#atRequestedPhaseOf(frame)) {
+      return { verdict: this.#rows.elsewhereOf(hop), tree: null };
+    }
     return frame.state === "closed" ? { verdict: this.#rows.closedOf(frame), tree: null } : null;
+  }
+
+  /** Whether the OPEN round the line names is the round this request asks for — the command
+   *  folded to its verb (the branch line's review lead included) and compared with the line's
+   *  own word, so no caller re-spells either side. */
+  static #atRequestedPhaseOf(frame: FrameFacts): boolean {
+    const requested = Lifecycle.#waveVerbOf(frame);
+    const owed = frame.phase === "branch-review" ? "review" : frame.phase;
+    return owed === requested;
   }
 
   /** The line leg's judgment for one frame, or null when the frame's row audits no task

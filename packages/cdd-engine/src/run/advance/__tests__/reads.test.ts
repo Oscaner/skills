@@ -315,6 +315,7 @@ const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"
     phase: "implement",
     round: 1,
     attempt: 1,
+    reviews: null,
   };
   return { repo, env, reads, lifecycle, ledger, runner, frame };
 };

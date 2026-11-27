@@ -103,6 +103,9 @@ const frameOf = (over: Partial<FrameFacts> = {}): FrameFacts => ({
   round: 1,
   attempt: 1,
   ...over,
+  // The flag is the one cell a `Partial` spread re-widens: every arm builds a frame that
+  // named no carrier unless it says otherwise.
+  reviews: over.reviews ?? null,
 });
 
 /** The round-context record — the cells the band's slots read, in the shape the pre-frame

@@ -107,6 +107,10 @@ export interface FrameRequest {
   /** The explicit takeover flag. It never crosses a live holder — the gate's own in-flight
    *  row decides that. */
   readonly recover?: boolean;
+  /** `--reviews`, verbatim (the fix face's requesting carrier). The flag's VALUE alone: which
+   *  carrier the round actually reads is the three-branch priority
+   *  (`AdvanceReads#reviewsPathOf`), so this assembly decides nothing about it. */
+  readonly reviews?: string;
 }
 
 /** One document's declared identity facts — read by the caller's document face, never parsed
@@ -180,6 +184,10 @@ export interface FrameScene {
   readonly command: string;
   /** Whether the explicit takeover flag was given. */
   readonly recover: boolean;
+  /** The `--reviews` value the caller named, projected onto the repository basis; null when
+   *  the request named none. The fix face's requesting carrier — carried, never interpreted
+   *  here. */
+  readonly reviews: string | null;
   /** The target type. */
   readonly type: TargetType;
   /** The phase's workspace identity. */
@@ -341,6 +349,8 @@ export class Frame {
     const scene: FrameScene = {
       command: request.command,
       recover: request.recover === true,
+      reviews:
+        request.reviews === undefined ? null : String(this.#reads.root.callerPath(request.reviews)),
       type: request.type,
       slug: slug.slug,
       key,

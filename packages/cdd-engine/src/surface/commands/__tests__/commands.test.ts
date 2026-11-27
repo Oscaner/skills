@@ -771,7 +771,7 @@ describe("the shells' call surface", () => {
 });
 
 describe("the interface's default writers", () => {
-  it("flushes the standard stream synchronously, so a progress row cannot land after its child", () => {
+  it("flushes the standard stream synchronously, and answers a full pipe instead of failing the run", () => {
     const text = readFileSync(fileOf("surface/index.ts"), "utf8");
     // The `init` progress row must be ON the pipe before the step it announces spawns, and
     // the step's child inherits that same descriptor: a buffered write can land underneath the
@@ -780,8 +780,13 @@ describe("the interface's default writers", () => {
     const start = text.indexOf("static #processWriters");
     expect(start).toBeGreaterThan(0);
     const body = text.slice(start, text.indexOf("\n  }", start));
-    expect(body).toContain("writeSync(1,");
-    expect(body).not.toContain("stdout.write");
+    // The synchronous write is the FIRST path, and the buffered one is only its fallback…
+    expect(body.indexOf("writeSync(1,")).toBeGreaterThan(-1);
+    expect(body.indexOf("writeSync(1,")).toBeLessThan(body.indexOf("process.stdout.write"));
+    // …entered by the one errno a full pipe answers: every other write error still ends the
+    // command, so a real fault never reads as a slow reader.
+    expect(body).toContain('!== "EAGAIN"');
+    expect(body).toContain("throw raw");
   });
 });
 

@@ -39,6 +39,7 @@ export class FixCommand {
       ...(parsed.args.tasks === undefined ? {} : { tasks: parsed.args.tasks }),
       ...(parsed.args.plan === undefined ? {} : { plan: parsed.args.plan }),
       ...(parsed.args.spec === undefined ? {} : { spec: parsed.args.spec }),
+      ...(parsed.args.reviews === undefined ? {} : { reviews: parsed.args.reviews }),
       ...(parsed.args.recover === "true" ? { recover: true } : {}),
     };
   }

@@ -149,6 +149,12 @@ go red.
 | f1.fix.refusal.artifact.stdout | T16 | surface/commands/fix.ts#FixCommand | refusal |
 | f1.fix.refusal.artifact.stderr | T16 | surface/commands/fix.ts#FixCommand | refusal |
 | f1.fix.refusal.artifact.exit-code | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-flag.stdout | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-flag.stderr | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-flag.exit-code | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-family.stdout | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-family.stderr | T16 | surface/commands/fix.ts#FixCommand | refusal |
+| f1.fix.refusal.reviews-family.exit-code | T16 | surface/commands/fix.ts#FixCommand | refusal |
 | f1.fix.failure.stdout | T16 | surface/commands/fix.ts#FixCommand | failure |
 | f1.fix.failure.stderr | T16 | surface/commands/fix.ts#FixCommand | failure |
 | f1.fix.failure.exit-code | T16 | surface/commands/fix.ts#FixCommand | failure |
@@ -413,6 +419,9 @@ go red.
 | f7.preview.doc-drift.plan-target.stdout | T17 | run/advance/drift-station.ts#DriftStation | refusal |
 | f7.preview.doc-drift.plan-target.stderr | T17 | run/advance/drift-station.ts#DriftStation | refusal |
 | f7.preview.doc-drift.plan-target.exit-code | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f7.preview.overall.stdout | T17 | run/advance/reads.ts#AdvanceReads | refusal |
+| f7.preview.overall.stderr | T17 | run/advance/reads.ts#AdvanceReads | refusal |
+| f7.preview.overall.exit-code | T17 | run/advance/reads.ts#AdvanceReads | refusal |
 | f7.preview.usage.missing-plan.stdout | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.stderr | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.exit-code | T16 | surface/render/usage.ts#UsageFace | refusal |

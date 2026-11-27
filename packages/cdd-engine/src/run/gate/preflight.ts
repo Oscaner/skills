@@ -611,7 +611,11 @@ export class PreFlight {
         kind: "judged" as const,
         findings,
         closed: this.#docs.closedAt(input.path),
-        layersAvailable: input.taskLayers !== undefined,
+        // The layer fact is missing only where the graph gate never ran AND the document is
+        // the plan itself: `wave-width-at-most-three` reads the plan's topological batches, so
+        // a plan judged without them yields, while every other document key (a charter, a
+        // phase-spec) has no layers to miss and the rule judges it normally.
+        layersAvailable: input.docKey !== "plan" || input.taskLayers !== undefined,
       },
       ledger: carried.ledger,
       refusal:

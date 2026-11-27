@@ -863,11 +863,29 @@ export class Cli {
    *  progress row must be on the pipe before the step it announces spawns, because the step's
    *  child inherits this same descriptor. A buffered `process.stdout.write` can land after the
    *  child's own bytes, which reorders a piped log below the output it introduces — the
-   *  callbacks' order is pinned and would still be right while the flush order was not. */
+   *  callbacks' order is pinned and would still be right while the flush order was not.
+   *
+   *  A FULL pipe is the one case that overrides it. `writeSync` answers `EAGAIN` when the
+   *  reader drains slower than this process writes, and that errno is the READER's pace, not
+   *  this command's verdict: the shipped engine buffered through the same pipe and kept its
+   *  exit code, so the writer latches onto the stream's own queue instead of failing the run.
+   *  The latch is a cell of this closure, never module state: once buffered, every later byte
+   *  rides the same queue, so the two paths can never interleave and the ordering above still
+   *  holds for everything the synchronous path delivered. */
   static #processWriters(): TextStreams {
+    let buffered = false;
     return {
       stdout: (text) => {
-        writeSync(1, text);
+        if (!buffered) {
+          try {
+            writeSync(1, text);
+            return;
+          } catch (raw) {
+            if ((raw as NodeJS.ErrnoException).code !== "EAGAIN") throw raw;
+            buffered = true;
+          }
+        }
+        process.stdout.write(text);
       },
       stderr: (text) => process.stderr.write(text),
     };

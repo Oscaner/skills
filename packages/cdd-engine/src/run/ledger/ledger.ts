@@ -121,6 +121,17 @@ interface LedgerRow {
   readonly regrades?: readonly RegradeRecord[];
 }
 
+/** The legacy `rounds` planes the frozen document declares — a per-mode cycle array
+ *  (`{implement: [1], review: [1, 2]}`) or a per-mode cycle count (`{implement: 1,
+ *  review: 2}`). The shipped engine folds both into completed records at read time and
+ *  writes back nothing, and its documents are in consumer workspaces, so a reader of the
+ *  record array alone raises on a legal row. */
+export type LegacyRounds = Readonly<Record<string, readonly number[] | number>>;
+
+/** One row AS THE FILE HOLDS IT — `rounds` is whatever the document carries, and `read`
+ *  folds it to the row shape (`LedgerRow`) every reader indexes without a guard. */
+type PersistedRow = Omit<LedgerRow, "rounds"> & { readonly rounds?: unknown };
+
 /** The ledger write one round lands, as a consumer states it: the row's own coordinate
  *  (`progress.waves["1"]`) and the op it books under. Both are the document's facts, so a
  *  sentence about the write reads them instead of spelling them. */
@@ -251,7 +262,9 @@ export class Ledger {
 
   /** The ledger document as recorded; null when nothing is there yet (the ledger never
    *  invents state). A document whose row container is not an array is not this engine's
-   *  document: the answer is null, the same absent fact as a missing file. */
+   *  document: the answer is null, the same absent fact as a missing file. Every row is
+   *  folded to the row shape here — the ONE place `rounds` is normalized — so no reader
+   *  spreads a container it never validated. */
   read(): LedgerDocument | null {
     const read = this.#workspace.readJson(Ledger.FILE);
     if (read.kind !== "ok") return null;
@@ -263,7 +276,9 @@ export class Ledger {
       engineSelfWrittenCount: Ledger.#counterOf(value.engineSelfWrittenCount),
       engineRecoveryCount: Ledger.#counterOf(value.engineRecoveryCount),
       harnessAbortCount: Ledger.#counterOf(value.harnessAbortCount),
-      waves: value.waves.filter((row) => typeof (row as LedgerRow | undefined)?.wave === "string"),
+      waves: value.waves
+        .filter((row) => typeof (row as PersistedRow | undefined)?.wave === "string")
+        .map((row) => Ledger.#rowOf(row as PersistedRow)),
     };
   }
 
@@ -490,11 +505,15 @@ export class Ledger {
   }
 
   /** The drift read: the recorded reviewed version against the document's CURRENT bytes.
-   *  Null when the line recorded no version (only present facts land). */
+   *  Null when the line recorded no comparable version (only present facts land). The
+   *  comparison is the record's own — it digests the current bytes on the basis the recorded
+   *  cell was written on, so a document the shipped engine reviewed is judged against that
+   *  engine's sha1 rather than read as "no record". */
   docDriftOf(line: string, content: string): Drift | null {
-    const recorded = this.docHashOf(line);
-    if (recorded === null) return null;
-    return recorded === ReviewedIdentity.hashOf(content) ? "same" : "drift";
+    const row = Ledger.rowOf(this.read(), line);
+    const reviewed = row === undefined ? null : Ledger.#reviewedOf(row);
+    if (reviewed === null || reviewed.kind !== "document") return null;
+    return reviewed.driftFrom(content);
   }
 
   // -------------------------------------------------------------------------
@@ -724,6 +743,86 @@ export class Ledger {
     return reviewed.kind === "document"
       ? { kind: "doc-revision", doc: reviewed.path, doc_hash: reviewed.hash }
       : { kind: "brief-revision", plan: reviewed.path, brief_hash: reviewed.hash };
+  }
+
+  /** One row as the readers see it — the frozen row cells with its `rounds` plane folded.
+   *  A row that carried no `rounds` cell keeps carrying none: this tree adds cells, it never
+   *  writes one the document did not have. */
+  static #rowOf(raw: PersistedRow): LedgerRow {
+    const { rounds, ...cells } = raw;
+    return rounds === undefined ? cells : { ...cells, rounds: Ledger.#roundsOf(rounds) };
+  }
+
+  /** The ONE fold of the row's `rounds` plane: the record array this tree writes, the two
+   *  legacy per-mode forms the shipped engine folds, and nothing else (an entry that names no
+   *  declared op or no round coordinate is not a round). The legacy forms fold into
+   *  COMPLETED records — the old writer booked only rounds that passed — exactly as
+   *  `RoundRecords.completed` does, so the two readers agree on what a legacy row records. */
+  static #roundsOf(raw: unknown): readonly RoundRecord[] {
+    if (Array.isArray(raw)) {
+      return raw
+        .map((entry) => Ledger.#recordOf(entry))
+        .filter((record): record is RoundRecord => record !== null);
+    }
+    if (raw === null || typeof raw !== "object") return [];
+    const folded: RoundRecord[] = [];
+    for (const [mode, cycles] of Object.entries(raw as Record<string, unknown>)) {
+      const op = Ledger.#legacyOpOf(mode);
+      if (op === null) continue;
+      for (const cycle of Ledger.#cyclesOf(cycles)) folded.push(Ledger.#completedOf(op, cycle));
+    }
+    return folded.sort((left, right) => left.cycle - right.cycle);
+  }
+
+  /** One recorded round with the cells an older or hand-written row may omit defaulted —
+   *  the shape this class's readers index without a guard. A record with no declared op or
+   *  no cycle/attempt coordinate is not a round this engine books. */
+  static #recordOf(entry: unknown): RoundRecord | null {
+    if (entry === null || typeof entry !== "object") return null;
+    const raw = entry as Partial<RoundRecord>;
+    const op = raw.op as unknown;
+    if (typeof op !== "string" || !ROUND_OPS.includes(op as RoundOp)) return null;
+    if (typeof raw.cycle !== "number" || typeof raw.attempt !== "number") return null;
+    return {
+      op: op as RoundOp,
+      cycle: raw.cycle,
+      attempt: raw.attempt,
+      dispatchBase: raw.dispatchBase ?? null,
+      verdict: raw.verdict ?? { treeClean: true, targetAction: true },
+      violations: Array.isArray(raw.violations) ? raw.violations : [],
+      carrierDigest: raw.carrierDigest ?? null,
+    };
+  }
+
+  /** One completed record of an op/cycle — the legacy fold's record, identical to the one
+   *  the shipped reader builds (attempt 1, clean verdict, no violations). */
+  static #completedOf(op: RoundOp, cycle: number): RoundRecord {
+    return {
+      op,
+      cycle,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      carrierDigest: null,
+    };
+  }
+
+  /** The op a legacy per-mode key belongs to — branch review rides the review family, and an
+   *  unknown key is not a round record (the shipped reader's own fold). */
+  static #legacyOpOf(mode: string): RoundOp | null {
+    if (mode === "branch-review") return "review";
+    return ROUND_OPS.includes(mode as RoundOp) ? (mode as RoundOp) : null;
+  }
+
+  /** The cycles one legacy per-mode value records: an explicit cycle array, or a count that
+   *  folds to the contiguous run `1..n` (the old writer recorded every cycle it completed). */
+  static #cyclesOf(value: unknown): readonly number[] {
+    if (Array.isArray(value)) {
+      return value.filter((cycle): cycle is number => Number.isFinite(cycle));
+    }
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 1) return [];
+    return Array.from({ length: Math.trunc(value) }, (_unused, index) => index + 1);
   }
 
   /** One counter cell as recorded — a document written by another engine, or one hand-edited

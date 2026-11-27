@@ -159,11 +159,15 @@ describe("the document review line", () => {
     expect(ledger.docDriftOf("phase-spec", "the body as re-reviewed")).toBe("same");
     expect(ledger.docDriftOf("phase-spec", "the body as reviewed")).toBe("drift");
     // The row's own persisted cell IS the digest — one fact, one home, in the frozen
-    // document's reviewed-revision cell.
+    // document's reviewed-revision cell. The frozen cell's own basis is sha1: the engine
+    // that shipped before this tree digested with sha1 and compares a 40-hex cell against
+    // its own sha1, so a record written on another basis would read as a moved document on
+    // that engine's next run.
     const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
     expect(raw.waves[0].reviewedRevision.doc_hash).toBe(
       ReviewedIdentity.hashOf("the body as re-reviewed"),
     );
+    expect(raw.waves[0].reviewedRevision.doc_hash).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it("moves the version a fix produced without opening a review batch", () => {
@@ -253,6 +257,83 @@ describe("the frozen progress document", () => {
     // A digest of another algorithm is no comparable version — null, never a fabricated
     // drift against this engine's own hash.
     expect(ledger.reviewedOf("tasks-1")).toBeNull();
+  });
+
+  it("compares a recorded revision on the cell's own digest basis", () => {
+    // The cell is frozen, so its ALGORITHM is the contract: a 40-hex cell is a sha1 and a
+    // 64-hex cell a sha256. A reader that can only compare its own basis answers "no
+    // recorded version" for every digest the shipped engine wrote, which reads a moved
+    // document as a closed line (the wrong `next:` face) and a moved projection as no
+    // drift.
+    const body = "the reviewed body\n";
+    const moved = `${body}\nan edit landed after the review\n`;
+    for (const basis of ["sha1", "sha256"] as const) {
+      const { ledger, workspace } = fixture();
+      workspace.writeJson(Ledger.FILE, {
+        ...frozen(),
+        waves: [
+          {
+            wave: "phase-spec",
+            rounds: [round("review")],
+            reviewedRevision: {
+              kind: "doc-revision",
+              doc: "docs/kairos/specs/p9.md",
+              doc_hash: ReviewedIdentity.hashOf(body, basis),
+            },
+          },
+          // The wave line's cell is the same question about a projection: the ONE brief-drift
+          // read behind the wave's reopen compares on the recorded basis too.
+          {
+            wave: "1",
+            rounds: [round("review")],
+            reviewedRevision: {
+              kind: "brief-revision",
+              plan: "docs/kairos/plans/p9.md",
+              brief_hash: ReviewedIdentity.hashOf(body, basis),
+            },
+          },
+        ],
+      });
+      expect(ledger.reviewedOf("phase-spec")?.basis).toBe(basis);
+      expect(ledger.docDriftOf("phase-spec", body)).toBe("same");
+      expect(ledger.docDriftOf("phase-spec", moved)).toBe("drift");
+      expect(ledger.reviewedOf("tasks-1")?.basis).toBe(basis);
+      expect(ledger.reviewedOf("tasks-1")?.driftFrom(body)).toBe("same");
+      expect(ledger.reviewedOf("tasks-1")?.driftFrom(moved)).toBe("drift");
+    }
+  });
+
+  it("folds the legacy `rounds` planes the shipped engine folds", () => {
+    // The frozen document declares three `rounds` shapes and the shipped reader folds all
+    // of them: a record array, a per-mode cycle array and a per-mode cycle count. A reader
+    // that spreads the container it never validated raises on a legal document.
+    const expected = [
+      { op: "implement", cycle: 1, attempt: 1 },
+      { op: "review", cycle: 1, attempt: 1 },
+      { op: "review", cycle: 2, attempt: 1 },
+    ];
+    const legacyForms = [
+      { implement: [1], review: [1, 2] },
+      { implement: 1, review: 2 },
+    ];
+    for (const rounds of legacyForms) {
+      const { ledger, workspace } = fixture();
+      workspace.writeJson(Ledger.FILE, {
+        ...frozen(),
+        waves: [{ wave: "1", rounds, planTasks: [1] }],
+      });
+      const records = ledger.waveLines()[0]?.rounds ?? [];
+      expect(records.map(({ op, cycle, attempt }) => ({ op, cycle, attempt }))).toEqual(expected);
+      // One fold, every reader: the crash read walks the same records rather than meeting a
+      // container it cannot index.
+      const nodeRecords = ledger.nodeRecordsOf(ledger.read());
+      expect(nodeRecords.map((record) => `${record.op}${record.cycle}`)).toEqual([
+        "implement1",
+        "review1",
+        "review2",
+      ]);
+      expect(ledger.crashedOf(nodeRecords)).toEqual([]);
+    }
   });
 
   it("writes the document back in the frozen shape, on the frozen row key", () => {

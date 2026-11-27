@@ -26,6 +26,17 @@
 // renderer: a band's bytes are the declared row plus the return zone, so what a pin
 // compares is the table, not a filled dispatch.
 //
+// Two more declarations ride the same plane, because the expansion's two inputs are data:
+//   · the round-context LAYOUT — one declared line per cell each row renders, with the
+//     three-state rule kept on the line itself: a value renders the line, an empty value
+//     drops it (`drop`) or prints the bare literal `none`; whether a dispatch MUST supply a
+//     cell is the dispatch-input gate's judgment, so no "empty but required" state exists
+//     here;
+//   · the CLAUSE PARTIALS — the eleven discipline sentences the shells name by `cl:<key>`,
+//     one home, so a clause is written once and resolved once.
+// The assembly composes those bytes (the prompt a child receives); this module only declares
+// them, which is why `bandOf` answers the band's PARTS rather than one joined string.
+//
 // Module-level exports are types, the declared table and the class — zero bare functions.
 
 import { CRITERIA, LENS_QUESTIONS, reviewKindOf } from "../../docs/judging/criteria.ts";
@@ -38,13 +49,39 @@ export type WorkModeRowKey = "implement" | "fix" | "docs-fix";
 /** The three work-mode rows, in the order the table declares them. */
 export const WORK_MODES: readonly WorkModeRowKey[] = ["implement", "fix", "docs-fix"];
 
-/** One band row — the fixed prefix a dispatch of that mode / target renders. */
+/** One round-context line's declaration — the rendered line (a heading, a blank line, or a
+ *  `- \`TOKEN\`: {{TOKEN}}` cell) plus what its EMPTY value prints. There is no third state:
+ *  exigibility is the dispatch-input gate's judgment, and a line with no value has exactly
+ *  the two shapes below. */
+export interface ContextLine {
+  /** The rendered line. */
+  readonly line: string;
+  /** What an empty value does to the line: drop it whole, or print the bare literal `none`. */
+  readonly absent: "drop" | "none";
+}
+
+/** One band row — the fixed prefix a dispatch of that mode / target renders, and the round
+ *  context it declares beneath that prefix. */
 export interface BandRow {
   /** The row's key word — a work mode or a target type. */
   readonly key: string;
   /** The row's fixed prefix, line by line. */
   readonly shell: readonly string[];
+  /** The row's round-context layout, line by line — the ONLY dynamic region of the prompt. */
+  readonly context: readonly ContextLine[];
 }
+
+/** One band's three declared parts — what the assembly composes the prompt from. `fixed` is
+ *  the version line and the row's shell, `returning` the ONE shared return zone, `layout`
+ *  the row's round context. */
+export interface PromptBandParts {
+  readonly fixed: readonly string[];
+  readonly returning: readonly string[];
+  readonly layout: readonly ContextLine[];
+}
+
+/** The two band families — the work modes and the per-target review rows. */
+export type BandFamily = "work" | "review";
 
 /** One review band row, keyed by the target type it serves. */
 export type ReviewVariantRow = BandRow & { readonly key: TargetType };
@@ -57,15 +94,36 @@ export interface PromptBands {
   readonly reviews: Readonly<Record<TargetType, ReviewVariantRow>>;
   /** The `## Return` zone every band ends with. */
   readonly return: { readonly RETURN_PROSE: readonly string[] };
+  /** The `{{> cl:…}}` clause partials — the shells name them, the assembly resolves them. */
+  readonly clauses: Readonly<Record<string, string>>;
 }
 
-/** One declared row's shell, keyed by the mode / target word it serves. The declarations
- *  are literal data: a row's prose is not derived from anything, so it is written once and
+/** One declared row, keyed by the mode / target word it serves. The declarations are
+ *  literal data: a row's prose is not derived from anything, so it is written once and
  *  read once. */
 const row = <K extends string>(
   key: K,
   shell: readonly string[],
-): { readonly key: K; readonly shell: readonly string[] } => ({ key, shell });
+  context: readonly ContextLine[],
+): {
+  readonly key: K;
+  readonly shell: readonly string[];
+  readonly context: readonly ContextLine[];
+} => ({ key, shell, context });
+
+/** One round-context cell — the line spelling a `- \`TOKEN\`: {{TOKEN}}` row derives from the
+ *  token's own name, so the spelled token and the filled slot cannot disagree. */
+const cell = (token: string, absent: "drop" | "none" = "drop"): ContextLine => ({
+  line: `- \`${token}\`: {{${token}}}`,
+  absent,
+});
+
+/** The two value-less lines every layout opens with — the heading and its separator. They
+ *  carry no slot, so their `absent` cell is never consulted. */
+const CONTEXT_HEAD: readonly ContextLine[] = [
+  { line: "## Round context", absent: "drop" },
+  { line: "", absent: "drop" },
+];
 
 // ---------------------------------------------------------------------------
 // the declared rows
@@ -248,36 +306,154 @@ const RETURN_PROSE = [
 const PROMPT_VERSION = 27;
 
 // ---------------------------------------------------------------------------
+// the round-context layouts
+// ---------------------------------------------------------------------------
+
+/** The three work modes' round context. Each row declares the cells its own prose reads, in
+ *  the order the child reads them: `implement` carries the wave's brief and the three write
+ *  paths, `fix` adds the requesting carrier and the ruling sidecar, and `docs-fix` carries no
+ *  evidence file (a document fix writes none). */
+const IMPLEMENT_CONTEXT: readonly ContextLine[] = [
+  ...CONTEXT_HEAD,
+  cell("ROLE"),
+  cell("WAVE"),
+  cell("INPUT_WAVE_BRIEF"),
+  cell("OUTPUT_REPORT"),
+  cell("OUTPUT_EVIDENCE"),
+  cell("OUTPUT_HANDOFF"),
+  cell("WORKSPACE_DIR"),
+  cell("WORKSPACE_ID"),
+];
+
+/** The fix row's round context — the wave line's brief, the branch line's plan, and the
+ *  requesting carrier both lines read. The ruling sidecar renders `none` when the round has
+ *  no sidecar: a dropped line and "the orchestrator wrote no rulings" are different facts. */
+const FIX_CONTEXT: readonly ContextLine[] = [
+  ...CONTEXT_HEAD,
+  cell("ROLE"),
+  cell("TARGET_TYPE"),
+  cell("WAVE"),
+  cell("INPUT_WAVE_BRIEF"),
+  cell("INPUT_PLAN"),
+  cell("INPUT_SPEC"),
+  cell("INPUT_OVERALL"),
+  cell("INPUT_REVIEWS"),
+  cell("INPUT_RULINGS", "none"),
+  cell("OUTPUT_REPORT"),
+  cell("OUTPUT_EVIDENCE"),
+  cell("OUTPUT_HANDOFF"),
+  cell("WORKSPACE_DIR"),
+  cell("WORKSPACE_ID"),
+];
+
+/** The document-fix row's round context — the judged document and its references, no evidence
+ *  file (the round writes none), and the same `none` arm for the ruling sidecar. */
+const DOCS_FIX_CONTEXT: readonly ContextLine[] = [
+  ...CONTEXT_HEAD,
+  cell("ROLE"),
+  cell("TARGET_TYPE"),
+  cell("WAVE"),
+  cell("INPUT_PLAN"),
+  cell("INPUT_SPEC"),
+  cell("INPUT_OVERALL"),
+  cell("INPUT_REVIEWS"),
+  cell("INPUT_RULINGS", "none"),
+  cell("OUTPUT_REPORT"),
+  cell("OUTPUT_HANDOFF"),
+  cell("WORKSPACE_DIR"),
+  cell("WORKSPACE_ID"),
+];
+
+/** The review rows' ONE shared round context — a review is read-only, so its write side is
+ *  the report and the draft alone, and it never carries the ruling sidecar (a review writes
+ *  no ruling). The wave line adds the brief, the tree lines add `BASE_BRANCH`; a cell away
+ *  from its line drops, which is how one layout serves all six targets. */
+const REVIEW_CONTEXT: readonly ContextLine[] = [
+  ...CONTEXT_HEAD,
+  cell("ROLE"),
+  cell("TARGET_TYPE"),
+  cell("WAVE"),
+  cell("INPUT_WAVE_BRIEF"),
+  cell("INPUT_PLAN"),
+  cell("INPUT_SPEC"),
+  cell("INPUT_OVERALL"),
+  cell("BASE_BRANCH"),
+  cell("OUTPUT_REPORT"),
+  cell("OUTPUT_HANDOFF"),
+  cell("WORKSPACE_DIR"),
+  cell("WORKSPACE_ID"),
+];
+
+/**
+ * The clause partials — the `{{> cl:…}}` forms the four shell texts name, each sentence
+ * written ONCE. The assembly resolves a shell's slot to its declared bytes, so a clause can
+ * never fork between two shells that both carry it.
+ */
+export const CLAUSES: Readonly<Record<string, string>> = {
+  "cl:english-comments":
+    "Write code comments and shipped prose in English only — English-primary (no other-language comment blocks, no translated mirrors).",
+  "cl:eof-newline":
+    "Every text file must end with exactly one newline (EOF newline): no missing final newline and no trailing blank lines.",
+  "cl:no-full-tree-find":
+    "Never run an unbounded full-tree `find` over a large directory and never bare-read a large file — constrain to explicit paths with `maxdepth`/`-path`, or read only the needed range.",
+  // The ceiling is the prompt contract's own sentence: the engine's per-phase wall clock is a
+  // separate declaration (`env/process/child-runner.ts`), so this clause states its minutes
+  // rather than deriving them from a constant that governs a different limit.
+  "cl:bash-stall-limit":
+    "Put a `timeout` on every Bash command — no single invocation may run longer than 15 minutes; a command that stalls without progress is terminated and replaced with an equivalent, lighter command.",
+  "cl:no-infinite-loop":
+    "Never run an unbounded loop — no `while True: pass`, no `while true; do …; done`, no spin-wait or tail-follow that only a human can stop. A wait must carry a bounded exit condition (a timeout, a max-attempt counter, or a terminating predicate) that ends the loop on its own.",
+  "cl:plan-freeze":
+    "Approved plan/spec files are frozen beyond the round's declared `capability: may.amend` scope — without that declaration a needed change goes out through findings, never an in-place edit; the structure face is outside amending authority in every round.",
+  "cl:own-document":
+    "Write only your own documents: this round writes its own target document plus the files its own instruction names — an **implement** round writes the task files its wave brief names at `### Task N:`; a **fix** or **docs-fix** round writes the code files the findings view names (on a docs-fix round that is the judged document itself); a **review** round has no code write surface at all — its target document is read-only and its only writes are the prescribed `OUTPUT_*` artifacts, its `findings` carrier among them, never a document outside its own target — the `Read-only` sentence in this same prompt states the same rule from the carrier side. Every other document — the parent charter, a sibling spec, the plan — lies outside this round's write authority and lands through the orchestrator's backfill, never by the round's own hand. The division with `cl:plan-freeze`: that clause governs permission INSIDE the target document (may this document be changed at all), while this one governs the boundary of the document SET (which documents may be touched); when both are broken, the freeze clause is the one reported first.",
+  "cl:atomic-commit":
+    "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers. A read-only round has nothing to commit: its only writes are the prescribed `OUTPUT_*` artifacts, and committing belongs to the orchestrator.",
+  "cl:self-validate":
+    "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
+  "cl:no-secret-access":
+    "Never read, print, or derive a user secret — no keychain access (`security find-generic-password` / `security dump-keychain` / `login.keychain-db`), no `~/.ssh/*`, `~/.aws/credentials`, `~/.netrc`, no host CLI credential store, and no token-bearing environment variable (`*_TOKEN` / `*_API_KEY` / `*_SECRET`). A missing or failing credential is never yours to obtain: report it as `status: BLOCKED` on a work round or as a finding on a review round, then continue with the rest. A secret that reaches a report, evidence file, handoff draft, commit, or issue body has leaked — if one is already visible in your inputs, redact it as `[REDACTED]` and never echo its value.",
+  "cl:sync-completion":
+    "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
+};
+
+// ---------------------------------------------------------------------------
 // the table and its renderer
 // ---------------------------------------------------------------------------
 
 /** The review variants, keyed by the target type — the ONE review-row declaration. The
  *  type annotation is the completeness pin: a target type with no row does not type-check. */
 export const REVIEW_VARIANTS: Readonly<Record<TargetType, ReviewVariantRow>> = {
-  wave: row("wave", REVIEW_SHELLS.wave),
-  branch: row("branch", REVIEW_SHELLS.branch),
-  "phase-spec": row("phase-spec", REVIEW_SHELLS["phase-spec"]),
-  overall: row("overall", REVIEW_SHELLS.overall),
-  plan: row("plan", REVIEW_SHELLS.plan),
-  "single-spec": row("single-spec", REVIEW_SHELLS["single-spec"]),
+  wave: row("wave", REVIEW_SHELLS.wave, REVIEW_CONTEXT),
+  branch: row("branch", REVIEW_SHELLS.branch, REVIEW_CONTEXT),
+  "phase-spec": row("phase-spec", REVIEW_SHELLS["phase-spec"], REVIEW_CONTEXT),
+  overall: row("overall", REVIEW_SHELLS.overall, REVIEW_CONTEXT),
+  plan: row("plan", REVIEW_SHELLS.plan, REVIEW_CONTEXT),
+  "single-spec": row("single-spec", REVIEW_SHELLS["single-spec"], REVIEW_CONTEXT),
 };
 
-/** The prompt data plane — the two band families and the shared return zone. */
+/** The prompt data plane — the two band families, the shared return zone and the clause
+ *  partials the shells name. */
 export const TEMPLATE_PROMPT: PromptBands = {
   $version: PROMPT_VERSION,
   modes: {
-    implement: row("implement", MODE_SHELLS.implement),
-    fix: row("fix", MODE_SHELLS.fix),
-    "docs-fix": row("docs-fix", MODE_SHELLS["docs-fix"]),
+    implement: row("implement", MODE_SHELLS.implement, IMPLEMENT_CONTEXT),
+    fix: row("fix", MODE_SHELLS.fix, FIX_CONTEXT),
+    "docs-fix": row("docs-fix", MODE_SHELLS["docs-fix"], DOCS_FIX_CONTEXT),
   },
   reviews: REVIEW_VARIANTS,
   return: { RETURN_PROSE },
+  clauses: CLAUSES,
 };
 
 /**
  * PromptBandsRenderer — the two prompt bands' ONE renderer. Invariant: a band is its
  * declared row plus the shared return zone, joined by one newline, so two renders of one
  * row are byte-identical and the two families cannot diverge in how they are composed.
+ *
+ * The band is that pinned face; the prompt a child RECEIVES is the assembly's composition of
+ * the same parts (`bandOf`), which is why this class answers the parts rather than one joined
+ * string alone — the round context is a zone of its own, never a suffix of the return prose.
  */
 export class PromptBandsRenderer {
   readonly #prompt: PromptBands;
@@ -301,22 +477,41 @@ export class PromptBandsRenderer {
     return Object.keys(this.#prompt.reviews) as TargetType[];
   }
 
+  /** The clause partials the shells name — the assembly's second expansion input. */
+  clauses(): Readonly<Record<string, string>> {
+    return this.#prompt.clauses;
+  }
+
+  /** One band's three declared parts — the version line and the row's shell, the shared
+   *  return zone, and the row's round-context layout. The assembly composes those bytes; a
+   *  key the table does not declare is a hard error, never an empty band. */
+  bandOf(family: BandFamily, key: string): PromptBandParts {
+    const rowOf =
+      family === "review"
+        ? (this.#prompt.reviews[key as TargetType] as BandRow | undefined)
+        : (this.#prompt.modes[key as WorkModeRowKey] as BandRow | undefined);
+    if (rowOf === undefined) {
+      throw new Error(`templates: "${key}" is not a declared ${family} row`);
+    }
+    return {
+      fixed: [`$version ${this.#prompt.$version}`, ...rowOf.shell],
+      returning: this.#prompt.return.RETURN_PROSE,
+      layout: rowOf.context,
+    };
+  }
+
   /** One work mode's prompt band. */
   prompt(mode: WorkModeRowKey): string {
-    const row = this.#prompt.modes[mode];
-    if (row === undefined) throw new Error(`templates: "${mode}" is not a declared mode row`);
-    return PromptBandsRenderer.#band(this.#prompt, row);
+    return PromptBandsRenderer.#band(this.bandOf("work", mode));
   }
 
   /** One review prompt band. */
   review(type: TargetType): string {
-    const row = this.#prompt.reviews[type];
-    if (row === undefined) throw new Error(`templates: "${type}" is not a declared review row`);
-    return PromptBandsRenderer.#band(this.#prompt, row);
+    return PromptBandsRenderer.#band(this.bandOf("review", type));
   }
 
   /** The ONE join: the version line, the row, then the shared return zone. */
-  static #band(prompt: PromptBands, row: BandRow): string {
-    return [`$version ${prompt.$version}`, ...row.shell, ...prompt.return.RETURN_PROSE].join("\n");
+  static #band(parts: PromptBandParts): string {
+    return [...parts.fixed, ...parts.returning].join("\n");
   }
 }

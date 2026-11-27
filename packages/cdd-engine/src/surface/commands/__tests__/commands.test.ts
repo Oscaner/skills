@@ -24,7 +24,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Documents } from "../../../docs/index.ts";
 import type { RepoPath } from "../../../env/paths/root.ts";
@@ -714,17 +714,97 @@ describe("the exit-code table", () => {
   });
 });
 
-describe("the declaration and the usage union", () => {
-  it("resolves every byte row's producer landing — a module path and an export name", () => {
-    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-    for (const [member, row] of Object.entries(USAGE_BYTES)) {
-      const [modulePath, exportName] = row.producer.split("#");
-      expect(modulePath, member).toBeDefined();
-      expect(exportName, member).toBeDefined();
-      const file = path.join(root, "src", modulePath ?? "");
-      expect(existsSync(file), `${member}: ${row.producer}`).toBe(true);
-      expect(readFileSync(file, "utf8"), `${member}: ${row.producer}`).toContain(exportName ?? "");
+/** The engine package's root — the shell and producer reads are relative to `src/`. */
+const ENGINE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+
+/** One `src/`-relative module path as its file, the shape the declaration's producers use. */
+const fileOf = (modulePath: string): string => path.join(ENGINE_ROOT, "src", modulePath);
+
+/** The declared symbol one `module#symbol` producer pointer names, or undefined. Resolving the
+ *  EXPORT rather than grepping for its spelling is the whole point: a name that survives only
+ *  as prose in the file resolves to nothing. */
+const resolveOf = async (producer: string): Promise<unknown> => {
+  const [modulePath, exportName] = producer.split("#");
+  if (modulePath === undefined || exportName === undefined) return undefined;
+  const mod = (await import(pathToFileURL(fileOf(modulePath)).href)) as Record<string, unknown>;
+  return mod[exportName];
+};
+
+/** The shell pin's predicates over one shell's source — three actions, each written as the
+ *  refusal of a fourth: a shell imports TYPES only (a value import is how a collaborator, a
+ *  file or a gate gets inside the thin face), it constructs nothing, and it hands its outcome
+ *  to the ONE output face. Kept apart from the arm so the arm can prove they bite. */
+const shellViolations = (text: string): readonly string[] => {
+  const violations: string[] = [];
+  for (const line of text.split("\n")) {
+    if (/^import (?!type )/.test(line)) violations.push(`value import: ${line}`);
+  }
+  if (text.includes("node:fs")) violations.push("reads the file system");
+  if (text.includes("run/gate")) violations.push("reaches a gate");
+  if (/\bnew [A-Z]/.test(text)) violations.push("constructs a collaborator");
+  if (!text.includes("this.#report.report(")) violations.push("no handover to the output face");
+  return violations;
+};
+
+describe("the shells' call surface", () => {
+  it("holds every shell to three actions, and goes red on a source that steps past them", async () => {
+    // The roster is the declaration's own verb set — a ninth verb without a conforming shell
+    // fails the read below rather than slipping past a hand-written list.
+    const shells = CLI_COMMANDS.map((command) => ({
+      verb: command.name,
+      text: readFileSync(fileOf(`surface/commands/${command.name}.ts`), "utf8"),
+    }));
+    expect(shells.length).toBe(CLI_COMMANDS.length);
+    for (const shell of shells) {
+      expect(shellViolations(shell.text), `shell ${shell.verb}`).toEqual([]);
     }
+    // The violation arm: the same predicates over a source that writes a file, opens a gate
+    // and builds an entry — a scan that cannot go red is not a pin.
+    const stepped = [
+      'import { writeFileSync } from "node:fs";',
+      'import { PreFlight } from "../../run/gate/preflight.ts";',
+      "const gate = new PreFlight();",
+      'writeFileSync("out.txt", "");',
+    ].join("\n");
+    expect(shellViolations(stepped).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("the interface's default writers", () => {
+  it("flushes the standard stream synchronously, so a progress row cannot land after its child", () => {
+    const text = readFileSync(fileOf("surface/index.ts"), "utf8");
+    // The `init` progress row must be ON the pipe before the step it announces spawns, and
+    // the step's child inherits that same descriptor: a buffered write can land underneath the
+    // child's own bytes. The callbacks' ORDER is pinned elsewhere and would still be right
+    // while the flush order was not, so this is the arm that reads the writer itself.
+    const start = text.indexOf("static #processWriters");
+    expect(start).toBeGreaterThan(0);
+    const body = text.slice(start, text.indexOf("\n  }", start));
+    expect(body).toContain("writeSync(1,");
+    expect(body).not.toContain("stdout.write");
+  });
+});
+
+describe("the declaration and the usage union", () => {
+  it("resolves every byte row's producer landing — a module path and a declared symbol", async () => {
+    for (const [member, row] of Object.entries(USAGE_BYTES)) {
+      expect(row.producer, member).toContain("#");
+      // The symbol, not its spelling: the producer column is the byte/member/producer
+      // three-way check, so a pointer whose name survives only in a comment must fail here.
+      const resolved = await resolveOf(row.producer);
+      expect(typeof resolved, `${member}: ${row.producer} names no declared symbol`).toBe(
+        "function",
+      );
+    }
+  });
+
+  it("refuses a producer spelling that only a comment carries", async () => {
+    // `CliOptions` is an interface: its name is all over `surface/index.ts` and it has no
+    // runtime value, so the substring form of this pin accepted it and the symbol form cannot.
+    const file = fileOf("surface/index.ts");
+    expect(existsSync(file)).toBe(true);
+    expect(readFileSync(file, "utf8")).toContain("CliOptions");
+    expect(await resolveOf("surface/index.ts#CliOptions")).toBeUndefined();
   });
 
   it("translates every declared failure value through the ONE table, and the two base read variants land on one member", () => {

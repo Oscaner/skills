@@ -30,6 +30,7 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import { writeSync } from "node:fs";
 import { type Command, CommanderError } from "commander";
 import type { TaskBlocks } from "../docs/grammar/task-blocks.ts";
 import type { Documents } from "../docs/index.ts";
@@ -187,6 +188,13 @@ export interface CliOptions {
 /**
  * Cli — the consumer surface's one door. Invariant: every byte a consumer reads comes from
  * the ONE word table this door holds, so a second table is unreachable by construction.
+ *
+ * Class size: the 200-line cap is exceeded because this class IS the declared output face —
+ * the eight shells' single handover, the two prompt bands, and the per-command exit code all
+ * land in one place, and the render classes it holds are the STATE those bytes are composed
+ * from. Splitting the accessors out would leave each half holding a copy of the same wiring;
+ * the shells are the split (each one is a class of its own), so the door stays one class and
+ * the boundary it defends is stated here rather than re-litigated per wave.
  */
 export class Cli {
   /** The word table this surface renders through. */
@@ -454,7 +462,14 @@ export class Cli {
   }
 
   /** One board read — the rows on stdout, or the declared usage value. The layout is picked
-   *  by the read's own phase rows (a charter answers them), never by an argv word. */
+   *  by the read's own phase rows (a charter answers them), never by an argv word.
+   *
+   *  ONE face the old board carried is absent here, stated rather than left to be re-derived:
+   *  a document line whose slug is missing, illegal or duplicated, or whose `doc-type:` is
+   *  unset, prints as an ordinary row and this read answers 0. That identity judgment lives on
+   *  the dispatch side (the doc-contract row a ROUND is refused on) and reaches no cell this
+   *  face reads — the board's document value carries header cells only — so the marker and its
+   *  exit 2 are a run-segment decision, not a render one. */
   #reportBoard(outcome: BoardOutcome, display: BoardDisplay): number {
     if (outcome.kind !== "board") return this.#reportUsage(outcome, "board");
     const shape: BoardShape = outcome.phases.length > 0 ? "program" : "node";
@@ -781,10 +796,18 @@ export class Cli {
     return 1;
   }
 
-  /** The living process's two writers — the default the composition root may override. */
+  /** The living process's two writers — the default the composition root may override.
+   *
+   *  The standard stream is written SYNCHRONOUSLY, and that is load-bearing: the `init`
+   *  progress row must be on the pipe before the step it announces spawns, because the step's
+   *  child inherits this same descriptor. A buffered `process.stdout.write` can land after the
+   *  child's own bytes, which reorders a piped log below the output it introduces — the
+   *  callbacks' order is pinned and would still be right while the flush order was not. */
   static #processWriters(): TextStreams {
     return {
-      stdout: (text) => process.stdout.write(text),
+      stdout: (text) => {
+        writeSync(1, text);
+      },
       stderr: (text) => process.stderr.write(text),
     };
   }

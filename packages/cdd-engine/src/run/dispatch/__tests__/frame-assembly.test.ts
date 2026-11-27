@@ -41,7 +41,11 @@ import type { ChildOutcome, ChildRun, ChildRunner } from "../../../env/process/c
 import { Clock } from "../../../env/process/clock.ts";
 import { DISPATCH, HOST_IDS, HOSTS, type HostId, REFS } from "../../../env/process/host.ts";
 import { WorkspaceRoot } from "../../../env/workspace/workspace.ts";
-import { PromptBandsRenderer, type WorkModeRowKey } from "../../../surface/render/templates.ts";
+import {
+  PromptBandsRenderer,
+  TEMPLATE_PROMPT,
+  type WorkModeRowKey,
+} from "../../../surface/render/templates.ts";
 import type { FrameFacts } from "../../advance/frame.ts";
 import type { TargetType } from "../../advance/target-faces.ts";
 import { Child, type DispatchFrame, type DispatchLog } from "../child.ts";
@@ -109,6 +113,10 @@ const valuesOf = (over: DispatchValuesRecord = {}): DispatchValuesRecord => ({
   HANDOFF_SCHEMA: '{"type":"object","required":["status","artifacts"]}',
   INPUT_WAVE_BRIEF: `.kairos/cdd/${SLUG}/tasks-16,20-brief.md`,
   OUTPUT_REPORT: `.kairos/cdd/${SLUG}/tasks-16,20-implement-1-report.md`,
+  OUTPUT_EVIDENCE: `.kairos/cdd/${SLUG}/tasks-16,20-implement-1-test-evidence.json`,
+  OUTPUT_HANDOFF: `.kairos/cdd/${SLUG}/tasks-16,20-implement-1.json`,
+  WORKSPACE_DIR: `.kairos/cdd/${SLUG}`,
+  WORKSPACE_ID: SLUG,
   ...over,
 });
 
@@ -125,18 +133,54 @@ const inputsOf = (over: Partial<DispatchAssembly> = {}): DispatchAssembly => ({
   ...over,
 });
 
-/** The band the declared table renders for one values record, with its slots filled the way
- *  the record fills them — the expected prompt, derived, never typed. */
+/** The band the declared table renders for one values record — the expected prompt, derived
+ *  from the tables, never from the renderer's own output. */
 const BANDS = new PromptBandsRenderer();
 
-/** The expected prompt bytes of one assembly — the row the record selects, then the one token
- *  the record carries. */
+/** The declared row one record selects — the TABLE's row, read directly, so the expectation
+ *  below cannot inherit a composition defect from the renderer it is pinning. */
+const rowOf = (values: DispatchValuesRecord) =>
+  values.ROLE === "review"
+    ? TEMPLATE_PROMPT.reviews[(values.TARGET_TYPE ?? "") as TargetType]
+    : TEMPLATE_PROMPT.modes[(values.ROLE ?? "") as WorkModeRowKey];
+
+/** The expected prompt bytes of one assembly — the three zones the child reads, composed from
+ *  `TEMPLATE_PROMPT`'s declared data: the version line and the row's shell, the shared return
+ *  zone, then the row's declared round context resolved three-state. A renderer that dropped
+ *  the context zone, or lost a zone separator, cannot satisfy this expectation. */
 const promptOf = (values: DispatchValuesRecord): string => {
-  const band =
-    values.ROLE === "review"
-      ? BANDS.review((values.TARGET_TYPE ?? "") as TargetType)
-      : BANDS.prompt((values.ROLE ?? "") as WorkModeRowKey);
-  return band.replace("{{HANDOFF_SCHEMA}}", values.HANDOFF_SCHEMA ?? "");
+  const row = rowOf(values);
+  if (row === undefined) return "";
+  const context = row.context.flatMap((decl) => {
+    const slot = /\{\{([A-Z0-9_]+)\}\}/.exec(decl.line)?.[1];
+    if (slot === undefined) return [decl.line];
+    if ((values[slot] ?? "") !== "") return [decl.line];
+    return decl.absent === "none" ? [decl.line.replace(/\{\{[A-Z0-9_]+\}\}/, "none")] : [];
+  });
+  const zones = [
+    [`$version ${TEMPLATE_PROMPT.$version}`, ...row.shell].join("\n"),
+    TEMPLATE_PROMPT.return.RETURN_PROSE.join("\n"),
+    context.join("\n"),
+  ];
+  return zones
+    .join("\n\n")
+    .replace(
+      /\{\{> cl:([A-Za-z0-9-]+)\}\}/g,
+      (whole, name: string) => TEMPLATE_PROMPT.clauses[`cl:${name}`] ?? whole,
+    )
+    .replace(/\{\{([A-Z0-9_]+)\}\}/g, (whole, name: string) => values[name] ?? whole);
+};
+
+/** Every `{{> cl:<key>}}` spelling the declared shells carry — the coverage arm's roster,
+ *  derived from the table rather than typed. */
+const clauseKeysOf = (): readonly string[] => {
+  const rows = [...Object.values(TEMPLATE_PROMPT.modes), ...Object.values(TEMPLATE_PROMPT.reviews)];
+  const spelled = rows.flatMap((row) =>
+    row.shell.flatMap((line) =>
+      [...line.matchAll(/\{\{> cl:([A-Za-z0-9-]+)\}\}/g)].map((m) => m[1] ?? ""),
+    ),
+  );
+  return [...new Set(spelled)];
 };
 
 /** The invoke prefix of one host row — the non-empty segments of the declared column. */
@@ -249,6 +293,71 @@ describe("the dispatch frame's prompt", () => {
     expect(childPromptOf("ref-prefixed", ref, expected)).toBe(`${ref} ${expected}`);
     // A slotless frame keeps its prefix off even on the prefixed form.
     expect(childPromptOf("ref-prefixed", null, expected)).toBe(expected);
+  });
+});
+
+describe("the round-context zone", () => {
+  it("composes three zones — fixed prefix, return prose, round context — separated by blank lines", () => {
+    const positional = positionalOf(frameFor(inputsOf()));
+    expect(positional.endsWith(promptOf(valuesOf()))).toBe(true);
+    // The zone boundaries are blank lines, never a bare newline: a single `\n` join is the
+    // defect this arm was written from (the return prose ran into the shell's tail).
+    expect(positional).toContain(`\n\n${TEMPLATE_PROMPT.return.RETURN_PROSE[0] ?? ""}`);
+    expect(positional).toContain("\n\n## Round context\n");
+  });
+
+  it("names the brief, the write paths and the workspace the child is scoped to", () => {
+    const values = valuesOf();
+    const positional = positionalOf(frameFor(inputsOf({ values })));
+    // The failure this pin exists for: a prompt that ends at the handoff schema. The child
+    // then cannot read its brief, write its draft where the engine looks, or scope itself —
+    // and the spawn still succeeds, which is why the bytes are the only evidence.
+    for (const token of [
+      "INPUT_WAVE_BRIEF",
+      "OUTPUT_REPORT",
+      "OUTPUT_EVIDENCE",
+      "OUTPUT_HANDOFF",
+      "WORKSPACE_DIR",
+      "WORKSPACE_ID",
+    ]) {
+      const value = values[token] ?? "";
+      expect(value.length).toBeGreaterThan(0);
+      expect(positional).toContain(`- \`${token}\`: ${value}`);
+    }
+  });
+
+  it("expands every clause partial the shells name, and ships none of the spellings", () => {
+    // The roster is the table's own: drop a clause row and the shell that names it fails here.
+    const keys = clauseKeysOf();
+    expect(keys.length).toBeGreaterThan(0);
+    const positional = positionalOf(frameFor(inputsOf()));
+    expect(positional).not.toContain("{{> cl:");
+    for (const key of keys) {
+      const clause = TEMPLATE_PROMPT.clauses[`cl:${key}`];
+      expect(clause, `clause cl:${key} is named by a shell but not declared`).toBeTruthy();
+      expect(positional).toContain(`- ${clause}`);
+    }
+  });
+
+  it("resolves a cell three-state: a value, a dropped line, and a `none` literal", () => {
+    const fixFrame = (over: DispatchValuesRecord) =>
+      frameFor(
+        inputsOf({ frame: frameOf({ phase: "fix", type: "wave" }), values: valuesOf(over) }),
+      );
+    // Absence declared as `none` prints the bare literal — the round really has no sidecar.
+    const absent = positionalOf(fixFrame({ ROLE: "fix", TARGET_TYPE: "wave", INPUT_RULINGS: "" }));
+    expect(absent).toContain("- `INPUT_RULINGS`: none");
+    // A present value renders in the slot's place.
+    const present = positionalOf(
+      fixFrame({ ROLE: "fix", TARGET_TYPE: "wave", INPUT_RULINGS: ".kairos/cdd/p39/rulings.json" }),
+    );
+    expect(present).toContain("- `INPUT_RULINGS`: .kairos/cdd/p39/rulings.json");
+    // A cell declared `drop` withholds its line whole: rendering the empty value would leave
+    // `- \`INPUT_PLAN\`: ` behind, which is the shape this arm refuses.
+    expect(absent).not.toContain("- `INPUT_PLAN`:");
+    expect(absent).not.toContain("- `INPUT_SPEC`:");
+    // And a row that declares no such cell never prints it at all.
+    expect(positionalOf(frameFor(inputsOf()))).not.toContain("INPUT_RULINGS");
   });
 });
 

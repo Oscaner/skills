@@ -16,11 +16,15 @@
 //
 // The prompt band and the two bytes it is joined from belong to the render face, so they arrive
 // as an injected READ (the same convention the brief face follows): the composition root hands
-// the `surface/render/templates.ts` renderer in, and this file names only the four reads it
-// uses. The row is selected by the record's own `ROLE` / `TARGET_TYPE` cells, and the assembly
-// only fills the `{{TOKEN}}` slots that record carries — the expansion the prompt table
-// delegates to the dispatch input. A record that names no declared row renders nothing, and
-// nothing is a refusal.
+// the `surface/render/templates.ts` renderer in, and this file names only the reads it uses.
+// The row is selected by the record's own `ROLE` / `TARGET_TYPE` cells, and THIS file composes
+// the three zones the child reads — the band's fixed prefix, the shared return zone, and the
+// row's declared round context — resolving each cell three-state (a value renders the line, an
+// empty value drops it or prints the bare literal `none`) and expanding the shell's two slot
+// forms (the declared `{{> cl:…}}` clause partials and the record's `{{TOKEN}}` cells). The
+// layout and the clauses are the render face's DATA, so no clause sentence and no context line
+// is spelled here. A record that names no declared row renders nothing, and nothing is a
+// refusal.
 //
 // The host difference is DATA: the command, the invoke prefix, the prompt form and the child env
 // are four columns of the harness contract, so the only branch here is "which host row", and the
@@ -50,18 +54,35 @@ export interface DispatchFrameSource {
   readonly type: TargetType;
 }
 
-/** The prompt band read — the injected render face's four reads, one per declared prompt
- *  family (`surface/render/templates.ts#PromptBandsRenderer` satisfies it). Declared here so
- *  the dispatch segment names no byte and no render implementation. */
+/** One round-context line, as the render face declares it — the line with its `{{TOKEN}}`
+ *  slot, and what an empty value prints (`drop` the line, or the bare literal `none`).
+ *  `surface/render/templates.ts#ContextLine` satisfies it structurally. */
+export interface PromptBandLine {
+  readonly line: string;
+  readonly absent: "drop" | "none";
+}
+
+/** One band's three declared parts, as the render face hands them over: the fixed prefix (the
+ *  version line and the row's shell), the ONE shared return zone, and the row's round-context
+ *  layout. The assembly composes the prompt from these; none of them is re-spelled here. */
+export interface PromptBandParts {
+  readonly fixed: readonly string[];
+  readonly returning: readonly string[];
+  readonly layout: readonly PromptBandLine[];
+}
+
+/** The prompt band read — the injected render face's declared rows, clauses and families
+ *  (`surface/render/templates.ts#PromptBandsRenderer` satisfies it). Declared here so the
+ *  dispatch segment names no byte and no render implementation. */
 export interface PromptBandRead {
   /** The work modes the table declares (`implement` · `fix` · `docs-fix`). */
   modes(): readonly string[];
-  /** One work mode's band. */
-  prompt(mode: string): string;
   /** The target types the review band declares. */
   reviewTypes(): readonly string[];
-  /** One review target's band. */
-  review(type: string): string;
+  /** One declared band's three parts, by family and key. */
+  bandOf(family: "work" | "review", key: string): PromptBandParts;
+  /** The `{{> cl:…}}` clause partials the shells name. */
+  clauses(): Readonly<Record<string, string>>;
 }
 
 /** The declared inputs of one assembly. Every cell names its supplier and none is derived from
@@ -93,22 +114,59 @@ export type DispatchAssemblyOutcome =
   | { readonly kind: "empty-prompt"; readonly briefPath: RepoPath };
 
 /** One round's prompt band: the record's own `ROLE` / `TARGET_TYPE` cells select the declared
- *  row, and a record naming no row renders nothing (the empty render the caller refuses). */
-const bandOf = (prompts: PromptBandRead, values: DispatchValuesRecord): string => {
+ *  row, and a record naming no row selects none (the empty render the caller refuses). */
+const bandOf = (prompts: PromptBandRead, values: DispatchValuesRecord): PromptBandParts | null => {
   const role = values.ROLE ?? "";
   if (role === "review") {
     const type = values.TARGET_TYPE ?? "";
-    return prompts.reviewTypes().includes(type) ? prompts.review(type) : "";
+    return prompts.reviewTypes().includes(type) ? prompts.bandOf("review", type) : null;
   }
-  return prompts.modes().includes(role) ? prompts.prompt(role) : "";
+  return prompts.modes().includes(role) ? prompts.bandOf("work", role) : null;
 };
 
-/** The band with its `{{TOKEN}}` slots filled from the record — a slot the record does not
- *  carry keeps its spelling, so an unfilled token stays visible instead of printing empty. A
- *  clause slot (`{{> cl:…}}`) is not a value slot: it expands from the clause declaration the
- *  prompt data carries, never from this record, so this fill leaves it alone. */
-const filledBand = (band: string, values: DispatchValuesRecord): string =>
-  band.replace(/\{\{([A-Z0-9_]+)\}\}/g, (whole, name: string) => values[name] ?? whole);
+/** One declared round-context line, resolved three-state: a value renders the line, an empty
+ *  one drops it, unless the line declares `none` — then absence is itself the fact and the
+ *  bare literal prints in the slot's place. */
+const laidOut = (
+  layout: readonly PromptBandLine[],
+  values: DispatchValuesRecord,
+): readonly string[] =>
+  layout.flatMap((decl) => {
+    const slot = /\{\{([A-Z0-9_]+)\}\}/.exec(decl.line)?.[1];
+    if (slot === undefined) return [decl.line];
+    if ((values[slot] ?? "") !== "") return [decl.line];
+    return decl.absent === "none" ? [decl.line.replace(/\{\{[A-Z0-9_]+\}\}/, "none")] : [];
+  });
+
+/** The two slot forms, in ONE pass: a `{{> cl:<key>}}` partial resolves to the clause table's
+ *  bytes, a `{{TOKEN}}` slot to the record's own cell. An unresolved spelling stays visible
+ *  rather than printing empty — a prompt missing a clause must read as broken, not as done. */
+const filled = (
+  text: string,
+  values: DispatchValuesRecord,
+  clauses: Readonly<Record<string, string>>,
+): string =>
+  text
+    .replace(
+      /\{\{> cl:([A-Za-z0-9-]+)\}\}/g,
+      (whole, name: string) => clauses[`cl:${name}`] ?? whole,
+    )
+    .replace(/\{\{([A-Z0-9_]+)\}\}/g, (whole, name: string) => values[name] ?? whole);
+
+/** The three-zone prompt the child receives — the band's fixed prefix, blank line, the shared
+ *  return zone, blank line, the row's declared round context — filled in one pass. */
+const promptOf = (
+  parts: PromptBandParts,
+  values: DispatchValuesRecord,
+  clauses: Readonly<Record<string, string>>,
+): string => {
+  const zones = [
+    parts.fixed.join("\n"),
+    parts.returning.join("\n"),
+    laidOut(parts.layout, values).join("\n"),
+  ];
+  return filled(zones.join("\n\n"), values, clauses);
+};
 
 /** The dispatch slot of one frame — the review faces read the phase/type row of the dispatch
  *  table, the implement face reads its single string slot, and the fix face plus the spec /
@@ -143,7 +201,8 @@ export const childPromptOf = (form: PromptForm, ref: string | null, prompt: stri
  * header).
  */
 export const assembleDispatchFrame = (inputs: DispatchAssembly): DispatchAssemblyOutcome => {
-  const prompt = filledBand(bandOf(inputs.prompts, inputs.values), inputs.values);
+  const parts = bandOf(inputs.prompts, inputs.values);
+  const prompt = parts === null ? "" : promptOf(parts, inputs.values, inputs.prompts.clauses());
   if (prompt.trim().length === 0) return { kind: "empty-prompt", briefPath: inputs.briefPath };
   const row = HOSTS[inputs.host];
   const invokePrefix = row.invoke.split(" ").filter((part) => part.length > 0);

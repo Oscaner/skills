@@ -12,7 +12,7 @@
 // them as the shape they claim.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { FROZEN_DATE } from "./non-tree.ts";
@@ -361,6 +361,10 @@ export interface TreeFixture {
    *  directory, not a file (the record's own bytes are unreadable, the lock is what the
    *  holder left behind). */
   readonly directories?: readonly string[];
+  /** Repo-relative paths whose permission bits are cleared after the tree lands — an
+   *  EXISTING target that cannot be read, which is a different fact from an absent one
+   *  (the two print different bytes at the same exit code). */
+  readonly unreadable?: readonly string[];
 }
 
 /** The holder facts a live/stale in-flight fixture needs. */
@@ -404,6 +408,10 @@ export interface TreeOptions {
   /** Give the `overall` shape's phase one completed round on each line its program-board row
    *  summarises (`phase-spec` · `plan` · `branch`), so the phase row prints its cells. */
   readonly phaseCells?: boolean;
+  /** Repo-relative paths to land and then make UNREADABLE — the "exists but cannot be read"
+   *  probe axis. The probe and the tree shape hold no mode literal: a fixture declares the
+   *  paths and `materialize` clears their bits. */
+  readonly unreadable?: readonly string[];
 }
 
 /** The in-flight record's two paths — the record and the lock directory beside it. */
@@ -454,7 +462,10 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     text: `${JSON.stringify({ status: "APPROVED", findings: [], notes: [CHILD_NOTE] }, null, 2)}\n`,
   };
   const withCarrier = rounds === "review" || rounds === "closed";
-  const knobs = options.orphanDraft === true ? { orphanDraft: true } : {};
+  const knobs: Partial<TreeFixture> = {
+    ...(options.orphanDraft === true ? { orphanDraft: true } : {}),
+    ...(options.unreadable === undefined ? {} : { unreadable: options.unreadable }),
+  };
   const crashedProgress = (): FixtureFile => ({
     path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
     text: `${JSON.stringify(crashedWaveProgress(), null, 2)}\n`,
@@ -489,6 +500,7 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     shape,
     files: [...docsFor(), progress("none"), { path: inFlightPaths().record, text: '{"pid": 1, ' }],
     directories: [inFlightPaths().lock],
+    ...knobs,
   });
 
   if (options.corruptLock === true) return corruptLock();
@@ -695,5 +707,9 @@ export const materialize = (fixture: TreeFixture): string => {
   }
   spawnSync("git", ["add", "-A"], { cwd: repo });
   spawnSync("git", ["commit", "-q", "-m", "fixture"], { cwd: repo });
+  // Clear the bits AFTER the commit: git must be able to read the blob it records, while the
+  // command under observation must not. A mode-zero file still `stat`s, so the existence
+  // probe and the read probe answer two different facts — which is the whole point.
+  for (const rel of fixture.unreadable ?? []) chmodSync(path.join(repo, rel), 0o000);
   return repo;
 };

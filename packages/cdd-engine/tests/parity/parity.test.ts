@@ -557,18 +557,31 @@ describe("the reconciliation", () => {
       return row === null || !producerWired(row.producer);
     }).map((cell) => cell.id);
     expect([...answer.gaps].sort()).toEqual(unwired.sort());
-    expect(unwired.length).toBeGreaterThan(0);
-    // Nothing has landed yet, so nothing is compared and nothing is missing — and the GAP
-    // set is the whole applicable corpus, not "everything the recording happened to say".
+    // The wave that lands the last declared producer EMPTIES the GAP set — the invariant is
+    // the equality above ("the GAP set is exactly the roster's unwired cells"), not a
+    // non-zero count. The predicate's own two arms are stitched below so the equality is not
+    // a comparison of two empties.
+    expect(unwired).toEqual([]);
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
+    const stitched = rosterWith({
+      cell: SAMPLE_CELL,
+      task: "T16",
+      producer: "surface/commands/not-yet.ts#NotYet",
+      route: sampleCell().route,
+    });
+    const gapped = await reconcile(CORPUS, baseline, stitched);
+    expect(gapped.gaps).toContain(SAMPLE_CELL);
   });
 
   it("treats a producer landing as wiring, not as a hidden gap", () => {
     // The reading of "wired" is the producer's own landing — a path that exists and exports
     // the name. Both directions are exercised so the predicate is not a stub.
     expect(producerWired("env/index.ts#Env")).toBe(true);
-    expect(producerWired("surface/commands/implement.ts#ImplementCommand")).toBe(false);
+    // The command face's producers landed with the shells, so the same predicate answers
+    // `true` for them — and `false` for a module no landing declares.
+    expect(producerWired("surface/commands/implement.ts#ImplementCommand")).toBe(true);
+    expect(producerWired("surface/commands/not-yet.ts#NotYet")).toBe(false);
   });
 
   it("answers the brief's one call — compareTree reports the wired cells' byte differences", async () => {
@@ -604,7 +617,9 @@ describe("the reconciliation", () => {
       rosterOf({
         cell: cell.id,
         task: "T16",
-        producer: "surface/commands/implement.ts#ImplementCommand",
+        // A producer no module carries — the arm is about the UNLANDED branch, so it must
+        // not name one of the shells this wave landed.
+        producer: "surface/commands/not-yet.ts#NotYet",
         route: cell.route,
       }),
       { newTree: NewTree.unwired() },

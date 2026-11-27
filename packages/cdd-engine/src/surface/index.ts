@@ -30,12 +30,36 @@
 //
 // Module-level exports are types and the class — zero behaviour-carrying bare functions.
 
+import { type Command, CommanderError } from "commander";
 import type { TaskBlocks } from "../docs/grammar/task-blocks.ts";
+import type { Documents } from "../docs/index.ts";
 import { Clock } from "../env/process/clock.ts";
-import type { FrameFacts } from "../run/advance/frame.ts";
+import type { Provisioner } from "../env/provision/init.ts";
+import type { FrameFacts, FrameRequest } from "../run/advance/frame.ts";
 import type { NextHop } from "../run/advance/next.ts";
+import { TargetFaces } from "../run/advance/target-faces.ts";
+import type { WaveVerdict } from "../run/advance/wave.ts";
 import type { InFlightState } from "../run/dispatch/inflight.ts";
-import type { CheckedRow } from "../run/gate/preflight.ts";
+import type { CheckedRow, PreFlightVerdict } from "../run/gate/preflight.ts";
+import type { AdvanceOutcome, BoardOutcome, PreviewOutcome, Run } from "../run/index.ts";
+import { CarrierMismatchError } from "../run/ledger/carrier-line.ts";
+import { BaseCommand, type BaseResolution } from "./commands/base.ts";
+import { BoardCommand, type TargetTypeRead } from "./commands/board.ts";
+import type {
+  CliLeafName,
+  CliOutcome,
+  CliVerb,
+  CommandReporter,
+  ParsedCommand,
+  TextStreams,
+} from "./commands/declare.ts";
+import { FixCommand } from "./commands/fix.ts";
+import { ImplementCommand } from "./commands/implement.ts";
+import { InitCommand } from "./commands/init.ts";
+import { IssueCommand, type StdinRead } from "./commands/issue.ts";
+import { CommandTreeBuilder, ScopeGuard } from "./commands/projection.ts";
+import { ReviewCommand } from "./commands/review.ts";
+import { type RelativePath, SchemaCommand } from "./commands/schema.ts";
 import type { BoardDisplay, BoardShape, BoardValue } from "./render/board.ts";
 import { BoardView, FOLDED_BOARD } from "./render/board.ts";
 import { BriefRenderer } from "./render/brief.ts";
@@ -43,6 +67,7 @@ import type { CapsuleFacts } from "./render/capsule.ts";
 import { Capsule } from "./render/capsule.ts";
 import type { GraphTree } from "./render/graph.ts";
 import { GraphView } from "./render/graph.ts";
+import type { InitLine } from "./render/init.ts";
 import { InitRenderer } from "./render/init.ts";
 import type { IssueReport } from "./render/issue.ts";
 import { IssueBodyRenderer } from "./render/issue.ts";
@@ -139,6 +164,24 @@ export interface CliOptions {
    *  command tree injects it; an unwired surface answers the empty line, which the usage face
    *  renders as no line at all rather than a fabricated one. */
   readonly usageLine?: (commandPath: string) => string;
+  /** The two writers every byte goes through — one pair, so the `init` face's progress rows
+   *  and its first-failure report cannot be handed two different stdout spellings. */
+  readonly io?: TextStreams;
+  /** The round layer's ONE entrance — the work commands and the board read through it. */
+  readonly run?: Run;
+  /** The document slice's ONE entrance — the two schema faces. */
+  readonly documents?: Documents;
+  /** The base artifact's resolver: an argv `--plan` to a workspace artifact. Absent leaves
+   *  `base` refusing with its own named error instead of guessing a workspace. */
+  readonly base?: (planArg: string) => BaseResolution;
+  /** The board's entry-document type read — the board's one non-argv cell. */
+  readonly boardType?: TargetTypeRead;
+  /** The one relativize landing the schema target takes. */
+  readonly relative?: RelativePath;
+  /** The stdin read the issue face consumes. */
+  readonly stdin?: StdinRead;
+  /** The harness provisioner the `init` face drives. */
+  readonly provisioner?: Provisioner;
 }
 
 /**
@@ -169,14 +212,29 @@ export class Cli {
   /** The two prompt bands — one renderer over the declared rows. */
   readonly prompts: PromptBandsRenderer;
 
+  /** The two writers every byte goes through. */
+  readonly #io: TextStreams;
+  /** The declaration's ONE projection — the parse tree and the usage line's home. */
+  readonly #builder: CommandTreeBuilder;
+  /** The pure commands' scope rejection. */
+  readonly #scope = new ScopeGuard();
+  /** The entries the shells call; a missing one turns its command into a named refusal. */
+  readonly #entries: CommandEntries;
+  /** The per-invocation exit code the thin shells capture — `commander` discards an
+   *  action's return value, so the shell writes the run's code here. */
+  #exitCode = 0;
+
   constructor(opts: CliOptions = {}) {
     this.words = new Words({ clock: opts.clock ?? new Clock() });
     this.route = new RouteRenderer(this.words, {
       ...(opts.host === undefined ? {} : { host: opts.host }),
     });
+    // The projection first: the usage face's line is that tree's own first help line, so the
+    // default derivations point at the tree this surface just assembled.
+    this.#builder = new CommandTreeBuilder();
     this.usage = new UsageFace({
       words: this.words,
-      usageLine: opts.usageLine ?? (() => ""),
+      usageLine: opts.usageLine ?? ((commandPath) => this.#builder.usageLineOf(commandPath)),
     });
     this.capsule = new Capsule(this.words, this.route);
     this.board = new BoardView(this.words, this.route);
@@ -186,6 +244,18 @@ export class Cli {
     this.init = new InitRenderer();
     this.graph = new GraphView(this.words);
     this.prompts = new PromptBandsRenderer();
+    this.#io = opts.io ?? Cli.#processWriters();
+    this.#entries = {
+      run: opts.run,
+      documents: opts.documents,
+      base: opts.base,
+      boardType: opts.boardType,
+      relative: opts.relative,
+      stdin: opts.stdin,
+      provisioner: opts.provisioner,
+    };
+    Cli.#wireOutput(this.#builder.program, this.#io);
+    this.#wireActions();
   }
 
   /** One work mode's dispatch prompt band. */
@@ -198,8 +268,10 @@ export class Cli {
     return this.prompts.review(type);
   }
 
-  /** One misuse or declared failure's bytes. */
-  report(value: UsageInput, commandPath = ""): UsageReport {
+  /** One misuse or declared failure's bytes, as a VALUE — the rendering half of the one
+   *  output face, kept apart from `report` (which writes and answers an exit code) so a pin
+   *  can assert bytes without a stream. */
+  usageReport(value: UsageInput, commandPath = ""): UsageReport {
     return this.usage.report(value, commandPath);
   }
 
@@ -297,4 +369,422 @@ export class Cli {
   ): string {
     return this.brief.render(text, blocks, tasks, notes);
   }
+
+  // -------------------------------------------------------------------------
+  // the command face — parse, dispatch to one shell, write through one pair
+  // -------------------------------------------------------------------------
+
+  /** The declaration's ONE projection, as the parse tree a process wrapper hands its argv. */
+  get program(): Command {
+    return this.#builder.program;
+  }
+
+  /** One command node's first help line — the usage byte's ONE derivation. */
+  usageLineOf(commandPath: string): string {
+    return this.#builder.usageLineOf(commandPath);
+  }
+
+  /** `run(argv)` — the command face: parse through the projection, dispatch the parsed
+   *  command to its ONE shell, return that shell's exit code. A parse rejection is
+   *  normalized into the declared exit-code table (0 help · 2 usage · 1 failure). */
+  async run(argv: readonly string[]): Promise<number> {
+    try {
+      this.#exitCode = 0;
+      await this.#builder.program.parseAsync([...argv], { from: "user" });
+      return this.#exitCode;
+    } catch (raw) {
+      return this.#normalizeExit(raw);
+    }
+  }
+
+  /** The ONE output face — a declared answer becomes bytes on its own stream and an exit
+   *  code. Every shell hands its entry's return value here unchanged, so no shell picks a
+   *  stream and none spells a byte. */
+  report(outcome: CliOutcome, commandPath: string): number {
+    switch (outcome.kind) {
+      case "advance-entry":
+        return this.#reportAdvance(outcome.value, outcome.request);
+      case "preview-entry":
+        return this.#reportPreview(outcome.value, outcome.request);
+      case "board-entry":
+        return this.#reportBoard(outcome.value, outcome.display);
+      case "base-read":
+        return outcome.value.kind === "artifact"
+          ? this.#write("stdout", `${JSON.stringify(outcome.value.value, null, 2)}\n`)
+          : this.#reportUsage(outcome.value, commandPath);
+      case "base-write":
+        return outcome.value.kind === "written"
+          ? this.#write("stdout", `${outcome.value.target}\n`)
+          : this.#reportUsage(
+              { kind: "base-conflict", existing: outcome.value.existing.base },
+              commandPath,
+            );
+      case "projection":
+        return outcome.value.kind === "projection"
+          ? this.#write("stdout", outcome.value.text)
+          : this.#reportUsage(outcome.value, commandPath);
+      case "skeleton":
+        if (outcome.value.kind === "written") {
+          return this.#write("stdout", `${outcome.value.target}\n`);
+        }
+        return this.#reportUsage(outcome.value, commandPath);
+      case "issue-report":
+        return this.#write(outcome.report.stream, outcome.report.text, outcome.report.exitCode);
+      case "init":
+        this.progress(outcome.lines);
+        return outcome.exitCode;
+      default:
+        return this.#reportUsage(outcome, commandPath);
+    }
+  }
+
+  /** Lines a long-running step produced before its next action — the `init` progress row,
+   *  which must land ahead of the spawn it announces. Each line carries its own stream, so
+   *  this routes through the same pair `report` writes through. */
+  progress(lines: readonly InitLine[]): void {
+    for (const line of lines) {
+      this.#io[line.stream](line.text.endsWith("\n") ? line.text : `${line.text}\n`);
+    }
+  }
+
+  /** One misuse or declared failure, written — the usage face's report on its own stream. */
+  #reportUsage(value: UsageInput, commandPath: string): number {
+    const report = this.usage.report(value, commandPath);
+    return this.#write(report.stream, report.text, report.exitCode);
+  }
+
+  /** One board read — the rows on stdout, or the declared usage value. The layout is picked
+   *  by the read's own phase rows (a charter answers them), never by an argv word. */
+  #reportBoard(outcome: BoardOutcome, display: BoardDisplay): number {
+    if (outcome.kind !== "board") return this.#reportUsage(outcome, "board");
+    const shape: BoardShape = outcome.phases.length > 0 ? "program" : "node";
+    for (const line of this.boardRows(outcome, shape, display)) this.#io.stdout(`${line}\n`);
+    return 0;
+  }
+
+  /**
+   * One dispatch step's declared answer.
+   *
+   * The `dispatch` arm does NOT render here. Its capsule needs three cells the step does not
+   * put on `AdvanceOutcome` — the round's conclusion word, its carrier coordinate, and the
+   * `NextHop` the `next:` / `reason:` rows are read from (`StepResult` carries the route's
+   * `Route`, not the hop). A capsule rendered without them would print a status line with no
+   * word, so this arm refuses by NAME: a loud gap beats a plausible-looking wrong byte.
+   */
+  #reportAdvance(outcome: AdvanceOutcome, request: FrameRequest): number {
+    if (outcome.kind === "dispatch") throw new Error(CAPSULE_CELLS_ABSENT);
+    if (outcome.kind === "held") return this.#reportHeld(outcome.state, outcome.checked);
+    if (outcome.kind === "blocked") {
+      return this.#reportBlocked(outcome.verdict, outcome.leg, request, outcome.checked);
+    }
+    return this.#reportUsage(outcome, request.command);
+  }
+
+  /** The in-flight gate's hold — the `CDD_BLOCKED` anchor, the holder's own report, then the
+   *  rows that ran. */
+  #reportHeld(state: InFlightState, checked: readonly CheckedRow[]): number {
+    const message = this.#heldReport(state);
+    this.#io.stderr(`${this.words.station("blocked")} ${message}\n`);
+    this.#writeChecked(checked);
+    return 1;
+  }
+
+  /** The held sentence of one occupancy — the holder's own report with the word table's
+   *  slots filled, the corrupt-lock row when the record could not be read, or the free
+   *  sentence when nothing claims the tree. */
+  #heldReport(state: InFlightState): string {
+    if (state.kind === "held") {
+      const record = state.record;
+      return this.words.inFlightHeld({
+        pid: record.pid,
+        command: record.command,
+        startedAt: record.startedAt,
+        wave: record.wave,
+        slug: record.slug,
+      });
+    }
+    if (state.kind === "corrupt") return this.words.refusalReason("corrupt-record");
+    return this.words.checkedWords().inFlight.free;
+  }
+
+  /** A refused dispatch — the structure leg's own channel or the line leg's one line, its
+   *  detail rows, then the rows that ran. */
+  #reportBlocked(
+    verdict: PreFlightVerdict | WaveVerdict,
+    leg: "structure" | "line",
+    request: FrameRequest,
+    checked: readonly CheckedRow[],
+  ): number {
+    if (leg === "line") {
+      const phase = CDD_PHASE_OF.of(request.command, request.type);
+      this.#io.stderr(
+        `${this.route.lineRefusalText(request.command, phase, verdict as WaveVerdict)}\n`,
+      );
+    } else {
+      this.#writeStructureBlocked(request.command, verdict as PreFlightVerdict);
+    }
+    this.#writeChecked(checked);
+    return 1;
+  }
+
+  /** The structure leg's line — the `CDD_BLOCKED` anchor for the rows that own that channel,
+   *  the command channel for the two that keep their own face, then the detail rows. */
+  #writeStructureBlocked(verb: string, verdict: PreFlightVerdict): void {
+    const body = this.route.refusalBody(verdict);
+    const anchor = CDD_BLOCKED_GATES.includes(verdict.gate ?? "")
+      ? `${this.words.station("blocked")} ${body}`
+      : `cdd ${verb}: ${body}`;
+    this.#io.stderr(`${anchor}\n`);
+    for (const detail of this.route.refusalDetails(verdict)) this.#io.stderr(`${detail}\n`);
+  }
+
+  /** The `checked:` block, on the diagnostic stream the real dispatch reports it through. */
+  #writeChecked(checked: readonly CheckedRow[]): void {
+    for (const line of this.checkedBlock(checked)) this.#io.stderr(`${line}\n`);
+  }
+
+  /** One dry-run forecast — the passing block (its `checked:` rows on the diagnostic stream,
+   *  exactly where the real dispatch reports them), the held block, the blocked block or the
+   *  line-leg refusal, and the declared usage value on the usage face. */
+  #reportPreview(outcome: PreviewOutcome, request: FrameRequest): number {
+    if (outcome.kind === "usage" || outcome.kind === "read-failure") {
+      return this.#reportUsage(outcome, request.command);
+    }
+    if (outcome.kind === "refused") {
+      return this.#reportBlocked(outcome.verdict, "line", request, outcome.checked);
+    }
+    if (outcome.kind === "held") {
+      return this.#writeLines(
+        "stdout",
+        this.previewHeld(request.command, outcome.state, outcome.checked),
+        1,
+      );
+    }
+    if (outcome.kind === "blocked") {
+      return this.#writeLines(
+        "stdout",
+        this.previewBlocked(
+          request.command,
+          this.route.refusalBody(outcome.verdict),
+          this.route.refusalDetails(outcome.verdict),
+          outcome.checked,
+        ),
+        1,
+      );
+    }
+    this.#writeChecked(outcome.checked);
+    return this.#writeLines(
+      "stdout",
+      this.preview.passBlock({
+        frame: outcome.frame,
+        host: outcome.host,
+        brief: outcome.brief,
+        writes: outcome.writes,
+        ledger: outcome.ledger,
+      }),
+      0,
+    );
+  }
+
+  /** Lines and an exit code — the one writer both blocks use. */
+  #writeLines(stream: "stdout" | "stderr", lines: readonly string[], exitCode: number): number {
+    for (const line of lines) this.#io[stream](`${line}\n`);
+    return exitCode;
+  }
+
+  /** One byte write, answering the caller's exit code (0 when it carries none). */
+  #write(stream: "stdout" | "stderr", text: string, exitCode = 0): number {
+    this.#io[stream](text);
+    return exitCode;
+  }
+
+  // -------------------------------------------------------------------------
+  // the actions — one thin shell per command node
+  // -------------------------------------------------------------------------
+
+  /** Attach one action per command node and per leaf. `commander` discards an action's
+   *  return value, so each shell writes the run's code into `#exitCode`. */
+  #wireActions(): void {
+    const attach = (node: Command, leaf: CliLeafName | null): void => {
+      node.action(async (...args: unknown[]) => {
+        const command = args[args.length - 1] as Command;
+        this.#exitCode = await this.#dispatch(leaf, command);
+      });
+    };
+    for (const verb of ["implement", "review", "fix", "board", "init"] as const) {
+      attach(Cli.#nodeOf(this.#builder.program, verb, null), null);
+    }
+    attach(Cli.#nodeOf(this.#builder.program, "base", "set"), "set");
+    attach(Cli.#nodeOf(this.#builder.program, "base", "get"), "get");
+    attach(Cli.#nodeOf(this.#builder.program, "schema", "get"), "get");
+    attach(Cli.#nodeOf(this.#builder.program, "issue", "render"), "render");
+  }
+
+  /** One node of the assembled tree, by verb and (when it is a leaf) by its own name. */
+  static #nodeOf(program: Command, verb: CliVerb, leaf: string | null): Command {
+    const parent = program.commands.find((candidate) => candidate.name() === verb);
+    if (parent === undefined) throw new Error(`cdd: no command node "${verb}"`);
+    if (leaf === null) return parent;
+    const node = parent.commands.find((candidate) => candidate.name() === leaf);
+    if (node === undefined) throw new Error(`cdd: no leaf node "${verb} ${leaf}"`);
+    return node;
+  }
+
+  /** One invocation: read the parsed cells, run the scope guard, hand them to the ONE shell. */
+  async #dispatch(leaf: CliLeafName | null, command: Command): Promise<number> {
+    const parsed = this.#parsedOf(leaf, command);
+    const rejection = this.#scope.rejectionOf({
+      commandPath: parsed.commandPath,
+      dryRun: parsed.dryRun,
+    });
+    if (rejection !== null) return this.report(rejection, parsed.commandPath);
+    const report = this.#reporter;
+    switch (parsed.commandPath) {
+      case "implement":
+        return new ImplementCommand({ run: this.#need("run"), report }).run(parsed);
+      case "review":
+        return new ReviewCommand({ run: this.#need("run"), report }).run(parsed);
+      case "fix":
+        return new FixCommand({ run: this.#need("run"), report }).run(parsed);
+      case "board":
+        return await new BoardCommand({
+          run: this.#need("run"),
+          typeOf: (request) => this.#need("boardType")(request),
+          report,
+        }).run(parsed);
+      case "base set":
+      case "base get":
+        return new BaseCommand({
+          resolve: (plan) => this.#need("base")(plan),
+          report,
+        }).run(parsed);
+      case "schema get":
+        return new SchemaCommand({
+          documents: this.#need("documents"),
+          relative: (raw) => this.#need("relative")(raw),
+          report,
+        }).run(parsed);
+      case "issue render":
+        return new IssueCommand({
+          renderer: this.issue,
+          stdin: this.#need("stdin"),
+          report,
+        }).run(parsed);
+      default:
+        return await new InitCommand({
+          provisioner: this.#need("provisioner"),
+          renderer: this.init,
+          report,
+        }).run(parsed);
+    }
+  }
+
+  /** The reporter this surface hands every shell — the same instance for all eight, so no
+   *  shell can hold a second output face. */
+  get #reporter(): CommandReporter {
+    return {
+      report: (outcome, commandPath) => this.report(outcome, commandPath),
+      progress: (lines) => this.progress(lines),
+    };
+  }
+
+  /** One injected entry, refusing by NAME when the surface was constructed without it. */
+  #need<K extends keyof CommandEntries>(key: K): NonNullable<CommandEntries[K]> {
+    const value = this.#entries[key];
+    if (value === undefined) throw new Error(`cdd: ${String(key)} is not wired on this surface`);
+    return value as NonNullable<CommandEntries[K]>;
+  }
+
+  /** The parsed cells — `commander`'s own opts widened to the shell's reading: booleans as
+   *  `"true"` / `"false"`, everything else as its string form, plus the positionals and the
+   *  program flag. */
+  #parsedOf(leaf: CliLeafName | null, command: Command): ParsedCommand {
+    const globals = command.optsWithGlobals() as Record<string, unknown>;
+    const args: Record<string, string> = {};
+    for (const [key, value] of Object.entries(globals)) {
+      if (value === undefined) continue;
+      args[key] = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
+    }
+    const parent = command.parent;
+    const commandPath =
+      parent === null || parent.name() === "cdd"
+        ? command.name()
+        : `${parent.name()} ${command.name()}`;
+    return {
+      commandPath,
+      leaf,
+      args,
+      positionals: (command.processedArgs as readonly unknown[]).map(String),
+      dryRun: globals.dryRun === true,
+    };
+  }
+
+  /** The exit-code discriminator — the declared table: the explicit help faces exit 0, the
+   *  help face's non-zero entries and every usage-class code exit 2, a run failure exits 1. */
+  #normalizeExit(raw: unknown): number {
+    if (raw instanceof CarrierMismatchError) {
+      this.#io.stderr(`${this.words.station("blocked")} ${raw.message}\n`);
+      return 1;
+    }
+    if (raw instanceof CommanderError) {
+      if (raw.code === "commander.help") return raw.exitCode === 0 ? 0 : 2;
+      if (raw.code === "commander.helpDisplayed") return 0;
+      if (!raw.message.startsWith("error: ")) this.#io.stderr(`error: ${raw.message}\n`);
+      return 2;
+    }
+    this.#io.stderr(`cdd: ${raw instanceof Error ? raw.message : String(raw)}\n`);
+    return 1;
+  }
+
+  /** The living process's two writers — the default the composition root may override. */
+  static #processWriters(): TextStreams {
+    return {
+      stdout: (text) => process.stdout.write(text),
+      stderr: (text) => process.stderr.write(text),
+    };
+  }
+
+  /** Wire ONE node's output into the injected pair. A subcommand's help is written through
+   *  the subcommand's own configuration, so the whole tree is wired, never just the program. */
+  static #wireOutput(node: Command, io: TextStreams): void {
+    node.configureOutput({ writeOut: io.stdout, writeErr: io.stderr });
+    for (const child of node.commands) Cli.#wireOutput(child, io);
+  }
+}
+
+/** One dispatch step's capsule cells, as this surface needs and does not have them. */
+const CAPSULE_CELLS_ABSENT =
+  "cdd: the dispatch step's capsule is not renderable at the surface — AdvanceOutcome carries " +
+  "the round's route but not its conclusion word, its carrier coordinate or its NextHop";
+
+/** The work verbs' expected phase — the verb's own word, or the target row's review lead. */
+const CDD_PHASE_OF = {
+  of(command: string, type: FrameRequest["type"]): string {
+    if (command === "implement" || command === "fix") return command;
+    return TargetFaces.reviewLeadOf(type);
+  },
+};
+
+/** The pre-flight rows that own the `CDD_BLOCKED` channel. The other refusing rows (`graph` ·
+ *  `plan-ledger`) keep their own `cdd <verb>:` face. */
+const CDD_BLOCKED_GATES: readonly string[] = [
+  "tree-clean",
+  "in-flight",
+  "doc-contract",
+  "no-host",
+  "carrier",
+  "dispatch-input",
+  "artifact",
+];
+
+/** The entries a shell calls — every one injected by the composition root, none constructed
+ *  here. A surface built without one refuses that command by name instead of guessing. */
+interface CommandEntries {
+  readonly run?: Run;
+  readonly documents?: Documents;
+  readonly base?: (planArg: string) => BaseResolution;
+  readonly boardType?: TargetTypeRead;
+  readonly relative?: RelativePath;
+  readonly stdin?: StdinRead;
+  readonly provisioner?: Provisioner;
 }

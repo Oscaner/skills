@@ -31,6 +31,7 @@ program's, so no knob of the other shapes can stand in for it:
 | `artifactArms` | carries the inventory's two arms: a review round whose rulings sidecar sits at its rendered name (read `ok`) and a review round whose carrier stands but whose sidecar is absent (read `absent`) |
 | `twoWaves` | declares a two-wave plan — two chained tasks, and a progress document recording BOTH wave rows: the board's segment then has two rows to place one frontier marker and one label column on |
 | `phaseCells` | gives the `overall` shape's phase one completed round on each line its program-board row summarises (`phase-spec` · `plan` · `branch`), so the phase row prints its cells |
+| `unreadable` | repo-relative paths that land and then have their permission bits cleared — an EXISTING target that cannot be read. The probes and the tree shapes hold no mode literal: a fixture declares the paths and `materialize` clears their bits after the commit (git must be able to read the blob it records; the command under observation must not) |
 
 The three cause fixtures the refusal cells need are shapes with knobs, never new shapes:
 a wide wave is `wave` + `tasks: 4`; a split is `wave` + `tasks: 2` requested as one task;
@@ -76,6 +77,24 @@ cdd board: no docs match --plan docs/kairos/plans/p9.md
 ```
 Usage: cdd implement [options]
 error: cannot read file: docs/kairos/plans/p9.md
+```
+
+### `wave` with `unreadable: [<the plan>]`
+
+The "exists but cannot be read" axis, on its own, because the two failure families answer
+the same exit code and different bytes:
+
+`cdd board --plan docs/kairos/plans/p9.md` (exit 2)
+
+```
+cdd board: cannot read --plan docs/kairos/plans/p9.md
+```
+
+`cdd board --plan docs/kairos/plans/absent.md` (exit 2) — the ABSENT arm, which is what a
+probe would record instead if it swapped one target for the other:
+
+```
+cdd board: no docs match --plan docs/kairos/plans/absent.md
 ```
 
 ### `wave`

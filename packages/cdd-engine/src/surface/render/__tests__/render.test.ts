@@ -1435,10 +1435,10 @@ describe("the surface door", () => {
   it("routes a misuse through the usage face and the body through the issue face", async () => {
     const cli = new Cli({ clock: CLOCK, usageLine: (path) => `Usage: cdd ${path}` });
     expect(
-      cli.report({ kind: "usage", reason: { kind: "no-frame", command: "review" } }).exitCode,
+      cli.usageReport({ kind: "usage", reason: { kind: "no-frame", command: "review" } }).exitCode,
     ).toBe(1);
     expect(
-      cli.report({ kind: "usage", reason: { kind: "missing-plan-or-spec" } }, "board").text,
+      cli.usageReport({ kind: "usage", reason: { kind: "missing-plan-or-spec" } }, "board").text,
     ).toBe("Usage: cdd board\nerror: cdd board: pass --plan and/or --spec\n");
     expect(cli.issueReport("{ not json").exitCode).toBe(1);
     expect(cli.briefName(passFrame())).toBe("tasks-1-brief.md");

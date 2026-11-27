@@ -173,6 +173,22 @@ const PLAN = PLAN_REL;
 /** The phase-spec path — the `--spec` target of every `--type phase-spec` probe. */
 const SPEC = SPEC_REL;
 
+/** A plan path the tree does NOT carry — the board's `no docs match` attribution. */
+const ABSENT_PLAN = "docs/kairos/plans/absent.md";
+
+/** A second absent path, so the two-flag attribution can join two misses with ` and `. */
+const ABSENT_SPEC = "docs/kairos/specs/absent.md";
+
+/** A target the json schema face refuses for being present at all. */
+const SPARE_TARGET = "spare.md";
+
+/** The existing DIRECTORY a skeleton landing cannot be written over — `.git` is planted by
+ *  every fixture's `git init`, so the write-failure probe needs no new knob. */
+const EXISTING_DIRECTORY = ".git";
+
+/** A task id no fixture plan declares — the plan-membership refusals' one input. */
+const UNDECLARED_TASK = "9";
+
 /** The carrier a phase-spec review round leaves behind — the fix face's `--reviews`. */
 const REVIEWS = `.kairos/cdd/p9/phase-spec-review-1.c1.json`;
 
@@ -501,8 +517,39 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/commands/schema.ts#SchemaCommand",
     probe: { fixture: "empty", argv: ["schema", "get", "plan"] },
   },
-  { key: "f1.schema-get.refusal", face: "f1", route: "not-applicable", task: "—", producer: "—" },
-  { key: "f1.schema-get.failure", face: "f1", route: "not-applicable", task: "—", producer: "—" },
+  {
+    key: "f1.schema-get.refusal.missing-target",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/schema.ts#SchemaCommand",
+    // The skeleton face with no target: `Documents#skeletonAt` answers the declared
+    // `missing-target` value, and the shell hands it over unchanged.
+    probe: { fixture: "empty", argv: ["schema", "get", "plan", "--output", "skeleton"] },
+  },
+  {
+    key: "f1.schema-get.refusal.extra-target",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/schema.ts#SchemaCommand",
+    // The json face handed a target it does not take: `Documents#projectOf` answers
+    // `extra-target`. Two refusals, two values — never one blanket "refused".
+    probe: { fixture: "empty", argv: ["schema", "get", "plan", SPARE_TARGET] },
+  },
+  {
+    key: "f1.schema-get.failure",
+    face: "f1",
+    route: "failure",
+    task: "T16",
+    producer: "surface/index.ts#Cli",
+    // The skeleton landing onto an EXISTING directory: the writer refuses and the value is
+    // the declared write failure, printed as the usage shape's second line.
+    probe: {
+      fixture: "empty",
+      argv: ["schema", "get", "plan", "--output", "skeleton", EXISTING_DIRECTORY],
+    },
+  },
   {
     key: "f1.issue-render.normal",
     face: "f1",
@@ -511,7 +558,17 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/commands/issue.ts#IssueCommand",
     probe: { fixture: "empty", argv: ["issue", "render"], stdin: ISSUE_STDIN },
   },
-  { key: "f1.issue-render.refusal", face: "f1", route: "not-applicable", task: "—", producer: "—" },
+  {
+    key: "f1.issue-render.refusal.validation",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/issue.ts#IssueCommand",
+    // A payload that PARSES and then violates the contract: the renderer's own multi-line
+    // shape. The malformed-JSON cell below is a different byte (one line, another prefix),
+    // so the two are two families and neither substitutes for the other.
+    probe: { fixture: "empty", argv: ["issue", "render"], stdin: '{"type":"bug"}' },
+  },
   {
     key: "f1.issue-render.failure",
     face: "f1",
@@ -537,6 +594,109 @@ export const UNITS: readonly Unit[] = [
     probe: { fixture: "wave", argv: ["board", "--plan", PLAN], before: reviewThenTamper },
   },
   { key: "f1.board.failure", face: "f1", route: "not-applicable", task: "—", producer: "—" },
+  {
+    key: "f1.board.refusal.no-flags",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/board.ts#BoardCommand",
+    // Neither entry flag: the board read answers the declared `missing-plan-or-spec` value
+    // BEFORE it resolves a root or opens a document.
+    probe: { fixture: "empty", argv: ["board"] },
+  },
+  {
+    key: "f1.board.refusal.no-match",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/board.ts#BoardCommand",
+    // A path the tree does not carry: the attribution face's ONE line, no usage prefix.
+    probe: { fixture: "wave", argv: ["board", "--plan", ABSENT_PLAN] },
+  },
+  {
+    key: "f1.board.refusal.no-match-two-flags",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/board.ts#BoardCommand",
+    // Two misses on one line, joined by ` and ` — the ordered list's own rendering.
+    probe: {
+      fixture: "wave",
+      argv: ["board", "--plan", ABSENT_PLAN, "--spec", ABSENT_SPEC],
+    },
+  },
+  {
+    key: "f1.board.refusal.unreadable",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/board.ts#BoardCommand",
+    // An EXISTING target whose bits are cleared: `cannot read`, not `no docs match`. The
+    // two families answer the same exit code and different bytes, so a probe that swapped
+    // one for the other would still pass a "refused" comparison — which is why both exist.
+    probe: {
+      fixture: "wave",
+      options: { unreadable: [PLAN] },
+      argv: ["board", "--plan", PLAN],
+    },
+  },
+  {
+    key: "f1.board.refusal.scope",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/board.ts#BoardCommand",
+    // `--dry-run` on a pure command: the scope row's own rejection, not commander's
+    // `unknown option` byte.
+    probe: { fixture: "empty", argv: ["board", "--dry-run"] },
+  },
+  {
+    key: "f1.schema-get.refusal.scope",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/schema.ts#SchemaCommand",
+    probe: { fixture: "empty", argv: ["schema", "get", "plan", "--dry-run"] },
+  },
+  {
+    key: "f1.implement.refusal.missing-task",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/implement.ts#ImplementCommand",
+    // A task id the plan does not declare. `implement` declares no `--type`, so the probe
+    // carries none — the two-line shape here is the body layer's, while the same request
+    // WITH `--type` would be the parse layer's one-line `unknown option` instead.
+    probe: {
+      fixture: "wave",
+      argv: ["implement", "--tasks", UNDECLARED_TASK, "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f1.review.refusal.missing-task",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/review.ts#ReviewCommand",
+    probe: {
+      fixture: "wave",
+      argv: ["review", "--type", "wave", "--tasks", UNDECLARED_TASK, "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f1.fix.refusal.missing-task",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    probe: {
+      fixture: "wave",
+      argv: ["fix", "--type", "wave", "--tasks", UNDECLARED_TASK, "--plan", PLAN],
+      dispatch: true,
+    },
+  },
   {
     key: "f1.init.normal",
     face: "f1",
@@ -568,6 +728,35 @@ export const UNITS: readonly Unit[] = [
     producer: "surface/index.ts#Cli",
     probe: { fixture: "empty", argv: ["--help"] },
   },
+  // One node per cell: the top-level eight plus the four nested leaves. Each node's
+  // `helpInformation()` first line is the usage byte a body-layer refusal prefixes, so a
+  // node whose head drifted reds here AND at its refusal cell.
+  ...[
+    ["implement"],
+    ["review"],
+    ["fix"],
+    ["base"],
+    ["schema"],
+    ["issue"],
+    ["board"],
+    ["init"],
+    ["base", "set"],
+    ["base", "get"],
+    ["schema", "get"],
+    ["issue", "render"],
+  ].map(
+    (node): Unit => ({
+      key: `f2.help.${node.join("-")}`,
+      face: "f2",
+      route: "normal",
+      task: "T16",
+      producer: "surface/index.ts#Cli",
+      probe: { fixture: "empty", argv: [...node, "--help"] },
+      // The cell records the node's FIRST help line — the usage byte's own derivation, and
+      // the only part of a node's help the refusal face ever prints.
+      project: { stdout: (reading) => reading.stdout.split("\n")[0] ?? "" },
+    }),
+  ),
   {
     key: "f2.usage",
     face: "f2",
@@ -882,6 +1071,32 @@ export const UNITS: readonly Unit[] = [
     task: "T15",
     producer: "surface/render/preview.ts#Preview",
     probe: { ...previewOf(), hostless: true },
+  },
+  {
+    key: "f7.preview.refusal.split",
+    face: "f7",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/render/route.ts#RouteRenderer",
+    // The line leg refusing a FORECAST: the same bytes a real dispatch prints, on stderr,
+    // with the wave board and the rows that ran. A split is the cause whose refusal carries
+    // that board, so this is the family the route face's own detail renderer is judged on.
+    probe: { fixture: "wave", options: { tasks: 2 }, argv: [...previewOf().argv], dispatch: true },
+  },
+  {
+    key: "f7.preview.usage.missing-plan",
+    face: "f7",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/render/usage.ts#UsageFace",
+    // A forecast whose frame cannot assemble at all: the declared usage shape (the node's
+    // usage line plus `error:`), which none of the six passing / holding / blocking cells
+    // can show.
+    probe: {
+      fixture: "empty",
+      argv: ["implement", "--tasks", "1", "--plan", ABSENT_PLAN, "--dry-run"],
+      dispatch: true,
+    },
   },
   // ---- face 8: the blocked face ---------------------------------------------------
   // One blocked dispatch, four projections of it: the `CDD_BLOCKED` sentence, the

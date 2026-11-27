@@ -195,7 +195,8 @@ export class RouteRenderer {
    *  `{slot}` in the byte: the row falls back to the closed form the checked face prints. */
   refusalBody(verdict: RefusalVerdict, fill?: string | null): string {
     const stage = "open" in verdict ? RouteRenderer.#lineCause(verdict) : verdict.gate;
-    const sentence = "open" in verdict ? null : this.#reasonSentence(verdict, fill ?? null);
+    if ("open" in verdict) return `${stage}`;
+    const sentence = this.#reasonSentence(verdict, fill ?? null);
     return sentence === null ? `${stage}` : `${stage} · ${sentence}`;
   }
 
@@ -211,7 +212,22 @@ export class RouteRenderer {
             .map((line) => `  ${line}`)
         : [];
     }
-    return (verdict.details ?? []).map((detail) => `  ${detail}`);
+    // A station refusal's conclusion is the station's OWN body: its first line rides the
+    // anchor (`refusalBody`), and every further line is printed VERBATIM — the rows carry
+    // their own indentation (`  derived:` / `  found:` / `  repair:`), so re-indenting them
+    // here would move a byte the words plane owns.
+    const station = RouteRenderer.#stationDetailOf(verdict);
+    const carried = (verdict.details ?? []).map((detail) => `  ${detail}`);
+    return station === null ? carried : [...station.slice(1), ...carried];
+  }
+
+  /** One station refusal's detail body, split into its lines; null for a named reason (its
+   *  sentence is the word table's) and for a wave-gate verdict. */
+  static #stationDetailOf(verdict: RefusalVerdict): readonly string[] | null {
+    if ("open" in verdict) return null;
+    if (verdict.reason !== undefined) return null;
+    const detail = verdict.record?.detail;
+    return detail === undefined || detail.length === 0 ? null : detail.split("\n");
   }
 
   /** The task face's refusal line — `cdd <verb>: cannot dispatch a <phase> round — <reject>`,
@@ -260,7 +276,9 @@ export class RouteRenderer {
    *  `corrupt-record` is already a whole sentence. */
   #reasonSentence(verdict: PreFlightVerdict, fill: string | null): string | null {
     const reason: PreFlightReason | undefined = verdict.reason ?? undefined;
-    if (reason === undefined) return null;
+    // A station row carries no reason word: its conclusion is the detail body's FIRST line,
+    // which the record already holds (the gate derived it once).
+    if (reason === undefined) return RouteRenderer.#stationDetailOf(verdict)?.[0] ?? null;
     if (reason === "graph") {
       return this.#words.refusalReason(reason).replace("{count}", fill ?? "0");
     }

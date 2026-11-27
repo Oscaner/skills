@@ -15,7 +15,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DOC_ROOT_SEGMENTS, docRootsOf } from "../../paths/doc-roots.ts";
 import { type RepoPath, RepoRoot } from "../../paths/root.ts";
-import { SlugIndex } from "../../paths/slug-index.ts";
+import { NodeDirectoryListing, SlugIndex } from "../../paths/slug-index.ts";
 import { GitClient } from "../git.ts";
 import { planSourceOf } from "../plan-source.ts";
 
@@ -72,7 +72,11 @@ const slugOf = (text: string): string | null => {
 const plansOf = (repo: string) => {
   const root = RepoRoot.of(repo);
   const docs = docRootsOf(root);
-  return planSourceOf({ root, docs, index: SlugIndex.scan(root, docs, slugOf) });
+  return planSourceOf({
+    root,
+    docs,
+    index: SlugIndex.scan(root, docs, slugOf, new NodeDirectoryListing(root)),
+  });
 };
 
 afterEach(() => {

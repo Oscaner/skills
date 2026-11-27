@@ -14,6 +14,41 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { DOC_ROOT_KEYS, type DocRoots } from "./doc-roots.ts";
 import type { RepoPath, RepoRoot } from "./root.ts";
 
+/**
+ * The one directory read the scan needs: the entry names directly inside one repo-relative
+ * directory. Injected, so "which documents exist" has ONE spelling in `env/` — the scan, the
+ * document world's listing and the ledger's workspace names all read through it, and none of
+ * them opens a directory of its own.
+ */
+export interface DirectoryListing {
+  /** The entry names directly inside one repo-relative directory; [] when it holds none. */
+  names(directory: RepoPath): readonly string[];
+}
+
+/** The node-backed listing — the engine's ONE directory enumeration, over ONE path basis.
+ *  The basis is the constructor's because the interface speaks repo-relative coordinates: a
+ *  raw `readdir` of a relative path would answer against the process' working directory, which
+ *  is the repository root only when the engine happens to be invoked from it. */
+export class NodeDirectoryListing implements DirectoryListing {
+  readonly #root: RepoRoot;
+
+  constructor(root: RepoRoot) {
+    this.#root = root;
+  }
+
+  /** The entry names under one repo-relative directory, unsorted as the OS answers them. A
+   *  directory that does not exist holds nothing; any other failure rethrows, because an
+   *  unreadable root is never an empty one. */
+  names(directory: RepoPath): readonly string[] {
+    try {
+      return readdirSync(this.#root.resolve(directory));
+    } catch (raw) {
+      if ((raw as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw raw;
+    }
+  }
+}
+
 /** A slug's answer over one scan — exactly one document, an ambiguous set, or none. */
 export type SlugEntry =
   | { readonly kind: "unique"; readonly slug: string; readonly rel: RepoPath }
@@ -38,13 +73,18 @@ export class SlugIndex {
 
   /** Scan the doc roots once. A missing root is empty; a candidate that reads but
    *  declares no slug is not indexed (identity is the declared value, never the file
-   *  name). Rows come back in path order, so one scan reads the same twice. */
-  static scan(root: RepoRoot, docs: DocRoots, slugOf: SlugReader): SlugIndex {
+   *  name). Rows come back in path order, so one scan reads the same twice. The directory
+   *  read is the injected listing — this class never enumerates a directory itself. */
+  static scan(
+    root: RepoRoot,
+    docs: DocRoots,
+    slugOf: SlugReader,
+    listing: DirectoryListing,
+  ): SlugIndex {
     const bySlug = new Map<string, RepoPath[]>();
     for (const key of DOC_ROOT_KEYS) {
       const rel = docs.at(key);
-      const directory = root.resolve(rel);
-      for (const name of SlugIndex.#names(directory)) {
+      for (const name of listing.names(rel)) {
         if (!name.endsWith(".md")) continue;
         const docRel = `${rel}/${name}` as RepoPath;
         const text = SlugIndex.#read(root.resolve(docRel));
@@ -71,17 +111,6 @@ export class SlugIndex {
     if (rels === undefined) return { kind: "absent", slug };
     if (rels.length === 1) return { kind: "unique", slug, rel: rels[0]! };
     return { kind: "invalid", slug, rels };
-  }
-
-  /** A directory's entry names; a directory that does not exist holds nothing. Any
-   *  other failure rethrows — an unreadable root is never an empty one. */
-  static #names(directory: string): readonly string[] {
-    try {
-      return readdirSync(directory);
-    } catch (raw) {
-      if ((raw as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw raw;
-    }
   }
 
   /** One candidate's text, or null when it is not a readable regular file — a

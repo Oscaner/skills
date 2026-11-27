@@ -193,6 +193,82 @@ export type EvidenceRead =
   | { readonly kind: "ok" }
   | { readonly kind: "breached"; readonly problems: readonly string[] };
 
+/** The declared schema node shape — the typed subset the prompt fence projects. */
+interface SchemaNode {
+  readonly type?: "object" | "array" | "string" | "integer" | "boolean";
+  readonly required?: readonly string[];
+  readonly properties?: Readonly<Record<string, SchemaNode>>;
+  readonly items?: SchemaNode;
+  readonly enum?: readonly string[];
+}
+
+/** One judge finding row as the child is shown it — the three owed cells plus the optional
+ *  columns a review may fill. The engine owns `id` (it rewrites the row number), so the
+ *  child owes nothing there. */
+const FINDING: SchemaNode = {
+  type: "object",
+  required: ["severity", "lens", "summary"],
+  properties: {
+    id: { type: "string" },
+    severity: { type: "string", enum: ["blocker", "warn"] },
+    lens: { type: "string" },
+    section: { type: "string" },
+    line: { type: "integer" },
+    summary: { type: "string" },
+    fix: { type: "string" },
+    impact: {
+      type: "object",
+      required: ["scenario"],
+      properties: { scenario: { type: "string" }, test: { type: "string" } },
+    },
+    regrade: { type: "string" },
+    contract: {
+      type: "object",
+      required: ["path", "anchor"],
+      properties: { path: { type: "string" }, anchor: { type: "string" } },
+    },
+    evidence: {
+      type: "object",
+      required: ["repro"],
+      properties: { repro: { type: "string" }, output: { type: "string" } },
+    },
+  },
+};
+
+/** THE carrier declaration — every slot the child may write, keyed by the same names the
+ *  read-back walks. The plane's projection (`PLANE_SLOTS`) selects the subset the fence
+ *  shows, so the prompt and the validator read one key set. */
+const CARRIER_PROPERTIES: Readonly<Record<HandoffKey, SchemaNode>> = {
+  status: { type: "string", enum: [...WORK_STATUSES] },
+  findings: { type: "array", items: FINDING },
+  artifacts: { type: "object" },
+  notes: { type: "array", items: { type: "string" } },
+  dispositions: { type: "object" },
+};
+
+/** The test-evidence file's schema — the second fence of a work-plane prompt, exactly the
+ *  cells `EVIDENCE_CONTRACT` walks. */
+const EVIDENCE_SCHEMA: SchemaNode = {
+  type: "object",
+  required: [...EVIDENCE_CONTRACT.required],
+  properties: {
+    command: { type: "string" },
+    exit_code: { type: "integer" },
+    passed: { type: "boolean" },
+    warnings_count: { type: "integer" },
+    typecheck: {
+      type: "object",
+      required: ["command", "exit_code", "passed"],
+      properties: {
+        command: { type: "string" },
+        exit_code: { type: "integer" },
+        passed: { type: "boolean" },
+      },
+    },
+    behavior_change: { type: "boolean" },
+  },
+};
+
 /**
  * Handoff — one declaration, three readings. Invariant: a draft is judged by what is on
  * disk, and the conclusion is derived from the findings (see the file's header).
@@ -211,6 +287,36 @@ export class Handoff {
   /** The plane's writable slots, in declaration order the child is shown. */
   static writable(plane: HandoffPlane): readonly HandoffKey[] {
     return PLANE_SLOTS[plane];
+  }
+
+  /** The `## Handoff schema` section text the dispatch prompt carries: the plane's writable
+   *  subset as ONE compact JSON fence, plus (work plane) the evidence file's fence. The
+   *  declaration is the field source — the fence lists exactly the slots the read-back
+   *  validates, so a child is never shown a field the engine does not read. */
+  static sectionText(plane: HandoffPlane, evidence: boolean): string {
+    const carrier = Handoff.#json(Handoff.#writableNode(plane));
+    const head =
+      "Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset — the engine " +
+      "validates it, then materializes the final carrier in place; fields not listed here are " +
+      `engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
+    if (!evidence) return head;
+    return `${head}\n\nThe evidence file (the file named by \`OUTPUT_EVIDENCE\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${Handoff.#json(EVIDENCE_SCHEMA)}\n\`\`\``;
+  }
+
+  /** The plane's carrier node — `PLANE_SLOTS`' slots, in the carrier's declared order, with
+   *  the plane's own required set. */
+  static #writableNode(plane: HandoffPlane): SchemaNode {
+    const properties: Record<string, SchemaNode> = {};
+    for (const key of HANDOFF_KEYS) {
+      if (PLANE_SLOTS[plane].includes(key)) properties[key] = CARRIER_PROPERTIES[key];
+    }
+    return { type: "object", required: [...PLANE_REQUIRED[plane]], properties };
+  }
+
+  /** One node as the prompt's fence — COMPACT, because the fence is the biggest token the
+   *  fixed prefix pays on every dispatch. */
+  static #json(node: SchemaNode): string {
+    return JSON.stringify(node);
   }
 
   /** Read one draft: `text` is the file's bytes, null when the file was never written. The

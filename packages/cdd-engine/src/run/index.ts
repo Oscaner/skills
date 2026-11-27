@@ -53,9 +53,10 @@ import type {
 import { type AdvanceOutcome, Lifecycle, type LifecycleReads } from "./advance/lifecycle.ts";
 import type { LinePhase, LineState } from "./advance/line-phase.ts";
 import type { NextHop } from "./advance/next.ts";
+
 import type { Pipeline } from "./advance/pipeline.ts";
 import { TargetFaces, type TargetType } from "./advance/target-faces.ts";
-import type { WaveVerdict } from "./advance/wave.ts";
+import type { WaveBoard, WaveVerdict } from "./advance/wave.ts";
 import type { Child } from "./dispatch/child.ts";
 import { Handoff, type RoundFinding } from "./dispatch/handoff.ts";
 import type { InFlight, InFlightState } from "./dispatch/inflight.ts";
@@ -351,10 +352,12 @@ export interface BoardPhase {
 export interface BoardReads {
   /** One document's declared facts; null when the document cannot be read. */
   readonly docFacts: (target: RepoPath) => DocFacts | null;
-  /** Every phase specification the charter groups, each with its OWN board read. */
+  /** Every phase specification the charter groups, each with its OWN board read. The read is
+   *  asynchronous because a phase's board reads that phase's occupancy — the same one read
+   *  every other board entry takes. */
   readonly phases: (
     charterSlug: string,
-  ) => readonly { readonly slug: string; readonly board: BoardOutcome }[];
+  ) => Promise<readonly { readonly slug: string; readonly board: BoardOutcome }[]>;
 }
 
 /** One board row, as a VALUE — the render face connects it, so no byte is spelled here. */
@@ -437,11 +440,14 @@ export type PreviewOutcome =
       readonly verdict: PreFlightVerdict;
       readonly checked: readonly CheckedRow[];
     }
-  /** The line leg refused — the wave gate's five rows. */
+  /** The line leg refused — the wave gate's five rows, with the wave board its `split` cause
+   *  prints. */
   | {
       readonly kind: "refused";
       readonly verdict: WaveVerdict;
       readonly checked: readonly CheckedRow[];
+      readonly tree: WaveBoard | null;
+      readonly hop: NextHop | null;
     }
   | Usage
   | ReadFailure;
@@ -714,8 +720,15 @@ export class Run {
         : { kind: "blocked", verdict, checked: verdict.checked };
     }
     const wave = this.#lifecycle.waveVerdictOf(frame);
-    if (wave !== null && !wave.ok)
-      return { kind: "refused", verdict: wave, checked: verdict.checked };
+    if (wave !== null && !wave.ok) {
+      return {
+        kind: "refused",
+        verdict: wave,
+        checked: verdict.checked,
+        tree: this.#lifecycle.waveTreeOf(frame),
+        hop: this.#stepReads.hopOf?.(frame) ?? null,
+      };
+    }
     return {
       kind: "pass",
       frame,
@@ -773,17 +786,17 @@ export class Run {
         refusal: this.#refusal.read(scene.slug),
       },
       observed: this.#ledger.observedArtifacts(),
-      phases: this.#phasesOf(scene),
+      phases: await this.#phasesOf(scene),
     };
   }
 
   /** The charter's phase rows — a program board's own rows and nothing else. A phase is its
    *  own workspace, so each one arrives as its OWN board read; this class composes the row and
    *  the injected seam only says which phases exist. */
-  #phasesOf(scene: FrameScene): readonly BoardPhase[] {
+  async #phasesOf(scene: FrameScene): Promise<readonly BoardPhase[]> {
     if (scene.type !== "overall" || this.#board === null) return [];
     const phases: BoardPhase[] = [];
-    for (const phase of this.#board.phases(scene.slug)) {
+    for (const phase of await this.#board.phases(scene.slug)) {
       const row = Run.phaseOf(phase.slug, phase.board);
       if (row !== null) phases.push(row);
     }
@@ -834,21 +847,7 @@ export class Run {
         rounds: this.#roundsOf(line.word, this.#ledger.rounds(line.word)),
       });
     }
-    const waves = this.#ledger.waveLines();
-    const frontier = this.#lines.frontierWaveOf(
-      waves.map((line) => RoundIdentity.splitLineWord(line.line).key),
-    );
-    for (const line of waves) {
-      const key = RoundIdentity.splitLineWord(line.line).key;
-      rows.push({
-        kind: "wave",
-        line: line.line,
-        tasks: line.taskIds,
-        frontier: key === frontier,
-        closed: this.#lines.waveClosedAt(key),
-        rounds: this.#roundsOf(line.line, line.rounds),
-      });
-    }
+    for (const row of this.#waveRowsOf(scene)) rows.push(row);
     // The branch line is a FIXED row of the node board — a branch that recorded no round is
     // still a line the board reports (its state word, and no tokens).
     const branch = this.#ledger.branchLine();
@@ -860,6 +859,48 @@ export class Run {
     return rows;
   }
 
+  /** The board's wave rows — the PLAN's own decomposition, each wave paired with the ledger
+   *  row that recorded it (matched by its task set). The plan is what names a wave, so a wave
+   *  nobody dispatched yet still prints its row (`○`), and a ledger row whose task set no
+   *  longer appears in the plan is not a wave of this tree. Only when the plan reads nothing
+   *  (no graph) does the ledger's own row set stand in — the board reports what it can see. */
+  #waveRowsOf(scene: FrameScene): readonly BoardRow[] {
+    const recorded = this.#ledger.waveLines();
+    const byTasks = new Map<string, WaveLine>();
+    for (const line of recorded) byTasks.set([...line.taskIds].sort(Run.#asc).join(","), line);
+    const waves =
+      scene.graph === null
+        ? recorded.map((line) => ({ tasks: line.taskIds, line }))
+        : scene.graph.batches().map((batch) => ({
+            tasks: [...batch].sort(Run.#asc),
+            line: byTasks.get([...batch].sort(Run.#asc).join(",")),
+          }));
+    const rows: BoardRow[] = [];
+    let frontier = true;
+    for (const wave of waves) {
+      const lineWord = RoundIdentity.lineWordOf("wave", wave.tasks.join(","));
+      const closed =
+        wave.line === undefined ? false : this.#lines.waveClosedAt(wave.tasks.join(","));
+      // Exactly one row carries `▶`: the FIRST wave still holding an open task.
+      const isFrontier = frontier && !closed;
+      if (isFrontier) frontier = false;
+      rows.push({
+        kind: "wave",
+        line: lineWord,
+        tasks: wave.tasks,
+        frontier: isFrontier,
+        closed,
+        rounds: wave.line === undefined ? [] : this.#roundsOf(wave.line.line, wave.line.rounds),
+      });
+    }
+    return rows;
+  }
+
+  /** The board's ordinal sort — numeric, so `{2, 10}` reads in task order. */
+  static #asc(left: number, right: number): number {
+    return left - right;
+  }
+
   /** One line's rounds, as the board's tokens read them — the record's own cells plus the
    *  carrier content the ledger's ONE read answers. The downgrade note is composed by the
    *  criteria slice's one composer, never here. */
@@ -869,7 +910,10 @@ export class Run {
       line: word,
       pathOf: (record) => {
         const { type, key } = Run.#carrierTargetOf(word);
-        return this.#ledger.carrierPathOf(type, key, record);
+        const rel = this.#ledger.carrierPathOf(type, key, record);
+        // The carrier's diagnostic line names the deck's OWN absolute coordinate (the file a
+        // reader opens), never a workspace-relative spelling.
+        return rel === "" ? "" : (this.#workspace.resolve(rel.split("/").pop() ?? "") as never);
       },
       text: (target) => {
         const read = this.#workspace.readText(target);

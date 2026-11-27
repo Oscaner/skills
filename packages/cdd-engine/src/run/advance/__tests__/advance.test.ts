@@ -61,7 +61,7 @@ import {
 import { docRootsOf } from "../../../env/paths/doc-roots.ts";
 import type { RepoPath } from "../../../env/paths/root.ts";
 import { RepoRoot } from "../../../env/paths/root.ts";
-import { SlugIndex } from "../../../env/paths/slug-index.ts";
+import { NodeDirectoryListing, SlugIndex } from "../../../env/paths/slug-index.ts";
 import type { ChildRunner } from "../../../env/process/child-runner.ts";
 import { Clock } from "../../../env/process/clock.ts";
 import { Lock } from "../../../env/process/lock.ts";
@@ -373,7 +373,7 @@ const fixture = (): Fixture => {
   const briefBytes = { content: "brief bytes\n", reviewed: "task body\n" };
   const lines = new LinePhase({
     facts: ledger,
-    carried: (record) =>
+    carried: (_line, record) =>
       carriedByKey.get(`${record.op}:${record.cycle}`) ?? { findings: null, status: null },
     text: (target) => {
       try {
@@ -392,9 +392,12 @@ const fixture = (): Fixture => {
   const frame = new Frame({
     reads: {
       root: basis,
-      index: () => SlugIndex.scan(basis, docRootsOf(basis), slugOf),
+      index: () =>
+        SlugIndex.scan(basis, docRootsOf(basis), slugOf, new NodeDirectoryListing(basis)),
       planText: planTextOf(repo),
       docFacts: docFactsOf(repo),
+      exists: (target) => existsSync(path.isAbsolute(target) ? target : path.join(repo, target)),
+      insideDocs: (target) => docRootsOf(basis).contains(target),
     },
     lines: {
       walk: lines,
@@ -424,6 +427,10 @@ const fixture = (): Fixture => {
           ? {
               kind: "held",
               pid: holding.record.pid,
+              command: holding.record.command,
+              startedAt: holding.record.startedAt,
+              wave: holding.record.wave,
+              slug: holding.record.slug,
               alive: holding.alive,
               targetGone: holding.targetGone,
             }
@@ -434,12 +441,15 @@ const fixture = (): Fixture => {
       rows: null,
     }),
     dispatchFrame: (facts) => ({
-      command: "true",
-      args: [],
-      cwd: repo,
-      env: {},
-      phase: facts.phase,
-      log: { file: path.join(root.path, "round.log"), path: "round.log" as RepoPath },
+      kind: "frame",
+      frame: {
+        command: "true",
+        args: [],
+        cwd: repo,
+        env: {},
+        phase: facts.phase,
+        log: { file: path.join(root.path, "round.log"), path: "round.log" as RepoPath },
+      },
     }),
     brief: () => ({ name: "brief.md", content: briefBytes.content, reviewed: briefBytes.reviewed }),
     writeText: (name, content) => {
@@ -468,13 +478,13 @@ const fixture = (): Fixture => {
     stale: () => false,
     reopenRequested: () => false,
     requesting: () => requesting,
-    commits: (base) => {
+    commits: async (base) => {
       commits.bases.push(base);
       return commits.count;
     },
     groupBase: () => groupBase.value,
     head: async () => head.value,
-    touchedDoc: (_frame, base) => {
+    touchedDoc: async (_frame, base) => {
       touchedDoc.bases.push(base);
       return touchedDoc.value;
     },
@@ -515,7 +525,7 @@ const fixture = (): Fixture => {
     stepReads: reads,
     briefName: () => "brief.md",
     host: () => "pi",
-    board: { docFacts: docFactsOf(repo), phases: () => [] },
+    board: { docFacts: docFactsOf(repo), phases: async () => [] },
   };
   return {
     repo,
@@ -574,6 +584,11 @@ const waveRequest = (over: Partial<FrameRequest> = {}): FrameRequest => ({
   plan: PLAN_REL,
   ...over,
 });
+
+/** The wave REVIEW request of that plan — the second step of a wave's line (the verb is the
+ *  command's, and the wave gate judges it against the line's phase). */
+const waveReviewRequest = (over: Partial<FrameRequest> = {}): FrameRequest =>
+  waveRequest({ command: "review", ...over });
 
 /** A wave line at the fix hop: one completed implement plus `reviews` completed reviews, each
  *  carrying one blocker — the shape `Frame#of` reads as the fix phase (round = the newest
@@ -680,7 +695,7 @@ describe("the frontier is the ledger's projection", () => {
     oneTaskPlan(fx);
     const first = await fx.run.advance(waveRequest());
     expect(first.kind).toBe("dispatch");
-    const second = await fx.run.advance(waveRequest());
+    const second = await fx.run.advance(waveReviewRequest());
     expect(second.kind).toBe("dispatch");
     const rounds = fx.ledger.rounds(RoundIdentity.lineWordOf("wave", "1"));
     expect(rounds.map((record) => record.op)).toEqual(["implement", "review"]);
@@ -1604,7 +1619,7 @@ describe("the capsule summary", () => {
     fx.prior.findings = prior;
     const note = regradeNote(1, []);
     expect(note).toBeDefined();
-    const downgraded = await fx.run.advance(waveRequest());
+    const downgraded = await fx.run.advance(waveReviewRequest());
     expect(downgraded.kind).toBe("dispatch");
     if (downgraded.kind !== "dispatch") return;
     expect(downgraded.capsule.summary).toBe(note);
@@ -1629,7 +1644,7 @@ describe("the capsule summary", () => {
       status: null,
     });
     withReason.prior.findings = prior;
-    const stated = await withReason.run.advance(waveRequest());
+    const stated = await withReason.run.advance(waveReviewRequest());
     expect(stated.kind).toBe("dispatch");
     if (stated.kind !== "dispatch") return;
     expect(stated.capsule.summary).toBe(regradeNote(0, ["narrowed scope"]));
@@ -1646,7 +1661,7 @@ describe("the capsule summary", () => {
       status: null,
     });
     unchanged.prior.findings = prior;
-    const raised = await unchanged.run.advance(waveRequest());
+    const raised = await unchanged.run.advance(waveReviewRequest());
     expect(raised.kind).toBe("dispatch");
     if (raised.kind !== "dispatch") return;
     expect(raised.capsule).toEqual({});
@@ -1720,7 +1735,7 @@ describe("the booked verdict", () => {
     oneTaskPlan(fx);
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
     fx.runner.code = 1;
-    const failed = await fx.run.advance(waveRequest());
+    const failed = await fx.run.advance(waveReviewRequest());
     expect(failed.kind).toBe("dispatch");
     if (failed.kind !== "dispatch") return;
     expect(failed.result.code).toBe(1);
@@ -1752,7 +1767,7 @@ describe("the booked verdict", () => {
     oneTaskPlan(fx);
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
     fx.carriedByKey.set("review:1", { findings: [], status: "BLOCKED" });
-    const blocked = await fx.run.advance(waveRequest());
+    const blocked = await fx.run.advance(waveReviewRequest());
     expect(blocked.kind).toBe("dispatch");
     if (blocked.kind !== "dispatch") return;
     expect(blocked.result.round.verdict.targetAction).toBe(false);
@@ -2023,7 +2038,7 @@ describe("the soft cap's counter", () => {
         docDriftOf: () => null,
         reviewedOf: () => null,
       },
-      carried: (record) => ({
+      carried: (_line, record) => ({
         findings:
           record.cycle === cleanCycle ? [] : [{ severity: "blocker" as const, summary: "row" }],
         status: null,
@@ -2215,7 +2230,7 @@ describe("the target table", () => {
     // plan's own task snapshot (the fixture's one-task plan).
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
-    expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+    expect((await fx.run.advance(waveReviewRequest())).kind).toBe("dispatch");
     expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toEqual([1]);
   });
 
@@ -2231,7 +2246,7 @@ describe("the target table", () => {
       const fx = fixture();
       oneTaskPlan(fx);
       expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
-      expect((await fx.run.advance(waveRequest())).kind).toBe("dispatch");
+      expect((await fx.run.advance(waveReviewRequest())).kind).toBe("dispatch");
       // The same closing step, no batch cell: the wave line keeps no snapshot.
       expect(fx.ledger.planTasksOf(RoundIdentity.lineWordOf("wave", "1"))).toBeNull();
 

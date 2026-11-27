@@ -882,7 +882,7 @@ export const UNITS: readonly Unit[] = [
     key: "f6.board.unexpanded",
     face: "f6",
     route: "normal",
-    task: "T16",
+    task: "T15",
     producer: "surface/render/board.ts#BoardView",
     // A wave row whose review round left a carrier carrying the child's own note: the
     // two states of §2.2 #6 differ only by what `--notes` opens, so the tree must carry
@@ -893,7 +893,7 @@ export const UNITS: readonly Unit[] = [
     key: "f6.board.expanded",
     face: "f6",
     route: "normal",
-    task: "T16",
+    task: "T15",
     producer: "surface/render/board.ts#BoardView",
     probe: {
       fixture: "wave",

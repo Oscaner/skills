@@ -75,8 +75,10 @@ export interface CarriedFacts {
   readonly dispositions?: Readonly<Record<string, FixDisposition>> | null;
 }
 
-/** The checked carrier read, injected — the dispatch segment's one read face. */
-export type CarriedRead = (record: RoundRecord) => CarriedFacts;
+/** The checked carrier read, injected — the dispatch segment's one read face. The LINE comes
+ *  with the record because a carrier's name embeds its line: a record alone cannot resolve the
+ *  file it wrote, and a search across lines would answer another line's carrier. */
+export type CarriedRead = (line: string, record: RoundRecord) => CarriedFacts;
 
 /** The line identity cells — the ledger key and the document the line is judged at. */
 export interface LineIdentity {
@@ -277,7 +279,7 @@ export class LinePhase {
           candidate.op === lead && candidate.cycle === at && candidate.verdict.targetAction,
       );
       if (record === undefined) break;
-      const carried = this.#carried(record);
+      const carried = this.#carried(LinePhase.waveLineWord(key), record);
       if ((carried.findings ?? []).filter(LinePhase.#blocker).length === 0) break;
       run += 1;
     }
@@ -325,7 +327,7 @@ export class LinePhase {
   /** One round's C5 route through the carried facts — null when the round's carrier is
    *  unreadable (a round that cannot be read cannot be judged closed). */
   #roundRoute(key: string, type: TargetType, record: RoundRecord): Route | null {
-    const carried = this.#carried(record);
+    const carried = this.#carried(key, record);
     return this.#routes.routeOf({
       phase: record.op,
       status: carried.status,
@@ -346,7 +348,7 @@ export class LinePhase {
     const source = this.#facts
       .rounds(key)
       .find((candidate) => candidate.op === "review" && candidate.cycle === record.cycle);
-    return source === undefined ? null : (this.#carried(source).findings ?? null);
+    return source === undefined ? null : (this.#carried(key, source).findings ?? null);
   }
 
   /** The latest COMPLETED round of one mode — a failed round consumed its cycle but is not

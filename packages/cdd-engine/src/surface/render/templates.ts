@@ -57,20 +57,40 @@ export type WorkModeRowKey = "implement" | "fix" | "docs-fix";
 /** The three work-mode rows, in the order the table declares them. */
 export const WORK_MODES: readonly WorkModeRowKey[] = ["implement", "fix", "docs-fix"];
 
+/** One exigibility arm of a round-context cell — the target types it covers, optionally
+ *  narrowed by a structural precondition. A cell may hang several CONJUNCTIVE arms; each is
+ *  judged on its own and any hit makes the cell exigible. `types: []` is the `never`
+ *  spelling — a legal declaration, not a missing one. */
+export interface RequiredArm {
+  /** The target types this arm covers — `always` (the row's whole served set) or a subset;
+   *  an empty array names no type at all (`never`). */
+  readonly types: "always" | readonly TargetType[];
+  /** A structural precondition stacked on the same arm: the identity document DECLARED a
+   *  `program:` / a shape (`doc-type:`). The declaration is what is read, never the
+   *  resolved link value. */
+  readonly when?: "program" | "identity";
+}
+
 /** One round-context line's declaration — the rendered line (a heading, a blank line, or a
- *  `- \`TOKEN\`: {{TOKEN}}` cell) plus what its EMPTY value prints. There is no third state:
- *  a line with no value has exactly the two shapes below.
+ *  `- \`TOKEN\`: {{TOKEN}}` cell) plus what its EMPTY value prints and the cells that judge
+ *  whether it is owed at all. There is no third absence state: a line with no value has
+ *  exactly the two shapes below.
  *
- *  Exigibility is deliberately not a field YET, and it is nobody else's private business
- *  either: the arms, the `path` bit and the `written` bit are owed by the station-row producer
- *  (`run/advance/reads.ts`, task T17), which assembles the `dispatch-input` reading the gate
- *  refuses on. That producer owes declaring them HERE — the round-context declaration is this
- *  table's, so the arms join it instead of becoming a second exigibility table beside it. */
+ *  The exigibility arms live HERE because the round-context declaration is this table's: the
+ *  station-row producer assembles the `dispatch-input` reading the gate refuses on, and it
+ *  reads the arms off these declarations rather than keeping a second table beside them. */
 export interface ContextLine {
   /** The rendered line. */
   readonly line: string;
+  /** The cell's value names a file that must exist — the only bit `target-absent` reads. */
+  readonly path?: true;
   /** What an empty value does to the line: drop it whole, or print the bare literal `none`. */
   readonly absent: "drop" | "none";
+  /** The cells that make this line exigible, per target type (conjunctive arms). */
+  readonly requiredOn: readonly RequiredArm[];
+  /** The engine writes this cell's file itself before the child reads it (the brief), so an
+   *  empty value earns no refusal and no existence read is taken. */
+  readonly written?: "engine";
 }
 
 /** One band row — the fixed prefix a dispatch of that mode / target renders, and the round
@@ -126,16 +146,34 @@ const row = <K extends string>(
 
 /** One round-context cell — the line spelling a `- \`TOKEN\`: {{TOKEN}}` row derives from the
  *  token's own name, so the spelled token and the filled slot cannot disagree. */
-const cell = (token: string, absent: "drop" | "none" = "drop"): ContextLine => ({
+const cell = (token: string, spec: CellSpec = {}): ContextLine => ({
   line: `- \`${token}\`: {{${token}}}`,
-  absent,
+  absent: spec.absent ?? "drop",
+  requiredOn: spec.requiredOn ?? ALWAYS,
+  ...(spec.path === true ? { path: true as const } : {}),
+  ...(spec.written === undefined ? {} : { written: spec.written }),
 });
 
+/** One cell's declared facts besides its token — every one but the exigibility arms has a
+ *  default, so a plain owed cell stays a one-argument declaration. */
+interface CellSpec {
+  readonly requiredOn?: readonly RequiredArm[];
+  readonly absent?: "drop" | "none";
+  readonly path?: true;
+  readonly written?: "engine";
+}
+
+/** The `always` arm — the cell is owed on every face of the row. */
+const ALWAYS: readonly RequiredArm[] = [{ types: "always" }];
+
+/** The `never` arm — a value-less line, or a cell no target type owes. */
+const NEVER: readonly RequiredArm[] = [{ types: [] }];
+
 /** The two value-less lines every layout opens with — the heading and its separator. They
- *  carry no slot, so their `absent` cell is never consulted. */
+ *  carry no slot, so their `absent` cell is never consulted and no arm is exigible. */
 const CONTEXT_HEAD: readonly ContextLine[] = [
-  { line: "## Round context", absent: "drop" },
-  { line: "", absent: "drop" },
+  { line: "## Round context", absent: "drop", requiredOn: NEVER },
+  { line: "", absent: "drop", requiredOn: NEVER },
 ];
 
 // ---------------------------------------------------------------------------
@@ -330,7 +368,7 @@ const IMPLEMENT_CONTEXT: readonly ContextLine[] = [
   ...CONTEXT_HEAD,
   cell("ROLE"),
   cell("WAVE"),
-  cell("INPUT_WAVE_BRIEF"),
+  cell("INPUT_WAVE_BRIEF", { path: true, written: "engine" }),
   cell("OUTPUT_REPORT"),
   cell("OUTPUT_EVIDENCE"),
   cell("OUTPUT_HANDOFF"),
@@ -345,13 +383,19 @@ const FIX_CONTEXT: readonly ContextLine[] = [
   ...CONTEXT_HEAD,
   cell("ROLE"),
   cell("TARGET_TYPE"),
-  cell("WAVE"),
-  cell("INPUT_WAVE_BRIEF"),
-  cell("INPUT_PLAN"),
-  cell("INPUT_SPEC"),
-  cell("INPUT_OVERALL"),
-  cell("INPUT_REVIEWS"),
-  cell("INPUT_RULINGS", "none"),
+  cell("WAVE", { requiredOn: [{ types: ["wave"] }] }),
+  cell("INPUT_WAVE_BRIEF", { path: true, written: "engine", requiredOn: [{ types: ["wave"] }] }),
+  cell("INPUT_PLAN", { path: true, requiredOn: [{ types: ["branch"] }] }),
+  cell("INPUT_SPEC", {
+    path: true,
+    requiredOn: [{ types: ["branch", "wave"], when: "identity" }],
+  }),
+  cell("INPUT_OVERALL", {
+    path: true,
+    requiredOn: [{ types: ["branch", "wave"], when: "program" }],
+  }),
+  cell("INPUT_REVIEWS", { path: true }),
+  cell("INPUT_RULINGS", { path: true, requiredOn: NEVER, absent: "none" }),
   cell("OUTPUT_REPORT"),
   cell("OUTPUT_EVIDENCE"),
   cell("OUTPUT_HANDOFF"),
@@ -365,12 +409,18 @@ const DOCS_FIX_CONTEXT: readonly ContextLine[] = [
   ...CONTEXT_HEAD,
   cell("ROLE"),
   cell("TARGET_TYPE"),
-  cell("WAVE"),
-  cell("INPUT_PLAN"),
-  cell("INPUT_SPEC"),
-  cell("INPUT_OVERALL"),
-  cell("INPUT_REVIEWS"),
-  cell("INPUT_RULINGS", "none"),
+  cell("WAVE", { requiredOn: NEVER }),
+  cell("INPUT_PLAN", { path: true, requiredOn: [{ types: ["plan"] }] }),
+  cell("INPUT_SPEC", {
+    path: true,
+    requiredOn: [{ types: ["phase-spec", "single-spec"] }, { types: ["plan"], when: "identity" }],
+  }),
+  cell("INPUT_OVERALL", {
+    path: true,
+    requiredOn: [{ types: ["overall"] }, { types: ["phase-spec", "plan"], when: "program" }],
+  }),
+  cell("INPUT_REVIEWS", { path: true }),
+  cell("INPUT_RULINGS", { path: true, requiredOn: NEVER, absent: "none" }),
   cell("OUTPUT_REPORT"),
   cell("OUTPUT_HANDOFF"),
   cell("WORKSPACE_DIR"),
@@ -385,12 +435,24 @@ const REVIEW_CONTEXT: readonly ContextLine[] = [
   ...CONTEXT_HEAD,
   cell("ROLE"),
   cell("TARGET_TYPE"),
-  cell("WAVE"),
-  cell("INPUT_WAVE_BRIEF"),
-  cell("INPUT_PLAN"),
-  cell("INPUT_SPEC"),
-  cell("INPUT_OVERALL"),
-  cell("BASE_BRANCH"),
+  cell("WAVE", { requiredOn: [{ types: ["wave"] }] }),
+  cell("INPUT_WAVE_BRIEF", { path: true, written: "engine", requiredOn: [{ types: ["wave"] }] }),
+  cell("INPUT_PLAN", { path: true, requiredOn: [{ types: ["plan", "branch"] }] }),
+  cell("INPUT_SPEC", {
+    path: true,
+    requiredOn: [
+      { types: ["phase-spec", "single-spec"] },
+      { types: ["plan", "branch", "wave"], when: "identity" },
+    ],
+  }),
+  cell("INPUT_OVERALL", {
+    path: true,
+    requiredOn: [
+      { types: ["overall"] },
+      { types: ["phase-spec", "plan", "branch", "wave"], when: "program" },
+    ],
+  }),
+  cell("BASE_BRANCH", { requiredOn: [{ types: ["branch", "wave"] }] }),
   cell("OUTPUT_REPORT"),
   cell("OUTPUT_HANDOFF"),
   cell("WORKSPACE_DIR"),

@@ -87,9 +87,10 @@ const missesOf = (misses: readonly { readonly flag: string; readonly target: str
 const DRY_RUN_SCOPE =
   "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix / init only";
 
-/** The extra skeleton target's one message. */
+/** The extra skeleton target's one message — the PLACEHOLDER, never the value: the row states
+ *  the shape the json face takes, and the caller's own path adds nothing a reader needs. */
 const EXTRA_TARGET =
-  "cdd schema get: unexpected {target} — the json render takes no target (use --output skeleton <target> to render the scaffold into a document)";
+  "cdd schema get: unexpected <target> — the json render takes no target (use --output skeleton <target> to render the scaffold into a document)";
 
 /** THE byte table — one row per usage member, keyed by the member's own name. */
 export const USAGE_BYTES: Readonly<Record<UsageReason["kind"], UsageByteRow>> = {
@@ -113,8 +114,7 @@ export const USAGE_BYTES: Readonly<Record<UsageReason["kind"], UsageByteRow>> = 
     stream: "stderr",
     exitCode: 2,
     producer: "docs/index.ts#Documents",
-    message: (reason) =>
-      EXTRA_TARGET.replace("{target}", reason.kind === "extra-target" ? reason.target : ""),
+    message: () => EXTRA_TARGET,
   },
   "missing-plan-or-spec": {
     shape: "usage",

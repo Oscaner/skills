@@ -478,69 +478,58 @@ describe("the refusal face's words", () => {
 });
 
 describe("the new tree's execution face", () => {
-  it("retires the entry placeholder: the face holds no `entry` driver and the kind is declared", () => {
-    // Two facts, each derived from its own declaration — never one literal wave number:
-    // the face registers no driver at all (the placeholder answered no bytes, because the
-    // composition root still refuses to boot), and the registration table says which wave
-    // will register `entry`. T17 flips this pair back to `toContain` when it registers the
-    // real entry; the two steps are one pair.
-    expect(NEW_TREE.kinds()).not.toContain("entry");
+  it("registers the two process kinds the composition root answers — `entry` and `seam`", () => {
+    // The cutover wave's face: the process entry AND the in-process seam are registered, so
+    // every cell the grid declares is read rather than counted.
+    expect(NEW_TREE.kinds()).toContain("entry");
+    expect(NEW_TREE.kinds()).toContain("seam");
     expect(REGISTRATION_WAVES.has("entry")).toBe(true);
+    expect(REGISTRATION_WAVES.has("seam")).toBe(true);
+    // One wave composes both readings, so the table names one wave for the two kinds.
+    expect(REGISTRATION_WAVES.get("entry")).toBe(REGISTRATION_WAVES.get("seam"));
     expect(NEW_TREE_ENTRY.startsWith(NEW_TREE_ROOT)).toBe(true);
     expect(NEW_TREE_ENTRY).not.toContain("src-next");
   });
 
-  it("reads an entry probe through the new tree's own process — three streams, and never the old tree's bytes", async () => {
-    // The one path that spawns `src/bin.ts`: until this pin existed, nothing in the suite
-    // called `NEW_TREE.read`, so the wave that first compares an entry-kind cell would also
-    // be the driver's first execution — a wrong cwd, argv or env there reads as "the new
-    // tree's command prints nothing" on every entry cell at once.
+  it("reads an entry probe through the new tree's own process — the command's own bytes", async () => {
+    // The one path that spawns `src/bin.ts`: the process entry answers the command, so an
+    // entry-kind cell is compared against the recording instead of counted as deferred.
     const probe = cellOf("f1.base-set.normal", "stderr").probe;
     if (probe === undefined) throw new Error("the entry probe is not declared");
     expect(kindOf(probe)).toBe("entry");
-    // The driver is BUILT and unregistered: the wave that registers it (T17) re-uses this
-    // one value, and this case keeps the process read exercised until then.
-    const entryFace = NewTree.of([["entry", ENTRY_DRIVER]]);
-    const reading = await entryFace.read(probe, CORPUS.frozenDate);
-    // Three answers, typed as the reading declares them.
-    expect(typeof reading.stdout).toBe("string");
-    expect(typeof reading.stderr).toBe("string");
-    expect(Number.isInteger(reading.exitCode)).toBe(true);
-    // What the root answers TODAY: `main` is declared and its boot wrapper arrives with the
-    // cutover, so the unwired process writes nothing and exits 0 (the next case pins the
-    // refusal itself). The old tree answers bytes for the same probe, so the difference also
-    // proves the reading is the new tree's and not a fallback — and this case flips meaning
-    // in the wave that boots the composition root, when the same read answers the command's
-    // own bytes.
+    const reading = await NewTree.of([["entry", ENTRY_DRIVER]]).read(probe, CORPUS.frozenDate);
     const old = await ProbeRunner.run(probe);
-    expect(old.stdout.length).toBeGreaterThan(0);
-    expect(reading.stdout).toBe("");
+    expect(reading.stdout).toBe(old.stdout);
+    expect(reading.stderr).toBe(old.stderr);
+    expect(reading.exitCode).toBe(old.exitCode);
     expect(reading.stderr).toBe("");
-    expect(reading.exitCode).toBe(0);
   }, 120_000);
 
-  it("declares a composition root that refuses to boot until the cutover fills it", async () => {
-    // The entry the driver spawns is not a stub: its `main` throws the named refusal, which
-    // is what makes "the new tree cannot answer bytes yet" a fact rather than an empty
-    // process. The boot wrapper is the cutover's, so the process stays silent until then.
+  it("composes the four slices once and answers the argv over its injected streams", async () => {
+    // `main` builds the graph in this process; the surface's two writers are the boundary the
+    // caller may substitute, so the pin reads the bytes without touching the suite's own
+    // stdout.
     const { main } = await import("../../src/bin.ts");
-    await expect(main(["schema", "get", "plan"])).rejects.toThrow(/src\/bin\.ts is not wired yet/);
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await main(["schema", "get", "plan"], {
+      io: { stdout: (text: string) => out.push(text), stderr: (text: string) => err.push(text) },
+    });
+    expect(code).toBe(0);
+    expect(out.join("")).toContain('"docType": "plan"');
+    expect(err.join("")).toBe("");
   });
 
-  it("leaves every probe kind it cannot read owed to a named wiring task", () => {
+  it("answers every probe kind the grid derives — no cell is left owing a driver", () => {
     // The kinds are the reconciler's routing table. Each kind is either answered or owed —
-    // there is no third route, and in particular no fallback to the old tree.
-    const roster = Roster.read(ROSTER_FILE);
-    const owed = new Set<string>();
-    for (const cell of CELLS) {
-      if (!cell.applicable || cell.probe === undefined) continue;
-      const kind = kindOf(cell.probe);
-      if (NEW_TREE.kinds().includes(kind)) continue;
-      owed.add(kind);
-      const task = roster.rowOf(cell.id)?.task;
-      expect(task).toMatch(/^T\d+$/);
-    }
-    expect([...owed].length).toBeGreaterThan(0);
+    // there is no third route, and in particular no fallback to the old tree. The cutover
+    // wave closes the set: every derived kind has a registered driver.
+    const derived = new Set(
+      CELLS.filter((cell) => cell.applicable && cell.probe !== undefined).map((cell) =>
+        kindOf(cell.probe as NonNullable<typeof cell.probe>),
+      ),
+    );
+    expect([...NEW_TREE.kinds()].sort()).toEqual([...derived].sort());
   });
 });
 
@@ -572,7 +561,7 @@ describe("the reconciliation", () => {
     });
     const gapped = await reconcile(CORPUS, baseline, stitched);
     expect(gapped.gaps).toContain(SAMPLE_CELL);
-  });
+  }, 300_000);
 
   it("treats a producer landing as wiring, not as a hidden gap", () => {
     // The reading of "wired" is the producer's own landing — a path that exists and exports
@@ -586,7 +575,7 @@ describe("the reconciliation", () => {
 
   it("answers the brief's one call — compareTree reports the wired cells' byte differences", async () => {
     expect(await compareTree(CORPUS)).toEqual([]);
-  });
+  }, 300_000);
 
   it("reads a wired cell's actual bytes on the NEW tree, never a re-run of the old one", async () => {
     // The finding this pins: a reconciler whose actual is the old tree's second reading
@@ -646,7 +635,7 @@ describe("the reconciliation", () => {
       CORPUS,
       stitched,
       rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      { newTree: NEW_TREE },
+      { newTree: NewTree.unwired() },
     );
     expect(answer.diffs).toEqual([]);
     expect(answer.missing).toEqual([]);
@@ -676,13 +665,13 @@ describe("the reconciliation", () => {
     const answer = await reconcile(
       CORPUS,
       stitched,
-      rosterWith({ cell: cell.id, task: "T16", producer: "env/index.ts#Env", route: cell.route }),
-      { waves: undeclared },
+      rosterWith({ cell: cell.id, task: "T17", producer: "env/index.ts#Env", route: cell.route }),
+      { newTree: NewTree.unwired(), waves: undeclared },
     );
     // This cell is no longer a deferral: its kind declares no wave, so the absence is named.
     expect(answer.deferred.some((entry) => entry.startsWith(`${cell.id}:`))).toBe(false);
     expect(answer.missing).toContain(
-      `${cell.id}: the new tree has no "entry" driver — T16 wires it`,
+      `${cell.id}: the new tree has no "entry" driver — T17 wires it`,
     );
   });
 
@@ -719,7 +708,7 @@ describe("the skeleton cells", () => {
     }
     // …and the whole reconciliation sees no diff on them.
     expect((await reconcile(CORPUS, baseline, Roster.read(ROSTER_FILE))).diffs).toEqual([]);
-  });
+  }, 300_000);
 
   it("read the new tree's OWN assembler — another frozen day changes the byte", async () => {
     const cell = cellOf("f3.skeleton.plan", "stdout");
@@ -772,11 +761,11 @@ describe("the named deferral", () => {
   it("defers a declared kind and holes an undeclared one — the rule has both arms", () => {
     // With the row: the kind answers its wave. Without it: no wave, so a producer with no
     // driver is MISSING — absence must be named.
-    expect(registrationWaveOf("seam", new Map([["seam", "T16"]]))).toBe("T16");
+    expect(registrationWaveOf("seam", new Map([["seam", "T17"]]))).toBe("T17");
     expect(registrationWaveOf("seam", new Map())).toBeNull();
-    expect(registrationWaveOf("seam")).toBe("T16");
-    // `seam` is the command face's wave, not the render waves' — the table says T16.
-    expect(REGISTRATION_WAVES.get("seam")).toBe("T16");
+    expect(registrationWaveOf("seam")).toBe(REGISTRATION_WAVES.get("seam") ?? null);
+    // `seam` is the composition root's wave, not the render waves' — the table says T17.
+    expect(REGISTRATION_WAVES.get("seam")).toBe("T17");
     // A kind the grid never derives is not declared either.
     expect(registrationWaveOf("render:unknown")).toBeNull();
   });

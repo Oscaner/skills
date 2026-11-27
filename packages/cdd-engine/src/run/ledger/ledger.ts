@@ -595,6 +595,14 @@ export class Ledger {
     return "";
   }
 
+  /** The `handoff:` slot of one booked round — the carrier path its record resolves, on the
+   *  line the round hangs on. ONE accessor: the capsule prints what this answers, so no face
+   *  spells a carrier name. */
+  handoffOf(line: string, record: RoundRecord): string {
+    const { type, key } = this.#targetOf(line);
+    return String(this.carrierPathOf(type, key, record));
+  }
+
   /** The observation set: every REVIEW round of this ledger's own lines, one entry each
    *  `{line, kind, cycle, attempt, carrier, read}`, ordered by `(cycle, attempt)`. The set is
    *  a record sequence — a `*.rulings.json` no record claims stays on the orphan face and

@@ -11,7 +11,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DOC_ROOT_KEYS, DOC_ROOT_SEGMENTS, docRootsOf } from "../doc-roots.ts";
 import { type RepoPath, RepoRoot } from "../root.ts";
-import { SlugIndex } from "../slug-index.ts";
+import { NodeDirectoryListing, SlugIndex } from "../slug-index.ts";
 
 /** The temp roots this file made, removed after every case. */
 const created: string[] = [];
@@ -93,7 +93,12 @@ describe("the slug index", () => {
   it("answers the one path of a singly declared slug", () => {
     const repo = tempRepo("env-slug-");
     writeDoc(repo, DOC_ROOT_SEGMENTS.specs, "s1-design.md", "s1");
-    const index = SlugIndex.scan(RepoRoot.of(repo), docRootsOf(RepoRoot.of(repo)), slugOf);
+    const index = SlugIndex.scan(
+      RepoRoot.of(repo),
+      docRootsOf(RepoRoot.of(repo)),
+      slugOf,
+      new NodeDirectoryListing(RepoRoot.of(repo)),
+    );
     expect(index.lookup("s1")).toEqual({
       kind: "unique",
       slug: "s1",
@@ -105,7 +110,12 @@ describe("the slug index", () => {
     const repo = tempRepo("env-slug-dup-");
     writeDoc(repo, DOC_ROOT_SEGMENTS.specs, "b-design.md", "dup");
     writeDoc(repo, DOC_ROOT_SEGMENTS.specs, "a-design.md", "dup");
-    const index = SlugIndex.scan(RepoRoot.of(repo), docRootsOf(RepoRoot.of(repo)), slugOf);
+    const index = SlugIndex.scan(
+      RepoRoot.of(repo),
+      docRootsOf(RepoRoot.of(repo)),
+      slugOf,
+      new NodeDirectoryListing(RepoRoot.of(repo)),
+    );
     expect(index.lookup("dup")).toEqual({
       kind: "invalid",
       slug: "dup",
@@ -115,7 +125,12 @@ describe("the slug index", () => {
 
   it("answers absence for a slug no document declares", () => {
     const repo = tempRepo("env-slug-none-");
-    const index = SlugIndex.scan(RepoRoot.of(repo), docRootsOf(RepoRoot.of(repo)), slugOf);
+    const index = SlugIndex.scan(
+      RepoRoot.of(repo),
+      docRootsOf(RepoRoot.of(repo)),
+      slugOf,
+      new NodeDirectoryListing(RepoRoot.of(repo)),
+    );
     expect(index.lookup("nope")).toEqual({ kind: "absent", slug: "nope" });
     expect(index.slugs()).toEqual([]);
   });

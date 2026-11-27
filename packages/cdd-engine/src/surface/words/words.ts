@@ -47,7 +47,12 @@
 
 import type { Clock } from "../../env/process/clock.ts";
 import type { TargetFact } from "../../run/dispatch/inflight.ts";
-import type { PreFlightReason, RowStation, SkipReason } from "../../run/gate/preflight.ts";
+import type {
+  PreFlightGateName,
+  PreFlightReason,
+  RowStation,
+  SkipReason,
+} from "../../run/gate/preflight.ts";
 
 // ---------------------------------------------------------------------------
 // capsule
@@ -75,7 +80,17 @@ export type RouteWordKind =
   | "slugMissing"
   | "slugInvalid"
   | "slugDuplicated"
+  | "slugUnreadable"
   | "frontmatterParse";
+
+/** One workspace-key refusal — the closed set the pre-command identity gate answers: no
+ *  declared slug, a value outside the grammar, a slug two documents declare, or a target
+ *  whose bytes never read. */
+export type SlugRefusal =
+  | { readonly kind: "missing" }
+  | { readonly kind: "illegal"; readonly slug: string }
+  | { readonly kind: "duplicated"; readonly slug: string }
+  | { readonly kind: "unreadable"; readonly target: string };
 
 /** The capsule family. */
 export interface CapsuleWords {
@@ -153,6 +168,9 @@ export interface RefusalWords {
   readonly corrupt: string;
   readonly dispatchInput: DispatchInputWords;
   readonly artifact: ArtifactReportWords;
+  /** The `no-host` station's sentence — the one pre-dispatch row whose conclusion is a
+   *  whole sentence rather than a fill of the round's own facts. */
+  readonly noHost: string;
   /** The carrier-mismatch station's token (the sentence itself is the carrier line's). */
   readonly carrier: string;
 }
@@ -456,6 +474,7 @@ export const WORDS = {
       ],
     },
     carrier: "carrier-mismatch",
+    noHost: "no host harness detected (run cdd from within a supported harness)",
   },
   checked: {
     heading: "checked:",
@@ -563,6 +582,8 @@ export const WORDS = {
       'the doc\'s `slug:` value "{slug}" is illegal — use 1–128 characters, an alphanumeric first character, then alphanumerics, `.`, `_`, or `-` (the slug is the workspace directory name), then re-run',
     slugDuplicated:
       'the slug "{slug}" is declared by more than one document — keep exactly one identity document and at most one plan per slug, then re-run',
+    slugUnreadable:
+      "the target document {target} is unreadable — its declared `slug:` is the workspace key",
     frontmatterParse:
       "the doc's front-matter is not valid YAML: {reason} on line {line}, column {column} (`{source}`) — quote values that start with `[` or `{` (a YAML flow-sequence start) and re-run",
   },
@@ -670,6 +691,34 @@ export class Words {
       .replace("{rejected}", String(rejected));
   }
 
+  /** One identity refusal's sentence — the workspace key has no source, a value outside the
+   *  declared slug grammar, a slug two documents declare, or a target the read could not
+   *  reach. The four are the closed set the pre-command identity gate answers. */
+  slugRefusal(verdict: SlugRefusal): string {
+    switch (verdict.kind) {
+      case "missing":
+        return WORDS.route.slugMissing;
+      case "illegal":
+        return WORDS.route.slugInvalid.replace("{slug}", verdict.slug);
+      case "duplicated":
+        return WORDS.route.slugDuplicated.replace("{slug}", verdict.slug);
+      case "unreadable":
+        return WORDS.route.slugUnreadable.replace("{target}", verdict.target);
+    }
+  }
+
+  /** One round coordinate in the words plane's own spelling — the `identity:` row the
+   *  artifact report carries. The facts are the round's four cells, so the caller hands the
+   *  identity over and this table owns the byte. */
+  identityWords(facts: {
+    readonly line: string;
+    readonly op: string;
+    readonly cycle: number;
+    readonly attempt: number;
+  }): string {
+    return `line=${facts.line} · op=${facts.op} · cycle=${facts.cycle} · attempt=${facts.attempt}`;
+  }
+
   /** The whole refusal family. */
   refusalWords(): RefusalWords {
     return WORDS.refusal;
@@ -678,6 +727,12 @@ export class Words {
   /** One pre-dispatch station's word. */
   refusalStation(station: RowStation): string {
     return WORDS.refusal.stations[station];
+  }
+
+  /** One gate ROW's word — the four stations have rows in the table; the structure legs are
+   *  their own names (the gate's closed vocabulary IS the printed word). */
+  refusalRow(row: PreFlightGateName): string {
+    return (WORDS.refusal.stations as Readonly<Record<string, string>>)[row] ?? row;
   }
 
   /** One named refusal reason's word. `held` answers the held report's template (the

@@ -36,8 +36,9 @@ export const GRADES = ["blocker", "warn", "nit"] as const satisfies readonly Gra
 export interface RulingRecord {
   /** The carrier finding id the ruling answers (`F1`, `F2` …). */
   readonly finding: string;
-  /** The decision. */
-  readonly verdict: RulingVerdict;
+  /** The decision, when the orchestrator declared one. A ruling may state only its text (the
+   *  pre-existing sidecars do): absence is a fact, never an invented verdict. */
+  readonly verdict?: RulingVerdict;
   /** The decision's text, verbatim (the orchestrator's own words). */
   readonly ruling: string;
   /** The reproduction a `rejected` verdict owes — where a reader re-checks that the
@@ -229,7 +230,7 @@ export class Rulings {
     if (shape !== null) return shape;
     return {
       finding,
-      verdict: row.verdict as RulingVerdict,
+      ...(row.verdict === undefined ? {} : { verdict: row.verdict as RulingVerdict }),
       ruling: row.ruling,
       ...(typeof row.probe === "string" ? { probe: row.probe } : {}),
       ...(typeof row.at === "string" ? { at: row.at } : {}),
@@ -244,7 +245,7 @@ export class Rulings {
     findingIds: ReadonlySet<string>,
     finding: string,
   ): string | null {
-    if (!RULING_VERDICTS.includes(row.verdict as RulingVerdict)) {
+    if (row.verdict !== undefined && !RULING_VERDICTS.includes(row.verdict as RulingVerdict)) {
       return `ruling #${index + 1} carries a \`verdict\` outside ${RULING_VERDICTS.join(" | ")}`;
     }
     if (row.probe !== undefined && typeof row.probe !== "string") {
@@ -273,7 +274,7 @@ export class Rulings {
 
   /** A recorded ruling's own shape — the same duty the schema enforces on a sidecar. */
   static #assertRuling(ruling: RulingRecord): void {
-    if (!RULING_VERDICTS.includes(ruling.verdict)) {
+    if (ruling.verdict !== undefined && !RULING_VERDICTS.includes(ruling.verdict)) {
       throw new Error(`Rulings: "${String(ruling.verdict)}" is not a declared verdict`);
     }
     if (ruling.finding.trim().length === 0) {

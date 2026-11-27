@@ -54,9 +54,13 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { main as newMain } from "../../src/bin.ts";
 import type { DocType } from "../../src/docs/identity/types.ts";
 import { Documents } from "../../src/docs/index.ts";
+import type { ChildOutcome, ChildRun, ChildRunner } from "../../src/env/process/child-runner.ts";
 import { Clock } from "../../src/env/process/clock.ts";
+import { ArtifactIdentity } from "../../src/run/ledger/artifacts.ts";
+import { RoundIdentity } from "../../src/run/ledger/identity.ts";
 import { Capsule as NewCapsule } from "../../src/surface/render/capsule.ts";
 import { RouteRenderer } from "../../src/surface/render/route.ts";
 import { PromptBandsRenderer } from "../../src/surface/render/templates.ts";
@@ -758,15 +762,16 @@ export const ENTRY_DRIVER: NewTreeDriver = {
  * A kind absent from this table has no declared wave, so a producer with no driver reads
  * MISSING (absence must be named) — never a silent count.
  *
- * The table is a declaration beside `NEW_TREE`, and the two tell their own truths: the
- * table says `entry` arrives in T17 and `seam` in T16 while `NEW_TREE` holds neither
- * driver yet; `render:*` registrations belong to the render waves. The parity suite pins
- * the key set to the kinds the grid actually derives, so a new probe kind cannot arrive
- * without a declared wave.
+ * The table is a declaration beside `NEW_TREE`, and the two tell their own truths: `entry`
+ * and `seam` are both registered in T17 — the wave that composes the four slices, because
+ * `entry`'s reading is the composed process and `seam`'s is the composed graph with its
+ * dispatch conclusion and step runner substituted; `render:*` registrations belong to the
+ * render waves. The parity suite pins the key set to the kinds the grid actually derives, so
+ * a new probe kind cannot arrive without a declared wave.
  */
 export const REGISTRATION_WAVES: ReadonlyMap<string, string> = new Map([
   ["entry", "T17"],
-  ["seam", "T16"],
+  ["seam", "T17"],
   ["render:skeleton", "T9"],
   ["render:prompt", "T15"],
   ["render:review", "T15"],
@@ -801,27 +806,200 @@ export const registrationWaveOf = (
   waves: ReadonlyMap<string, string> = REGISTRATION_WAVES,
 ): string | null => waves.get(kind) ?? null;
 
-/** The new tree's execution face as it stands: the four render families, and nothing else. The
- *  first wave registered the process `entry` as a placeholder, and it answered nothing (the
- *  composition root still throws `not wired yet`), so registering it made every entry-kind
- *  cell look wired while the tree held an empty process — retired in the provisioning wave.
- *  `entry` cells read as NAMED-DEFERRED until T17 registers the real process driver, which
- *  stays in this file written and unregistered for that wave.
- *
- *  `seam` is declared to T16 and still has no driver, for a reason worth naming rather than
- *  leaving as a table row: the driver IS the composition root — it assembles `Env` →
- *  `Documents` → `Run` → `Cli` over the fixture, which means the whole `LifecycleReads` seam
- *  set, the four pre-dispatch station rows and the document world `Documents#judge` reads
- *  through. The last of those has no production adapter anywhere in `src/`, so a driver here
- *  would have to invent a second one inside the test surface. The command face's own gate —
- *  the dispatch capsule — landed: `AdvanceOutcome#face` carries the conclusion word, the
- *  carrier coordinate and the hop, so the value a driver renders exists; what it does not yet
- *  have is a tree to render it over. */
+/** The in-flight record's workspace-level name — the file a dispatch publishes before its
+ *  child exists, which is how a scripted child learns the round it is playing. */
+const IN_FLIGHT = "in-flight.json";
+
+/** The round-context cell a scripted child reads out of its own prompt. */
+const contextCell = (prompt: string, token: string): string =>
+  new RegExp(`^- \`${token}\`: (.+)$`, "m").exec(prompt)?.[1]?.trim() ?? "";
+
+/** One dispatch's scripted in-flight record, as the child reads it. */
+interface ScriptedRound {
+  readonly slug: string;
+  readonly phase: string;
+  readonly cycle: number;
+  readonly attempt: number;
+}
+
+/**
+ * ScriptedChild — the `seam` kind's child: it does what a dispatched round does to the tree
+ * (write the carrier the record reads back, write the work plane's evidence file, commit the
+ * round) and answers a clean exit — so a cell is read over the composed graph with ZERO
+ * spawned processes.
+ */
+class ScriptedChild implements ChildRunner {
+  /** The spawn count — a `seam` reading must never leave this at anything but 0. */
+  spawns = 0;
+  readonly #verdict: string | undefined;
+
+  constructor(verdict: string | undefined) {
+    this.#verdict = verdict;
+  }
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.spawns += 1;
+    const prompt = run.args[run.args.length - 1] ?? "";
+    const round = ScriptedChild.#roundOf(run.cwd);
+    if (round !== null) ScriptedChild.#land(run.cwd, round, prompt, this.#verdict);
+    return {
+      code: 0,
+      stdout: "",
+      stderr: "",
+      facts: { overBudget: false, stopped: false, signal: null },
+    };
+  }
+
+  /** The round this dispatch published — read from the tree-level record the engine wrote
+   *  before the child existed. */
+  static #roundOf(cwd: string): ScriptedRound | null {
+    try {
+      const text = readFileSync(path.join(cwd, ".kairos/cdd", IN_FLIGHT), "utf8");
+      const value = JSON.parse(text) as Partial<ScriptedRound>;
+      if (
+        typeof value.slug !== "string" ||
+        typeof value.phase !== "string" ||
+        typeof value.cycle !== "number" ||
+        typeof value.attempt !== "number"
+      ) {
+        return null;
+      }
+      return { slug: value.slug, phase: value.phase, cycle: value.cycle, attempt: value.attempt };
+    } catch {
+      return null;
+    }
+  }
+
+  /** One scripted round's effects: the carrier, the evidence file and the round's commit. */
+  static #land(
+    cwd: string,
+    round: ScriptedRound,
+    prompt: string,
+    verdict: string | undefined,
+  ): void {
+    const op = round.phase === "branch-review" ? "review" : round.phase;
+    const tasks = contextCell(prompt, "WAVE");
+    const type = contextCell(prompt, "TARGET_TYPE") || (tasks.length > 0 ? "wave" : "phase-spec");
+    const line = tasks.length > 0 ? `tasks-${tasks}` : type;
+    const identity = new RoundIdentity({
+      line,
+      op: op as "implement" | "review" | "fix",
+      cycle: round.cycle,
+      attempt: round.attempt,
+    });
+    const workspace = path.join(cwd, ".kairos/cdd", round.slug);
+    const status = verdict === "BLOCKED" ? "BLOCKED" : "APPROVED";
+    const findings =
+      verdict === "CHANGES_REQUESTED" || verdict === "BLOCKED"
+        ? [{ id: "F1", severity: "blocker", lens: "behaviour", summary: "the guard is missing" }]
+        : [];
+    // A BLOCKED round declares its word on the carrier even on the judge plane: the failure
+    // face is the injected dispatch's own conclusion, and the conclusion read prefers a
+    // declared status over the findings roll-up (the same precedence the work plane uses).
+    const carrier =
+      op === "review"
+        ? { findings, ...(verdict === "BLOCKED" ? { status } : {}) }
+        : { status, artifacts: {}, dispositions: ScriptedChild.#dispositionsOf(findings) };
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, ArtifactIdentity.nameOf(identity, "final")),
+      `${JSON.stringify(carrier, null, 2)}\n`,
+      "utf8",
+    );
+    if (op !== "review" && !(type !== "wave" && type !== "branch")) {
+      const evidence = {
+        command: "true",
+        exit_code: 0,
+        passed: true,
+        warnings_count: 0,
+        typecheck: { command: "true", exit_code: 0, passed: true },
+      };
+      writeFileSync(
+        path.join(workspace, ArtifactIdentity.nameOf(identity, "evidence")),
+        `${JSON.stringify(evidence, null, 2)}\n`,
+        "utf8",
+      );
+    }
+    // The round's own commit — the implement criterion counts the group's commits since its
+    // dispatch baseline, and a scripted child that changed nothing must still land its round.
+    spawnSync(
+      "git",
+      [
+        "-c",
+        "user.name=cdd",
+        "-c",
+        "user.email=cdd@engine",
+        "commit",
+        "--allow-empty",
+        "-q",
+        "-m",
+        `${op} ${line}`,
+      ],
+      { cwd },
+    );
+  }
+
+  /** The dispositions a scripted fix round declares — one `fixed` row per requesting finding,
+   *  so the coverage criterion sees a complete table. */
+  static #dispositionsOf(findings: readonly { readonly id?: string }[]): Record<string, unknown> {
+    const rows: Record<string, unknown> = {};
+    for (const finding of findings) {
+      if (typeof finding.id === "string" && finding.id.length > 0) {
+        rows[finding.id] = { status: "fixed" };
+      }
+    }
+    return rows;
+  }
+}
+
+/** The `seam` driver: the composed graph in process, its dispatch conclusion and step runner
+ *  substituted on `env/`'s own seams, and ZERO spawned processes. */
+const SEAM_DRIVER: NewTreeDriver = {
+  async run(probe: Probe): Promise<ProbeReading> {
+    const corpus = await Corpus.open(probe);
+    const capture = new Capture();
+    const child = new ScriptedChild(probe.verdict);
+    const runner =
+      probe.failingRunner === true ? RecordingStepRunner.failing() : new RecordingStepRunner();
+    const before = process.cwd();
+    process.chdir(corpus.repo);
+    try {
+      const exitCode = await newMain(probe.argv, {
+        io: capture.io(),
+        stdin: () => probe.stdin ?? "",
+        runner: child,
+        stepRunner: runner,
+        // Every harness marker removed is the `no-host` station's own input; a hostless probe
+        // hands the probe an empty environment rather than trimming the live one.
+        ...(probe.hostless === true ? { hostEnv: {} } : {}),
+      });
+      return {
+        stdout: normalizeReading(capture.stdout, corpus.repo),
+        stderr: normalizeReading(capture.stderr, corpus.repo),
+        exitCode,
+        landing: corpus.landing(),
+      };
+    } finally {
+      process.chdir(before);
+      corpus.close();
+    }
+  },
+};
+
+/**
+ * The new tree's execution face: the four render families plus the two process kinds. `seam`
+ * drives the composed graph IN PROCESS — the same `Boot` the process entry runs, with the
+ * dispatch conclusion and the provisioning step runner substituted on `env/`'s own seams — so
+ * a cell that needs a hermetic child (or a mocked install) is read without spawning one.
+ * `entry` drives the real process, which is the cutover's own reading.
+ */
 export const NEW_TREE = NewTree.of([
   ["render:skeleton", SKELETON_DRIVER],
   ["render:prompt", PROMPT_DRIVER],
   ["render:review", PROMPT_DRIVER],
   ["render:capsule", CAPSULE_DRIVER],
+  ["seam", SEAM_DRIVER],
+  ["entry", ENTRY_DRIVER],
 ]);
 
 /** Record the whole corpus from the live old tree. Each cell's state is DERIVED from the
@@ -935,6 +1113,9 @@ export const reconcile = async (
       `the corpus was recorded under ${baseline.frozenDate}, not ${scenario.frozenDate} — re-record it`,
     );
   }
+  // ONE reading per UNIT: a unit's three cells are three projections of one run, so the new
+  // tree is executed once per unit rather than once per stream.
+  const readings = new Map<string, ProbeReading>();
   for (const cell of GRID) {
     const recorded = baseline.cells[cell.id];
     if (recorded === undefined) {
@@ -973,8 +1154,10 @@ export const reconcile = async (
       continue;
     }
     let next: ProbeReading;
+    const cached = readings.get(cell.unit);
     try {
-      next = await newTree.read(probe, scenario.frozenDate);
+      next = cached ?? (await newTree.read(probe, scenario.frozenDate));
+      if (cached === undefined) readings.set(cell.unit, next);
     } catch (raw) {
       if (!(raw instanceof NewTreeAbsent)) throw raw;
       const wave = registrationWaveOf(raw.kind, waves);

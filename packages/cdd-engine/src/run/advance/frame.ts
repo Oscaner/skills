@@ -37,7 +37,7 @@ import type { RoundPhase } from "../dispatch/child.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { LineIdentity, LinePhase } from "./line-phase.ts";
 import type { PipelineInput } from "./pipeline.ts";
-import type { RouteTarget, TargetType } from "./target-faces.ts";
+import { type RouteTarget, TargetFaces, type TargetType } from "./target-faces.ts";
 
 /** The work commands a frame can be assembled for. */
 export type WorkVerb = "implement" | "review" | "fix" | "docs-fix";
@@ -139,6 +139,13 @@ export interface FrameReads {
   readonly planText: (target: RepoPath) => PlanText;
   /** A document's declared identity facts; null when the document cannot be read. */
   readonly docFacts: (target: RepoPath) => DocFacts | null;
+  /** Whether one repo-relative target is present on disk — the board's "no docs match"
+   *  attribution distinguishes an ABSENT path from a present-but-unreadable one, and only
+   *  the first is a miss. */
+  readonly exists: (target: RepoPath) => boolean;
+  /** Whether one repo-relative coordinate lies inside a declared document root — the same
+   *  attribution's other half: a path outside the roots names no document at all. */
+  readonly insideDocs: (target: RepoPath) => boolean;
 }
 
 /** The line facts the frame's phase cells come from — the ONE ledger walk. */
@@ -278,11 +285,24 @@ export class Frame {
     }
     const taskIds = Frame.#tasksOf(request);
     if (taskIds.failure !== null) return taskIds.failure;
-    const planPath = request.plan === undefined ? null : this.#reads.root.relativize(request.plan);
-    const plan = planPath === null ? null : this.#reads.planText(planPath);
-    if (plan !== null && plan.kind === "read-failure") {
-      return { kind: "read-failure", target: plan.target };
+    const namedPlan = request.plan === undefined ? null : this.#reads.root.relativize(request.plan);
+    const namedPlanText = namedPlan === null ? null : this.#reads.planText(namedPlan);
+    if (namedPlanText !== null && namedPlanText.kind === "read-failure") {
+      return { kind: "read-failure", target: namedPlanText.target };
     }
+    const index = this.#reads.index();
+    const slug = this.#slugOf(request, namedPlan, namedPlanText, index);
+    if (slug.kind !== "ok") return slug.failure;
+    // THE PLAN is the plan-sourced face's own document when argv names it, else the slug's
+    // plan (a phase's registration is one identity document plus one plan). A derived plan
+    // that does not read declares no plan at all — a derived face is never a usage failure.
+    const planPath = namedPlan ?? this.#derivedPlanOf(slug.slug, index);
+    const plan =
+      planPath === null
+        ? null
+        : planPath === namedPlan
+          ? namedPlanText
+          : Frame.#derivedRead(this.#reads.planText(planPath));
     const blocks = plan !== null && plan.kind === "text" ? blocksOf(plan.value) : null;
     const graph = graphOf(blocks);
     const unknown = Frame.#unknownTaskOf(taskIds.ids, graph);
@@ -292,9 +312,6 @@ export class Frame {
         reason: { kind: "unknown-task", command: request.command, task: unknown },
       };
     }
-    const index = this.#reads.index();
-    const slug = this.#slugOf(request, planPath, plan, index);
-    if (slug.kind !== "ok") return slug.failure;
     const identity = this.#identityOf(slug.slug, index);
     const doc = Frame.#judgedDocOf(request, identity.doc, planPath);
     const target = this.#targetOf(request.type, doc, planPath, taskIds.ids);
@@ -329,7 +346,7 @@ export class Frame {
     };
     // The phase is a DISPATCH cell: a line whose rounds lie on the closure side has none, and
     // the scene answers unchanged so a read (the board) still reports it.
-    const phase = this.#roundPhaseOf(request.type, key);
+    const phase = this.#roundPhaseOf(request.type, key, request.command);
     if (phase === null) return { kind: "closed-line", scene };
     const round = this.#roundOf(key, phase);
     return {
@@ -352,8 +369,16 @@ export class Frame {
     ];
     for (const [flag, value] of named) {
       if (value === undefined) continue;
-      const facts = this.#reads.docFacts(this.#reads.root.relativize(value));
-      if (facts === null || facts.slug === null) misses.push({ flag, target: value });
+      const rel = this.#reads.root.relativize(value);
+      // A miss is "no document is here": outside the declared roots, or absent on disk. A
+      // present-but-unreadable path is NOT a miss — the read failure is the board's own
+      // `cannot read` answer, and folding it into "no docs match" would name the wrong fact.
+      if (!this.#reads.insideDocs(rel) || !this.#reads.exists(rel)) {
+        misses.push({ flag, target: value });
+      }
+      // A present coordinate whose bytes do not declare an identity is not "no docs match":
+      // the frame's own read names it (`cannot read`), and that is the byte a caller repairs
+      // against.
     }
     return misses;
   }
@@ -418,6 +443,25 @@ export class Frame {
     if (request.spec !== undefined) return this.#reads.root.relativize(request.spec);
     if (planPath !== null) return planPath;
     return null;
+  }
+
+  /** The slug's PLAN coordinate — the one indexed document of that slug declaring the plan
+   *  type word, so a `--spec` round reads the plan its line is registered with and never a
+   *  filename derivation. Null when the slug registers no plan. */
+  #derivedPlanOf(slug: string, index: SlugIndex): RepoPath | null {
+    const entry = index.lookup(slug);
+    const rels = entry.kind === "unique" ? [entry.rel] : entry.kind === "invalid" ? entry.rels : [];
+    for (const rel of rels) {
+      if (this.#reads.docFacts(rel)?.docType === "plan") return rel;
+    }
+    return null;
+  }
+
+  /** A derived plan read, folded: a coordinate nobody named answers no plan rather than a
+   *  usage failure — the argv face owns the failure of a path the caller spelled. */
+  static #derivedRead(read: PlanText | null): PlanText | null {
+    if (read === null || read.kind === "read-failure") return null;
+    return read;
   }
 
   /** The same-slug IDENTITY document — the document of that slug which declares a
@@ -495,11 +539,25 @@ export class Frame {
   /** The phase this frame runs — read off the ONE line walk; null when the line holds no
    *  open round (its rounds lie on the closure side), which the assembly answers as the
    *  scene alone. */
-  #roundPhaseOf(type: TargetType, key: string): RoundPhase | null {
+  #roundPhaseOf(type: TargetType, key: string, command: string): RoundPhase | null {
     if (type === "wave") {
-      return this.#lines.walk.wavePhaseOf(RoundIdentity.splitLineWord(key).key);
+      const open = this.#lines.walk.wavePhaseOf(RoundIdentity.splitLineWord(key).key);
+      if (open !== null) return open;
+      // A REVIEW command re-enters the line's review lead even when the recorded rounds all
+      // sit on the closure side: a review never depends on a dispatchable round (it judges
+      // what is on disk), and the wave gate still judges the batch it asked for. Every other
+      // verb holds its own phase, so a closed line answers "no frame" there.
+      return command === "review" ? Frame.#expectedPhaseOf(type, command) : null;
     }
     return this.#lines.walk.phaseOf(key, type);
+  }
+
+  /** The phase a command asks the LINE for — the verb's own word, or the target row's review
+   *  lead. Read off the same table the gate reads, so no command re-spells a phase. */
+  static #expectedPhaseOf(type: TargetType, command: string): RoundPhase {
+    if (command === "implement" || command === "fix" || command === "review") return command;
+    if (command === "docs-fix") return "fix";
+    return TargetFaces.phaseOfHop(type, "review");
   }
 
   /** The round number one phase dispatches under: an implement round is the fixed family's

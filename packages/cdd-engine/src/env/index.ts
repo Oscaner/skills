@@ -26,7 +26,12 @@
 import type { DocRoots } from "./paths/doc-roots.ts";
 import { docRootsOf } from "./paths/doc-roots.ts";
 import { RepoRoot } from "./paths/root.ts";
-import { SlugIndex, type SlugReader } from "./paths/slug-index.ts";
+import {
+  type DirectoryListing,
+  NodeDirectoryListing,
+  SlugIndex,
+  type SlugReader,
+} from "./paths/slug-index.ts";
 import { type ChildRunner, Terminator } from "./process/child-runner.ts";
 import { Clock } from "./process/clock.ts";
 import { detectHost, type HostEnv, type HostId, type HostProbe } from "./process/host.ts";
@@ -42,9 +47,15 @@ export class Paths {
   readonly root: RepoRoot;
   readonly docs: DocRoots;
 
-  constructor(root: RepoRoot) {
+  /** The repository's directory listing — the ONE enumeration of "which names sit under
+   *  this coordinate", so a document scan, a workspace name read and an existence probe all
+   *  answer from one spelling instead of opening a directory of their own. */
+  readonly listing: DirectoryListing;
+
+  constructor(root: RepoRoot, listing?: DirectoryListing) {
     this.root = root;
     this.docs = docRootsOf(root);
+    this.listing = listing ?? new NodeDirectoryListing(root);
   }
 
   /** Resolve one working directory into the paths segment. A directory that is not
@@ -56,7 +67,7 @@ export class Paths {
   /** Scan the doc roots into the slug index; `slugOf` is the document world's reading
    *  of one document's declared slug (injected, so `env/` parses no front matter). */
   slugIndex(slugOf: SlugReader): SlugIndex {
-    return SlugIndex.scan(this.root, this.docs, slugOf);
+    return SlugIndex.scan(this.root, this.docs, slugOf, this.listing);
   }
 }
 
@@ -136,6 +147,8 @@ export interface EnvOptions {
   readonly workspaceRoot?: string;
   /** The syscall layout, when a caller drives the workspace over its own file system. */
   readonly ops?: FileOps;
+  /** The directory listing, when a caller drives the tree over a fabricated one. */
+  readonly listing?: DirectoryListing;
   /** The host probe, when a caller needs to count or pin the detection. */
   readonly hostProbe?: HostProbe;
   /** The environment view the host probe reads; `process.env` by default. */
@@ -167,7 +180,7 @@ export class Env {
   readonly provision: Provisioner;
 
   constructor(opts: EnvOptions) {
-    this.paths = Paths.of(opts.cwd ?? process.cwd());
+    this.paths = new Paths(RepoRoot.of(opts.cwd ?? process.cwd()), opts.listing);
     this.process = new Process({
       clock: opts.clock,
       runner: opts.runner,

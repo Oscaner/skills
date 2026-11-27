@@ -452,7 +452,16 @@ describe("the route face — one assembly point", () => {
       ok: false,
       gate: "in-flight",
       reason: "held",
-      holding: { kind: "held", pid: 77, alive: true, targetGone: [] },
+      holding: {
+        kind: "held",
+        pid: 77,
+        command: "cdd implement --tasks 1 --plan p9.md",
+        startedAt: 0,
+        wave: "1",
+        slug: "p9",
+        alive: true,
+        targetGone: [],
+      },
       order: [],
       checked: [],
     };
@@ -1389,8 +1398,10 @@ describe("the usage face", () => {
     expect(face.report({ kind: "missing-target" }, "schema get").text).toContain(
       "missing <target>",
     );
+    // The row names the SHAPE the json face takes, never the caller's path: `unexpected
+    // <target>` is the declared spelling, and the value adds nothing a reader repairs against.
     expect(face.report({ kind: "extra-target", target: "x.md" }, "schema get").text).toContain(
-      "unexpected x.md",
+      "unexpected <target>",
     );
   });
 

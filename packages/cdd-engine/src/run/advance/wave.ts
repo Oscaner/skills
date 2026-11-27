@@ -43,6 +43,19 @@ export interface WavePhaseRow {
   readonly phase: RoundPhase | null;
 }
 
+/** The wave board a `split` refusal prints: the plan's coordinate, its derived waves and the
+ *  ledger's closed set. The shape is declared HERE because this segment assembles it, and the
+ *  render face reads it structurally (`surface/render/graph.ts#GraphTree`) — the advance
+ *  segment imports no renderer. */
+export interface WaveBoard {
+  /** The plan document's coordinate. */
+  readonly plan: string;
+  /** The derived waves, in execution order. */
+  readonly waves: readonly (readonly number[])[];
+  /** The task ids already closed. */
+  readonly done: ReadonlySet<number>;
+}
+
 /** The gate's input — every cell is a fact the caller already read. */
 export interface WaveInput {
   /** The plan's graph (its own decomposition is the gate's only wave source). */

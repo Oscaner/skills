@@ -41,7 +41,7 @@ import type { NextHop } from "../run/advance/next.ts";
 import { TargetFaces } from "../run/advance/target-faces.ts";
 import type { WaveVerdict } from "../run/advance/wave.ts";
 import type { InFlightState } from "../run/dispatch/inflight.ts";
-import type { CheckedRow, PreFlightVerdict } from "../run/gate/preflight.ts";
+import type { CheckedRow, InFlightReading, PreFlightVerdict } from "../run/gate/preflight.ts";
 import type { AdvanceOutcome, BoardOutcome, PreviewOutcome, Run } from "../run/index.ts";
 import { CarrierMismatchError } from "../run/ledger/carrier-line.ts";
 import { BaseCommand, type BaseResolution } from "./commands/base.ts";
@@ -492,7 +492,16 @@ export class Cli {
     if (outcome.kind === "dispatch") return this.#reportCapsule(outcome);
     if (outcome.kind === "held") return this.#reportHeld(outcome.state, outcome.checked);
     if (outcome.kind === "blocked") {
-      return this.#reportBlocked(outcome.verdict, outcome.leg, request, outcome.checked);
+      return outcome.leg === "line"
+        ? this.#reportBlocked(
+            outcome.verdict,
+            "line",
+            request,
+            outcome.checked,
+            outcome.tree,
+            outcome.hop,
+          )
+        : this.#reportBlocked(outcome.verdict, "structure", request, outcome.checked);
     }
     return this.#reportUsage(outcome, request.command);
   }
@@ -508,7 +517,9 @@ export class Cli {
     // rows is the plausible-looking wrong byte this face exists to refuse.
     if (!failed && (face.handoff === "" || face.hop === null))
       throw new Error(CAPSULE_READS_ABSENT);
-    const summary = this.#summaryOf(outcome.capsule);
+    // A failing round states its conclusion alone: the summary slot describes a round that
+    // DID something, and a failure face carries no route rows either.
+    const summary = failed ? undefined : this.#summaryOf(outcome.capsule);
     const rows = this.capsuleRows({
       status: face.status,
       handoff: face.handoff,
@@ -544,9 +555,24 @@ export class Cli {
    *  rows that ran. */
   #reportHeld(state: InFlightState, checked: readonly CheckedRow[]): number {
     const message = this.#heldReport(state);
-    this.#io.stderr(`${this.words.station("blocked")} ${message}\n`);
+    // The hold IS the `in-flight` row's refusal, printed through the same channel shape the
+    // structure leg uses: anchor, row, join, then the holder's own report.
+    this.#io.stderr(
+      `${this.words.station("blocked")} ${this.words.refusalRow("in-flight")}${this.words.refusalWords().join}${message}\n`,
+    );
     this.#writeChecked(checked);
     return 1;
+  }
+
+  /** The held sentence of one gate reading — the record's cells through the one filler. */
+  #heldReportOf(holding: Extract<InFlightReading, { kind: "held" }>): string {
+    return this.words.inFlightHeld({
+      pid: holding.pid,
+      command: holding.command,
+      startedAt: holding.startedAt,
+      wave: holding.wave,
+      slug: holding.slug,
+    });
   }
 
   /** The held sentence of one occupancy — the holder's own report with the word table's
@@ -574,12 +600,17 @@ export class Cli {
     leg: "structure" | "line",
     request: FrameRequest,
     checked: readonly CheckedRow[],
+    tree: GraphTree | null = null,
+    hop: NextHop | null = null,
   ): number {
     if (leg === "line") {
       const phase = CDD_PHASE_OF.of(request.command, request.type);
       this.#io.stderr(
-        `${this.route.lineRefusalText(request.command, phase, verdict as WaveVerdict)}\n`,
+        `${this.route.lineRefusalText(request.command, phase, verdict as WaveVerdict, hop)}\n`,
       );
+      for (const detail of this.route.refusalDetails(verdict as WaveVerdict, tree)) {
+        this.#io.stderr(`${detail}\n`);
+      }
     } else {
       this.#writeStructureBlocked(request.command, verdict as PreFlightVerdict);
     }
@@ -590,7 +621,13 @@ export class Cli {
   /** The structure leg's line — the `CDD_BLOCKED` anchor for the rows that own that channel,
    *  the command channel for the two that keep their own face, then the detail rows. */
   #writeStructureBlocked(verb: string, verdict: PreFlightVerdict): void {
-    const body = this.route.refusalBody(verdict);
+    // The held row's own report is the record's cells filled through the word table — the
+    // gate hands the reading over, and the FILL belongs to this face (one sentence, one
+    // spelling, the same one `#reportHeld` prints).
+    const body =
+      verdict.reason === "held" && verdict.holding?.kind === "held"
+        ? this.route.refusalBody(verdict, this.#heldReportOf(verdict.holding))
+        : this.route.refusalBody(verdict);
     const anchor = CDD_BLOCKED_GATES.includes(verdict.gate ?? "")
       ? `${this.words.station("blocked")} ${body}`
       : `cdd ${verb}: ${body}`;
@@ -611,7 +648,14 @@ export class Cli {
       return this.#reportUsage(outcome, request.command);
     }
     if (outcome.kind === "refused") {
-      return this.#reportBlocked(outcome.verdict, "line", request, outcome.checked);
+      return this.#reportBlocked(
+        outcome.verdict,
+        "line",
+        request,
+        outcome.checked,
+        outcome.tree,
+        outcome.hop,
+      );
     }
     if (outcome.kind === "held") {
       return this.#writeLines(
@@ -774,7 +818,11 @@ export class Cli {
       commandPath,
       leaf,
       args,
-      positionals: (command.processedArgs as readonly unknown[]).map(String),
+      // A declared-but-absent optional positional arrives as `undefined`; it is absent, never
+      // the string "undefined" (a shell that read it as a value would echo one).
+      positionals: (command.processedArgs as readonly unknown[])
+        .filter((arg) => arg !== undefined)
+        .map(String),
       dryRun: globals.dryRun === true,
     };
   }

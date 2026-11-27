@@ -178,6 +178,14 @@ export type InFlightReading =
       readonly kind: "held";
       /** The holder process's pid — the fact a holder report names. */
       readonly pid: number;
+      /** The holder's own command line, so a refusal can print the report the record holds. */
+      readonly command: string;
+      /** The holder process's start instant (epoch ms). */
+      readonly startedAt: number;
+      /** The dispatched wave key, null off the wave face. */
+      readonly wave: string | null;
+      /** The phase workspace that holds the tree. */
+      readonly slug: string;
       /** Whether the holder process is live (an unreadable start time folds to `true`). */
       readonly alive: boolean;
       /** The record's own target cells that read out missing; empty when every one stands. */
@@ -559,9 +567,17 @@ export class PreFlight {
       (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
     );
     const ahead = LedgerTaskSetRule.planAhead(target.facts);
+    // Two rows for one gate: the gate's own label, then the plan-ahead INFO row when the plan
+    // still leads the ledger. The info row is a fact beside the gate row, never a replacement —
+    // a plan that has been implemented past its ledger keeps both lines.
     return {
       ran: ["plan-ledger" as const],
-      checked: [{ row: "plan-ledger", reading: { kind: "plan-ledger" as const, ahead } }],
+      checked: [
+        { row: "plan-ledger", reading: { kind: "ran" as const } },
+        ...(ahead > 0
+          ? [{ row: "plan-ledger", reading: { kind: "plan-ledger" as const, ahead } }]
+          : []),
+      ],
       doc: carried.doc,
       ledger: { kind: "judged" as const, findings, ahead },
       refusal: details.length === 0 ? null : { gate: "plan-ledger" as const, details },

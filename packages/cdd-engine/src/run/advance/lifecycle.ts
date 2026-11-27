@@ -86,6 +86,7 @@ import { regradeNote } from "../../docs/judging/criteria.ts";
 import type { Finding } from "../../docs/judging/invariants.ts";
 import type { WriteOutcome } from "../../env/workspace/workspace.ts";
 import type { Child, DispatchFrame, RoundPhase, TerminationCause } from "../dispatch/child.ts";
+import type { DispatchAssemblyOutcome } from "../dispatch/frame-assembly.ts";
 import {
   CONTRACT_VIOLATION,
   type EvidenceRead,
@@ -107,7 +108,7 @@ import type { FrameFacts, UsageReason } from "./frame.ts";
 import type { CarriedFacts } from "./line-phase.ts";
 import { type NextHop, NextRoutes, type RoundFacts, type Route } from "./next.ts";
 import { TargetFaces } from "./target-faces.ts";
-import type { WaveGate, WaveInput, WaveVerdict } from "./wave.ts";
+import type { WaveBoard, WaveGate, WaveInput, WaveVerdict } from "./wave.ts";
 
 /** The dispatch's own result, as the step reports it — the child's exit, the log's
  *  coordinate and how the round ended. */
@@ -179,12 +180,15 @@ export type AdvanceOutcome =
       readonly verdict: PreFlightVerdict;
       readonly checked: readonly CheckedRow[];
     }
-  /** The wave gate refused before the dispatch — the task face's own line leg. */
+  /** The wave gate refused before the dispatch — the task face's own line leg, carrying the
+   *  wave board its `split` cause prints. */
   | {
       readonly kind: "blocked";
       readonly leg: "line";
       readonly verdict: WaveVerdict;
       readonly checked: readonly CheckedRow[];
+      readonly tree: WaveBoard | null;
+      readonly hop: NextHop | null;
     }
   /** The in-flight gate holds the tree — the record's own state value rides along. */
   | {
@@ -243,9 +247,11 @@ export interface LifecycleLedger {
    *  line writes both. */
   recordReviewed(line: string, reviewed: ReviewedIdentity): void;
   /** The carrier coordinate the booked round wrote, as the `handoff:` slot prints it. ONE
-   *  read: the ledger resolves a record's carrier path and this segment never spells one.
-   *  Absent leaves the slot with the empty coordinate rather than a path no writer produced. */
-  readonly handoffOf?: (record: RoundRecord) => string;
+   *  read: the ledger resolves a record's carrier path and this segment never spells one. The
+   *  LINE comes with the record because a carrier's name embeds its line (the same reason the
+   *  carried read takes it). Absent leaves the slot with the empty coordinate rather than a
+   *  path no writer produced. */
+  readonly handoffOf?: (line: string, record: RoundRecord) => string;
 }
 
 /** The step's reads and side-effect seams — every one of them is a fact the composition root
@@ -254,8 +260,11 @@ export interface LifecycleReads {
   /** The gate context of this dispatch (the plan graph, the ledger fact bundle, the document
    *  target and the four station rows). */
   readonly preflight: (frame: FrameFacts, holding: InFlightState) => PreFlightContext;
-  /** The child's frame — the argv, the environment and the log's coordinate. */
-  readonly dispatchFrame: (frame: FrameFacts, briefPath: string) => DispatchFrame;
+  /** The child's frame — the argv, the environment and the log's coordinate — or the
+   *  refusal of an EMPTY rendered prompt, which names the brief the round was measured
+   *  against. The assembly is the dispatch segment's own; this segment forwards its answer
+   *  and translates nothing. */
+  readonly dispatchFrame: (frame: FrameFacts, briefPath: string) => DispatchAssemblyOutcome;
   /** The brief's name, its bytes and the task-only projection the wave line's reviewed version
    *  hashes (one render, three cells). */
   readonly brief: (frame: FrameFacts) => BriefLanding;
@@ -285,8 +294,10 @@ export interface LifecycleReads {
     readonly reviews?: string;
     readonly rulings?: string;
   };
-  /** The commits the round's group produced since its baseline. */
-  readonly commits: (base: string) => number;
+  /** The commits the round's group produced since its baseline. Asynchronous because the
+   *  repository is: a git read is a subprocess, and a synchronous seam would force the
+   *  production adapter to pre-measure a fact nobody asked for yet. */
+  readonly commits: (base: string) => Promise<number>;
   /** The group's RECORDED dispatch baseline — the EARLIEST round record's `dispatchBase` on
    *  this line, and the HEAD a zero-commit refusal names. Null while no record carries one (a
    *  group's first dispatch, before this step writes its own record): the step then falls back
@@ -305,7 +316,7 @@ export interface LifecycleReads {
    *  matters: `true` / `false` off a READABLE range, and `null` when the range cannot be read
    *  (no baseline, an unreadable repository). `null` is not `false` — nothing was measured, so
    *  the binding stands and the round books `WRITE_BACK_UNMEASURED`. */
-  readonly touchedDoc: (frame: FrameFacts, base: string | null) => boolean | null;
+  readonly touchedDoc: (frame: FrameFacts, base: string | null) => Promise<boolean | null>;
   /** The round's test-evidence file as the evidence gate reads it. Read once in the booking;
    *  a face that owes no evidence file is never asked. */
   readonly evidence: (frame: FrameFacts) => EvidenceFile;
@@ -378,6 +389,15 @@ export class Lifecycle {
     );
   }
 
+  /** The wave board a `split` refusal prints — the plan's own decomposition, the ledger's
+   *  closed set and the plan's coordinate, all read from the SAME wave input the gate just
+   *  judged, so the board and the verdict describe one reading. */
+  waveTreeOf(frame: FrameFacts): WaveBoard | null {
+    const input = this.#waveInput(frame);
+    if (frame.planPath === null) return null;
+    return { plan: frame.planPath, waves: input.graph.batches(), done: input.closed };
+  }
+
   /** Run one step of one dispatch. */
   async advance(frame: FrameFacts): Promise<AdvanceOutcome> {
     const holding = await this.#inflight.inspect();
@@ -402,7 +422,14 @@ export class Lifecycle {
     // never dispatched, and the response is the same refusal a preview answers.
     const wave = this.waveVerdictOf(frame);
     if (wave !== null && !wave.ok) {
-      return { kind: "blocked", leg: "line", verdict: wave, checked: verdict.checked };
+      return {
+        kind: "blocked",
+        leg: "line",
+        verdict: wave,
+        checked: verdict.checked,
+        tree: this.waveTreeOf(frame),
+        hop: this.#reads.hopOf?.(frame) ?? null,
+      };
     }
     const landing = await this.#land(frame);
     if (landing.kind === "write-failure") return landing;
@@ -412,7 +439,15 @@ export class Lifecycle {
     // record exists. Reading it anywhere else would let the record and the judgment disagree
     // about the HEAD this dispatch started from.
     const base = await this.#reads.head();
-    return this.#dispatch(frame, landing.landed, verdict, base);
+    // THE FRAME, READ ONCE, BEFORE THE OCCUPANCY: an empty render never becomes a spawn, so
+    // the refusal is answered here — zero lock, zero in-flight record, zero child. The value
+    // it borrows is the existing `write-failure` arm, whose target on this chain is the brief
+    // the round was measured against (the brief HAS landed by now; what failed is the prompt).
+    const assembled = this.#reads.dispatchFrame(frame, landing.landed.path);
+    if (assembled.kind === "empty-prompt") {
+      return { kind: "write-failure", target: String(assembled.briefPath) };
+    }
+    return this.#dispatch(frame, landing.landed, verdict, base, assembled.frame);
   }
 
   /** Land the brief, or answer its declared failure — the ONE write before the child exists.
@@ -442,6 +477,7 @@ export class Lifecycle {
     landed: LandedBrief,
     verdict: PreFlightVerdict,
     base: string | null,
+    dispatchFrame: DispatchFrame,
   ): Promise<AdvanceOutcome> {
     const record = await this.#inflight.recordOf({
       pid: process.pid,
@@ -459,7 +495,7 @@ export class Lifecycle {
     });
     const occupancy = await this.#inflight.occupy(
       record,
-      () => this.#child.dispatch(this.#reads.dispatchFrame(frame, landed.path)),
+      () => this.#child.dispatch(dispatchFrame),
       {
         ending: (outcome) =>
           outcome.code === 0 && outcome.termination === null ? "normal" : "abnormal",
@@ -470,7 +506,7 @@ export class Lifecycle {
       return { kind: "held", state, checked: verdict.checked };
     }
     const carried = await this.#reads.carried(frame);
-    const booked = this.#book(frame, carried, landed, {
+    const booked = await this.#book(frame, carried, landed, {
       findings: Lifecycle.#baselineOf(verdict.findings ?? []),
       code: occupancy.value.code,
       termination: occupancy.value.termination,
@@ -496,7 +532,7 @@ export class Lifecycle {
    *  closing round answers the closure the ledger now records rather than the state before
    *  it. The VERDICT is derived here, from the dispatch's own result and the round's graded
    *  entries — a round that withheld its target action is never booked as completed. */
-  #book(
+  async #book(
     frame: FrameFacts,
     carried: CarriedFacts,
     landed: LandedBrief,
@@ -508,21 +544,21 @@ export class Lifecycle {
        *  carries one. */
       readonly base: string | null;
     },
-  ): {
+  ): Promise<{
     round: RoundRecord;
     route: Route | null;
     capsule: CapsuleFacts;
     face: DispatchFace;
-  } {
+  }> {
     // The two reads the booking owns happen ONCE, before the record is written: the round's
     // own-bytes fact (the binding's gate, and the blindness it books) and the evidence read
     // (the criterion's `evidenceOk` cell AND the round's hard entry).
-    const touched = this.#touchedOf(frame, dispatch.base);
+    const touched = await this.#touchedOf(frame, dispatch.base);
     const evidence = Lifecycle.#owesEvidence(frame) ? this.#reads.evidence(frame) : null;
     // The completion facts are assembled ONCE too: the criterion judges them and the capsule's
     // fix counts read the SAME pair back, so a row the round was never judged on is not
     // counted on the summary line either.
-    const facts = this.#completionFactsOf(frame, carried, dispatch.base, evidence);
+    const facts = await this.#completionFactsOf(frame, carried, dispatch.base, evidence);
     const violations = [
       ...Lifecycle.#violationsOf(carried, dispatch.findings),
       ...Lifecycle.#dispatchViolationsOf(dispatch),
@@ -572,7 +608,7 @@ export class Lifecycle {
     const failed = status === "BLOCKED";
     return {
       status,
-      handoff: this.#ledger.handoffOf?.(round) ?? "",
+      handoff: this.#ledger.handoffOf?.(frame.key, round) ?? "",
       crashRecord: false,
       hop: failed ? null : (this.#reads.hopOf?.(frame) ?? null),
     };
@@ -588,7 +624,7 @@ export class Lifecycle {
 
   /** The round's own-bytes fact, measured only where a binding could read it: an implement
    *  round binds nothing, so it is not measured and books nothing. */
-  #touchedOf(frame: FrameFacts, base: string | null): boolean | null | undefined {
+  async #touchedOf(frame: FrameFacts, base: string | null): Promise<boolean | null | undefined> {
     if (Lifecycle.opOf(frame.phase) === "implement") return undefined;
     return this.#reads.touchedDoc(frame, base);
   }
@@ -657,11 +693,13 @@ export class Lifecycle {
    *  round counts no disposition. */
   #capsuleOf(frame: FrameFacts, carried: CarriedFacts, facts: CompletionFacts): CapsuleFacts {
     if (frame.phase === "fix") {
+      const dispositions = facts.dispositions ?? {};
+      // A round whose carrier declared no disposition row still books (the criterion judges
+      // coverage), but it contributes no summary: the capsule's summary slot is the counts
+      // line, and `fixed 0 · rejected 0` would announce a table that is not there.
+      if (Object.keys(dispositions).length === 0) return {};
       return {
-        dispositionCounts: DispositionsCriterion.summaryOf(
-          facts.dispositions ?? {},
-          facts.requested ?? [],
-        ),
+        dispositionCounts: DispositionsCriterion.summaryOf(dispositions, facts.requested ?? []),
       };
     }
     if (frame.phase !== "review" && frame.phase !== "branch-review") return {};
@@ -738,12 +776,12 @@ export class Lifecycle {
    *  ledger, the carrier read and the git read. The verb-specific cells are filled for the
    *  verb that reads them: an implement round's commit and wave cells, a judge round's carrier
    *  findings, a fix round's disposition table and the request it must cover. */
-  #completionFactsOf(
+  async #completionFactsOf(
     frame: FrameFacts,
     carried: CarriedFacts,
     base: string | null,
     evidence: EvidenceFile | null,
-  ): CompletionFacts {
+  ): Promise<CompletionFacts> {
     // ONE baseline for the whole bundle: the group's RECORDED baseline, else the HEAD this
     // dispatch just measured and the booking is about to write — a group's first round has no
     // record yet, and without the fallback every group would refuse on a baseline it never
@@ -752,7 +790,7 @@ export class Lifecycle {
     const facts: CompletionFacts = {
       // A group that measured no baseline counts nothing: the criterion refuses on `groupBase`
       // first (counting needs a HEAD to count from), so this cell is never consulted there.
-      commits: groupBase === null ? 0 : this.#reads.commits(groupBase),
+      commits: groupBase === null ? 0 : await this.#reads.commits(groupBase),
       groupBase,
       carrierWritten: carried.status !== null || carried.findings !== null,
       findings: carried.findings,
@@ -837,9 +875,11 @@ export class Lifecycle {
 
   /** The wave gate's verb of one frame — the branch face's review rides `review`. */
   static #waveVerbOf(frame: FrameFacts): "implement" | "review" | "fix" {
-    if (frame.phase === "branch-review") return "review";
-    if (frame.phase === "implement" || frame.phase === "review" || frame.phase === "fix") {
-      return frame.phase;
+    // The COMMAND the caller typed, never the line's derived phase: a request that asked for
+    // `implement` on a line already at review is exactly what the `wrong-phase` row exists to
+    // refuse, and reading the phase here would make the request agree with itself.
+    if (frame.command === "implement" || frame.command === "review" || frame.command === "fix") {
+      return frame.command;
     }
     return "review";
   }

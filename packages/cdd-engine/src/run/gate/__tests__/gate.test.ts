@@ -328,7 +328,18 @@ const writtenRefusals = (): readonly WrittenRefusal[] => {
     {
       label: "in-flight (held)",
       fx: held,
-      ctx: contextOf({ inflight: { kind: "held", pid: 4242, alive: true, targetGone: [] } }),
+      ctx: contextOf({
+        inflight: {
+          kind: "held",
+          pid: 4242,
+          command: "cdd implement --tasks 1 --plan p9.md",
+          startedAt: 0,
+          wave: "1",
+          slug: "p9",
+          alive: true,
+          targetGone: [],
+        },
+      }),
       detail: "held",
     },
     {
@@ -424,7 +435,18 @@ describe("the gate row set", () => {
     seen.add(String((await dirty.gate.vet(contextOf())).reason));
     const live = fixture();
     const held = await live.gate.vet(
-      contextOf({ inflight: { kind: "held", pid: 4242, alive: true, targetGone: [] } }),
+      contextOf({
+        inflight: {
+          kind: "held",
+          pid: 4242,
+          command: "cdd implement --tasks 1 --plan p9.md",
+          startedAt: 0,
+          wave: "1",
+          slug: "p9",
+          alive: true,
+          targetGone: [],
+        },
+      }),
     );
     seen.add(String(held.reason));
     const corrupt = fixture();
@@ -689,7 +711,16 @@ describe("the three takeover legs", () => {
     const verdict = await gate.vet(
       contextOf({
         recover: true,
-        inflight: { kind: "held", pid: 4242, alive: true, targetGone: [] },
+        inflight: {
+          kind: "held",
+          pid: 4242,
+          command: "cdd implement --tasks 1 --plan p9.md",
+          startedAt: 0,
+          wave: "1",
+          slug: "p9",
+          alive: true,
+          targetGone: [],
+        },
       }),
     );
     expect(verdict.gate).toBe("in-flight");
@@ -720,7 +751,16 @@ describe("the three takeover legs", () => {
     const verdict = await gate.vet(
       contextOf({
         recover: true,
-        inflight: { kind: "held", pid: 9, alive: false, targetGone: ["plan"] },
+        inflight: {
+          kind: "held",
+          pid: 9,
+          command: "cdd implement --tasks 1 --plan p9.md",
+          startedAt: 0,
+          wave: "1",
+          slug: "p9",
+          alive: false,
+          targetGone: ["plan"],
+        },
       }),
     );
     expect(verdict.ok).toBe(true);
@@ -883,7 +923,9 @@ describe("the checked face's readings", () => {
       approvedPlanContext(ledgerTarget({ planTasks: [1, 2], recordedTasks: [1], layers: [[1]] })),
     );
     expect(ahead.ok).toBe(true);
+    // Two rows: the gate's own label, then the plan-ahead INFO row beside it.
     expect(rowsLabelled(ahead, "plan-ledger")).toEqual([
+      { row: "plan-ledger", reading: { kind: "ran" } },
       { row: "plan-ledger", reading: { kind: "plan-ledger", ahead: 1 } },
     ]);
     // The neighbour arm: a ledger that holds every plan task reports nothing ahead.
@@ -891,7 +933,7 @@ describe("the checked face's readings", () => {
       approvedPlanContext(ledgerTarget({ planTasks: [1], recordedTasks: [1], layers: [[1]] })),
     );
     expect(rowsLabelled(settled, "plan-ledger")).toEqual([
-      { row: "plan-ledger", reading: { kind: "plan-ledger", ahead: 0 } },
+      { row: "plan-ledger", reading: { kind: "ran" } },
     ]);
   });
 

@@ -40,6 +40,7 @@
 
 import { regradeNote } from "../docs/judging/criteria.ts";
 import type { RepoPath } from "../env/paths/root.ts";
+import type { DriftRefusal } from "./advance/drift-station.ts";
 import type {
   BoardMiss,
   DocFacts,
@@ -53,7 +54,6 @@ import type {
 import { type AdvanceOutcome, Lifecycle, type LifecycleReads } from "./advance/lifecycle.ts";
 import type { LinePhase, LineState } from "./advance/line-phase.ts";
 import type { NextHop } from "./advance/next.ts";
-
 import type { Pipeline } from "./advance/pipeline.ts";
 import { TargetFaces, type TargetType } from "./advance/target-faces.ts";
 import type { WaveBoard, WaveVerdict } from "./advance/wave.ts";
@@ -356,6 +356,10 @@ export interface DocSeat {
   readonly carrierPathOf: (record: RoundRecord) => RepoPath | "";
   /** One carrier's bytes, on the seat's basis. */
   readonly readText: (target: RepoPath) => string | null;
+  /** The seat's own observed artifacts — the charter's carrier sidecars, read in the
+   *  PROGRAM's workspace. The inventory's `art:` rows bind this line to this seat, so a node
+   *  board that read them off its own workspace would report another seat's files. */
+  readonly observedArtifacts: () => readonly ArtifactObservation[];
 }
 
 /** The board's reads the round layer cannot answer from ITS OWN ledger: one document's
@@ -443,6 +447,9 @@ export type PreviewOutcome =
       readonly writes: readonly string[];
       readonly ledger: RoundWrite;
       readonly checked: readonly CheckedRow[];
+      /** The workspace names no recorded round claims — the `reads:` row's orphan-draft
+       *  suffix, read off the SAME accessor the board's `orphan:` rows use. */
+      readonly orphans: readonly string[];
     }
   /** The in-flight gate holds the tree. */
   | {
@@ -456,11 +463,11 @@ export type PreviewOutcome =
       readonly verdict: PreFlightVerdict;
       readonly checked: readonly CheckedRow[];
     }
-  /** The line leg refused — the wave gate's five rows, with the wave board its `split` cause
-   *  prints. */
+  /** The line leg refused — the doc-drift station's row or the wave gate's five, with the
+   *  wave board the `split` cause alone prints. */
   | {
       readonly kind: "refused";
-      readonly verdict: WaveVerdict;
+      readonly verdict: WaveVerdict | DriftRefusal;
       readonly checked: readonly CheckedRow[];
       readonly tree: WaveBoard | null;
       readonly hop: NextHop | null;
@@ -720,7 +727,7 @@ export class Run {
   }
 
   /** The `--dry-run` face — the ONE producer of a preview. Three pure reads and nothing
-   *  else: the frame assembly, the read-only pre-flight and the wave gate's own `vet`. No
+   *  else: the frame assembly, the read-only pre-flight and the line leg's own verdict. No
    *  settle, no brief landing, no lock, no spawn, no ledger write. */
   async previewOf(request: FrameRequest): Promise<PreviewOutcome> {
     const assembled = this.#frame.of(request);
@@ -735,13 +742,13 @@ export class Run {
         ? { kind: "held", state: holding, checked: verdict.checked }
         : { kind: "blocked", verdict, checked: verdict.checked };
     }
-    const wave = this.#lifecycle.waveVerdictOf(frame);
-    if (wave !== null && !wave.ok) {
+    const refused = this.#lifecycle.lineRefusalOf(frame);
+    if (refused !== null) {
       return {
         kind: "refused",
-        verdict: wave,
+        verdict: refused.verdict,
         checked: verdict.checked,
-        tree: this.#lifecycle.waveTreeOf(frame),
+        tree: refused.tree,
         hop: this.#stepReads.hopOf?.(frame) ?? null,
       };
     }
@@ -763,6 +770,10 @@ export class Run {
       ),
       ledger: { row: Ledger.rowCoordinateOf(frame.key), op: Lifecycle.opOf(frame.phase) },
       checked: verdict.checked,
+      // The read input's orphan cell: the drafts this workspace holds that no record owns.
+      // The preview names them because the round it forecasts would read that workspace, and
+      // a re-attachment the operator can only see on a board is one the forecast hides.
+      orphans: this.#ledger.orphanHandoffs(),
     };
   }
 
@@ -792,18 +803,57 @@ export class Run {
     const scene = assembled.kind === "closed-line" ? assembled.scene : assembled;
     const holding = await this.inflight.inspect();
     const documents = this.#ledger.read();
+    const rows = this.#rowsOf(scene, holding);
     return {
       kind: "board",
       slug: scene.slug,
-      rows: this.#rowsOf(scene, holding),
+      rows,
       facts: {
         orphans: this.#ledger.orphanHandoffs(),
         crashed: this.#ledger.crashedOf(this.#ledger.nodeRecordsOf(documents)),
         refusal: this.#refusal.read(scene.slug),
       },
-      observed: this.#ledger.observedArtifacts(),
+      observed: this.#observedOf(scene, rows),
       phases: await this.#phasesOf(scene),
     };
+  }
+
+  /** The board's artifact inventory — the row set bound to the seats it belongs to: the
+   *  FIRST document row (the `overall` line, whatever word a legacy ledger keyed it under) to
+   *  the program's seat, every other row to this node's. A charter row read off the node's
+   *  workspace reports files nobody wrote there, and a node row read off the program's misses
+   *  the ones that were. The two seats are told apart by POSITION because the board prints one
+   *  charter row and it is the first; the sort keeps one `(cycle, attempt)` order across both.
+   */
+  #observedOf(scene: FrameScene, rows: readonly BoardRow[]): readonly ArtifactObservation[] {
+    // The charter row is the FIRST document row, and its SEAT is the program's workspace —
+    // resolved from the line's own coordinate, never from a printed header cell.
+    const [charterLine] = Run.#docLinesOf(scene);
+    const charter = charterLine === undefined ? null : this.#charterSeatOf(charterLine.doc);
+    const observations = [
+      ...(charter === null ? [] : charter.observedArtifacts()),
+      ...this.#ledger.observedArtifacts(Run.#observedLinesOf(rows)),
+    ];
+    return observations.sort(
+      (left, right) => left.cycle - right.cycle || left.attempt - right.attempt,
+    );
+  }
+
+  /** The node seat's observed line words — the board's own rows MINUS the charter's line
+   *  (that line is read in the program's workspace, whatever word the board prints it under,
+   *  and a program board prints it more than once). A row the board does not print is not
+   *  observed: the inventory is the face's own row set, never the ledger's whole table. */
+  static #observedLinesOf(rows: readonly BoardRow[]): readonly string[] {
+    const charter = rows.find(
+      (row): row is Extract<BoardRow, { kind: "doc" }> => row.kind === "doc",
+    );
+    const words: string[] = [];
+    for (const row of rows) {
+      if (row.kind === "wave") words.push(RoundIdentity.lineWordOfRowKey(row.line));
+      if (row.kind === "doc" && row.line !== charter?.line) words.push(row.line);
+    }
+    const branch = rows.some((row) => row.kind === "branch") ? ["branch"] : [];
+    return [...words, ...branch];
   }
 
   /** The charter's phase rows — a program board's own rows and nothing else. A phase is its

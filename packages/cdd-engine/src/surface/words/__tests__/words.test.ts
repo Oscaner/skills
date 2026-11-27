@@ -151,7 +151,6 @@ describe("the checked face", () => {
       "closed-document",
       "no-plan-layers",
       "no-ledger-facts",
-      "no-input-face",
     ] as const) {
       expect(words.checkedSkip(reason).length).toBeGreaterThan(0);
     }

@@ -18,8 +18,8 @@
 //   · the door's expiry — the door's clear, the read that does not clear, and the idempotent
 //     fail-open call (the release point's clearance belongs to `InFlight#release`, T12);
 //   · the three takeover legs — each one's own authorization condition;
-//   · the two yielding conditions — a face with no input face yields all four stations, and a
-//     refusal before them records none of them;
+//   · the two yielding conditions — a face with no input face stands all four stations down,
+//     and a refusal before them records none of them;
 //   · the checked face's readings — the plan-ahead count on the `plan-ledger` row, and a REAL
 //     `Documents` behind the gate rather than only the dictated double;
 //   · the segment boundary — no later `run/` segment and no consumer byte, read by resolving
@@ -421,12 +421,17 @@ describe("the gate row set", () => {
     // Three faces, three different counts — no constant stands in for the derivation.
     expect(new Set([counts.get("plan"), counts.get("wave"), counts.get("branch")]).size).toBe(3);
     // …and the approved verdict's own order is that derivation, so a row inserted into the
-    // vocabulary without a leg reds here instead of passing silently.
+    // vocabulary without a leg reds here instead of passing silently. This context carries no
+    // input face, so the four pre-dispatch stations stand down and the order is the derivation
+    // MINUS them — the same subtraction the wave face applies to a batch-less dispatch.
     const verdict = await gate.vet(
       contextOf({ type: "wave", graph: TaskGraph.parse(planText({ 1: "none" })) }),
     );
     expect(verdict.ok).toBe(true);
-    expect(verdict.order).toEqual(PreFlight.rowsOf("wave", { graph: true }));
+    const standing = PreFlight.rowsOf("wave", { graph: true }).filter(
+      (row) => !(ROW_STATIONS as readonly string[]).includes(row),
+    );
+    expect(verdict.order).toEqual(standing);
   });
 
   it("makes every declared reason reachable through a row", async () => {
@@ -823,14 +828,16 @@ describe("the three takeover legs", () => {
 });
 
 describe("the two yielding conditions", () => {
-  it("yields all four stations when the face has no input face", async () => {
+  it("stands all four stations down when the face has no input face", async () => {
+    // A wave dispatch whose derived open batch is empty names no input face at all: the four
+    // rows did not RUN, so they are absent from both the order and the checked face — a yield
+    // would report a judgment the tree never made.
     const { gate } = fixture();
     const verdict = await gate.vet(contextOf({ rows: null }));
     expect(verdict.ok).toBe(true);
     for (const station of ROW_STATIONS) {
-      expect(rowsLabelled(verdict, station)).toEqual([
-        { row: station, reading: { kind: "skipped", reason: "no-input-face" } },
-      ]);
+      expect(verdict.order).not.toContain(station);
+      expect(rowsLabelled(verdict, station)).toEqual([]);
     }
   });
 

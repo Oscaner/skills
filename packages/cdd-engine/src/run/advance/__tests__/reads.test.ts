@@ -49,6 +49,7 @@ import { type DocJudgment, PreFlight } from "../../gate/preflight.ts";
 import { Refusal } from "../../gate/refusal.ts";
 import { Artifacts } from "../../ledger/artifacts.ts";
 import { Ledger } from "../../ledger/ledger.ts";
+import { DriftStation } from "../drift-station.ts";
 import type { FrameFacts } from "../frame.ts";
 import { Lifecycle } from "../lifecycle.ts";
 import { LinePhase } from "../line-phase.ts";
@@ -205,8 +206,10 @@ interface Wired {
   readonly frame: FrameFacts;
 }
 
-/** One dispatch step over a fresh fixture, with the prompt band fixed to `prompts`. */
-const wire = (prompts: PromptBandReads, host = "claude"): Wired => {
+/** One dispatch step over a fresh fixture, with the prompt band fixed to `prompts`. The host
+ *  is a READ FUNCTION because the environment can move between the gate and the frame read —
+ *  the one shape the step's re-judge exists for. */
+const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"): Wired => {
   const repo = fixtureRepo();
   const env = new Env({ baseName: "base.json", cwd: repo });
   const clock = env.process.clock;
@@ -251,7 +254,7 @@ const wire = (prompts: PromptBandReads, host = "claude"): Wired => {
     brief: new BriefRenderer(),
     prompts,
     wording: Boot.wordingOf(clock),
-    host: () => host,
+    host: typeof host === "function" ? host : () => host,
     planText: readRepo,
     baseBranch: () => "main",
   });
@@ -272,6 +275,7 @@ const wire = (prompts: PromptBandReads, host = "claude"): Wired => {
   const lifecycle = new Lifecycle({
     gate,
     authority: new Authority(),
+    drift: new DriftStation(lines),
     inflight,
     child: new Child({ runner, clock }),
     ledger,
@@ -336,6 +340,32 @@ describe("the dispatch frame's production read", () => {
     // A host-less environment has no argv form: the read refuses by name, and the assembly is
     // never reached (the pre-flight's own `no-host` station is what the step prints).
     expect(wired.reads.dispatchFrame(wired.frame, BRIEF_REL)).toEqual({ kind: "no-host" });
+  }, 120_000);
+
+  it("re-judges the frame read's no-host into the station refusal — zero spawns, zero records", async () => {
+    // The environment MOVES between the gate and the frame read: the pre-flight passed on the
+    // harness it saw, and the read the step makes afterwards finds none. The STEP is what turns
+    // that into the declared refusal, by judging the same pre-flight context again so the
+    // `no-host` station owns the verdict. Pinned through `Lifecycle#advance` because a direct
+    // read assertion leaves that branch deletable with every suite green.
+    let repo = "";
+    const host = (): string =>
+      repo !== "" && existsSync(path.join(repo, BRIEF_REL)) ? "" : "claude";
+    const wired = wire(new PromptBandsRenderer(), host);
+    repo = wired.repo;
+    const outcome = await wired.lifecycle.advance(wired.frame);
+    expect(outcome.kind).toBe("blocked");
+    if (outcome.kind !== "blocked") return;
+    // The STRUCTURE leg owns a host-less tree: the station is the gate's own row, and the
+    // verdict came from the SECOND judgment (the brief had already landed).
+    expect(outcome.leg).toBe("structure");
+    if (outcome.leg !== "structure") return;
+    expect(outcome.verdict.gate).toBe("no-host");
+    expect(existsSync(path.join(wired.repo, BRIEF_REL))).toBe(true);
+    // Zero child processes, zero in-flight record, zero booked round.
+    expect(wired.runner.spawns).toBe(0);
+    expect(existsSync(path.join(wired.env.workspace.at(SLUG).path, InFlight.FILE))).toBe(false);
+    expect(wired.ledger.rounds("tasks-1")).toEqual([]);
   }, 120_000);
 
   it("passes both assembly variants through unchanged", () => {

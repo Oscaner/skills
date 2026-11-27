@@ -161,6 +161,15 @@ export interface FrameLines {
 export interface FrameOptions {
   readonly reads: FrameReads;
   readonly lines: FrameLines;
+  /** Whether a document ABOVE this request moved past the version its review bound — the ONE
+   *  drift station's answer, injected so this assembly holds no second drift judgment. A
+   *  closed line is not automatically undispatchable: when a face above it moved, the movement
+   *  is the refusal's own cause and the request still assembles a frame for the line leg to
+   *  refuse on. */
+  readonly driftedUpstream: (facts: {
+    readonly type: TargetType;
+    readonly pipeline: PipelineInput;
+  }) => boolean;
 }
 
 /** The SCENE's facts — everything the assembly reads, and nothing that depends on which
@@ -272,10 +281,12 @@ const emptyFilesOf = (blocks: TaskBlocks | null): ReadonlySet<number> => {
 export class Frame {
   readonly #reads: FrameReads;
   readonly #lines: FrameLines;
+  readonly #driftedUpstream: FrameOptions["driftedUpstream"];
 
   constructor(opts: FrameOptions) {
     this.#reads = opts.reads;
     this.#lines = opts.lines;
+    this.#driftedUpstream = opts.driftedUpstream;
   }
 
   /** Assemble one round's frame. */
@@ -346,7 +357,17 @@ export class Frame {
     };
     // The phase is a DISPATCH cell: a line whose rounds lie on the closure side has none, and
     // the scene answers unchanged so a read (the board) still reports it.
-    const phase = this.#roundPhaseOf(request.type, key, request.command);
+    const phase = this.#roundPhaseOf({
+      type: request.type,
+      key,
+      command: request.command,
+      // The line's OWN document — the judged coordinate, not the slug's identity document:
+      // a `--plan` request's line is judged at the plan while the slug's identity is the
+      // phase specification, and reading the wrong one would report drift against the wrong
+      // bytes (a plan line would "move" whenever its specification did).
+      doc,
+      pipeline: scene.pipeline,
+    });
     if (phase === null) return { kind: "closed-line", scene };
     const round = this.#roundOf(key, phase);
     return {
@@ -539,17 +560,41 @@ export class Frame {
   /** The phase this frame runs — read off the ONE line walk; null when the line holds no
    *  open round (its rounds lie on the closure side), which the assembly answers as the
    *  scene alone. */
-  #roundPhaseOf(type: TargetType, key: string, command: string): RoundPhase | null {
+  #roundPhaseOf(cells: {
+    readonly type: TargetType;
+    readonly key: string;
+    readonly command: string;
+    readonly doc: string | null;
+    readonly pipeline: PipelineInput;
+  }): RoundPhase | null {
+    const { type, key, command, doc, pipeline } = cells;
     if (type === "wave") {
       const open = this.#lines.walk.wavePhaseOf(RoundIdentity.splitLineWord(key).key);
       if (open !== null) return open;
       // A REVIEW command re-enters the line's review lead even when the recorded rounds all
       // sit on the closure side: a review never depends on a dispatchable round (it judges
       // what is on disk), and the wave gate still judges the batch it asked for. Every other
-      // verb holds its own phase, so a closed line answers "no frame" there.
-      return command === "review" ? Frame.#expectedPhaseOf(type, command) : null;
+      // verb holds its own phase — but only while nothing above it moved, because a moved
+      // document is that request's refusal and the line leg alone can print it.
+      return command === "review" || this.#driftedUpstream({ type, pipeline })
+        ? Frame.#expectedPhaseOf(type, command)
+        : null;
     }
-    return this.#lines.walk.phaseOf(key, type);
+    const open = this.#lines.walk.phaseOf(key, type);
+    if (open !== null) return open;
+    // A document line's closure is as OF the version its review bound: a document that moved
+    // past it owes that review, and the pipeline hop already names the round. So a REVIEW
+    // re-enters the line's review lead on exactly that drift (the one row that ADMITS the
+    // review the movement owes), while every other verb keeps asking for its own phase — a
+    // dispatch entry that answered "nothing to dispatch" here would leave the board's own
+    // `next:` command unrunnable.
+    if (command === "review" && this.#lines.walk.reopenedAt(key, type, doc)) {
+      return TargetFaces.phaseOfHop(type, "review");
+    }
+    // The same admission for a CLOSED line under a different verb: a moved face above it owns
+    // the refusal, so the request assembles the phase it would run under and the line leg
+    // names the drift. Nothing moved → no frame, exactly as before.
+    return this.#driftedUpstream({ type, pipeline }) ? Frame.#expectedPhaseOf(type, command) : null;
   }
 
   /** The phase a command asks the LINE for — the verb's own word, or the target row's review

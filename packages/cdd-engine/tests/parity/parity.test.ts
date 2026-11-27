@@ -345,6 +345,95 @@ describe("the render corpus the board and capsule cells read", () => {
   }, 120_000);
 });
 
+describe("the identifier-face shapes — each cell re-derived from the shipped tree", () => {
+  /** One cell's committed bytes, read off the recording it is judged against. */
+  const recordedOf = (unit: string, stream: "stdout" | "stderr" = "stdout"): string => {
+    const baseline = readBaseline(BASELINE_FILE);
+    if (baseline === null) throw new Error("the corpus has never been recorded");
+    return baseline.cells[`${unit}.${stream}`]?.value ?? "";
+  };
+
+  /** One cell's bytes re-derived from the shipped tree through the cell's OWN fixture — the
+   *  stream-parameterized sibling of `liveOf`, for the refusals that print on stderr. */
+  const liveStreamOf = async (
+    unit: string,
+    stream: "stdout" | "stderr",
+    flip?: Probe["options"],
+  ): Promise<string> => {
+    const cell = cellOf(unit, stream);
+    const base = cell.probe;
+    if (base === undefined) throw new Error(`${unit} declares no probe`);
+    const probe = flip === undefined ? base : { ...base, options: { ...base.options, ...flip } };
+    return new Recorder(ProbeRunner.run).cellValueOf({ ...cell, probe });
+  };
+
+  it("re-derives the charter's own row from the PROGRAM seat", async () => {
+    // The `overall` row's records live in the program's workspace, so a node board that reads
+    // only its own seat prints the row with no round tokens at all. The knob is the row's only
+    // input: without it the same board prints neither verb.
+    const recorded = recordedOf("f6.board.charter");
+    expect(await liveOf("f6.board.charter")).toBe(recorded);
+    expect(recorded).toContain("fix 1");
+    const bare = await liveOf("f6.board.charter", { charterFix: false });
+    expect(bare).not.toBe(recorded);
+    expect(bare).not.toContain("fix 1");
+  }, 120_000);
+
+  it("re-derives the legacy spellings the shipped engine wrote", async () => {
+    // A cycle-less draft a record owns by its recorded `carrierPath`, the report and evidence
+    // siblings beside it, and one directory that is no artifact at all.
+    const recorded = recordedOf("f6.board.legacy");
+    expect(await liveOf("f6.board.legacy")).toBe(recorded);
+    const bare = await liveOf("f6.board.legacy", { legacyArtifacts: false });
+    expect(bare).not.toBe(recorded);
+  }, 120_000);
+
+  it("re-derives the re-dispatched cycle's two attempts", async () => {
+    // Attempt 1 wrote no carrier, attempt 2 wrote the canonical name its record remembers: the
+    // two attempts are two tokens and only the second owns the carrier.
+    const recorded = recordedOf("f6.board.reattempt");
+    expect(await liveOf("f6.board.reattempt")).toBe(recorded);
+    expect(recorded).toContain("→");
+    const bare = await liveOf("f6.board.reattempt", { reattempt: false });
+    expect(bare).not.toBe(recorded);
+  }, 120_000);
+
+  it("re-derives the drifted document face's next row", async () => {
+    // A closed spec that moved past its reviewed version reopens onto the review it owes, so
+    // `next:` names that review instead of the closed line's handoff.
+    const recorded = recordedOf("f6.board.doc-face-drift");
+    expect(await liveOf("f6.board.doc-face-drift")).toBe(recorded);
+    expect(recorded).toContain("next:    review --type phase-spec");
+    const bare = await liveOf("f6.board.doc-face-drift", { docFaceDrift: false });
+    expect(bare).not.toBe(recorded);
+  }, 120_000);
+
+  it("re-derives the drifted document line's dispatch frames", async () => {
+    // Two faces of one movement: the review the drift owes is DISPATCHABLE (its preview names
+    // the round), and a request below the moved document is REFUSED for that cause — with the
+    // four station rows stood down, because a closed wave names no input face.
+    const review = recordedOf("f7.preview.doc-drift");
+    expect(await liveOf("f7.preview.doc-drift")).toBe(review);
+    expect(review).toContain("step:        review round 2 — phase-spec");
+    expect(await liveOf("f7.preview.doc-drift", { specDrift: false })).not.toBe(review);
+    const refusal = recordedOf("f1.implement.refusal.doc-drift", "stderr");
+    expect(await liveStreamOf("f1.implement.refusal.doc-drift", "stderr")).toBe(refusal);
+    expect(refusal).toContain("doc-drift · layer=doc · line=");
+    // The four station rows are ABSENT, not yielded: a closed wave names no input face, so the
+    // rows never ran — the block is the structural rows plus the rule rows alone.
+    expect(refusal).not.toContain("  no-host");
+    expect(refusal).toContain("  plan-ledger\n  presence:");
+    const bare = await liveStreamOf("f1.implement.refusal.doc-drift", "stderr", {
+      specDrift: false,
+    });
+    expect(bare).not.toBe(refusal);
+    // Without the movement the same request is refused by the LINE's own row (the batch is
+    // split), so the drift cause is the fixture's input and not a default.
+    expect(bare).not.toContain("doc-drift");
+    expect(bare).toContain("— split");
+  }, 120_000);
+});
+
 describe("the recorded shapes", () => {
   it("records the skeleton landing fact and the real exit code, never one token for three streams", async () => {
     // `schema get … --output skeleton <target>`: one stream judges whether the target file is

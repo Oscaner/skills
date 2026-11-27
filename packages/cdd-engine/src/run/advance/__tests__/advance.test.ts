@@ -77,6 +77,7 @@ import { CarrierLine } from "../../ledger/carrier-line.ts";
 import { RoundIdentity } from "../../ledger/identity.ts";
 import { Ledger } from "../../ledger/ledger.ts";
 import { ReviewedIdentity } from "../../ledger/reviewed.ts";
+import { DriftStation } from "../drift-station.ts";
 import { type DocFacts, Frame, type FrameFacts, type FrameRequest } from "../frame.ts";
 import { Lifecycle, type LifecycleReads } from "../lifecycle.ts";
 import type { CarriedFacts } from "../line-phase.ts";
@@ -389,7 +390,9 @@ const fixture = (): Fixture => {
     waves: () => ledger.waveLines(),
     docClassOf: (target) => target.type,
   });
+  const driftStation = new DriftStation(lines);
   const frame = new Frame({
+    driftedUpstream: (facts) => driftStation.refusalOf(facts) !== null,
     reads: {
       root: basis,
       index: () =>
@@ -504,6 +507,7 @@ const fixture = (): Fixture => {
   const lifecycle = new Lifecycle({
     gate,
     authority: new Authority(),
+    drift: driftStation,
     inflight,
     child,
     ledger,
@@ -534,6 +538,7 @@ const fixture = (): Fixture => {
         rounds: [],
         carrierPathOf: () => "" as RepoPath,
         readText: () => null,
+        observedArtifacts: () => [],
       }),
     },
   };

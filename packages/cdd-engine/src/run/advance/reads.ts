@@ -520,13 +520,25 @@ export class AdvanceReads implements LifecycleReads {
     );
   }
 
+  /** Whether one wave frame has an input face at all — the plan's derived open batch is the
+   *  wave the dispatch would run, and an empty one means the request names no batch: no `WAVE`
+   *  cell, no brief, nothing for the four station rows to judge. */
+  static #hasOpenBatch(frame: FrameFacts, pipeline: Pipeline): boolean {
+    if (frame.graph === null) return false;
+    return frame.graph.frontier(pipeline.closedTasks()).length > 0;
+  }
+
   /** The four pre-dispatch stations, in the gate's declared order — every violation in one
-   *  pass, so a refused round is repaired once instead of one row per dispatch. */
+   *  pass, so a refused round is repaired once instead of one row per dispatch. Null when the
+   *  face has NO input face: a wave dispatch whose derived open batch is empty names no
+   *  `WAVE` cell and no brief, so the four rows judge nothing and stand down (the line leg
+   *  owns that request — a station refusing the empty cells would mask it). */
   #stationsOf(
     frame: FrameFacts,
     values: Readonly<Record<string, string>>,
     artifact: ArtifactSnapshot,
-  ): readonly DispatchRowReading[] {
+  ): readonly DispatchRowReading[] | null {
+    if (frame.type === "wave" && !AdvanceReads.#hasOpenBatch(frame, this.#o.pipeline)) return null;
     const rows: DispatchRowReading[] = [];
     const host = this.#o.host();
     if (host === "") rows.push({ station: "no-host", detail: this.#o.wording.noHost });

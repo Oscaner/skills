@@ -355,6 +355,23 @@ export const UNITS: readonly Unit[] = [
     probe: { fixture: "wave", argv: implementArgv, dispatch: true, hostless: true },
   },
   {
+    key: "f1.implement.refusal.doc-drift",
+    face: "f1",
+    route: "refusal",
+    task: "T17",
+    producer: "run/advance/drift-station.ts#DriftStation",
+    // A document ABOVE the request moved past the version its review bound: the refusal names
+    // that drift (with both digest ends) instead of the wave batch the line leg would split.
+    // The wave is CLOSED, so the derived open batch is empty and the four pre-dispatch station
+    // rows stand down — the `checked:` block is the structural rows plus the rule rows alone.
+    probe: {
+      fixture: "branch-closed",
+      options: { specDrift: true },
+      argv: ["implement", "--tasks", "1", "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
     key: "f1.implement.failure",
     face: "f1",
     route: "failure",
@@ -1140,6 +1157,22 @@ export const UNITS: readonly Unit[] = [
     // with the wave board and the rows that ran. A split is the cause whose refusal carries
     // that board, so this is the family the route face's own detail renderer is judged on.
     probe: { fixture: "wave", options: { tasks: 2 }, argv: [...previewOf().argv], dispatch: true },
+  },
+  {
+    key: "f7.preview.doc-drift",
+    face: "f7",
+    route: "normal",
+    task: "T17",
+    producer: "run/advance/frame.ts#Frame",
+    // A CLOSED document line whose document moved past what its review bound: the drift owes a
+    // review, so the frame assembly re-enters the line's review lead — the round the board's own
+    // `next:` names — instead of answering "no frame" and leaving that command unrunnable.
+    probe: {
+      fixture: "branch-closed",
+      options: { specDrift: true },
+      argv: ["review", "--type", "phase-spec", "--spec", SPEC_REL, "--dry-run"],
+      dispatch: true,
+    },
   },
   {
     key: "f7.preview.usage.missing-plan",

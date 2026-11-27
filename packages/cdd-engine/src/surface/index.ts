@@ -36,6 +36,7 @@ import type { TaskBlocks } from "../docs/grammar/task-blocks.ts";
 import type { Documents } from "../docs/index.ts";
 import { Clock } from "../env/process/clock.ts";
 import type { Provisioner } from "../env/provision/init.ts";
+import type { DriftRefusal } from "../run/advance/drift-station.ts";
 import type { FrameFacts, FrameRequest } from "../run/advance/frame.ts";
 import type { NextHop } from "../run/advance/next.ts";
 import { TargetFaces } from "../run/advance/target-faces.ts";
@@ -596,7 +597,7 @@ export class Cli {
   /** A refused dispatch — the structure leg's own channel or the line leg's one line, its
    *  detail rows, then the rows that ran. */
   #reportBlocked(
-    verdict: PreFlightVerdict | WaveVerdict,
+    verdict: PreFlightVerdict | WaveVerdict | DriftRefusal,
     leg: "structure" | "line",
     request: FrameRequest,
     checked: readonly CheckedRow[],
@@ -605,10 +606,9 @@ export class Cli {
   ): number {
     if (leg === "line") {
       const phase = CDD_PHASE_OF.of(request.command, request.type);
-      this.#io.stderr(
-        `${this.route.lineRefusalText(request.command, phase, verdict as WaveVerdict, hop)}\n`,
-      );
-      for (const detail of this.route.refusalDetails(verdict as WaveVerdict, tree)) {
+      const line = verdict as WaveVerdict | DriftRefusal;
+      this.#io.stderr(`${this.route.lineRefusalText(request.command, phase, line, hop)}\n`);
+      for (const detail of this.route.refusalDetails(line, tree)) {
         this.#io.stderr(`${detail}\n`);
       }
     } else {
@@ -685,6 +685,7 @@ export class Cli {
         brief: outcome.brief,
         writes: outcome.writes,
         ledger: outcome.ledger,
+        orphans: outcome.orphans,
       }),
       0,
     );

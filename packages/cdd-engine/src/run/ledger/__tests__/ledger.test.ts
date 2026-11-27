@@ -742,17 +742,19 @@ describe("the observation set", () => {
       rulings: [{ finding: "F1", verdict: "fixed", ruling: "done" }],
     });
     const observed = ledger.observedArtifacts();
-    expect(observed.map((entry) => entry.cycle)).toEqual([1, 2]);
-    const [first, second] = observed;
+    // Cycle 2 resolves NO carrier at all, so it contributes no observation: the set names the
+    // files that exist, and an empty name is the orphan face's business, never an `absent` row
+    // of its own.
+    expect(observed.map((entry) => entry.cycle)).toEqual([1]);
+    const [first] = observed;
     // The carrier the observation names is the ONE accessor's answer, byte-identical.
     const persisted = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
     const records = persisted.waves[0].rounds as RoundRecord[];
     expect(first?.carrier).toBe(ledger.carrierPathOf("phase-spec", "phase-spec", records[0]));
     expect(first?.carrier).toBe(".kairos/cdd/p9/phase-spec-review-1.c1.json");
-    // Cycle 1's sidecar conforms; cycle 2 has no carrier at all — two different reads.
+    // Cycle 1's sidecar conforms — the read is the sidecar's, not the carrier's.
     expect(first?.read.kind).toBe("ok");
-    expect(second?.read.kind).toBe("absent");
-    expect(second?.carrier).toBe("");
+    expect(first?.carrier).not.toBe("");
   });
 
   it("folds a WAVE line the same way for the carrier accessor and the observation set", () => {

@@ -24,7 +24,7 @@ import type { RoundPhase } from "../dispatch/child.ts";
 import type { RoundFinding } from "../dispatch/handoff.ts";
 import { RoundIdentity } from "../ledger/identity.ts";
 import type { RoundRecord } from "../ledger/ledger.ts";
-import type { Drift, ReviewedIdentity } from "../ledger/reviewed.ts";
+import { type Drift, ReviewedIdentity } from "../ledger/reviewed.ts";
 import { type FixRequest, NextRoutes, type Route } from "./next.ts";
 import { TargetFaces, type TargetType } from "./target-faces.ts";
 
@@ -193,15 +193,40 @@ export class LinePhase {
    *  recorded version is the doc line's own `doc_hash` cell, which `docDriftOf` answers
    *  `null` for when nothing was recorded — absence needs no second guard here. */
   reopenedAt(key: string, type: TargetType, doc: string | null): boolean {
-    if (doc === null) return false;
+    if (this.driftPairOf(key, doc) === null) return false;
+    return NextRoutes.onExitSide(this.routeOf(key, type));
+  }
+
+  /** The two digest ends of one document line's movement — the version its review bound and
+   *  today's bytes, both on the recorded basis; `null` when the line recorded no version, the
+   *  document cannot be read, or the bytes have not moved. This is the drift FACT alone: the
+   *  route-side judgment is `reopenedAt`'s, and the refusal's diagnosis is this read's. */
+  driftPairOf(
+    key: string,
+    doc: string | null,
+  ): { readonly recorded: string; readonly current: string } | null {
+    if (doc === null) return null;
     const content = this.#text(doc);
-    if (content === null) return false;
+    if (content === null) return null;
     // The compared slice is the reviewed BODY: the projection strips the front-matter head and
     // the `## Change history` register — the two closed-out registration faces — and it is what
     // the recorded cell was digested from. Digging the raw file here would reopen a reviewed
     // line on a version bump, and would read every cell the shipped engine wrote as a drift.
-    if (this.#facts.docDriftOf(key, docBodyOf(content)) !== "drift") return false;
-    return NextRoutes.onExitSide(this.routeOf(key, type));
+    const body = docBodyOf(content);
+    if (this.#facts.docDriftOf(key, body) !== "drift") return null;
+    const reviewed = this.#facts.reviewedOf(key);
+    if (reviewed === null) return null;
+    return { recorded: reviewed.hash, current: ReviewedIdentity.hashOf(body, reviewed.basis) };
+  }
+
+  /** Whether one line was ever WORKED — a recorded round of the face's review lead or a fix.
+   *  A face the pipeline never entered holds no station, so its document's movement is the
+   *  pipeline's business, not a dispatch refusal's. */
+  enteredAt(key: string, type: TargetType): boolean {
+    const lead = TargetFaces.phaseOfHop(type, "review");
+    return (
+      this.completedCyclesOf(key, lead).length > 0 || this.completedCyclesOf(key, "fix").length > 0
+    );
   }
 
   /** The line's closure state AS OF its identity document. A line whose document cannot be

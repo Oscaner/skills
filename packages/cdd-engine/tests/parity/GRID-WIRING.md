@@ -122,6 +122,9 @@ go red.
 | f1.implement.refusal.no-host.stdout | T16 | surface/commands/implement.ts#ImplementCommand | refusal |
 | f1.implement.refusal.no-host.stderr | T16 | surface/commands/implement.ts#ImplementCommand | refusal |
 | f1.implement.refusal.no-host.exit-code | T16 | surface/commands/implement.ts#ImplementCommand | refusal |
+| f1.implement.refusal.doc-drift.stdout | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f1.implement.refusal.doc-drift.stderr | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f1.implement.refusal.doc-drift.exit-code | T17 | run/advance/drift-station.ts#DriftStation | refusal |
 | f1.implement.failure.stdout | T16 | surface/commands/implement.ts#ImplementCommand | failure |
 | f1.implement.failure.stderr | T16 | surface/commands/implement.ts#ImplementCommand | failure |
 | f1.implement.failure.exit-code | T16 | surface/commands/implement.ts#ImplementCommand | failure |
@@ -401,6 +404,9 @@ go red.
 | f7.preview.refusal.split.stdout | T16 | surface/render/route.ts#RouteRenderer | refusal |
 | f7.preview.refusal.split.stderr | T16 | surface/render/route.ts#RouteRenderer | refusal |
 | f7.preview.refusal.split.exit-code | T16 | surface/render/route.ts#RouteRenderer | refusal |
+| f7.preview.doc-drift.stdout | T17 | run/advance/frame.ts#Frame | normal |
+| f7.preview.doc-drift.stderr | T17 | run/advance/frame.ts#Frame | normal |
+| f7.preview.doc-drift.exit-code | T17 | run/advance/frame.ts#Frame | normal |
 | f7.preview.usage.missing-plan.stdout | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.stderr | T16 | surface/render/usage.ts#UsageFace | refusal |
 | f7.preview.usage.missing-plan.exit-code | T16 | surface/render/usage.ts#UsageFace | refusal |

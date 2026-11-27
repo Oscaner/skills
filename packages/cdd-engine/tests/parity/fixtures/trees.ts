@@ -333,6 +333,15 @@ const driftProgress = (): Record<string, unknown> => ({
   ],
 });
 
+/** The drifted, CLOSED phase-spec row — one completed review bound to a version the document
+ *  no longer holds. The row is what makes a document face "entered and moved": both the review
+ *  re-entry and the upstream `doc-drift` refusal read exactly these three facts. */
+const specDriftRow = (): Record<string, unknown> => ({
+  wave: "phase-spec",
+  rounds: [round("review")],
+  reviewedRevision: { kind: "doc-revision", doc: SPEC_REL, doc_hash: STALE_DIGEST },
+});
+
 /** The accepted refusal record the tree-level `refusal.json` carries. */
 const refusalRecord = (): Record<string, unknown> => ({
   at: `${FROZEN_DATE}T00:00:00.000Z`,
@@ -437,6 +446,11 @@ export interface TreeOptions {
    *  its review bound — a closed line `next:` must reopen onto the review it owes, which a
    *  closed-line handoff would otherwise swallow. */
   readonly docFaceDrift?: boolean;
+  /** Plant a CLOSED phase-spec line whose recorded version the document has since moved past,
+   *  beside whatever else the shape records. Two faces judge it: the dispatch entry's review
+   *  re-entry (the drift owes a review) and the line leg's upstream `doc-drift` refusal (a
+   *  request whose face sits BELOW the moved document would build on bytes nobody reviewed). */
+  readonly specDrift?: boolean;
   /** Repo-relative paths to land and then make UNREADABLE — the "exists but cannot be read"
    *  probe axis. The probe and the tree shape hold no mode literal: a fixture declares the
    *  paths and `materialize` clears their bits. */
@@ -491,6 +505,25 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     text: `${JSON.stringify({ status: "APPROVED", findings: [], notes: [CHILD_NOTE] }, null, 2)}\n`,
   };
   const withCarrier = rounds === "review" || rounds === "closed";
+  /** The drifted document row's carrier — present, so the completed review reads back and the
+   *  row is a WORKED line rather than an unreadable one. */
+  const specDriftCarrier: FixtureFile = {
+    path: `.kairos/cdd/${PHASE_SLUG}/phase-spec-review-1.c1.json`,
+    text: `${JSON.stringify({ status: "APPROVED", findings: [] }, null, 2)}\n`,
+  };
+  /** This shape's own progress with the drifted phase-spec row in FRONT of it — the row the
+   *  document faces judge keeps the shape's wave (and brief) facts untouched. */
+  const specDriftProgress = (state: WaveRounds): FixtureFile => {
+    const document = waveProgress(state, snapshot, tasks, options.twoWaves === true);
+    return {
+      path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+      text: `${JSON.stringify(
+        { ...document, waves: [specDriftRow(), ...(document.waves as readonly unknown[])] },
+        null,
+        2,
+      )}\n`,
+    };
+  };
   const knobs: Partial<TreeFixture> = {
     ...(options.orphanDraft === true ? { orphanDraft: true } : {}),
     ...(options.unreadable === undefined ? {} : { unreadable: options.unreadable }),
@@ -782,8 +815,18 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
           ...docsFor(),
           {
             path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
-            text: `${JSON.stringify(driftProgress(), null, 2)}\n`,
+            text: `${JSON.stringify(
+              options.specDrift === true
+                ? {
+                    ...driftProgress(),
+                    waves: [specDriftRow(), ...(driftProgress().waves as readonly unknown[])],
+                  }
+                : driftProgress(),
+              null,
+              2,
+            )}\n`,
           },
+          ...(options.specDrift === true ? [specDriftCarrier] : []),
         ],
       };
     case "stale-holder": {
@@ -805,7 +848,14 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     case "branch-closed":
       return {
         shape,
-        files: [...docsFor(), progress("closed"), base, reviewCarrier, ...extra()],
+        files: [
+          ...docsFor(),
+          options.specDrift === true ? specDriftProgress("closed") : progress("closed"),
+          base,
+          reviewCarrier,
+          ...(options.specDrift === true ? [specDriftCarrier] : []),
+          ...extra(),
+        ],
         ...knobs,
       };
   }

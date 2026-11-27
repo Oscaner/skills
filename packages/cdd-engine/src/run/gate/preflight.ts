@@ -223,8 +223,7 @@ export type SkipReason =
   | "unreadable-doc"
   | "closed-document"
   | "no-plan-layers"
-  | "no-ledger-facts"
-  | "no-input-face";
+  | "no-ledger-facts";
 
 /** One checked row's reading, as a value — the word table renders it, this file never does. */
 export type CheckedReading =
@@ -410,7 +409,8 @@ export class PreFlight {
   /** The rows one face judges, in judgment order — DERIVED from the closed set, so a row
    *  that joins the vocabulary joins every face's reading at once. `graph` is the one row
    *  whose presence also depends on the read being ready; the four stations are always
-   *  listed (a face with no input face YIELDS them, it does not drop them). */
+   *  listed in the face's row set, and a dispatch whose face has NO input face (a wave with no
+   *  derived open batch) stands them down at judgment time instead. */
   static rowsOf(type: TargetType, opts: { readonly graph: boolean }): readonly PreFlightGateName[] {
     return PRE_FLIGHT_GATE_NAMES.filter((row) => PreFlight.applies(row, type, opts.graph));
   }
@@ -626,7 +626,7 @@ export class PreFlight {
   }
 
   /** The four stations — ONE step, judged on the first station only (the set is a unit).
-   *  With no input face all four YIELD and judge nothing; otherwise every violation is
+   *  With no input face all four stand down and record nothing; otherwise every violation is
    *  reported in one pass and the FIRST row owns the verdict, the rest riding as details. */
   static #stations(row: RowStation, ctx: PreFlightContext, carried: RowCarried): RowStep {
     if (row !== ROW_STATIONS[0]) {
@@ -634,14 +634,13 @@ export class PreFlight {
       // face's list add nothing and must not report a second time.
       return { ran: [], checked: [], doc: carried.doc, ledger: carried.ledger, refusal: null };
     }
-    const ran = [...ROW_STATIONS];
+    // A face with NO input face stands the four rows down ENTIRELY: they did not run, so they
+    // are absent from the face — the same state a row that never ran behind an earlier refusal
+    // is in. Rendering four yields would report a judgment the tree never made.
     if (ctx.rows === null) {
-      const yielded = ROW_STATIONS.map((station) => ({
-        row: station,
-        reading: { kind: "skipped" as const, reason: "no-input-face" as const },
-      }));
-      return { ran, checked: yielded, doc: carried.doc, ledger: carried.ledger, refusal: null };
+      return { ran: [], checked: [], doc: carried.doc, ledger: carried.ledger, refusal: null };
     }
+    const ran = [...ROW_STATIONS];
     const checked = ROW_STATIONS.map((station) => ({
       row: station,
       reading: { kind: "ran" as const },

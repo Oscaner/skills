@@ -43,6 +43,7 @@ import type { RepoPath } from "./env/paths/root.ts";
 import type { SlugIndex } from "./env/paths/slug-index.ts";
 import type { PlanText } from "./env/vcs/plan-source.ts";
 import { Workspace } from "./env/workspace/workspace.ts";
+import { DriftStation } from "./run/advance/drift-station.ts";
 import { type DocFacts, Frame } from "./run/advance/frame.ts";
 import { Lifecycle } from "./run/advance/lifecycle.ts";
 import { LinePhase } from "./run/advance/line-phase.ts";
@@ -217,7 +218,9 @@ export class Boot {
       waves: () => ledger.waveLines(),
       docClassOf: (target) => Boot.docClassOf(reads, target),
     });
+    const drift = new DriftStation(lines);
     const frame = new Frame({
+      driftedUpstream: (facts) => drift.refusalOf(facts) !== null,
       reads: {
         root: env.paths.root,
         index: () => reads.index,
@@ -270,6 +273,7 @@ export class Boot {
     const lifecycle = new Lifecycle({
       gate,
       authority: new Authority(),
+      drift,
       inflight,
       child,
       ledger,
@@ -314,12 +318,6 @@ export class Boot {
     };
   }
 
-  /** One workspace's artifact index — the ONE construction of that fact, so the index a
-   *  graph reads and the index a seam asks for are the same reading. */
-  static artifactsOf(): Artifacts {
-    return new Artifacts();
-  }
-
   /** One workspace's fact ledger — the ONE construction site of a seat's ledger, so the
    *  phase graph and a charter's `overall` row read their records through the same
    *  collaborators (the reserve set, the file listing, the artifact index). */
@@ -340,7 +338,11 @@ export class Boot {
    *  readings of one document. */
   static seatOf(env: Env, charterSlug: string): DocSeat {
     const workspace = env.workspace.at(charterSlug);
-    const ledger = Boot.ledgerAt(env, charterSlug, Boot.artifactsOf());
+    // The artifact index is intentionally PER SEAT: it caches the names one workspace
+    // registers, so a shared instance would answer another workspace's spellings. The
+    // index a graph reads and the index a seat reads are therefore the same CLASS, not the
+    // same object — see `Boot#phaseRun` for the node's own.
+    const ledger = Boot.ledgerAt(env, charterSlug, new Artifacts());
     return {
       rounds: ledger.rounds("overall"),
       carrierPathOf: (record) => ledger.carrierPathOf("overall", "overall", record),
@@ -348,6 +350,9 @@ export class Boot {
         const read = workspace.readText(target);
         return read.kind === "text" ? read.value : null;
       },
+      // The seat's own inventory scope: the charter's `overall` line and nothing else — the
+      // program's workspace records no other line this tree reads.
+      observedArtifacts: () => ledger.observedArtifacts(["overall"]),
     };
   }
 

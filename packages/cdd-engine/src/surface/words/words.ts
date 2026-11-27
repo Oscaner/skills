@@ -488,7 +488,6 @@ export const WORDS = {
       "closed-document": "skipped (closed document)",
       "no-plan-layers": "info (plan layers: unavailable)",
       "no-ledger-facts": "skipped (no ledger facts)",
-      "no-input-face": "skipped (no input face)",
     },
     planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
     inFlight: {

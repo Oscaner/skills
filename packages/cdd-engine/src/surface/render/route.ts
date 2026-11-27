@@ -30,12 +30,8 @@
 // functions.
 
 import { REFS } from "../../env/process/host.ts";
-import {
-  NEXT_HOP_REASON,
-  type NextHop,
-  type Route,
-  type WaveGateReason,
-} from "../../run/advance/next.ts";
+import type { DriftRefusal } from "../../run/advance/drift-station.ts";
+import { NEXT_HOP_REASON, type NextHop, type Route } from "../../run/advance/next.ts";
 import type { RouteTarget } from "../../run/advance/target-faces.ts";
 import type { WaveVerdict } from "../../run/advance/wave.ts";
 import type { TargetFact } from "../../run/dispatch/inflight.ts";
@@ -67,8 +63,17 @@ const BOARD_REASON = "  reason:  ";
 /** The `(none)` degradation the board prints when no hop exists — a value, never a blank. */
 const BOARD_NO_NEXT = "(none)";
 
-/** One refusal, as this face reads it: the structure leg's verdict or the wave gate's. */
-export type RefusalVerdict = PreFlightVerdict | WaveVerdict;
+/** How many hex digits of a recorded / current digest a drift diagnosis prints — the same
+ *  width the shipped engine chose, so an operator's two reports of one movement read alike. */
+const DRIFT_HASH_PREFIX = 12;
+
+/** One line-leg refusal, as this face reads it: the wave gate's five rows, or the drift
+ *  station's `doc-drift` row with its mandatory diagnosis. */
+export type LineVerdict = WaveVerdict | DriftRefusal;
+
+/** One refusal, as this face reads it: the structure leg's verdict, the wave gate's, or the
+ *  line leg's drift row. */
+export type RefusalVerdict = PreFlightVerdict | LineVerdict;
 
 /**
  * RouteRenderer — the route face's whole byte surface (see the file's header). Invariant:
@@ -194,8 +199,8 @@ export class RouteRenderer {
    *  reading carries the pid, never the holder's command line). An absent fill never leaves a
    *  `{slot}` in the byte: the row falls back to the closed form the checked face prints. */
   refusalBody(verdict: RefusalVerdict, fill?: string | null): string {
-    const stage = "open" in verdict ? RouteRenderer.#lineCause(verdict) : verdict.gate;
-    if ("open" in verdict) return `${stage}`;
+    if (RouteRenderer.isLine(verdict)) return RouteRenderer.#lineCause(verdict);
+    const stage = verdict.gate;
     const sentence = this.#reasonSentence(verdict, fill ?? null);
     return sentence === null ? `${stage}` : `${stage} · ${sentence}`;
   }
@@ -204,8 +209,8 @@ export class RouteRenderer {
    *  `split` cause is the ONE cause that carries the wave board (the three sections
    *  `graph.ts` lays out); every other cause prints the details the verdict carries. */
   refusalDetails(verdict: RefusalVerdict, tree: GraphTree | null = null): readonly string[] {
-    if ("open" in verdict) {
-      return verdict.reason === "split" && tree !== null
+    if (RouteRenderer.isLine(verdict)) {
+      return !("drift" in verdict) && verdict.reason === "split" && tree !== null
         ? this.#graph
             .render(tree)
             .split("\n")
@@ -221,10 +226,17 @@ export class RouteRenderer {
     return station === null ? carried : [...station.slice(1), ...carried];
   }
 
+  /** Whether one verdict is a LINE-leg refusal — the wave gate's or the drift station's.
+   *  Both answer the same one-line shape and neither carries the structure leg's `checked`
+   *  rows, so every reader branches on this predicate rather than on one type's cell. */
+  static isLine(verdict: RefusalVerdict): verdict is LineVerdict {
+    return "open" in verdict || "drift" in verdict;
+  }
+
   /** One station refusal's detail body, split into its lines; null for a named reason (its
-   *  sentence is the word table's) and for a wave-gate verdict. */
+   *  sentence is the word table's) and for a line-leg verdict. */
   static #stationDetailOf(verdict: RefusalVerdict): readonly string[] | null {
-    if ("open" in verdict) return null;
+    if (RouteRenderer.isLine(verdict)) return null;
     if (verdict.reason !== undefined) return null;
     const detail = verdict.record?.detail;
     return detail === undefined || detail.length === 0 ? null : detail.split("\n");
@@ -235,7 +247,7 @@ export class RouteRenderer {
   lineRefusalText(
     verb: string,
     phase: string,
-    verdict: WaveVerdict,
+    verdict: LineVerdict,
     hop: NextHop | null = null,
   ): string {
     const cause = RouteRenderer.#lineCause(verdict);
@@ -265,8 +277,17 @@ export class RouteRenderer {
     }
   }
 
-  /** The wave gate's cause token — the table's own line-leg spelling. */
-  static #lineCause(verdict: WaveVerdict): WaveGateReason {
+  /** The line leg's cause cell — the wave gate's token, or the drift row's token plus the
+   *  diagnosis the reason names (`layer` · `line` · both digest ends). The prefix width is
+   *  this face's, so the diagnosis VALUE carries no truncated hash of its own. */
+  static #lineCause(verdict: LineVerdict): string {
+    if ("drift" in verdict) {
+      const drift = verdict.drift;
+      const prefix = (hash: string): string => hash.slice(0, DRIFT_HASH_PREFIX);
+      return `${verdict.reason} · layer=${drift.layer} · line=${drift.line} · recorded=${prefix(
+        drift.recorded,
+      )} · current=${prefix(drift.current)}`;
+    }
     return verdict.reason ?? "split";
   }
 

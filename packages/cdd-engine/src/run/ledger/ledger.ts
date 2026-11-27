@@ -617,25 +617,40 @@ export class Ledger {
     return String(this.carrierPathOf(type, key, record));
   }
 
-  /** The observation set: every REVIEW round of this ledger's own lines, one entry each
+  /** The observation set: every REVIEW round of the ledger's own lines, one entry each
    *  `{line, kind, cycle, attempt, carrier, read}`, ordered by `(cycle, attempt)`. The set is
    *  a record sequence — a `*.rulings.json` no record claims stays on the orphan face and
    *  never enters here. The SEAT is the caller's choice of ledger instance (a node board
    *  reads the node's workspace, the program board the program's): two seats are two names,
-   *  never a positional argument. An instance with no artifact index answers nothing. */
-  observedArtifacts(): readonly ArtifactObservation[] {
+   *  never a positional argument. An instance with no artifact index answers nothing.
+   *
+   *  `lines` is the SCOPE the caller's face observes — the board's own row words — so a row
+   *  the face does not print never enters the inventory. A round whose carrier resolves to no
+   *  file on this seat contributes nothing: the observation names a file, and an empty name is
+   *  the orphan face's business, not an `absent` row of its own. The line cell is the
+   *  carrier's OWN attributed word (a legacy row's key names no line the artifact grammar
+   *  knows), falling back to the row's word. */
+  observedArtifacts(lines?: readonly string[]): readonly ArtifactObservation[] {
     const artifacts = this.#artifacts;
     if (artifacts === null) return [];
     const reads = new ArtifactReads({ artifacts, source: this.#source() });
+    const document = this.read();
+    // The SCOPE's order is the observation order (the caller's face prints its rows in that
+    // order), and a line word with no row contributes nothing — a legacy row keyed under
+    // another word is not a row this face observes.
+    const words =
+      lines ?? (document?.waves ?? []).map((row) => RoundIdentity.lineWordOfRowKey(row.wave));
     const observations: ArtifactObservation[] = [];
-    for (const row of this.read()?.waves ?? []) {
+    for (const line of words) {
+      const row = Ledger.rowOf(document, line);
+      if (row === undefined) continue;
       for (const record of row.rounds ?? []) {
         if (record.op !== "review") continue;
-        const line = RoundIdentity.lineWordOfRowKey(row.wave);
         const { type, key } = this.#targetOf(line);
         const carrier = this.carrierPathOf(type, key, record);
+        if (carrier === "") continue;
         observations.push({
-          line,
+          line: Ledger.#observedLineOf(artifacts, carrier, line),
           kind: "rulings",
           cycle: record.cycle,
           attempt: record.attempt,
@@ -648,7 +663,7 @@ export class Ledger {
               attempt: record.attempt,
             }),
             "rulings",
-            carrier === "" ? null : { path: carrier, digest: record.carrierDigest },
+            { path: carrier, digest: record.carrierDigest },
           ),
         });
       }
@@ -656,6 +671,15 @@ export class Ledger {
     return observations.sort(
       (left, right) => left.cycle - right.cycle || left.attempt - right.attempt,
     );
+  }
+
+  /** The line word an observed carrier names — the artifact grammar's own attributed line,
+   *  or the row word when the name places no round (a cycle-less legacy carrier names a line
+   *  but no round, and the row is then the only declaration of where it hangs). */
+  static #observedLineOf(artifacts: Artifacts, carrier: RepoPath, fallback: string): string {
+    const name = String(carrier).split("/").pop() ?? "";
+    const attributed = artifacts.attribute(name);
+    return attributed === null ? fallback : attributed.round.line;
   }
 
   /** The workspace's ORPHAN names, the two-tier judgment: (i) a name no artifact kind renders

@@ -5,8 +5,9 @@
 //
 // The pins are grouped by the value a renderer takes: the prompt bands, the capsule, the route
 // face (the one `next:` / `checked:` / refusal assembly), the wave board, the board (two
-// display states, the tree fact block, the artifact inventory, the program layout), the
-// preview's three blocks, the issue contract, the init exits and the usage table.
+// display states, the tree fact block, the artifact inventory, the program layout), the brief
+// (the projection a wave line binds and the bytes its child reads), the preview's three blocks,
+// the issue contract, the init exits and the usage table.
 //
 // Every fixture value is built here, from the same declared shapes the renderers read, so the
 // suite measures the renderer and never this repository's own documents.
@@ -39,6 +40,7 @@ import type { ArtifactRead } from "../../../run/ledger/artifact-reads.ts";
 import { Cli } from "../../index.ts";
 import { Words } from "../../words/words.ts";
 import { type BoardValue, BoardView, FOLDED_BOARD } from "../board.ts";
+import { BriefRenderer } from "../brief.ts";
 import { Capsule } from "../capsule.ts";
 import { type GraphTree, GraphView } from "../graph.ts";
 import { type InitFacts, InitRenderer } from "../init.ts";
@@ -601,22 +603,26 @@ describe("the board", () => {
     );
   });
 
-  it("prints an anomalous round by default and its continuation facts", () => {
+  it("prints an anomalous round by default, both continuation rows at the frozen bytes", () => {
     const value = boardValue({
       rows: [docRow("phase-spec")],
       observed: [
         observation({
           kind: "misplaced",
-          path: rel(".kairos/cdd/p9/phase-spec-review-1.rulings.json"),
-          names: ["phase-spec-review-1.rulings.json", "phase-spec-review-1.c1.rulings.json"],
+          path: rel(".kairos/cdd/p9/phase-spec-review-1.c1.rulings.json"),
+          names: [rel(".kairos/cdd/p9/phase-spec-review-1.rulings.json")],
         }),
       ],
     });
-    const body = board.render(value).join("\n");
-    expect(body).toContain("art:     phase-spec · rulings   ! misplaced");
-    const labels = words.artifactWords().continuation;
-    expect(body).toContain(`${labels.derived}`);
-    expect(body).toContain(`${labels.found}`);
+    const rows = board.render(value);
+    expect(rows).toContain("  art:     phase-spec · rulings   ! misplaced");
+    // The block's two continuation rows, byte for byte against §2.2's face 6: the labels are
+    // the board's own column (no colon, two spaces) and BOTH cells are repo-relative
+    // coordinates — the `found` cell is the arm that once printed the bare workspace name.
+    expect(rows).toContain(
+      "           derived  .kairos/cdd/p9/phase-spec-review-1.c1.rulings.json",
+    );
+    expect(rows).toContain("           found    .kairos/cdd/p9/phase-spec-review-1.rulings.json");
   });
 
   it("lays the program board out as the charter row, its phase rows and the program terminal", () => {
@@ -832,6 +838,92 @@ describe("the board", () => {
     const stated = regradeNote(1, ["the guard is\nsecond-order"]) ?? "";
     expect(stated).not.toContain("\n");
     expect(rowOf(stated)).toContain(`review 1 ✓+2 ${stated} ${tokens.notes} +1`);
+  });
+});
+
+describe("the brief", () => {
+  const brief = new BriefRenderer();
+
+  /** A two-task `####`-shape plan with a `## Constraints` section — the projection and the
+   *  mirror's shared input. Document order is 1 then 2, so a pin can request `[2, 1]` and see
+   *  whose order the brief follows. */
+  const PLAN = [
+    "---",
+    "title: A plan",
+    "doc-type: plan",
+    "version: v1.0",
+    "---",
+    "",
+    "## Constraints",
+    "",
+    "- keep the engine single-authored",
+    "",
+    "### Task 1: the first",
+    "",
+    "#### Objective",
+    "do the first thing",
+    "",
+    "#### Steps",
+    "- touch a file — checkable: the file exists",
+    "",
+    "### Task 2: the second",
+    "",
+    "#### Objective",
+    "do the second thing",
+    "",
+    "#### Steps",
+    "- touch the other file — checkable: the file exists",
+    "",
+  ].join("\n");
+
+  /** The plan's ONE parse, as the caller hands it over — the short renderer owns no parser. */
+  const blocksOf = () => BriefRenderer.blocksOf(PLAN);
+
+  it("projects the same plan to the same bytes twice — no render state rides the reviewed version", () => {
+    const first = brief.taskBody(PLAN, blocksOf(), [1]);
+    expect(brief.taskBody(PLAN, blocksOf(), [1])).toBe(first);
+    const pair = brief.taskBody(PLAN, blocksOf(), [1, 2]);
+    expect(brief.taskBody(PLAN, blocksOf(), [1, 2])).toBe(pair);
+  });
+
+  it("opens the projection on the first requested `### Task …` heading — zero preamble", () => {
+    const body = brief.taskBody(PLAN, blocksOf(), [1]);
+    expect(body.split("\n")[0]).toBe("### Task 1: the first");
+    expect(body).not.toMatch(/^---/);
+    expect(body).not.toContain("## Constraints");
+  });
+
+  it("slices a block's `####` children whole — the boundary is the next rank-3 heading", () => {
+    const body = brief.taskBody(PLAN, blocksOf(), [1]);
+    expect(body).toContain("#### Objective\ndo the first thing");
+    expect(body).toContain("#### Steps\n- touch a file — checkable: the file exists");
+    expect(body).not.toContain("### Task 2");
+  });
+
+  it("appends the `## Constraints` mirror and then the notes tail, each verbatim", () => {
+    const body = brief.taskBody(PLAN, blocksOf(), [1]);
+    const bytes = brief.render(PLAN, blocksOf(), [1], ["the round left one note"]);
+    expect(bytes.startsWith(`${body}\n\n## Constraints`)).toBe(true);
+    expect(bytes).toContain("- keep the engine single-authored");
+    expect(bytes.endsWith("\n## Notes\nthe round left one note\n")).toBe(true);
+    // No notes: the file closes on the mirror instead of an empty heading.
+    const bare = brief.render(PLAN, blocksOf(), [1]);
+    expect(bare.endsWith("## Constraints\n\n- keep the engine single-authored\n")).toBe(true);
+    expect(bare).not.toContain("## Notes");
+  });
+
+  it("keeps the CALLER's order — a reversed request is not re-sorted into document order", () => {
+    const reversed = brief.taskBody(PLAN, blocksOf(), [2, 1]);
+    expect(reversed.split("\n")[0]).toBe("### Task 2: the second");
+    expect(reversed.indexOf("### Task 2")).toBeLessThan(reversed.indexOf("### Task 1"));
+    // The unreversed request answers the other order: the INPUT moved it, not the plan.
+    const ordered = brief.taskBody(PLAN, blocksOf(), [1, 2]);
+    expect(ordered.indexOf("### Task 1")).toBeLessThan(ordered.indexOf("### Task 2"));
+  });
+
+  it("blocks both products when a requested task is absent — one refusal, two consumers", () => {
+    expect(() => brief.taskBody(PLAN, blocksOf(), [1, 5])).toThrow(/task 5 not found/);
+    expect(() => brief.render(PLAN, blocksOf(), [1, 5])).toThrow(/task 5 not found/);
   });
 });
 

@@ -374,7 +374,7 @@ describe("the artifact read", () => {
     const read = reads.read(carrierRound, "rulings", carrierRef);
     expect(read.kind).toBe("misplaced");
     if (read.kind !== "misplaced") throw new Error("unreachable");
-    expect(read.names).toEqual(["phase-spec-review-1.rulings.json"]);
+    expect(read.names).toEqual([".kairos/cdd/p9/phase-spec-review-1.rulings.json"]);
   });
 
   it("answers `invalid` rather than half a value: a violated sidecar and a tampered carrier", () => {

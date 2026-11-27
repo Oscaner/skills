@@ -52,8 +52,9 @@ export class BriefRenderer {
   }
 
   /** The task-only projection — the requested blocks' own lines, verbatim, `####` children
-   *  included, joined by the blank column the plan keeps between blocks. A requested task the
-   *  plan does not declare blocks the whole render: half a brief is never dispatched. */
+   *  included, in the caller's order, joined by the blank column the plan keeps between
+   *  blocks. A requested task the plan does not declare blocks the whole render: half a
+   *  brief is never dispatched. */
   taskBody(text: string, blocks: TaskBlocks, tasks: readonly number[]): string {
     const lines = text.split("\n");
     const selected = this.#selectedOf(blocks, tasks);
@@ -74,17 +75,23 @@ export class BriefRenderer {
     return notes.length === 0 ? head : `${head}\n${[NOTES_HEADING, ...notes].join("\n")}\n`;
   }
 
-  /** The requested blocks in the caller's order — the missing-task refusal happens here, so
-   *  both products refuse the same way. */
+  /** The requested blocks in the CALLER's order, not the document's — a wave that asks for
+   *  `[16, 15]` reads 16's section first, so the brief's order is an input, never a display
+   *  convention the plan happens to impose. The missing-task refusal happens here, so both
+   *  products refuse the same way. */
   #selectedOf(blocks: TaskBlocks, tasks: readonly number[]): readonly TaskBlock[] {
-    const wanted = new Set(tasks);
-    const selected = blocks.blocks().filter((block) => wanted.has(block.id));
-    const found = new Set(selected.map((block) => block.id));
-    const missing = [...wanted].filter((id) => !found.has(id)).sort((left, right) => left - right);
+    const wanted = [...new Set(tasks)];
+    const byId = new Map(blocks.blocks().map((block) => [block.id, block]));
+    const missing = wanted.filter((id) => !byId.has(id)).sort((left, right) => left - right);
     if (missing.length > 0) {
       throw new Error(
         `task${missing.length > 1 ? "s" : ""} ${missing.join(", ")} not found in the plan`,
       );
+    }
+    const selected: TaskBlock[] = [];
+    for (const id of wanted) {
+      const block = byId.get(id);
+      if (block !== undefined) selected.push(block);
     }
     return selected;
   }

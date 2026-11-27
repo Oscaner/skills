@@ -47,7 +47,9 @@ export type ArtifactRead =
       readonly path: RepoPath;
       readonly rulings: readonly RulingRecord[];
     }
-  | { readonly kind: "misplaced"; readonly path: RepoPath; readonly names: readonly string[] }
+  /** `names` are repo-relative, the same basis as `path` — every on-disk spelling that
+   *  attributes to this artifact, the rendered one included when it is there. */
+  | { readonly kind: "misplaced"; readonly path: RepoPath; readonly names: readonly RepoPath[] }
   | { readonly kind: "absent" }
   | { readonly kind: "invalid"; readonly path: RepoPath; readonly reason: string };
 
@@ -82,7 +84,7 @@ export class ArtifactReads {
     const identity = new ArtifactIdentity(round, kind);
     const rendered = this.#source.relOf(identity.name);
     const found = this.#foundNames(identity);
-    if (found.some((name) => name !== identity.name)) {
+    if (found.some((name) => name !== rendered)) {
       return { kind: "misplaced", path: rendered, names: found };
     }
     const text = this.#source.readText(rendered);
@@ -122,12 +124,18 @@ export class ArtifactReads {
     }
   }
 
-  /** Every name in the workspace that attributes to this exact artifact. */
-  #foundNames(identity: ArtifactIdentity): readonly string[] {
-    const found: string[] = [];
+  /** Every name in the workspace that attributes to this exact artifact, in the read
+   *  value's OWN coordinate basis: `path` is repo-relative, so the spellings that answer
+   *  "which names are on disk" are too — a caller never has to know the workspace's
+   *  directory to print one. (`orphanHandoffs` answers bare workspace names instead: that
+   *  face names files no record claims, not an artifact's coordinates.) */
+  #foundNames(identity: ArtifactIdentity): readonly RepoPath[] {
+    const found: RepoPath[] = [];
     for (const name of this.#source.names()) {
       const attributed = this.#artifacts.attribute(name);
-      if (attributed !== null && attributed.key === identity.key) found.push(name);
+      if (attributed !== null && attributed.key === identity.key) {
+        found.push(this.#source.relOf(name));
+      }
     }
     return found.sort();
   }

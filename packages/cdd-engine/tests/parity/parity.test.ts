@@ -288,7 +288,18 @@ describe("the render corpus the board and capsule cells read", () => {
   }, 120_000);
 
   it("records an anomalous artifact round on the default face and both arms under --artifacts", async () => {
-    expect(await liveOf("f6.board.art.anomalous")).toContain("! misplaced");
+    const anomalous = await liveOf("f6.board.art.anomalous");
+    expect(anomalous).toContain("! misplaced");
+    // The continuation rows print the sidecar's two spellings at their REPO-RELATIVE
+    // coordinates — the artifact read answers `path` and `names` in one basis, so the
+    // `found` cell is the recorded `.kairos/cdd/p9/…` coordinate and never the bare
+    // workspace name.
+    expect(anomalous).toContain(
+      "           found    .kairos/cdd/p9/phase-spec-review-1.rulings.json",
+    );
+    expect(anomalous).toContain(
+      "           derived  .kairos/cdd/p9/phase-spec-review-1.c1.rulings.json",
+    );
     const all = await liveOf("f6.board.art.all");
     expect(all).toContain("   ok");
     expect(all).toContain("   absent");

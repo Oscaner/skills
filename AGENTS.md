@@ -23,8 +23,8 @@ The home of **CDD (continuously-discovered development)** and the vehicle that d
 |---|---|
 | `packages/kairos/skills/` | the six skills (`cdd-close` · `cdd-design` · `cdd-dev` · `cdd-plan` · `cdd-report` · `cdd-spec-writer`) — `SKILL.md` + optional `docs/` |
 | `packages/kairos/tests/` | the kairos suite (skill anatomy, word faces, behaviour trees, pi-package contract) |
-| `packages/cdd-engine/src-next/` | engine source: five planes `contract/` `face/` `infra/` `render/` `session/` + `bin.ts` (composition root) |
-| `packages/cdd-engine/src-next/<plane>/__tests__/` | engine tests, colocated per plane |
+| `packages/cdd-engine/src/` | engine source: four slices `docs/` `env/` `run/` `surface/` + `bin.ts` (composition root) |
+| `packages/cdd-engine/src/<slice>/__tests__/` | engine tests, colocated per slice |
 | `packages/cdd-engine/templates/report/` | shipped templates, incl. `issue-body.json` — the **only** source of the repo's issue forms |
 | `scripts/` | repo automation: `run.ts` (emit / emit-check / version-sync), `emit.ts`, `lib/`; tests in `scripts/__tests__/` |
 | `docs/kairos/{overalls,specs,plans}/` | internal program docs (Chinese) |
@@ -50,7 +50,7 @@ pnpm run biome:fix               # apply formatting fixes
 
 ```bash
 pnpm exec vitest run scripts/__tests__/emit.test.ts              # one root test file
-pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/capsule.test.ts
+pnpm -C packages/cdd-engine exec vitest run src/surface/words/__tests__/words.test.ts
 pnpm -C packages/kairos exec vitest run tests/skill-anatomy.test.ts
 pnpm exec tsc --noEmit -p packages/cdd-engine                    # also -p scripts, -p packages/kairos/tests
 pnpm run emit:check                                              # generated products are fresh
@@ -70,7 +70,7 @@ Prerequisites: the kairos suite hard-fails without the pi binary — `npm i -g @
 Call the local source, never the published lag:
 
 ```bash
-node packages/cdd-engine/src-next/bin.ts <subcommand> [flags]
+node packages/cdd-engine/src/bin.ts <subcommand> [flags]
 ```
 
 Kairos skills invoke `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` — that form is for **consumers** and trails the in-repo tree. Read the **full** stdout/stderr of any engine call: the engine truncates its own output, so filtering it is forbidden.
@@ -101,9 +101,9 @@ No hand-written version literals in shipped docs: the README plugin table must n
 - **Structure can be mechanized; content cannot — a mechanized content rule produces fake content.** A gate may judge a *relation between artefacts*: does it exist, is it unique, is it in order, is it derived from the table rather than typed. A gate may not judge whether a sentence is *true*: whether the symbol a sentence names exists, whether the number is right, whether the enumeration beside it lists the same members. Once a checker fixes on content, authors optimise for the checker instead of the truth — the fix rounds converge on the accepted spelling, the number gets corrected while the members it counts do not, and the gate confirms a sentence nobody verified. The exception proves the shape: **derivation**, not verification — do not check the typed value, remove the possibility of typing it (`CRITERIA_ROWS.length`, a count read off the registry, a field name emitted from the skeleton). And a structural gate may only cite structural facts: a field whose closed vocabulary declares that an execution face exists is doing a content judgment in structural clothing once that face is gone.
 - **Generated-product consistency belongs to `emit:check` alone** — a test that compares committed products duplicates that gate and drifts from it.
 - **Boundary, drawn by consumer rather than by path:** retired from test assertion is `docs/kairos/**` only; the README family, this file, `marketplace/source.json`, `packages/kairos/skills/` and the generated products are byte-level consumer surfaces and stay under their probes. The ruling and its measured account live in decision D101 of `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`.
-- **No module-level bare functions.** `check:no-bare-functions` greps `^(export )?(async )?function ` across `packages/cdd-engine/src-next`, `packages/kairos/tests` and `scripts`. Write classes (state + behaviour) or arrow consts; a genuinely static surface carries `// biome-ignore lint/complexity/noStaticOnlyClass: <one-line reason>` (precedent: `src-next/bin.ts`, `scripts/run.ts`).
+- **No module-level bare functions.** `check:no-bare-functions` greps `^(export )?(async )?function ` across `packages/cdd-engine/src`, `packages/kairos/tests` and `scripts`. Write classes (state + behaviour) or arrow consts; a genuinely static surface carries `// biome-ignore lint/complexity/noStaticOnlyClass: <one-line reason>` (precedent: `src/bin.ts`, `scripts/run.ts`).
 - Biome is the formatter/linter (`biome.json`): 2-space, width 100, recommended preset, `noNonNullAssertion` and `noExplicitAny` off. The pre-commit hook runs `biome check` **without** `--write`, so format before committing — `biome:fix` is a manual self-check, the hook never calls it.
-- **Consumer-surface purity (iron rule).** Every file that ships to harness consumers — `SKILL.md` and skill `docs/` — is an instruction document: no program history, no phase/issue numbers, no refactor rationale, no "why X was rejected". Such content belongs in `docs/kairos/`. The section-heading registry in `packages/cdd-engine/src-next/contract/skill-anatomy.ts` is enforced strictly by `packages/kairos/tests/skill-anatomy.test.ts`, which fails any registry-external heading.
+- **Consumer-surface purity (iron rule).** Every file that ships to harness consumers — `SKILL.md` and skill `docs/` — is an instruction document: no program history, no phase/issue numbers, no refactor rationale, no "why X was rejected". Such content belongs in `docs/kairos/`. The section-heading registry in `packages/cdd-engine/src/docs/identity/skill-anatomy.ts` is enforced strictly by `packages/kairos/tests/skill-anatomy.test.ts`, which fails any registry-external heading.
 - **Language policy.** Skills and `docs/*.md` are **English-primary** with no `.zh-CN.md` mirrors. `docs/kairos/{overalls,specs,plans}/*.md` are internal specs and are written in **Chinese**. The only `.zh-CN.md` mirrors in the repo are the README family — root `README.zh-CN.md`, `packages/kairos/README.zh-CN.md`, `packages/cdd-engine/README.zh-CN.md` — each kept in sync with its English twin.
 - **No session memory.** Never write to `~/.claude/projects/<repo>/memory/` or any per-user store. Durable lessons go into `docs/kairos/` specs/plans.
 - Reviewing from the post-publish consumer's standpoint matters: the consumer env has no monorepo layout and none of this repo's toolchain.

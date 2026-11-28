@@ -4,7 +4,7 @@
 // re-homes here — kairos owns its shipped prose; the engine-literal half lives
 // in the engine's colocated suite). The ban vocabulary is the engine's exported
 // `GUARD_BAN_WORDS` data (the word table is single-sourced at
-// `src-next/face/words.ts` — kairos consumes the export, never a second list);
+// `surface/words/words.ts` — kairos consumes the export, never a second list);
 // every family — stale / gate / shape — must be absent from the six SKILL.md
 // products.
 //
@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-import { GUARD_BAN_WORDS } from "../../cdd-engine/src-next/face/words.ts";
+import { GUARD_BAN_WORDS } from "../../cdd-engine/src/surface/words/words.ts";
 
 /** The kairos skills root — the six SKILL.md products (the audit's scan set). */
 const SKILLS_ROOT = path.join(fileURLToPath(new URL("..", import.meta.url)), "skills");

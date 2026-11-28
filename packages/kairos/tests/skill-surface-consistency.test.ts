@@ -3,7 +3,8 @@
 // kairos suite) — the SKILL-prose ⇄ engine-contract consistency gates. These are
 // EXTERNAL comparison gates only (D29 black-box boundary held): they read the
 // shipped SKILL.md prose and pin its ref strings against the engine's `REFS`, and
-// its doc-root/workspace path literals against `ENGINE_RUNTIME` — the SKILL.md
+// its doc-root/workspace path literals against the engine's declared doc-root segments
+// and workspace segment — the SKILL.md
 // text itself carries ZERO changes (the gate observes, never injects implementation
 // into the shipped prose).
 //
@@ -11,7 +12,7 @@
 //      a SKILL authoring surface names must exist in the engine's `REFS` table with
 //      the exact per-host spelling (a ref the SKILL names but the engine cannot
 //      resolve, or a host-form drift, fails here).
-//   ⑮ SKILL path literal ↔ ENGINE_RUNTIME — the `docs/kairos/…` and `.kairos/cdd`
+//   ⑮ SKILL path literal ↔ the declared segments — the `docs/kairos/…` and `.kairos/cdd`
 //      literals a SKILL names must match the engine's declared doc roots / workspace
 //      segment (a renamed root fails here, never silently drifting).
 //   ⑯ ruling landing sentence — the three orchestrators that dispatch a fix round each
@@ -26,8 +27,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { REFS } from "../../cdd-engine/src-next/face/host.ts";
-import { ENGINE_RUNTIME } from "../../cdd-engine/src-next/infra/runtime.ts";
+import { DOC_ROOT_SEGMENTS } from "../../cdd-engine/src/env/paths/doc-roots.ts";
+import { REFS } from "../../cdd-engine/src/env/process/host.ts";
+import { WorkspaceRoot } from "../../cdd-engine/src/env/workspace/workspace.ts";
 
 const SKILLS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../skills");
 
@@ -103,18 +105,15 @@ test("⑭ the `pi：/skill:bare` companion form matches the ref's declared pi sp
   }
 });
 
-test("⑮ every SKILL doc-root / workspace literal matches ENGINE_RUNTIME", () => {
+test("⑮ every SKILL doc-root / workspace literal matches the engine's declared segments", () => {
   // The declared engine path facts: the doc roots + the workspace segment. Every
   // `docs/kairos/...` or `.kairos/cdd` literal a SKILL names must name one of these.
-  const declared = [
-    ...Object.values(ENGINE_RUNTIME.docRoots),
-    ENGINE_RUNTIME.handoffNamespace.workspaceRoot,
-  ];
+  const declared = [...Object.values(DOC_ROOT_SEGMENTS), WorkspaceRoot.DEFAULT_SEGMENT];
   for (const file of skillFiles()) {
     const text = readFileSync(file, "utf8");
     // The doc-root namespace (the common parent — `docs/kairos`) + the workspace
     // segment are the two literal families the SKILL prose may name.
-    const docRootNamespace = path.dirname(ENGINE_RUNTIME.docRoots.specs);
+    const docRootNamespace = path.dirname(DOC_ROOT_SEGMENTS.specs);
     for (const match of text.matchAll(
       /(?:docs\/kairos\/[A-Za-z0-9_*{}/-]*|\.kairos\/[A-Za-z0-9_*{}/-]*)/g,
     )) {
@@ -124,7 +123,7 @@ test("⑮ every SKILL doc-root / workspace literal matches ENGINE_RUNTIME", () =
       );
       expect(
         matchesDeclared,
-        `${path.relative(SKILLS_DIR, file)} names the path literal ${literal}, which no ENGINE_RUNTIME doc root / workspace segment covers`,
+        `${path.relative(SKILLS_DIR, file)} names the path literal ${literal}, which no declared doc root / workspace segment covers`,
       ).toBe(true);
     }
   }

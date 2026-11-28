@@ -2,7 +2,7 @@
 // authoring nodes carry, read as STRUCTURE (P42 §6).
 //
 // Three homes state the same three shapes: the spec review rubric
-// (`render/templates.ts#docNarrativeAxes`), `cdd-spec-writer`'s `author-spec` node and
+// (`docs/judging/criteria.ts#docNarrativeAxes`), `cdd-spec-writer`'s `author-spec` node and
 // `cdd-plan`'s `author-plan` node. The gate judges a document by the rule rows those
 // lines name, so a home that points at a different row teaches the author a shape the
 // gate refuses — the rubric and the gate must not hold two answers.

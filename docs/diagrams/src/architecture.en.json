@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "f01becfaf3d0546b6c091deff88606b9dc3c2de1"
+      "revision": "4efbe61f22a8ea2a4f24b01bd0d37e9a84d6aebf"
     }
   },
   "components": [
@@ -119,9 +119,9 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/plugins.ts",
-          "line": 53,
-          "end_line": 166
+          "path": "packages/cdd-engine/src/env/provision/plugins.ts",
+          "line": 49,
+          "end_line": 163
         }
       ]
     },
@@ -161,9 +161,9 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/host.ts",
-          "line": 126,
-          "end_line": 148
+          "path": "packages/cdd-engine/src/env/process/host.ts",
+          "line": 100,
+          "end_line": 123
         }
       ]
     },
@@ -205,17 +205,17 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/cli.ts",
-          "line": 567,
-          "end_line": 591
+          "path": "packages/cdd-engine/src/surface/commands/declare.ts",
+          "line": 280,
+          "end_line": 386
         }
       ]
     },
     {
-      "id": "contract",
+      "id": "slice_docs",
       "type": "backend",
-      "label": "Contract plane",
-      "sublabel": "rules · invariants · rubric",
+      "label": "docs/ slice",
+      "sublabel": "grammar · identity · judging",
       "pos": [
         970,
         180
@@ -226,22 +226,18 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/contract/rules.ts",
-          "line": 145,
-          "end_line": 152
-        },
-        {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 338,
-          "end_line": 348
+          "path": "packages/cdd-engine/src/docs/index.ts",
+          "line": 313,
+          "end_line": 323
         }
       ]
     },
     {
-      "id": "face",
+      "id": "slice_surface",
       "type": "backend",
-      "label": "Face plane",
-      "sublabel": "commands · gates · faces",
+      "label": "surface/ slice",
+      "sublabel": "commands · words · render",
+      "tag": "cache-aligned",
       "pos": [
         970,
         270
@@ -252,22 +248,22 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/capsule.ts",
-          "line": 1,
-          "end_line": 12
+          "path": "packages/cdd-engine/src/surface/index.ts",
+          "line": 189,
+          "end_line": 200
         },
         {
-          "path": "packages/cdd-engine/src-next/face/board-view.ts",
-          "line": 151,
-          "end_line": 161
+          "path": "packages/cdd-engine/src/surface/words/words.ts",
+          "line": 1,
+          "end_line": 7
         }
       ]
     },
     {
-      "id": "session",
+      "id": "slice_run",
       "type": "backend",
-      "label": "Session plane",
-      "sublabel": "next hop · ledger · records",
+      "label": "run/ slice",
+      "sublabel": "ledger · gate · dispatch",
       "tag": "one derivation",
       "pos": [
         970,
@@ -279,23 +275,22 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 254,
-          "end_line": 262
+          "path": "packages/cdd-engine/src/run/index.ts",
+          "line": 652,
+          "end_line": 663
         },
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 299,
-          "end_line": 310
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 201,
+          "end_line": 206
         }
       ]
     },
     {
-      "id": "render",
+      "id": "slice_env",
       "type": "backend",
-      "label": "Render plane",
-      "sublabel": "prompt templates",
-      "tag": "cache-aligned",
+      "label": "env/ slice",
+      "sublabel": "paths · workspace · git",
       "pos": [
         970,
         450
@@ -306,17 +301,17 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 128,
-          "end_line": 159
+          "path": "packages/cdd-engine/src/env/index.ts",
+          "line": 167,
+          "end_line": 170
         }
       ]
     },
     {
-      "id": "infra",
+      "id": "bin_root",
       "type": "backend",
-      "label": "Infra plane",
-      "sublabel": "git · workspace · logs",
+      "label": "bin.ts — composition root",
+      "sublabel": "one graph, built once",
       "pos": [
         970,
         540
@@ -327,14 +322,9 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/round-log.ts",
-          "line": 26,
-          "end_line": 34
-        },
-        {
-          "path": "packages/cdd-engine/src-next/infra/workspace.ts",
-          "line": 79,
-          "end_line": 88
+          "path": "packages/cdd-engine/src/bin.ts",
+          "line": 3,
+          "end_line": 12
         }
       ]
     },
@@ -353,14 +343,14 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 26,
-          "end_line": 32
+          "path": "packages/cdd-engine/src/env/paths/doc-roots.ts",
+          "line": 14,
+          "end_line": 20
         },
         {
-          "path": "packages/cdd-engine/src-next/infra/git.ts",
-          "line": 26,
-          "end_line": 34
+          "path": "packages/cdd-engine/src/env/vcs/git.ts",
+          "line": 45,
+          "end_line": 58
         }
       ]
     },
@@ -380,14 +370,14 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/runtime.ts",
-          "line": 60,
-          "end_line": 63
+          "path": "packages/cdd-engine/src/env/workspace/workspace.ts",
+          "line": 74,
+          "end_line": 92
         },
         {
-          "path": "packages/cdd-engine/src-next/session/ledger.ts",
-          "line": 74,
-          "end_line": 127
+          "path": "packages/cdd-engine/src/run/ledger/ledger.ts",
+          "line": 50,
+          "end_line": 64
         }
       ]
     },
@@ -395,7 +385,7 @@
       "id": "ci",
       "type": "security",
       "label": "CI validate",
-      "sublabel": "7 jobs · emit drift",
+      "sublabel": "8 jobs · emit drift",
       "pos": [
         40,
         660
@@ -419,11 +409,11 @@
       "label": "cdd-engine package",
       "wraps": [
         "engine",
-        "contract",
-        "face",
-        "session",
-        "render",
-        "infra"
+        "slice_docs",
+        "slice_surface",
+        "slice_run",
+        "slice_env",
+        "bin_root"
       ],
       "pad": 24
     },
@@ -484,29 +474,31 @@
       "variant": "emphasis"
     },
     {
-      "id": "engine-contract",
+      "id": "engine-docs",
       "from": "engine",
-      "to": "contract"
+      "to": "slice_docs"
     },
     {
-      "id": "engine-face",
+      "id": "engine-surface",
       "from": "engine",
-      "to": "face"
+      "to": "slice_surface"
     },
     {
-      "id": "engine-session",
+      "id": "engine-run",
       "from": "engine",
-      "to": "session"
+      "to": "slice_run"
     },
     {
-      "id": "engine-render",
+      "id": "engine-env",
       "from": "engine",
-      "to": "render"
+      "to": "slice_env"
     },
     {
-      "id": "engine-infra",
-      "from": "engine",
-      "to": "infra"
+      "id": "bin-engine",
+      "from": "bin_root",
+      "to": "engine",
+      "label": "constructs, once",
+      "variant": "emphasis"
     },
     {
       "id": "engine-host",

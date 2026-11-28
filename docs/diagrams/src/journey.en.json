@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
+      "revision": "4efbe61f22a8ea2a4f24b01bd0d37e9a84d6aebf"
     }
   },
   "lanes": [
@@ -146,9 +146,9 @@
       "tag": "no next:",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/preflight.ts",
-          "line": 43,
-          "end_line": 50
+          "path": "packages/cdd-engine/src/run/gate/preflight.ts",
+          "line": 101,
+          "end_line": 109
         }
       ]
     },
@@ -255,9 +255,9 @@
       "tag": "gated",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/declare.ts",
-          "line": 226,
-          "end_line": 236
+          "path": "packages/cdd-engine/src/surface/commands/declare.ts",
+          "line": 283,
+          "end_line": 289
         }
       ]
     },
@@ -270,9 +270,9 @@
       "sublabel": "the findings carrier",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/declare.ts",
-          "line": 236,
-          "end_line": 249
+          "path": "packages/cdd-engine/src/surface/commands/declare.ts",
+          "line": 290,
+          "end_line": 303
         }
       ]
     },
@@ -285,9 +285,9 @@
       "sublabel": "a disposition per finding",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/declare.ts",
-          "line": 249,
-          "end_line": 262
+          "path": "packages/cdd-engine/src/surface/commands/declare.ts",
+          "line": 304,
+          "end_line": 317
         }
       ]
     },
@@ -300,9 +300,9 @@
       "sublabel": "edits + its own commit",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 276,
-          "end_line": 290
+          "path": "packages/cdd-engine/src/surface/render/templates.ts",
+          "line": 184,
+          "end_line": 212
         }
       ]
     },
@@ -315,9 +315,9 @@
       "sublabel": "writes the carrier",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 452,
-          "end_line": 470
+          "path": "packages/cdd-engine/src/surface/render/templates.ts",
+          "line": 336,
+          "end_line": 344
         }
       ]
     },
@@ -330,9 +330,9 @@
       "sublabel": "applies the findings",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 276,
-          "end_line": 290
+          "path": "packages/cdd-engine/src/surface/render/templates.ts",
+          "line": 213,
+          "end_line": 246
         }
       ]
     },
@@ -345,9 +345,9 @@
       "sublabel": "phase-spec · single-spec",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 26,
-          "end_line": 32
+          "path": "packages/cdd-engine/src/env/paths/doc-roots.ts",
+          "line": 14,
+          "end_line": 20
         }
       ]
     },
@@ -360,9 +360,9 @@
       "sublabel": "docs/kairos/plans",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 26,
-          "end_line": 32
+          "path": "packages/cdd-engine/src/env/paths/doc-roots.ts",
+          "line": 14,
+          "end_line": 20
         }
       ]
     },
@@ -375,9 +375,9 @@
       "sublabel": "one per implement round",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/git.ts",
-          "line": 26,
-          "end_line": 34
+          "path": "packages/cdd-engine/src/env/vcs/git.ts",
+          "line": 92,
+          "end_line": 102
         }
       ]
     },
@@ -391,9 +391,9 @@
       "tag": "self-ignored",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/ledger.ts",
-          "line": 73,
-          "end_line": 122
+          "path": "packages/cdd-engine/src/run/ledger/ledger.ts",
+          "line": 50,
+          "end_line": 64
         }
       ]
     }

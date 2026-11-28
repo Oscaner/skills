@@ -6,9 +6,9 @@
 //     runtime constant `MAX_TASKS_PER_WAVE`;
 //   · the `--type` vocabulary — the six `TargetType` words, the retired `spec`
 //     spelling, and NO bare `spec` offered as a value (the union is read from
-//     `session/faces.ts`, so the words and the runtime cannot drift apart);
+//     `docs/identity/types.ts`, so the words and the runtime cannot drift apart);
 //   · the log path — a round log lands under the runtime's workspace root
-//     (`ENGINE_RUNTIME.handoffNamespace.workspaceRoot`) in `CliLifecycle.LOGS_DIR`.
+//     (`WorkspaceRoot.DEFAULT_SEGMENT`) in `RoundLogLayout.SEGMENT`.
 // Each of the three legs carries a reverse case asserting that a WRONG value in a
 // copied string is reported — the pin can go red, proven without touching the sources.
 //
@@ -19,9 +19,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { MAX_TASKS_PER_WAVE } from "../../packages/cdd-engine/src-next/contract/wave-width.ts";
-import { CliLifecycle } from "../../packages/cdd-engine/src-next/face/lifecycle.ts";
-import { ENGINE_RUNTIME } from "../../packages/cdd-engine/src-next/infra/runtime.ts";
+import { MAX_TASKS_PER_WAVE } from "../../packages/cdd-engine/src/docs/judging/wave-width.ts";
+import { RoundLogLayout } from "../../packages/cdd-engine/src/env/workspace/round-log.ts";
+import { WorkspaceRoot } from "../../packages/cdd-engine/src/env/workspace/workspace.ts";
 
 /** The repo root — the diagram sources and the runtime sources both resolve under it. */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -30,9 +30,10 @@ const TARGET_TYPE = path.join(
   ROOT,
   "packages",
   "cdd-engine",
-  "src-next",
-  "contract",
-  "target-type.ts",
+  "src",
+  "docs",
+  "identity",
+  "types.ts",
 );
 
 /** The six target words the `--type` value domain must offer, in the engine's order. */
@@ -136,8 +137,8 @@ class JourneyTwin {
 
   /** The log-path leg: the workspace root AND the logs directory are both named. */
   logPathProblems(): string[] {
-    const root = ENGINE_RUNTIME.handoffNamespace.workspaceRoot;
-    const logs = CliLifecycle.LOGS_DIR;
+    const root = WorkspaceRoot.DEFAULT_SEGMENT;
+    const logs = RoundLogLayout.SEGMENT;
     const statements = this.carrying([new RegExp(`${root}[^ ]*${logs}`)]);
     if (statements.length === 0) {
       return [`log-path: ${this.name} names no ${root}/<slug>/${logs} path`];
@@ -159,10 +160,10 @@ class JourneyTwin {
 }
 
 /** The `TargetType` union members, read from the engine source (the words' runtime home —
- *  the declaration moved to the contract plane at P40 T3; `session/faces.ts` re-exports it). */
+ *  the declaration lives in the identity plane's types; no second table re-spells it). */
 const targetUnion = (): readonly string[] => {
   const match = /export type TargetType =([^;]+);/.exec(readFileSync(TARGET_TYPE, "utf8"));
-  expect(match, "contract/target-type.ts no longer declares TargetType").toBeTruthy();
+  expect(match, "docs/identity/types.ts no longer declares TargetType").toBeTruthy();
   return (match?.[1] ?? "")
     .split("|")
     .map((member) => member.trim().replace(/^"|"$/g, ""))
@@ -229,7 +230,7 @@ describe("the three legs can go red (reverse injection on copied strings)", () =
   it("a log path missing the logs directory is reported", () => {
     const drifted = JourneyTwin.fromStrings(
       "copied",
-      source.strings.map((text) => text.replace(`/${CliLifecycle.LOGS_DIR}/`, "/records/")),
+      source.strings.map((text) => text.replace(`/${RoundLogLayout.SEGMENT}/`, "/records/")),
     );
     expect(drifted.logPathProblems().join(" ")).toContain("log-path:");
   });

@@ -95,7 +95,7 @@ packages/
 │   ├── skills/    # SKILL.md per skill — the shipped consumer surface
 │   └── tests/     # anatomy, word-face and behaviour-tree probes
 └── cdd-engine/    # @oscaner-skills/cdd-engine — the cdd CLI
-    ├── src-next/  # five planes: contract · face · infra · render · session
+    ├── src/       # four slices: docs · env · run · surface
     └── templates/ # shipped report and issue-body templates
 ```
 
@@ -133,7 +133,7 @@ pnpm run validate   # the full gate
 
 `pnpm run validate` holds the whole assertion surface: emit freshness · the root, kairos and engine test suites · typecheck ×3 · a built-`dist` import and one live command · package version sync · zero module-level bare functions. Changing behaviour in either package also owes a changeset — the version tracks the methodology contract, so a consumer-visible byte change is still a minor, and `major` is machine-banned. Adding a first-party plugin means creating `packages/<name>/package.json` with an `oscaner` field, running `pnpm run emit`, and adding a changeset.
 
-Engine work calls the local source rather than the published release: `node packages/cdd-engine/src-next/bin.ts <subcommand>`. Focused commands, the generated-file inventory and the commit conventions are in [`AGENTS.md`](AGENTS.md).
+Engine work calls the local source rather than the published release: `node packages/cdd-engine/src/bin.ts <subcommand>`. Focused commands, the generated-file inventory and the commit conventions are in [`AGENTS.md`](AGENTS.md).
 
 `develop` is the integration branch; production releases flow `develop → main`. Version PRs, tags, and GitHub Releases run on `main` only.
 

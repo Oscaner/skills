@@ -1,7 +1,7 @@
 // packages/kairos/tests/recovery-wording.test.ts — the recovery-discipline wording gate
 //
 // The consumer face's interruption-recovery discipline is THREE canonical sentences,
-// one byte string shared by the engine word face (`face/words.ts#inFlight.recovery`)
+// one byte string shared by the engine word face (`surface/words/words.ts#WORDS.inFlight.recovery`)
 // and the shipped kairos skills. This gate asserts the consumer surface:
 //
 //   ① the ABSENCE side — `pgrep` · `git stash` · `checkout --` never enter a
@@ -16,7 +16,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { CAPSULE_WORDS } from "../../cdd-engine/src-next/face/words.ts";
+import { WORDS } from "../../cdd-engine/src/surface/words/words.ts";
 
 const SKILLS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../skills");
 
@@ -65,7 +65,7 @@ test("① no SKILL.md carries pgrep / git stash / checkout --", () => {
 });
 
 test("② a SKILL.md quotes the three canonical recovery sentences verbatim", () => {
-  const sentences = CAPSULE_WORDS.inFlight.recovery;
+  const sentences = WORDS.inFlight.recovery;
   const carriers = skillFiles().filter((file) => {
     const text = readFileSync(file, "utf8");
     return sentences.every((sentence) => text.includes(sentence));

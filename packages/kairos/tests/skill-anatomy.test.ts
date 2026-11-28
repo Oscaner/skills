@@ -3,7 +3,7 @@
 // ownership-migration (the root guard's checkAnatomy assertion face re-homed into the kairos
 // test plane — kairos owns its shipped six SKILL.md products). The judging
 // implementation consumes the engine's exported skill-anatomy contract
-// (`src-next/contract/skill-anatomy.ts` — the section registry, the node
+// (`docs/identity/skill-anatomy.ts` — the section registry, the node
 // elements, the growth boundary, the consumer-purity rule and the roster: every
 // heading/pattern/limit is that contract's data, never a literal restate in this
 // body); the walker (analyzeSkill — the digraph/section extraction) is the ported
@@ -24,8 +24,8 @@ import {
   SKILL_ANATOMY,
   type SkillAnatomyContract,
   type SkillRosterRow,
-} from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
-import { CAPSULE_WORDS } from "../../cdd-engine/src-next/face/words.ts";
+} from "../../cdd-engine/src/docs/identity/skill-anatomy.ts";
+import { WORDS } from "../../cdd-engine/src/surface/words/words.ts";
 import { EXPECTED } from "./helpers.ts";
 
 /** The kairos skills root — every cdd skill's SKILL.md (the check's scan set). */
@@ -357,8 +357,9 @@ class SkillAnatomyCheck {
    *  the loop family's NEXT-LOOP hub carries EXACTLY TWO out-edges (the `until next
    *  is terminal` self-loop · the `no next` BLOCKED face; no closure exit — the
    *  closure routes through the engine's next face), each label an engine-lexicon
-   *  pinned phrase (edgeConditionWords — the static digraph shares ONE word table
-   *  with the runtime `next:` instance). */
+   *  pinned phrase (edgeConditionWords — the contract's DECLARED allowlist: no runtime
+   *  constant carries these phrases and nothing derives the set, so a word move edits
+   *  that array in the same change). */
   #edgeConditionFindings(
     name: string,
     an: AnalyzedSkill,
@@ -389,10 +390,10 @@ class SkillAnatomyCheck {
     const hub = anatomy.digraph.loopHubNode.name;
     const hubId = labelId.get(hub);
     if (hubId === undefined) return; // the missing-hub finding is the family shape's row
-    // The engine-lexicon label allowlist — the contract's `edgeConditionWords` (the
-    // NEXT-LOOP phrases + the closure status words + the Route decision words). A hub
-    // out-edge label outside this set is a shape violation; the derivation itself is
-    // pinned engine-side (contract/__tests__/edge-conditions.guard.test.ts).
+    // The label allowlist — the contract's `edgeConditionWords` (the NEXT-LOOP phrases
+    // plus the closure status words plus the `next:` route words). A hub out-edge label
+    // outside this set is a shape violation; nothing derives the set from the engine
+    // word table, so a word move there must edit that array in the same change.
     const conditions = anatomy.edgeConditionWords;
     const out = an.edges.filter((e) => e.from === hubId);
 
@@ -558,7 +559,7 @@ test("the contract's route-fact wording speaks the current `next:` contract, nev
   expect(
     row,
     "the route-fact wording must quote the word table's pipeline instruction phrase",
-  ).toContain(CAPSULE_WORDS.routeWords.handoffRef);
+  ).toContain(WORDS.route.handoffRef);
   for (const [label, re] of RETIRED_ROUTE_FACTS) {
     expect(row, `the route-fact wording carries ${label}`).not.toMatch(re);
   }

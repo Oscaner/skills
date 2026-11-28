@@ -168,11 +168,17 @@ const OVERALL_TEXT = [
   "",
 ].join("\n");
 
-/** Every path inside one directory, sorted — how "nothing was written" is read. */
+/** Every path inside one directory's WORKTREE face, sorted — how "nothing was written" is
+ *  read. `.git/**` is excluded because git's own bookkeeping is not the engine's write: the
+ *  fixture's `git commit` lets git's auto-maintenance take `objects/maintenance.lock`
+ *  between two snapshots, which would make this assertion race git instead of judging the
+ *  preview. The tree is also pinned (`-c maintenance.auto=false -c gc.auto=0`), so no
+ *  detached process outlives the fixture and neither side of the read is timing-dependent. */
 const treeOf = (root: string): readonly string[] => {
   const out: string[] = [];
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === ".git") continue;
       const absolute = path.join(directory, entry.name);
       out.push(path.relative(root, absolute));
       if (entry.isDirectory()) walk(absolute);
@@ -213,7 +219,10 @@ const materialize = (): string => {
   write(`docs/kairos/specs/${SLUG}-design.md`, SPEC_TEXT);
   write(`docs/kairos/specs/${SLUG}-overall.md`, OVERALL_TEXT);
   const git = (...args: string[]): void => {
-    execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: "ignore" });
+    execFileSync("git", ["-C", repo, "-c", "maintenance.auto=false", "-c", "gc.auto=0", ...args], {
+      encoding: "utf8",
+      stdio: "ignore",
+    });
   };
   git("init", "-q");
   const identity = ["-c", "user.name=cdd-smoke", "-c", "user.email=cdd-smoke@oscaner.dev"];
@@ -254,4 +263,22 @@ describe("the composed process answers the consumer's two faces", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   }, 120_000);
+});
+
+describe("the write read judges the engine's writes, never git's bookkeeping", () => {
+  it("keeps a workspace write in the snapshot and drops a `.git` internal", () => {
+    // The neighbour arm of the forecast case above: a snapshot that could only go green by
+    // ignoring everything would not judge the preview at all. A `.kairos` entry IS an engine
+    // write and stays in the read; a `.git` entry is git's own maintenance and does not.
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-snapshot-"));
+    try {
+      mkdirSync(path.join(dir, ".git", "objects"), { recursive: true });
+      mkdirSync(path.join(dir, ".kairos", "cdd"), { recursive: true });
+      writeFileSync(path.join(dir, ".git", "objects", "maintenance.lock"), "", "utf8");
+      writeFileSync(path.join(dir, ".kairos", "cdd", "progress.json"), "{}", "utf8");
+      expect(treeOf(dir)).toEqual([".kairos", ".kairos/cdd", ".kairos/cdd/progress.json"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

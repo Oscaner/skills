@@ -19,4 +19,10 @@ row's first finding line, or a dispatch station's own body) instead of the rende
 sentence, and `cdd board`'s `refused:` row prints that cell verbatim — so for a record the gate
 writes the row reads in the gate's vocabulary. The holder facts the old sentence folded in
 (pid · command · started · uptime) remain on the board's own `in-flight:` row, which already
-states them once.
+states them once. A second consumer byte moves on the same face, and it is declared here too:
+the dispatch prompt's first line is `$version <n>` — `surface/render/templates.ts#PromptBandsRenderer#bandOf`
+places that line as the band's first fixed cell, where the retired assembler opened with the
+shell's own first line — so every dispatched prompt of the four work modes and the review
+family now opens with the band contract's version. The value is unchanged (27); only the line
+moved. A reader comparing two engines' prompts therefore sees one added first line per band,
+and nothing else in the band's bytes.

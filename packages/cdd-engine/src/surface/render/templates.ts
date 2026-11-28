@@ -29,17 +29,16 @@
 // Two more declarations ride the same plane, because the expansion's two inputs are data:
 //   · the round-context LAYOUT — one declared line per cell each row renders, with the
 //     three-state rule kept on the line itself: a value renders the line, an empty value
-//     drops it (`drop`) or prints the bare literal `none`. What this table does NOT declare
-//     yet is EXIGIBILITY — the arms that make a cell required on one target type and optional
-//     on another, the `path` bit a missing-file refusal answers, and the `written` bit that
-//     exempts the file the engine landed itself from an existence read. Nothing in this tree
-//     reads those today: the four pre-dispatch stations reach
-//     `run/gate/preflight.ts#PreFlight` as a ready `DispatchRowReading[]`, and the producer
-//     that assembles them belongs to `run/advance/reads.ts` — task T17, not written yet. That producer owes the
-//     `dispatch-input` row — and it owes declaring the arms HERE, because a second exigibility
-//     table beside these layouts is the drift this declaration exists to prevent. Until it
-//     lands, an empty value answers one question only: does the line render; nothing refuses a
-//     required cell, so no "empty but required" state exists here;
+//     drops it (`drop`) or prints the bare literal `none`; and, on the same line, its
+//     EXIGIBILITY — the arms that make a cell required on one target type and optional on
+//     another, the `path` bit a missing-file refusal answers, and the `written` bit that
+//     exempts the file the engine landed itself from an existence read. Those arms ARE
+//     declared here (`ContextLine#requiredOn` · `#absent` · `#path` · `#written`), and the
+//     producer that assembles the `dispatch-input` row reads them off these declarations
+//     (`run/advance/reads.ts#AdvanceReads`), judging a cell `target-absent` / `empty-value`
+//     exactly as the line states. A second exigibility table beside these layouts is the
+//     drift this declaration exists to prevent, so there is one: a reader of the arms and a
+//     renderer of the line answer from the same cell;
 //   · the CLAUSE PARTIALS — the eleven discipline sentences the shells name by `cl:<key>`,
 //     one home, so a clause is written once and resolved once.
 // The assembly composes those bytes (the prompt a child receives); this module only declares

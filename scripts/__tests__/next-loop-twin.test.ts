@@ -17,12 +17,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { REVIEW_CYCLE_CAP } from "../../packages/cdd-engine/src-next/session/next.ts";
+import { REVIEW_CYCLE_CAP } from "../../packages/cdd-engine/src/run/advance/next.ts";
 
 /** The repo root — the diagram sources and the runtime source both resolve under it. */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DIAGRAM_SRC = path.join(ROOT, "docs", "diagrams", "src");
-const NEXT_SOURCE = path.join(ROOT, "packages", "cdd-engine", "src-next", "session", "next.ts");
+const NEXT_SOURCE = path.join(ROOT, "packages", "cdd-engine", "src", "run", "advance", "next.ts");
 
 /** The three statements the twin pin covers — the phrases each one may be written in
  *  (the diagrams are bilingual, so a statement matches either locale's wording). */
@@ -151,10 +151,10 @@ describe("the graded convergence loop — the diagrams and the runtime agree (th
     }
   });
 
-  it("the runtime source the diagrams point at still carries the three symbols", () => {
+  it("the runtime source the diagrams point at still carries the three declarations", () => {
     const source = readFileSync(NEXT_SOURCE, "utf8");
-    expect(source).toContain("#blockerCount(");
-    expect(source).toContain("#close(");
+    expect(source).toContain('softCap: { token: "soft-cap", leg: "station" }');
+    expect(source).toContain('| { readonly kind: "done" }');
     expect(source).toContain("export const REVIEW_CYCLE_CAP");
     expect(Number.isInteger(REVIEW_CYCLE_CAP)).toBe(true);
   });

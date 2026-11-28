@@ -1,20 +1,21 @@
 // packages/cdd-engine/tests/support/module-specifiers.ts
-// The one reader of module specifiers for the two-tree gate, and the reason its home sits
-// outside both trees: `src-next/__tests__/support/strip-comments.ts` belongs to the old
-// tree and dies with it, while the gate may not reach across the boundary it judges. A
-// home under `tests/` is neither tree, so the gate keeps a single reader until the cutover
-// retires gate and reader together.
+// The one general reader of module specifiers: the direction pins of `run/gate` ·
+// `run/dispatch` · `run/advance` · `surface/words` each take their specifier set from it,
+// so no slice keeps a second, looser scanner beside the one that judges it. Its home is
+// `tests/` — outside the source tree it reads, so a pin never judges the text of the very
+// scanner that produced its verdict.
 //
-// Why one scanner rather than that stripper plus a specifier regex: the gate judges EDGES,
-// not tokens. Comments are not the only false edge — a `from "./x"` quoted inside a doc
+// Why one scanner rather than a comment stripper plus a specifier regex: the pins judge
+// EDGES, not tokens. Comments are not the only false edge — a `from "./x"` quoted inside a doc
 // string reads exactly like a real import once comments are blanked, so the two stages
 // would need the same string / template / regex state machine and could drift apart, in
 // opposite directions: a drift toward leniency greens the gate on a real import. Here one
 // pass carries the whole state: comments are skipped, a literal outside a specifier
 // position is skipped, and a literal the module loader would actually resolve is recorded.
 //
-// Heuristic boundary, inherited from the old tree's stripper: template-literal `${ … }`
-// nesting is not tracked, and a regex literal is recognised by what may precede it.
+// Heuristic boundary, stated so the next reader knows what it does not cover:
+// template-literal `${ … }` nesting is not tracked, and a regex literal is recognised by
+// what may precede it.
 // Zero module-level bare functions — the helpers below are `const` arrows.
 
 /** Characters that continue an identifier or a numeric literal. */

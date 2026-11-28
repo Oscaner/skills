@@ -10,8 +10,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { BASE_ARTIFACT_FIELDS } from "../../cdd-engine/src-next/face/artifacts.ts";
-import { ARGV_CHANNEL } from "../../cdd-engine/src-next/face/declare.ts";
+import { BASE_ARTIFACT_FIELDS } from "../../cdd-engine/src/env/workspace/base-artifact.ts";
+import { ARGV_CHANNEL } from "../../cdd-engine/src/surface/commands/declare.ts";
 
 const BASE_MD = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

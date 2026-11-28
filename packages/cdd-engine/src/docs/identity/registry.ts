@@ -284,7 +284,7 @@ const OVERALL = [
   // Charter facets (`###`/`####` leaves under the charter). The legacy Chinese
   // markers (the doc-arch decision-group leaves M/F/R/B/E, the doc-arch
   // upstream-endorsements facet) match through the judge's canonicalize row-source
-  // seam (contract/judge.ts) — the value patterns below are English canonicals,
+  // seam (`docs/judging/judge.ts#Judge`) — the value patterns below are English canonicals,
   // never a second hand-written zh pattern.
   {
     anchor: "### Goal",

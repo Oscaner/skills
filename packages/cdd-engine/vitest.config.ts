@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     pool: "forks", // node:test compatibility mode (avoids worker_threads interference with execa mocks)
-    // The CLI black-box cases spawn `node packages/cdd-engine/src-next/bin.ts` straight
+    // The CLI black-box cases spawn `node packages/cdd-engine/src/bin.ts` straight
     // (Node ≥22.18 native type stripping) — no dist materialization exists and none is
     // needed. The suite runs on a bare checkout: the binary entry is the source file itself.
     // Memory-bounded concurrency (2026-09-17): the previous default spawned one
@@ -18,18 +18,8 @@ export default defineConfig({
     maxConcurrency: 2,
     testTimeout: 20000,
     coverage: { provider: "v8" },
-    // Two trees coexist while the new tree is rebuilt: src-next/ still ships and src/ is
-    // the one being re-derived from it. Both are collected, because a tree no project runs
-    // is a tree with no judge — its first real test run would come at the cutover, where
-    // every failure reads as a cutover defect instead of the wave that introduced it.
-    include: [
-      "src-next/**/__tests__/**/*.test.ts",
-      "src/**/__tests__/**/*.test.ts",
-      // The parity corpus (spec §2.3): the differential harness and its fixtures live
-      // outside `src/` and both trees, because a reconciliation reads both. The entry is
-      // APPENDED, never substituted — both trees keep their own suites while they
-      // coexist, and this one is deleted in the same batch as the corpus at the cutover.
-      "tests/parity/**/*.test.ts",
-    ],
+    // One tree, one collection root: the engine's own source is `src/`, and every test is
+    // colocated with the slice it defends (`src/**/__tests__/`).
+    include: ["src/**/__tests__/**/*.test.ts"],
   },
 });

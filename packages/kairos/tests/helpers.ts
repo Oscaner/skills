@@ -8,8 +8,8 @@
 // `function`-declaration discipline applies to this migrated surface too).
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { SKILL_ANATOMY } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
-import { HOSTS } from "../../cdd-engine/src-next/face/host.ts";
+import { SKILL_ANATOMY } from "../../cdd-engine/src/docs/identity/skill-anatomy.ts";
+import { HOSTS } from "../../cdd-engine/src/env/process/host.ts";
 
 // ---------------------------------------------------------------------------
 // the kairos skills-count single truth (the P5 validation-domicile closure
@@ -30,7 +30,7 @@ export const countSkillsWithMarkdown = (dir: string): number => {
  *  tests (a definition change is a roster edit). */
 export const EXPECTED = Object.keys(SKILL_ANATOMY.skills.registry).length;
 
-// T21: the harness data lives in the engine's typed host contract (src-next/face/host.ts) — the
+// T21: the harness data lives in the engine's typed host contract (env/process/host.ts) — the
 // row `cli` fields are what the free-path filter must drop from PATH (the new data plane's home;
 // the old config-dir JSON is retired from this plane).
 

@@ -103,10 +103,10 @@ describe("the refusal sets", () => {
 
   it("spells the held refusal's detail as the held report, never a second sentence", () => {
     // The gate's `held` refusal carries the in-flight report filled from the record's OWN
-    // cells — the recorded `f8.blocked.message` line is that report, and the parity pin
-    // (`tests/parity/parity.test.ts`, the refusal face) measures it against the family's
-    // template. So this row is the template, not a paraphrase: a sentence of its own here
-    // would print without the holder's pid, command and uptime, a byte no face produces.
+    // cells — the recorded `f8.blocked.message` line is that report, and the family's own
+    // template is what fills it. So this row is the template, not a paraphrase: a sentence
+    // of its own here would print without the holder's pid, command and uptime, a byte no
+    // face produces.
     expect(WORDS.refusal.reasons.held).toBe(WORDS.inFlight.held);
     // Same rule for the other in-flight-backed reason: the gate answers the family's row.
     expect(WORDS.refusal.reasons["corrupt-record"]).toBe(WORDS.inFlight.corruptLocked);

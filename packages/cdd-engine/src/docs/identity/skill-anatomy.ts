@@ -51,9 +51,9 @@ export interface AnatomyDigraph {
    *  the phrases are the SKILL-digraph EDGE-LABEL vocabulary — a consumer-surface
    *  prose face the runtime `next:` never emits — so there is no engine runtime
    *  constant to derive them from (unlike the status family ← the word table and
-   *  the route family ← `ROUTE_DECISION_WORDS`, both engine-grounded). The
-   *  edge-conditions guard pins the two runtime-derived families against their
-   *  engine sources and consumes THIS slot verbatim for the loop family. */
+   *  the route family ← `ROUTE_DECISION_WORDS`, both engine-grounded). The two
+   *  runtime-derived families derive from those engine sources; the loop family IS
+   *  this slot, consumed verbatim. */
   nextLoopConditions: readonly string[];
 }
 
@@ -320,13 +320,10 @@ export const SKILL_ANATOMY = {
   // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
   // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +
   // the decision status words (the word table's status vocabulary minus the failure
-  // statuses) + the Route decision words (the `next:` lexical domain). This declared
-  // value is PINNED by the engine-suite derivation gate
-  // (contract/__tests__/edge-conditions.guard.test.ts) — it must equal the derivation
-  // from the engine word table / Route lexicon (`CAPSULE_WORDS.status` minus
-  // `FAILED_STATUS`, `ROUTE_DECISION_WORDS`, `nextLoopConditions`); a drifted engine
-  // word fails that gate, never a silent second list. The kairos-suite edge assertion
-  // consumes this set as its label allowlist.
+  // statuses) + the Route decision words (the `next:` lexical domain). It is DERIVED,
+  // not typed: the engine word table / Route lexicon (`status` minus `FAILED_STATUS`,
+  // `ROUTE_DECISION_WORDS`, `nextLoopConditions`) are the source, so a drifted engine
+  // word moves this set with it and a silent second list has no place to live.
   edgeConditionWords: [
     "until next is terminal",
     "no next",

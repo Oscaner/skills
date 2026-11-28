@@ -1,6 +1,6 @@
 // scripts/lib/scan.ts — the file-face scan helpers. The word-face audit scans whole
 // target dirs (constraint: never an unbounded tree walk over a large tree — targets
-// are explicit repo-relative faces like packages/cdd-engine/src-next) with a
+// are explicit repo-relative faces like packages/cdd-engine/src) with a
 // line-level token scan and a data-row release mask (a banned token quoted as a data
 // value inside its own declaring file is the release form — the word table's rows).
 // The scan helpers ride a static class family (the plan's zero-bare-function

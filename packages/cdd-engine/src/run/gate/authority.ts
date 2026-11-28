@@ -9,8 +9,8 @@
 // not cancel it; the reopen (leg ②) and the double-gap BLOCK (leg ③) write the DOCUMENT's
 // line, so a refusing structural leg must hold them back.
 //
-// The three legs, and what each rests on (`face/cli.ts#Cli.#recoverRun` is the behaviour
-// this file re-derives):
+// The three legs, and what each rests on (the recovery behaviour is re-derived in THIS
+// file from the facts each leg reads):
 //   ① the ABORT takeover — a stale in-flight record is taken over and, when it still names
 //      the killed round, folded into the ledger. Authorized by the in-flight gate having
 //      PASSED (`order` carries the row and it is not the refusing row) AND the record

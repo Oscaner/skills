@@ -23,7 +23,7 @@
     "prepack": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke": "vitest run src-next/__tests__/smoke.integration.test.ts"
+    "smoke": "vitest run src/__tests__/smoke.integration.test.ts"
   },
   "dependencies": {
     "commander": "^15.1.0",

@@ -99,7 +99,7 @@ packages/
 │   ├── skills/    # 每个技能一份 SKILL.md——对外的交付面
 │   └── tests/     # 结构解剖、词面与行为树探针
 └── cdd-engine/    # @oscaner-skills/cdd-engine——cdd CLI
-    ├── src-next/  # 五个平面：contract · face · infra · render · session
+    ├── src/       # 四个切片：docs · env · run · surface
     └── templates/ # 随包发布的 report 与 issue-body 模板
 ```
 
@@ -137,7 +137,7 @@ pnpm run validate   # 完整门禁
 
 `pnpm run validate` 覆盖整个断言面：emit 新鲜度 · 根、kairos、引擎三套测试 · 类型检查 ×3 · 构建后的 `dist` 导入并实跑一条命令 · 包版本同步 · 零模块级裸函数。改动任一个包的行为还需附带 changeset——版本跟随方法论契约，所以即便对外可见的字节变更也只是 minor，`major` 由机器禁止。新增第一方插件：创建带 `oscaner` 字段的 `packages/<name>/package.json`，运行 `pnpm run emit`，并添加 changeset。
 
-引擎开发调用本地源码而非已发布版本：`node packages/cdd-engine/src-next/bin.ts <子命令>`。聚焦命令、生成文件清单与提交约定见 [`AGENTS.md`](AGENTS.md)。
+引擎开发调用本地源码而非已发布版本：`node packages/cdd-engine/src/bin.ts <子命令>`。聚焦命令、生成文件清单与提交约定见 [`AGENTS.md`](AGENTS.md)。
 
 `develop` 是集成分支；生产发布经 `develop → main`。版本 PR、tag 与 GitHub Release 仅在 `main` 上运行。
 

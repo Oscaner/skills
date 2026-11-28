@@ -105,15 +105,15 @@ done
 
 ## 开发说明
 
-包位于 [Oscaner/skills](https://github.com/Oscaner/skills) monorepo 的 `packages/cdd-engine`（TypeScript，`tsc -p tsconfig.build.json` 发布构建，vitest 测试；测试与源码同地放置于 `src-next/**/__tests__/**/*.test.ts`）。
+包位于 [Oscaner/skills](https://github.com/Oscaner/skills) monorepo 的 `packages/cdd-engine`（TypeScript，`tsc -p tsconfig.build.json` 发布构建，vitest 测试；测试与源码同地放置于 `src/**/__tests__/**/*.test.ts`）。
 
 ```bash
-node packages/cdd-engine/src-next/bin.ts schema get plan # 从工作树源面直接调用引擎（Node ≥22.18 原生类型剥离）
+node packages/cdd-engine/src/bin.ts schema get plan # 从工作树源面直接调用引擎（Node ≥22.18 原生类型剥离）
 pnpm --filter @oscaner-skills/cdd-engine test       # 运行引擎测试套件
 pnpm --filter @oscaner-skills/cdd-engine build      # tsc 构建发布产物 dist/bin.js
 ```
 
-仓库开发期间引擎须从源面直调（`node packages/cdd-engine/src-next/bin.ts`）——绝不要经全局安装或链接，可能过期。仓库自身的约定（门禁、生成文件、提交纪律）见 [`AGENTS.md`](../../AGENTS.md)。
+仓库开发期间引擎须从源面直调（`node packages/cdd-engine/src/bin.ts`）——绝不要经全局安装或链接，可能过期。仓库自身的约定（门禁、生成文件、提交纪律）见 [`AGENTS.md`](../../AGENTS.md)。
 
 ## 许可
 

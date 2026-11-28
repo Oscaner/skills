@@ -2,8 +2,8 @@
 // T13 ⑥ (spec §3.3 ⑥) — the issue finding-type single-source consistency gate. The
 // consumer `cdd-report` SKILL.md declares the renderer's stdin `type ∈ {…}` domain and
 // quotes the renderer's rejection bytes, while the engine renderer
-// (`render/issue-body.ts`) accepts the type set single-sourced at `face/words.ts`
-// `ISSUE_TYPES` (derived from the issue-label rows). Before this gate the two declared
+// (`surface/render/issue.ts`) accepts the type set single-sourced at
+// `surface/words/words.ts` `ISSUE_TYPES` (derived from the issue-label rows). Before this gate the two declared
 // the domain independently and had DRIFTED (`{bug | enhancement}` vs the engine's
 // `{bug | enhancement | chore}` — a divergent error byte too). This gate pins the
 // consumer declaration to the engine's single source — a drift fails here.
@@ -14,11 +14,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-import { Translator } from "../../cdd-engine/src-next/contract/translate.ts";
-import { ISSUE_TYPES, Words } from "../../cdd-engine/src-next/face/words.ts";
-import { IssueBodyRenderer } from "../../cdd-engine/src-next/render/issue-body.ts";
+import { Clock } from "../../cdd-engine/src/env/process/clock.ts";
+import { IssueBodyRenderer } from "../../cdd-engine/src/surface/render/issue.ts";
+import { ISSUE_TYPES, Words } from "../../cdd-engine/src/surface/words/words.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/** The injected time face — the renderer takes its clock, never the system's. */
+const CLOCK = new Clock();
 
 /** The cdd-report SKILL.md body — the consumer declaration surface. */
 const reportSkill = (): string =>
@@ -44,8 +47,8 @@ const declaredErrorBytes = (src: string): string[] => {
     .filter((part) => part.length > 0);
 };
 
-test("the engine renderer's type set derives from the single source (face/words.ts ISSUE_TYPES)", () => {
-  const renderer = new IssueBodyRenderer(new Words(), new Translator(new Words()));
+test("the engine renderer's type set derives from the single source (surface/words/words.ts ISSUE_TYPES)", () => {
+  const renderer = new IssueBodyRenderer(new Words({ clock: CLOCK }));
   expect([...renderer.types]).toEqual([...ISSUE_TYPES]);
   // The derived set is the word table's label-row type vocabulary, in row order.
   expect([...ISSUE_TYPES]).toEqual(["bug", "enhancement", "chore"]);
@@ -56,7 +59,7 @@ test("the cdd-report SKILL.md `type ∈ {…}` domain equals the engine's ISSUE_
 });
 
 test("the cdd-report SKILL.md quoted rejection bytes equal the renderer's actual error bytes", () => {
-  const renderer = new IssueBodyRenderer(new Words(), new Translator(new Words()));
+  const renderer = new IssueBodyRenderer(new Words({ clock: CLOCK }));
   // The renderer's real error byte: `findings[0].type: must be one of <a | b | c>`.
   const errors = renderer.validateInput({
     harness: "claude",

@@ -7,9 +7,9 @@
 // required set, a moved paragraph — reds here instead of shipping a contract the read-back
 // walk no longer matches.
 //
-// The recorded bytes are the shipped engine's own (`src-next`'s
-// `HandoffSchema#schemaText`), compared byte-for-byte when this pin landed: 1045 · 455 ·
-// 1655 · 1065 characters for work/true · work/false · judge/true · judge/false.
+// The recorded bytes are this pin's own: `Handoff#sectionText`'s four combinations are
+// compared byte-for-byte against the literals below — 1045 · 455 · 1655 · 1065 characters
+// for work/true · work/false · judge/true · judge/false.
 
 import { describe, expect, it } from "vitest";
 import { Handoff } from "../handoff.ts";

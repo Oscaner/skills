@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -204,3 +204,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.9 | 2026-11-28 | **评审轮六（F1–F4）落地**：§2.3 的名册拆成两条轴写一次——树状态七种 · 文档形状一型 `overall`，并点名后者由旧套件已带的 `overall` 夹具提取而非交付时新造，同句删掉「不超过七种树形态」这处对同一名册的第二套计数 · Acceptance 的 changeset 句把计量单位写实为两个移动的格、三处消费面，并给两处移动各带一个交付树内的 `module#Symbol` pin · Acceptance #5 的深度判据点名计数单位（入口类的公开方法与 getter，所持协作者字段不计），使同一条判据两次读出同一个数 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |
 | v0.10 | 2026-11-28 | **计数对齐（分支终审四 F3）**：三份文档对「动了几处消费者字节」给出三种计数。以 changeset 的认领为单一来源写定 **三处**（`detail` 格 + `refused:` 行 · prompt 带首行 · 板面 `next:` 行 + `reason:` 行），Acceptance 的 changeset 句改成同一条枚举，不再用「两个格 / 三处」两套单位 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
 | v0.11 | 2026-11-28 | **评审轮八（F1–F4 落地；F5 · F6 落在本轮写权之外，交编排者回填）**：Acceptance 的 changeset 句把 ① 的两个印出面写全——板面的 `refused:` 行与 `--dry-run` 的 blocked 块——并给三处移动各配交付树内的 pin 与可红臂 · ③ 补上它成立的条件与两处分家形（坐标是线键，或是一条文档已不在的位置的旧路径），并写明语料里没有这样一格、故验收 #2 与例外同在册而不矛盾 · §5 的「不做」补上三处具名例外的指针，失败模式一段写明已命中的那一次是怎么处置的（不是补语料、不是按缺陷处理，而是判明的例外加一笔 `minor`），于是 §5 与 Acceptance 对同一份交付给出同一判 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |
+| v0.12 | 2026-11-28 | **closeout（cdd-close）**：相位交付完成。四切片在 `src/` 落地并接管入口，旧树整棵删除；消费者面按三处被判明字节移动（`detail` 格与 `refused:` 行 · prompt 带首行 · 板面 `next:` 行与 `reason:` 行）以外逐字节不变，翻面前的判者是对账器、翻面后按评审面判。交付证据见计划末行与父宪章 Phase inventory 的 P39 验收格 | Oscaner M. · Claude（kairos:cdd-close · 2026-11-28） |

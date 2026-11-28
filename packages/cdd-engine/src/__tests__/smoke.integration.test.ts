@@ -9,9 +9,9 @@
 // changed tree, not as a passing unit.
 //
 // The fixture is THIS FILE's own — a temp repository it writes, commits and removes — the way
-// the script this case replaced built its own. It deliberately imports nothing from the parity
-// corpus: that corpus is the coexistence window's scaffolding, so a fixture borrowed from it
-// would die with it and take the release gate (`pnpm -C packages/cdd-engine run smoke`) along.
+// the script this case replaced built its own. That is deliberate: nothing outside this file
+// supplies it, so no scaffolding elsewhere on the tree can take it away and take the release
+// gate (`pnpm -C packages/cdd-engine run smoke`) along.
 //
 // This is the target `packages/cdd-engine/package.json#scripts.smoke` points at after the
 // cutover; the script row itself is the cutover's, so nothing here reads it.

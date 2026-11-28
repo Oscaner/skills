@@ -1,9 +1,9 @@
 // packages/cdd-engine/src/run/dispatch/__tests__/handoff.test.ts
 // The `## Handoff schema` fence's bytes, pinned — the prompt text `Handoff#sectionText`
 // produces is what every dispatched child is told the engine reads back, and NOTHING else
-// pins it: the parity corpus drives the render band with the `{{HANDOFF_SCHEMA}}` slot as a
-// placeholder, and a real prompt reaches only a spawned child. These four comparisons (plane ×
-// evidence arm) are the record, so an edit to the declaration — a dropped slot, a changed
+// pins it: the render band carries the `{{HANDOFF_SCHEMA}}` slot as a placeholder, and a real
+// prompt reaches only a spawned child. These four comparisons (plane × evidence arm) are the
+// only byte record of the fence, so an edit to the declaration — a dropped slot, a changed
 // required set, a moved paragraph — reds here instead of shipping a contract the read-back
 // walk no longer matches.
 //

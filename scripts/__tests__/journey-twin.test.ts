@@ -6,7 +6,7 @@
 //     runtime constant `MAX_TASKS_PER_WAVE`;
 //   · the `--type` vocabulary — the six `TargetType` words, the retired `spec`
 //     spelling, and NO bare `spec` offered as a value (the union is read from
-//     `session/faces.ts`, so the words and the runtime cannot drift apart);
+//     `docs/identity/types.ts`, so the words and the runtime cannot drift apart);
 //   · the log path — a round log lands under the runtime's workspace root
 //     (`WorkspaceRoot.DEFAULT_SEGMENT`) in `RoundLogLayout.SEGMENT`.
 // Each of the three legs carries a reverse case asserting that a WRONG value in a

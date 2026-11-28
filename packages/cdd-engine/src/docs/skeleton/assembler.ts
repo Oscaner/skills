@@ -13,8 +13,8 @@
 //     skeleton;
 //   · the DATE. The front-matter `date:` line and the change-history row come from the
 //     constructor's `today`, which has no default: the assembler never reads a clock, so a
-//     caller that wants today's date has to say so. That is what makes the parity corpus able
-//     to drive two trees under one frozen date and compare the `date:` line byte for byte.
+//     caller that wants today's date has to say so — and a pin that wants the `date:` line
+//     byte-stable injects a frozen one.
 //
 // The write face is INJECTED (`textWriter`): this file touches no filesystem, so a pin can
 // watch the write and a caller can point it at the repository root. `env/workspace` supplies

@@ -357,8 +357,9 @@ class SkillAnatomyCheck {
    *  the loop family's NEXT-LOOP hub carries EXACTLY TWO out-edges (the `until next
    *  is terminal` self-loop · the `no next` BLOCKED face; no closure exit — the
    *  closure routes through the engine's next face), each label an engine-lexicon
-   *  pinned phrase (edgeConditionWords — the static digraph shares ONE word table
-   *  with the runtime `next:` instance). */
+   *  pinned phrase (edgeConditionWords — the contract's DECLARED allowlist: no runtime
+   *  constant carries these phrases and nothing derives the set, so a word move edits
+   *  that array in the same change). */
   #edgeConditionFindings(
     name: string,
     an: AnalyzedSkill,

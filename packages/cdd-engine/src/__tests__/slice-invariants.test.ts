@@ -14,7 +14,10 @@
 //      constructor is not a row, an accessor is not a row (a getter has no `value`), and an
 //      injected collaborator is an instance field, so it is not a row either;
 //   ③ the three deletability registrations — the command shells, the board's tree-fact word
-//      rows and the rule registry — where deleting one unit costs exactly its own row.
+//      rows and the rule registry — where deleting one unit costs exactly its own row. Each is
+//      read against a SECOND source (the shell files on disk, the word table, the strategy
+//      roster the judging module declares), never against a second copy of its own rows: a
+//      registration compared with itself stays green through the deletion it exists to catch.
 //
 // Zero module-level bare functions — every helper below is a `const` arrow.
 
@@ -23,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Documents } from "../docs/index.ts";
+import * as invariants from "../docs/judging/invariants.ts";
 import { RULE_REGISTRY } from "../docs/judging/rules.ts";
 import { Env } from "../env/index.ts";
 import type { BoardFacts } from "../run/index.ts";
@@ -348,12 +352,43 @@ const SHELL_REGISTRATION: Registration = {
   units: shellFiles,
 };
 
-/** The judging family: every registry row is backed by the strategy class `create()` names,
- *  so the class set and the row set are the same set. */
+/** The two scope bases a strategy class sits under — `Invariant` for the doc rows,
+ *  `LedgerRuleBase` for the ledger rows. Neither is itself a strategy. */
+const STRATEGY_BASES: readonly (abstract new () => object)[] = [
+  invariants.Invariant,
+  invariants.LedgerRuleBase,
+];
+
+/** Whether one export of the judging module is a strategy class — a function whose prototype
+ *  sits under a scope base. The bases themselves, the abstract helper types and the value
+ *  classes the family happens to export all fail this test for their own reason. */
+const isStrategyClass = (declared: unknown): boolean => {
+  if (typeof declared !== "function") return false;
+  if (STRATEGY_BASES.some((base) => (declared as unknown) === base)) return false;
+  const prototype = (declared as unknown as { readonly prototype: object }).prototype;
+  return STRATEGY_BASES.some((base) => prototype instanceof base);
+};
+
+/** The strategy roster the judging module DECLARES, read off that module's own export table.
+ *  A strategy's `name` is verbatim its rule id, so this roster compares to the registry's ids
+ *  name for name — and because it is a DIFFERENT source, a deleted row leaves its class
+ *  standing here and the orphan is named. */
+const strategyRoster = (): readonly string[] => {
+  const roster: string[] = [];
+  for (const declared of Object.values(invariants) as readonly unknown[]) {
+    if (!isStrategyClass(declared)) continue;
+    const strategy = new (declared as new () => { readonly name: string })();
+    roster.push(strategy.name);
+  }
+  return roster.sort();
+};
+
+/** The judging family: the registry's row set and the strategies the judging module declares,
+ *  the same set spelled twice by two different sources. */
 const RULE_REGISTRATION: Registration = {
   family: "judging rules",
   rows: () => RULE_REGISTRY.map((row) => row.id).sort(),
-  units: () => RULE_REGISTRY.map((row) => row.create().name).sort(),
+  units: strategyRoster,
 };
 
 /** One board tree-fact cell and the word row that renders it. The three cells are the
@@ -386,6 +421,10 @@ describe("deleting one unit costs exactly its own registration row", () => {
 
   it("keeps the rule registry's row set and its strategy classes the same set", () => {
     expect(unbalanced(RULE_REGISTRATION)).toEqual([]);
+    // The arm the plan names: the ROW is gone while its strategy class still stands. The units
+    // side reads the declaring module, so the class outlives the deletion and is named here —
+    // one orphan, no more, and the *other* direction is silent. Had both sides been mapped from
+    // `RULE_REGISTRY`, this arm would read [] and confirm nothing.
     const missing = {
       ...RULE_REGISTRATION,
       rows: () =>
@@ -394,6 +433,19 @@ describe("deleting one unit costs exactly its own registration row", () => {
           .sort(),
     };
     expect(unbalanced(missing)).toEqual(["judging rules: unit presence"]);
+    // The mirror arm: the class is gone while its row still registers it.
+    const orphanless = {
+      ...RULE_REGISTRATION,
+      units: () => strategyRoster().filter((name) => name !== "presence"),
+    };
+    expect(unbalanced(orphanless)).toEqual(["judging rules: row presence"]);
+    // The neighbour arm: one added row plus its class keeps the two sides level.
+    const extended = {
+      ...RULE_REGISTRATION,
+      rows: () => [...RULE_REGISTRY.map((row) => row.id), "an-added-rule"].sort(),
+      units: () => [...strategyRoster(), "an-added-rule"].sort(),
+    };
+    expect(unbalanced(extended)).toEqual([]);
   });
 
   it("gives each board tree-fact cell its own word row", () => {

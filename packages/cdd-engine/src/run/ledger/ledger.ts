@@ -473,15 +473,18 @@ export class Ledger {
    *  history, never a re-derivation from its rounds. The version cell is the LATEST reviewed
    *  one: each review overwrites it, so the drift read always compares against the newest
    *  review rather than the first one. Only a review opens a batch — a fix moves the version
-   *  through `recordReviewedDoc` and leaves this counter alone. `body` is the PROJECTED body
-   *  (`docs/grammar/doc-body.ts#docBodyOf`), the slice `docDriftOf` compares. */
-  recordDocReview(line: string, body: string): void {
+   *  through `recordReviewedDoc` and leaves this counter alone. `doc` is the reviewed
+   *  document's path and `body` is its PROJECTED body (`docs/grammar/doc-body.ts#docBodyOf`),
+   *  the slice `docDriftOf` compares. The ledger cannot derive the coordinate from the line —
+   *  the line names a face, the path names the file the round read — so the caller hands it
+   *  over (`Lifecycle#bindReviewed` holds it on the frame). */
+  recordDocReview(line: string, doc: string, body: string): void {
     const document = this.read() ?? this.empty();
     const hash = ReviewedIdentity.hashOf(body);
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
-        reviewedRevision: { kind: "doc-revision", doc: line, doc_hash: hash },
+        reviewedRevision: { kind: "doc-revision", doc, doc_hash: hash },
         batch: (row.batch ?? 0) + 1,
       })),
     );
@@ -491,13 +494,13 @@ export class Ledger {
    *  the line's review-batch counter untouched. A fix moves the recorded version (it edits the
    *  document it judges) but it is no review batch: only `recordDocReview` opens one, so the
    *  counter counts reviews and nothing else. */
-  recordReviewedDoc(line: string, body: string): void {
+  recordReviewedDoc(line: string, doc: string, body: string): void {
     const document = this.read() ?? this.empty();
     const hash = ReviewedIdentity.hashOf(body);
     this.#write(
       this.#withRow(document, line, (row) => ({
         ...row,
-        reviewedRevision: { kind: "doc-revision", doc: line, doc_hash: hash },
+        reviewedRevision: { kind: "doc-revision", doc, doc_hash: hash },
       })),
     );
   }

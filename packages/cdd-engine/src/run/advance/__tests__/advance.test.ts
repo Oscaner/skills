@@ -837,6 +837,7 @@ describe("the declared failures", () => {
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     fx.ledger.recordDocReview(
       planLine,
+      PLAN_REL,
       docBodyOf(readFileSync(path.join(fx.repo, PLAN_REL), "utf8")),
     );
     writeFileSync(
@@ -1377,6 +1378,10 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fx.ledger.docLines().map((line) => line.line)).toEqual(["phase-spec"]);
     const content = readFileSync(path.join(fx.repo, SPEC_REL), "utf8");
     expect(fx.ledger.docHashOf("phase-spec")).toBe(ReviewedIdentity.hashOf(docBodyOf(content)));
+    // The booking hands the ledger the document's PATH beside the digest — the cell's two
+    // layers, in the shape the shipped engine wrote. The line's own word would make the cell
+    // name a face instead of the file the round read.
+    expect(fx.ledger.reviewedOf("phase-spec")?.path).toBe(SPEC_REL);
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
     writeFileSync(path.join(fx.repo, SPEC_REL), `${content}\nagain\n`, "utf8");
     expect(fx.lines.reopenedAt("phase-spec", "phase-spec", SPEC_REL)).toBe(true);
@@ -1393,7 +1398,11 @@ describe("the drift reopen and the closure terminal", () => {
       [RoundIdentity.lineWordOf("plan"), PLAN_REL],
     ] as const) {
       fx.ledger.recordRound(word, { op: "review", cycle: 1 });
-      fx.ledger.recordDocReview(word, docBodyOf(readFileSync(path.join(fx.repo, rel), "utf8")));
+      fx.ledger.recordDocReview(
+        word,
+        rel,
+        docBodyOf(readFileSync(path.join(fx.repo, rel), "utf8")),
+      );
     }
     fx.carriedByKey.set("review:1", { findings: [], status: null });
     const wave = RoundIdentity.lineWordOf("wave", "1");

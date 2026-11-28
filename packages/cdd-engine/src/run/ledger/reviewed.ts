@@ -55,7 +55,9 @@ export type Drift = "same" | "drift";
 export interface ReviewedFacts {
   /** Which input the identity describes. */
   readonly kind: ReviewedKind;
-  /** The input's path, on the one repo-relative basis. */
+  /** The input's path, on the one repo-relative basis. For a document line that is the path of
+   *  the document the round read — the same layer the shipped engine recorded and the shipped
+   *  comparator read as the identity's coordinate, never the line's own word (`phase-spec`). */
   readonly path: string;
   /** The content digest, hex. */
   readonly hash: string;

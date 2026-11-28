@@ -150,17 +150,23 @@ describe("the wave line", () => {
   });
 });
 
+/** The document one `phase-spec` line reviews — the coordinate its cell records. */
+const SPEC_DOC = "docs/kairos/specs/p9-design.md";
+
+/** The document one `plan` line reviews. */
+const PLAN_DOC = "docs/kairos/plans/p9.md";
+
 describe("the document review line", () => {
   it("carries the reviewed digest and increments its batch per review", () => {
     const { ledger, workspace } = fixture();
-    ledger.recordDocReview("phase-spec", "the body as reviewed");
+    ledger.recordDocReview("phase-spec", SPEC_DOC, "the body as reviewed");
     const first = ledger.docLines()[0];
     expect(first?.docHash).toBe(ReviewedIdentity.hashOf("the body as reviewed"));
     expect(first?.batch).toBe(1);
     // The SECOND review hands over DIFFERENT bytes: `doc_hash` is the newest reviewed
     // version (each review rewrites it, frozen between reviews), so the drift read answers
     // against v2 — a write-once cell would keep answering against v1.
-    ledger.recordDocReview("phase-spec", "the body as re-reviewed");
+    ledger.recordDocReview("phase-spec", SPEC_DOC, "the body as re-reviewed");
     const second = ledger.docLines()[0];
     expect(second?.batch).toBe(2);
     expect(second?.docHash).toBe(ReviewedIdentity.hashOf("the body as re-reviewed"));
@@ -176,14 +182,24 @@ describe("the document review line", () => {
       ReviewedIdentity.hashOf("the body as re-reviewed"),
     );
     expect(raw.waves[0].reviewedRevision.doc_hash).toMatch(/^[0-9a-f]{40}$/);
+    // The cell's OTHER layer is the reviewed input's path — every cell the shipped engine
+    // wrote holds one, and `ReviewedFacts.path` promises one. A line word here would make
+    // the column carry two meanings (the shipped rows' paths beside this tree's words) and
+    // would leave an identity derived from the document's path unable to match its own row.
+    expect(raw.waves[0].reviewedRevision.doc).toBe(SPEC_DOC);
+    expect(
+      ledger
+        .reviewedOf("phase-spec")
+        ?.sameAs(ReviewedIdentity.record("document", SPEC_DOC, "the body as re-reviewed")),
+    ).toBe(true);
   });
 
   it("moves the version a fix produced without opening a review batch", () => {
     const { ledger } = fixture();
-    ledger.recordDocReview("phase-spec", "the body as reviewed");
+    ledger.recordDocReview("phase-spec", SPEC_DOC, "the body as reviewed");
     // A fix edits the document it judges: the recorded version follows its bytes, but the
     // line's review-batch counter counts reviews — one review plus one fix is ONE batch.
-    ledger.recordReviewedDoc("phase-spec", "the body after the fix");
+    ledger.recordReviewedDoc("phase-spec", SPEC_DOC, "the body after the fix");
     const line = ledger.docLines()[0];
     expect(line?.docHash).toBe(ReviewedIdentity.hashOf("the body after the fix"));
     expect(line?.batch).toBe(1);
@@ -192,7 +208,7 @@ describe("the document review line", () => {
 
   it("answers `same` for the reviewed bytes and `drift` once the document moved", () => {
     const { ledger } = fixture();
-    ledger.recordDocReview("plan", "plan v1");
+    ledger.recordDocReview("plan", PLAN_DOC, "plan v1");
     expect(ledger.docDriftOf("plan", "plan v1")).toBe("same");
     expect(ledger.docDriftOf("plan", "plan v2")).toBe("drift");
     // An unrecorded line lands no judgment at all — absent facts stay absent.
@@ -806,7 +822,7 @@ describe("the slice boundary", () => {
   it("lands every record through env.workspace's atomic write", () => {
     const { ledger, workspace } = fixture();
     ledger.recordRound("tasks-1", { op: "implement", cycle: 1, attempt: 1 });
-    ledger.recordDocReview("plan", "body");
+    ledger.recordDocReview("plan", "docs/kairos/plans/p9.md", "body");
     expect(existsSync(workspace.resolve(Ledger.FILE))).toBe(true);
     const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
     expect(raw.waves.map((line: { wave: string }) => line.wave)).toEqual(["1", "plan"]);

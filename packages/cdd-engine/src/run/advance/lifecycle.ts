@@ -243,11 +243,11 @@ export interface EvidenceFile {
 export interface LifecycleLedger {
   recordRound(line: string, init: RoundRecordInit): RoundRecord;
   closeWave(line: string, planTasks: readonly number[]): void;
-  recordDocReview(line: string, body: string): void;
+  recordDocReview(line: string, doc: string, body: string): void;
   /** Record the version a FIX round produced — the same `doc_hash` cell a review writes, with
    *  the line's review-batch counter untouched: a fix moves the version it edited, but it opens
    *  no review batch. */
-  recordReviewedDoc(line: string, body: string): void;
+  recordReviewedDoc(line: string, doc: string, body: string): void;
   /** Record the version a WAVE line reviewed — its task-only brief projection. Each line kind
    *  has ONE reviewed cell: a document line's version is the ledger's own `doc_hash`
    *  (`recordDocReview` / `recordReviewedDoc`), a wave line's is this `brief` identity, and no
@@ -755,10 +755,13 @@ export class Lifecycle {
     // The bound version is the document's reviewed BODY — the projection that strips the
     // front-matter head and the `## Change history` register, which is the slice `LinePhase`'s
     // drift read compares and the slice every consumer workspace's cell was digested from. A
-    // raw binding would leave a line reopening on the next registration write.
+    // raw binding would leave a line reopening on the next registration write. The coordinate
+    // handed over beside it is the document's PATH, never the line's word: the cell's first
+    // layer is the path on the one repo-relative basis (every cell the shipped engine wrote
+    // holds one), so a word there would make one column carry two meanings.
     const body = docBodyOf(text);
-    if (op === "fix") this.#ledger.recordReviewedDoc(frame.key, body);
-    else this.#ledger.recordDocReview(frame.key, body);
+    if (op === "fix") this.#ledger.recordReviewedDoc(frame.key, frame.doc, body);
+    else this.#ledger.recordDocReview(frame.key, frame.doc, body);
   }
 
   /** The ready batch a closure reads — the plan's next open wave once THIS round's wave is

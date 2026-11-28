@@ -25,13 +25,4 @@ places that line as the band's first fixed cell, where the retired assembler ope
 shell's own first line — so every dispatched prompt of the four work modes and the review
 family now opens with the band contract's version. The value is unchanged (27); only the line
 moved. A reader comparing two engines' prompts therefore sees one added first line per band,
-and nothing else in the band's bytes. A third consumer byte moves, declared here as well: `cdd board`'s
-`next:` line (with the `reason:` row beside it) on a workspace whose recorded revision cell carries
-the line's own word. The retired drift gate compared that cell's coordinate — the line word — with
-the document's path as one half of the revision identity, so a document line with a reviewed
-version on record always read `drift`: its closed face reopened and `next:` named the topmost
-recorded document, whose bytes had not moved at all. The gate here compares the two digests (the
-recorded revision and today's reviewed body), so a face reopens only when its document really
-moved, and `next:` names the face that owes the round. The departure shows on the shape "a closed,
-unmoved document line above a face that is still waiting", where the retired engine printed that
-document's review and this tree prints the waiting face's own round.
+and nothing else in the band's bytes. A third consumer byte moves, declared here as well: `cdd board`'s `next:` line (with the `reason:` row beside it) on a workspace whose recorded revision cell carries a coordinate that is not the reviewed document's path. The retired drift gate compared that cell's coordinate with the document's path as one half of the revision identity; the gate here compares the two digests (the recorded revision and today's reviewed body), so a face reopens only when its document really moved. Where the two answers part: a document line whose cell holds something other than the document's own path reads `drift` under the retired gate — its closed face reopens and `next:` names the topmost recorded document, whose bytes had not moved at all — while this tree reads the facts and prints the waiting face's own round. That is the shape "a closed, unmoved document line above a face that is still waiting", met whenever the coordinate layer and the document's path disagree: a recorded revision whose coordinate is a line word, or a document whose recorded path is no longer the path it is read at. Which engine writes which coordinate: every released engine through 4.20.0 records the document's path in that cell, this tree records the same one, and the cells that carry a line word were written by this branch's own pre-flip rounds, before the booking handed that coordinate back to the document path (`Lifecycle#bindReviewed` passes the frame's document, and `run/ledger/__tests__/ledger.test.ts` pins the cell). The cell itself therefore does not change shape between a released engine and this one.

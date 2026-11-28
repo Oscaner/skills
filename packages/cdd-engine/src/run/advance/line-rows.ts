@@ -48,16 +48,10 @@ export class LineRows {
 
   /** The row a line that moved owes a verb it is not at — the frontier hop's reason plus the
    *  hop target's diagnosis. `hop` is the pipeline's own object (the very one the outcome and
-   *  the board render); when a caller wired none, the row keeps the declared closure token
-   *  rather than inventing a reason. */
+   *  the board render); the value is built by the upstream station, so this row and that
+   *  station's wave-face row print one construction rather than two. */
   elsewhereOf(hop: NextHop | null): LineRowRefusal {
-    const drift = hop === null ? null : this.#drifts.diagnosisOf(hop);
-    return {
-      ok: false,
-      leg: "line",
-      reason: hop === null ? DISPATCH_REASON.closedLine.token : hop.reason,
-      ...(drift === null ? {} : { drift }),
-    };
+    return this.#drifts.elsewhereOf(hop);
   }
 
   /** The row a closed line owes: `unchanged` when the requested face is a document shape whose

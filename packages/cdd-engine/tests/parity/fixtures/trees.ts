@@ -257,6 +257,15 @@ const OVERALL_TEXT = [
  *  and, under `--notes`, the folded body behind it. */
 const CHILD_NOTE = "the guard is missing at the second station";
 
+/** The blocker a `re-review` shape's source review carries — the one cell that keeps the
+ *  wave's route at its re-review instead of closing it (a clean fix closes the wave). */
+const RE_REVIEW_FINDING = {
+  id: "F1",
+  severity: "blocker",
+  lens: "behaviour",
+  summary: "the guard is missing",
+};
+
 /** The placeholder a fixture writes where a record holds an ABSOLUTE path; `materialize`
  *  binds it to the temp tree it materialized. */
 const REPO_PLACEHOLDER = "{REPO}";
@@ -289,16 +298,21 @@ const emptyProgress = (): Record<string, unknown> => ({
   waves: [],
 });
 
-/** How far the open wave's own row has advanced — the four states a tree can be in
- *  when a command meets it. `none` is a wave that has started (its row exists) with no
- *  round recorded yet; `closed` is a wave whose review landed (the branch line is
- *  closed at that wave). */
-export type WaveRounds = "none" | "implement" | "review" | "closed";
+/** How far the open wave's own row has advanced — the states a tree can be in when a command
+ *  meets it. `none` is a wave that has started (its row exists) with no round recorded yet;
+ *  `re-review` is the shape a blocker-carrying fix leaves behind — implement, review and fix
+ *  all recorded, the fix's source review still carrying a blocker, so the wave owes its
+ *  RE-REVIEW and stays open. It is the only state whose review cycle (1) and next review
+ *  cycle (2) differ, which is what tells a frame that allocates a fix round from one that
+ *  allocates a review round for the same request; `closed` is a wave whose review landed
+ *  (the branch line is closed at that wave). */
+export type WaveRounds = "none" | "implement" | "review" | "re-review" | "closed";
 
 /** The rounds a wave row records for one state. */
 const roundsOf = (state: WaveRounds): readonly Record<string, unknown>[] => {
   if (state === "none") return [];
   if (state === "implement") return [round("implement")];
+  if (state === "re-review") return [round("implement"), round("review"), round("fix")];
   return [round("implement"), round("review")];
 };
 
@@ -538,9 +552,28 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
   // (spec §2.2 #6 freezes both states, so the tree carries what distinguishes them).
   const reviewCarrier: FixtureFile = {
     path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-review-1.c1.json`,
-    text: `${JSON.stringify({ status: "APPROVED", findings: [], notes: [CHILD_NOTE] }, null, 2)}\n`,
+    text: `${JSON.stringify(
+      {
+        status: "APPROVED",
+        findings: rounds === "re-review" ? [RE_REVIEW_FINDING] : [],
+        notes: [CHILD_NOTE],
+      },
+      null,
+      2,
+    )}\n`,
   };
-  const withCarrier = rounds === "review" || rounds === "closed";
+  /** The fix round the `re-review` shape records — its carrier is what makes the round
+   *  READABLE (a round whose carrier cannot be read answers no route), and its dispositions
+   *  close the finding the source review carried. */
+  const reReviewFixCarrier: FixtureFile = {
+    path: `.kairos/cdd/${PHASE_SLUG}/tasks-1-fix-1.c1.json`,
+    text: `${JSON.stringify(
+      { status: "APPROVED", artifacts: {}, dispositions: { F1: { status: "fixed" } } },
+      null,
+      2,
+    )}\n`,
+  };
+  const withCarrier = rounds === "review" || rounds === "closed" || rounds === "re-review";
   /** The drifted document row's carrier — present, so the completed review reads back and the
    *  row is a WORKED line rather than an unreadable one. */
   const specDriftCarrier: FixtureFile = {
@@ -784,6 +817,7 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
           progress(rounds),
           base,
           ...(withCarrier ? [reviewCarrier] : []),
+          ...(rounds === "re-review" ? [reReviewFixCarrier] : []),
           ...extra(),
           ...(options.charterFix === true ? charterFixFiles() : []),
         ],

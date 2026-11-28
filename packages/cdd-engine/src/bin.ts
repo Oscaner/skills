@@ -235,7 +235,7 @@ export class Boot {
       waves: () => ledger.waveLines(),
       docClassOf: (target) => Boot.docClassOf(reads, target),
     });
-    const drift = new DriftStation(lines);
+    const drift = new DriftStation({ lines, waves: pipeline });
     const frame = new Frame({
       driftedUpstream: (facts) => drift.refusalOf(facts) !== null,
       reads: {
@@ -251,6 +251,15 @@ export class Boot {
         attemptOf: (key, op, cycle) =>
           ledger.rounds(key).filter((record) => record.op === op && record.cycle === cycle).length +
           1,
+        // The wave line's own task group: the derived frontier over the ledger's closure set,
+        // read off the pipeline's ONE decomposition (a second frontier here would be a second
+        // rule). A plan that is not ready, or a drained one, answers null and the request's own
+        // group stands as the line.
+        readyGroupOf: (graph) => {
+          if (graph === null) return null;
+          const ready = graph.frontier(pipeline.closedTasks());
+          return ready.length === 0 ? null : ready.join(",");
+        },
       },
     });
     const refusal = new Refusal({ root: env.workspace, clock });

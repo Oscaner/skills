@@ -158,6 +158,18 @@ export class Pipeline {
     return docDrift && NextRoutes.onExitSide(route) ? { kind: "review" } : route;
   }
 
+  /** Whether the wave face still HOLDS a request below it — the face was ENTERED and its
+   *  derived waves are not exhausted. The doc faces' movement is the upstream station's
+   *  `doc-drift` row; this is the wave face's own sign, read off the SAME two cells the
+   *  frontier's closure walks (a dispatch this face already booked counts as entered, and a
+   *  batch whose tasks all closed no longer holds anything — a closed face has no round left
+   *  to reopen). */
+  wavesHoldRequest(input: PipelineInput): boolean {
+    const graph = input.graph;
+    if (graph === null || !this.#wavesEntered(graph)) return false;
+    return !this.#wavesExhausted(graph);
+  }
+
   /** Whether the branch line holds a dispatchable open round — the sixth hop cell's ONE
    *  judge: the branch row's drift-aware reopen or a still-active hop. Undefined when no
    *  plan fact exists. */

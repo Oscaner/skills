@@ -100,6 +100,7 @@ const frameOf = (over: Partial<FrameFacts> = {}): FrameFacts => ({
   },
   workspace: { dir: `.kairos/cdd/${SLUG}`, id: SLUG },
   phase: "implement",
+  openPhase: "implement",
   round: 1,
   attempt: 1,
   ...over,

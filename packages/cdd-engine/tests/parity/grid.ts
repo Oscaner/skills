@@ -192,6 +192,21 @@ const UNDECLARED_TASK = "9";
 /** The carrier a phase-spec review round leaves behind — the fix face's `--reviews`. */
 const REVIEWS = `.kairos/cdd/p9/phase-spec-review-1.c1.json`;
 
+/** The WAVE line's review carrier — the group key the wave's own row records under, which is
+ *  the DERIVED batch and never the group the request spells: the requesting carrier must
+ *  resolve for the LINE, so the line leg's own row is the byte that cell judges instead of the
+ *  `dispatch-input` station's. `WAVE_GROUP_CARRIER` names the two-task plan's single wide
+ *  batch, which is what a request for one of its tasks still keys by. */
+const WAVE_GROUP_CARRIER = `.kairos/cdd/p9/tasks-1,2-review-1.c1.json`;
+
+/** The wave review carrier's bytes — a review that landed with no findings, so the wave line
+ *  reads as WORKED and its open round is the one the wave gate judges. */
+const WAVE_REVIEW = `${JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }, null, 2)}\n`;
+
+/** Plant one carrier BEFORE the observed run — a `before` step that only writes, so the tree
+ *  the probe reads carries a carrier no recorded round owns. */
+const planted = (path: string, text: string): PriorStep[] => [{ write: { path, text } }];
+
 /** A carrier the caller names EXPLICITLY while no review round is on record — the DRAFT
  *  spelling, which no family-name derivation produces (the cycle's own name carries its
  *  `.c<cycle>` tag). The file matters as much as the flag: the resolution's FIRST branch is
@@ -505,6 +520,78 @@ export const UNITS: readonly Unit[] = [
       fixture: "wave",
       argv: ["fix", "--type", "phase-spec", "--spec", SPEC],
       dispatch: true,
+    },
+  },
+  {
+    key: "f1.fix.refusal.wrong-phase",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    // The WAVE face's fifth gate row: the derived wave's open round is its RE-REVIEW (a
+    // blocker-carrying fix left it open), and this request asks for the fix. Only the wave
+    // gate can answer it, because the request passes the four stations: the fix round's
+    // cycle is its review's latest COMPLETED one (1), which is the cycle the tree carries a
+    // carrier for — a frame that allocated the NEXT review cycle (2) would answer
+    // `dispatch-input · INPUT_REVIEWS · target-absent` instead and never reach this row.
+    probe: {
+      fixture: "wave",
+      options: { rounds: "re-review" },
+      argv: ["fix", "--type", "wave", "--tasks", "1", "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f1.fix.refusal.split-wave",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    // The wave gate's fourth row, on the fix face: a request for ONE task of a two-task wave.
+    // The carrier is planted under the DERIVED group's name (`tasks-1,2`, the batch the plan's
+    // layer derives), because that is the line the wave records under — a fix frame keyed by
+    // the REQUESTED group would answer the station's `target-absent` instead and never reach
+    // this row.
+    probe: {
+      fixture: "wave",
+      options: { tasks: 2 },
+      argv: ["fix", "--type", "wave", "--tasks", "1", "--plan", PLAN],
+      dispatch: true,
+      before: planted(WAVE_GROUP_CARRIER, WAVE_REVIEW),
+    },
+  },
+  {
+    key: "f1.review.refusal.wave-open",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/review.ts#ReviewCommand",
+    // The UPSTREAM station: the branch face sits below a wave face that was entered and whose
+    // batch is not closed, so the branch review is refused with the frontier hop's own reason
+    // and the command that would run it. A branch line that compares the request against its
+    // OWN phase agrees with itself and dispatches — which is the defect this cell pins.
+    probe: {
+      fixture: "wave",
+      options: { rounds: "implement" },
+      argv: ["review", "--type", "branch", "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f1.fix.refusal.family-draft",
+    face: "f1",
+    route: "refusal",
+    task: "T16",
+    producer: "surface/commands/fix.ts#FixCommand",
+    // The requesting carrier's THIRD branch when the round's CANONICAL draft is what the tree
+    // holds: no flag, no review record, and the cycle's own `<line>-review-<cycle>.json` on
+    // disk. The carrier resolves, the four stations pass, and the line leg answers the round
+    // the line owes — the `--recover` state a final-only family name could not read.
+    probe: {
+      fixture: "wave",
+      argv: ["fix", "--type", "phase-spec", "--spec", SPEC],
+      dispatch: true,
+      before: planted(FLAGGED_REVIEWS, FLAGGED_CARRIER),
     },
   },
   {

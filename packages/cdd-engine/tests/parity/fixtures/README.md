@@ -22,7 +22,7 @@ program's, so no knob of the other shapes can stand in for it:
 | --- | --- |
 | `tasks` | the plan's width — how many task blocks it declares |
 | `chain` | whether task N depends on task N−1 (one task per derived layer) or every task stands alone (one wide layer) |
-| `rounds` | how far the open wave's row has advanced: `none` (dispatched, no round yet) · `implement` · `review` · `closed` |
+| `rounds` | how far the open wave's row has advanced: `none` (dispatched, no round yet) · `implement` · `review` · `re-review` (implement · review · fix recorded with the source review still carrying a blocker, so the wave owes its RE-REVIEW — the one state whose review cycle and next review cycle differ) · `closed` |
 | `snapshot` | whether a closed row keeps its plan-task set — the wave gate's append exemption reads it |
 | `holder` | the two in-flight shapes' holder facts; `"live"` asks the harness to resolve this process |
 | `corruptLock` | plants the corrupt in-flight record WITH its lock left behind (the third holding shape) |

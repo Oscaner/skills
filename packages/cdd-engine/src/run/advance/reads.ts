@@ -799,18 +799,33 @@ export class AdvanceReads implements LifecycleReads {
   /** The three branches of the requesting carrier, in the shipped order. A record that resolves
    *  no carrier ends the walk (the unrecorded face, worded `empty-value`); only a cycle that
    *  records NO review falls back to the family name, which the gate can then word
-   *  `target-absent` when that name is not on disk. */
+   *  `target-absent` when that name is not on disk. The record branch asks the ledger for the
+   *  carrier of a RECORD, whose accessor keys a line by its persisted ROW key — the frame holds
+   *  the LINE word (`tasks-1`), so the ONE fold between the two spellings is applied here
+   *  rather than left to the accessor's own re-derivation (which would spell `tasks-tasks-1`
+   *  and resolve nothing). */
   #reviewsPathOf(frame: FrameFacts, record: RoundRecord | null): string | null {
     if (frame.reviews !== null) return frame.reviews;
     if (record === null) return String(this.#reviewFamilyPathOf(frame));
-    const recorded = this.#o.ledger.carrierPathOf(frame.type, frame.key, record);
+    const recorded = this.#o.ledger.carrierPathOf(
+      frame.type,
+      RoundIdentity.rowKeyOf(frame.key),
+      record,
+    );
     return recorded === "" ? null : String(recorded);
   }
 
   /** The review family's name for this frame's CYCLE — the "fall back with the cycle only"
-   *  rule. It never carries the asking dispatch's attempt: a fix retried at attempt 2 would
-   *  otherwise ask for an `-a2` name the cycle's review never wrote, and a cycle with no
-   *  review record has no recorded attempt to inherit either. */
+   *  rule, resolved the way the shipped read resolves it: the round's CANONICAL carrier
+   *  (`<line>-review-<cycle>[-a<attempt>].json`, the child's own draft) unless the finalized
+   *  `.c<cycle>` sibling is on the disk face, which then wins as the round's answer. The
+   *  FINAL-only spelling this read used to answer made a workspace recoverable in the shipped
+   *  engine (`--recover`'s draft-with-no-record state) read as an absent carrier here — a
+   *  repair the engine cannot perform, because the bytes are on disk under the name it reads.
+   *  It never carries the asking dispatch's attempt: a fix retried at attempt 2 would otherwise
+   *  ask for an `-a2` name the cycle's review never wrote, and a cycle with no review record
+   *  has no recorded attempt to inherit either. A final that cannot be read is not an answer —
+   *  the canonical name stands, and the round's integrity check stays the carrier read's. */
   #reviewFamilyPathOf(frame: FrameFacts): RepoPath {
     const identity = new RoundIdentity({
       line: frame.key,
@@ -818,7 +833,9 @@ export class AdvanceReads implements LifecycleReads {
       cycle: frame.round,
       attempt: 1,
     });
-    return this.#o.workspace.relOf(ArtifactIdentity.nameOf(identity, "final"));
+    const final = this.#o.workspace.relOf(ArtifactIdentity.nameOf(identity, "final"));
+    if (this.#readRel(final) !== null) return final;
+    return this.#o.workspace.relOf(ArtifactIdentity.nameOf(identity, "draft"));
   }
 
   /** The same-cycle review record this fix frame answers — the latest attempt of the

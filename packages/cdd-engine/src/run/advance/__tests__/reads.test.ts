@@ -276,8 +276,8 @@ const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"
   const lifecycle = new Lifecycle({
     gate,
     authority: new Authority(),
-    drift: new DriftStation(lines),
-    lineRows: new LineRows({ lines, drifts: new DriftStation(lines) }),
+    drift: new DriftStation({ lines, waves: pipeline }),
+    lineRows: new LineRows({ lines, drifts: new DriftStation({ lines, waves: pipeline }) }),
     inflight,
     child: new Child({ runner, clock }),
     ledger,
@@ -313,6 +313,7 @@ const wire = (prompts: PromptBandReads, host: string | (() => string) = "claude"
     pipeline: { specType: "phase-spec", specPath: SPEC_REL, planPath: PLAN_REL, graph },
     workspace: { dir: workspace.path, id: SLUG },
     phase: "implement",
+    openPhase: "implement",
     round: 1,
     attempt: 1,
     reviews: null,

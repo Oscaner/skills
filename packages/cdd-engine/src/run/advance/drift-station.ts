@@ -1,21 +1,31 @@
 // packages/cdd-engine/src/run/advance/drift-station.ts
-// The line leg's doc-drift rows: a document that moved past the version its review bound.
+// The line leg's UPSTREAM stations: the faces above the request that still hold it.
 //
-// INVARIANT — the drift refusal is ONE value with ONE diagnosis, and it names only facts this
-// segment read: the layer the moved identity belongs to, its coordinate, and the two digest
-// ends the review did and does judge. The row is the shipped authority's UPSTREAM station: a
-// face ABOVE the request moved, so the work the request would do builds on bytes nobody
-// reviewed. That precedence is the whole point — a split batch is what the wave gate would
-// report, and it is not the actionable cause while a document above it is unreviewed.
+// INVARIANT — the FIRST upstream face that holds the request owns the refusal, and the two
+// faces hold it in two different ways:
+//   · a DOCUMENT face holds it when it was WORKED and its document moved past the version
+//     its review bound — the `doc-drift` row, with both digest ends;
+//   · the WAVE face holds it when it was ENTERED and its derived waves are not exhausted —
+//     the round above the request is the frontier's own, so the refusal prints the frontier
+//     hop's reason (`task-open` · `pending-fix` · …) and the command that would run it.
+// The order is the pipeline's own face order, so the most upstream cause wins: a moved
+// document above the wave face is never reported as an open batch.
 //
-// The station reads the LINE's facts, never a second walk: `enteredAt` decides whether a face
-// was ever worked (an unentered face holds no station), and `driftPairOf` is the ONE drift read
-// both this row and the pipeline's reopen share — a second comparison would let the board's
-// `next:` and the refusal's diagnosis disagree about one document.
+// THE REFUSAL IS ONE VALUE with ONE diagnosis, and it names only facts this segment read: the
+// layer the moved identity belongs to, its coordinate and the two digest ends the review did
+// and does judge — never a sentence. The upstream-face precedence is the whole point: a split
+// batch is what the wave gate would report, and it is not the actionable cause while a round
+// above the request is still owed.
+//
+// The stations read the LINE's facts, never a second walk: `enteredAt` decides whether a
+// document face was ever worked (an unentered face holds no station) and `driftPairOf` is the
+// ONE drift read both this row and the pipeline's reopen share, while the wave face's entry and
+// exhaustion cells are the pipeline's own — a second comparison would let the board's `next:`
+// and the refusal's diagnosis disagree about one line.
 //
 // THE CAUSE AND THE DIAGNOSIS ARE TWO CELLS. The CAUSE is the first face above the request
-// that moved; the DIAGNOSIS is read off the hop the refusal's `next:` will print, exactly as
-// the shipped composer reads it. They are not the same face: a request whose PLAN moved is
+// that holds it; the DIAGNOSIS is read off the hop the refusal's `next:` will print, exactly
+// as the shipped composer reads it. They are not the same face: a request whose PLAN moved is
 // refused by the plan face while the frontier's hop names the SPEC review, and printing that
 // plan's digests beside a command naming the spec would diagnose one document and prescribe a
 // round on another. A hop target holding no movement prints the bare token (no cells) — a
@@ -84,33 +94,49 @@ interface StationLine {
   readonly doc: string;
 }
 
+/** The wave face's station read — the ONE pipeline cell this file asks for ("was the face
+ *  entered, and are its waves still open?"). Injected, so this file never walks the plan or
+ *  the ledger a second time. */
+export interface WaveFaceStation {
+  /** Whether the wave face was entered and has not exhausted its derived waves. */
+  readonly wavesHoldRequest: (pipeline: PipelineInput) => boolean;
+}
+
 /**
- * DriftStation — the doc-drift refusal producer. Invariant: the first face that MOVED owns the
- * refusal (upstream first, in the pipeline's own order), while the diagnosis it carries is the
- * HOP's own target (see the file's header) — so a cause and a prescription can never name two
- * different documents.
+ * DriftStation — the line leg's upstream stations. Invariant: the first upstream face that
+ * HOLDS the request owns the refusal (upstream first, in the pipeline's own order), while the
+ * diagnosis it carries is the HOP's own target (see the file's header) — so a cause and a
+ * prescription can never name two different rounds.
  *
- * Rule zero note: the class is two short rows over one line walk, so it holds no state beyond
- * that walk — the alternative (a caller composing "is the upstream drifted" itself) is the
- * second drift judgment this segment exists to prevent.
+ * Rule zero note: the class is a few short rows over one line walk and one pipeline cell, so it
+ * holds no state beyond those two reads — the alternative (a caller composing "is a face above
+ * me holding this request" itself) is the second upstream judgment this segment exists to
+ * prevent.
  */
 export class DriftStation {
   readonly #lines: LinePhase;
+  readonly #waves: WaveFaceStation;
 
-  constructor(lines: LinePhase) {
-    this.#lines = lines;
+  constructor(opts: { readonly lines: LinePhase; readonly waves: WaveFaceStation }) {
+    this.#lines = opts.lines;
+    this.#waves = opts.waves;
   }
 
-  /** The refusal this request owes — the first UPSTREAM document face that moved past what
-   *  its review bound, or null when every face above it is where its review left it. The faces
-   *  above the request are the pipeline's own prefix, so the order here is the order the board
-   *  walks, and a face the pipeline never entered reports nothing. It reads only the request's
-   *  target type and its pipeline cells, so the frame assembly asks the same question about a
-   *  CLOSED line it never assembled a round for. */
+  /** The refusal this request owes — the first UPSTREAM face that holds it: a document face
+   *  that moved past what its review bound, or the wave face with a wave still open. Null
+   *  when every face above it is where its review left it. The faces above the request are
+   *  the pipeline's own prefix, so the order here is the order the board walks, and a face the
+   *  pipeline never entered reports nothing. It reads only the request's target type and its
+   *  pipeline cells, so the frame assembly asks the same question about a CLOSED line it never
+   *  assembled a round for. */
   refusalOf(request: DriftRequest): LineRowRefusal | null {
     const index = DriftStation.faceIndexOf(request.type);
     if (index <= 0) return null;
     for (const face of PIPELINE_FACES.slice(0, index)) {
+      if (face === "wave") {
+        if (!this.#waves.wavesHoldRequest(request.pipeline)) continue;
+        return this.elsewhereOf(request.hop ?? null);
+      }
       const line = DriftStation.stationOf(face, request.pipeline);
       if (line === null) continue;
       if (!this.#movedAt(line)) continue;
@@ -123,6 +149,21 @@ export class DriftStation {
       };
     }
     return null;
+  }
+
+  /** The row a line that owes another round names — the hop's OWN reason and the hop target's
+   *  diagnosis, in ONE construction: the wave face's open station above (`refusalOf`) and the
+   *  line leg's own lookahead row (`line-rows.ts#elsewhereOf`, which delegates here) print the
+   *  same value, so neither can name a round the other refuses. A caller that wired no hop
+   *  keeps the declared closure token rather than inventing a reason. */
+  elsewhereOf(hop: NextHop | null): LineRowRefusal {
+    const drift = hop === null ? null : this.diagnosisOf(hop);
+    return {
+      ok: false,
+      leg: "line",
+      reason: hop === null ? DISPATCH_REASON.closedLine.token : hop.reason,
+      ...(drift === null ? {} : { drift }),
+    };
   }
 
   /** One station line's CAUSE — the two cells this row judges: it was WORKED, and its
@@ -157,7 +198,7 @@ export class DriftStation {
   /** The document face one pipeline face is judged at — the specification face reads the
    *  identity document, the plan and branch faces the plan. Null when that document is
    *  absent or the face judges no document at all (the wave face's movement is the BRIEF's,
-   *  a separate layer with a separate token). */
+   *  a separate layer with a separate token, and its station is `WaveFaceStation`). */
   static stationOf(face: PhaseFaceKey, pipeline: PipelineInput): StationLine | null {
     if (face === "wave") return null;
     if (face === "plan" || face === "branch") {

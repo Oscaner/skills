@@ -158,6 +158,13 @@ export interface FrameLines {
   /** The attempt number a dispatch of `(key, op, cycle)` takes — allocated ONCE, from the
    *  record's own attempts. */
   readonly attemptOf: (key: string, op: "implement" | "review" | "fix", cycle: number) => number;
+  /** The wave face's LINE task group — the derived frontier over the ledger's closure set,
+   *  read off the pipeline's own decomposition. A wave line records under THIS group, never
+   *  under the group the request spelled: the ledger keys a wave by the batch it dispatched,
+   *  so a request for another batch names the line's own carriers (its review, its brief)
+   *  while the wave gate judges the group that was asked for. `null` when the plan yields no
+   *  ready batch — a plan read that is not ready, or a drained plan. */
+  readonly readyGroupOf: (graph: TaskGraph | null) => string | null;
 }
 
 /** The construction facts. */
@@ -241,9 +248,17 @@ export interface FrameFacts extends FrameScene {
    *  The frame still names the phase the request ASKS for in the last two states (the
    *  pre-flight judges a request, not a round), and no second caller re-derives this cell. */
   readonly state: FrameState;
-  /** The dispatch phase this frame would run: the line's OPEN round, or — on a closed line —
-   *  the phase the verb asks for. */
+  /** The dispatch phase this frame RUNS: the phase the request asks for (the verb's own word,
+   *  or the face's review lead). This is the round's identity — its op, its cycle allocation
+   *  and every artifact it names — and it is the ONE allocation the shipped engine makes
+   *  (`ConsumedRound`): a fix round takes its review's latest COMPLETED cycle, a review the
+   *  next one. The line's own open round is a separate cell (`openPhase`), because a request
+   *  that does not match it is exactly what the line leg refuses. */
   readonly phase: RoundPhase;
+  /** The line's OPEN round for this request — null when its rounds lie on the closure side
+   *  (`FrameFacts#state` then says which closure face applies). The line leg reads this cell to
+   *  decide whether the request matches the round the line actually owes. */
+  readonly openPhase: RoundPhase | null;
   /** The round number this frame dispatches under. */
   readonly round: number;
   /** The attempt on that round. */
@@ -345,7 +360,7 @@ export class Frame {
     const identity = this.#identityOf(slug.slug, index);
     const doc = Frame.#judgedDocOf(request, namedSpec, identity.doc, planPath);
     const target = this.#targetOf(request.type, doc, planPath, taskIds.ids);
-    const key = this.#keyOf(request.type, taskIds.ids);
+    const key = this.#keyOf(request.type, taskIds.ids, graph);
     const scene: FrameScene = {
       command: request.command,
       recover: request.recover === true,
@@ -381,7 +396,7 @@ export class Frame {
     // gates judge the REQUEST (they need its phase, its round and its station values), and the
     // line leg answers the closure with its own row afterwards. Translating it into a usage
     // value here would answer "nothing to dispatch" before any gate spoke.
-    const open = this.#roundPhaseOf({
+    const openPhase = this.#roundPhaseOf({
       type: request.type,
       key,
       command: request.command,
@@ -392,12 +407,13 @@ export class Frame {
       doc,
       pipeline: scene.pipeline,
     });
-    const phase = open ?? Frame.#expectedPhaseOf(request.type, request.command);
+    const phase = Frame.#expectedPhaseOf(request.type, request.command);
     const round = this.#roundOf(key, phase);
     return {
       ...scene,
       kind: "frame",
-      state: this.#stateOf({ open, type: request.type, key, doc }),
+      state: this.#stateOf({ open: openPhase, type: request.type, key, doc }),
+      openPhase,
       phase,
       round,
       attempt: this.#lines.attemptOf(key, Frame.#opOfPhase(phase), round),
@@ -580,14 +596,22 @@ export class Frame {
   }
 
   /** The ledger key this frame records under — the wave's task-group line, else the line's
-   *  stable word (never the argv spelling, so a moved path cannot fork one line in two). */
-  #keyOf(type: TargetType, tasks: readonly number[]): string {
-    return RoundIdentity.lineWordOf(type, tasks.join(","));
+   *  stable word (never the argv spelling, so a moved path cannot fork one line in two). A
+   *  WAVE keys by the group its LINE holds, which is the derived frontier, never the group the
+   *  request spelled: the batch is the line, and a request for another batch is the split the
+   *  wave gate reports against the line it named. A plan that yields no ready batch leaves the
+   *  request's own group as the line — there is no other line to name. */
+  #keyOf(type: TargetType, tasks: readonly number[], graph: TaskGraph | null): string {
+    const group =
+      type === "wave" ? (this.#lines.readyGroupOf(graph) ?? tasks.join(",")) : tasks.join(",");
+    return RoundIdentity.lineWordOf(type, group);
   }
 
-  /** The phase this frame runs — read off the ONE line walk; null when the line holds no
-   *  open round (its rounds lie on the closure side), which the assembly records as
-   *  `FrameFacts#closed` and answers with the phase the REQUEST asks for. */
+  /** The line's OPEN round for this request — read off the ONE line walk; null when the line
+   *  holds no open round (its rounds lie on the closure side), which the assembly records as
+   *  `FrameFacts#state` and answers with the phase the REQUEST asks for. The admission arms
+   *  below (a review's re-entry, a moved face above) only ever make a CLOSED line name the
+   *  round it owes — they never turn a request into the round it asked for. */
   #roundPhaseOf(cells: {
     readonly type: TargetType;
     readonly key: string;
@@ -640,11 +664,13 @@ export class Frame {
     return this.#lines.walk.reopenedAt(cells.key, cells.type, cells.doc) ? "reopened" : "closed";
   }
 
-  /** The phase a command asks the LINE for — the verb's own word, or the target row's review
-   *  lead. Read off the same table the gate reads, so no command re-spells a phase. */
+  /** The phase a command asks the LINE for — the verb's own word (the branch line's review
+   *  lead included) or the face's review lead for every other command word. The ONE table read,
+   *  so no caller re-spells either side: a `review` on the branch line asks for
+   *  `branch-review`, never for the op word `review`. */
   static #expectedPhaseOf(type: TargetType, command: string): RoundPhase {
-    if (command === "implement" || command === "fix" || command === "review") return command;
-    if (command === "docs-fix") return "fix";
+    if (command === "implement") return "implement";
+    if (command === "fix" || command === "docs-fix") return "fix";
     return TargetFaces.phaseOfHop(type, "review");
   }
 

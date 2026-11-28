@@ -436,11 +436,14 @@ export class Lifecycle {
   }
 
   /** Whether the OPEN round the line names is the round this request asks for — the command
-   *  folded to its verb (the branch line's review lead included) and compared with the line's
-   *  own word, so no caller re-spells either side. */
+   *  folded to its verb (the branch line's review lead included) and compared with the LINE's
+   *  own open phase, never with the phase the request composes for itself: a request that
+   *  compares against its own identity always agrees with itself, which is exactly the round
+   *  it must not be given. */
   static #atRequestedPhaseOf(frame: FrameFacts): boolean {
     const requested = Lifecycle.#waveVerbOf(frame);
-    const owed = frame.phase === "branch-review" ? "review" : frame.phase;
+    const open = frame.openPhase;
+    const owed = open === "branch-review" ? "review" : open;
     return owed === requested;
   }
 

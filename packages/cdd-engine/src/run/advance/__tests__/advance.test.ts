@@ -391,7 +391,7 @@ const fixture = (): Fixture => {
     waves: () => ledger.waveLines(),
     docClassOf: (target) => target.type,
   });
-  const driftStation = new DriftStation(lines);
+  const driftStation = new DriftStation({ lines, waves: pipeline });
   const frame = new Frame({
     driftedUpstream: (facts) => driftStation.refusalOf(facts) !== null,
     reads: {
@@ -408,6 +408,11 @@ const fixture = (): Fixture => {
       attemptOf: (key, op, cycle) =>
         ledger.rounds(key).filter((record) => record.op === op && record.cycle === cycle).length +
         1,
+      readyGroupOf: (graph) => {
+        if (graph === null) return null;
+        const ready = graph.frontier(pipeline.closedTasks());
+        return ready.length === 0 ? null : ready.join(",");
+      },
     },
   });
   const runner = new FakeRunner();

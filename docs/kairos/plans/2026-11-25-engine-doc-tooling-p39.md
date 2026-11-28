@@ -1,7 +1,7 @@
 ---
 title: 'P39 · 引擎在 src/ 的再抽象复刻：四切片 · 字节保真 · 一波翻面'
 doc-type: plan
-version: v0.67
+version: v0.68
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 base: develop
@@ -961,6 +961,8 @@ spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：�
 #### Files
 - Create: `.changeset/p39-rebuild-in-src.md`
 - Create: `packages/cdd-engine/src/__tests__/slice-invariants.test.ts`
+- Create: `scripts/monitor-dispatch.ts`（pi session 面的派发监控：**诊断工具，不是门**——不进 `precommit` / `validate` 的判据链，本相位禁新增判定面）
+- Create: `scripts/__tests__/monitor-dispatch.test.ts`
 
 #### Consumes
 - spec §4（再推导规则）· §5（代价：翻面后无字节判者）· Acceptance #5（不变量可陈述）
@@ -975,6 +977,8 @@ spec §3.3 的固定序逐项可核（本任务的 Steps 按它的序排列：�
 - 写不变量可核 pin — checkable: 改写或删掉任一入口类注释里那一句不变量 ⇒ 测试红（四切片与 `run/` 四段各算一处，八处逐处在声明表里有一条）；配一条邻居臂：只改同一注释块里 Rule zero 那一段的措辞 ⇒ 仍绿（判据读的是不变量那句，不是整块注释）；把断言写回「第一段存在且非空」⇒ 本步这一条臂在一处都演示不出来（每一处的注释块都还有下文），那正是本条要挡的更便宜的绿
 - 写深度判据 pin — checkable: 只给 `packages/cdd-engine/src/surface/index.ts#Cli` 加**一行**公开方法（该片的实现文件一个不加）⇒ 测试红——计数读的是原型上的函数值成员（`get program` 那类访问器不是一行，注进去算不进读数），两侧今天等势，多一行即越界（这一臂必须是一行；加到十行也红，但那时演示的是上限，不是边界）；配一条邻居臂：给该片新落一个实现文件、同时加一行方法 ⇒ 仍绿（判据判的是「一行一模块」这条关系，不是某个绝对条数）；退回「注入格加转发行的类成员口径」会让 `surface/` 在正确实现上红，那正是本判据换单位的原因
 - 全绿 — checkable: `pnpm run validate` exit 0
+- 建派发监控 — checkable: `scripts/monitor-dispatch.ts` 对 `~/.pi/agent/sessions/--<repo>--/*.jsonl` 逐 session 判四件事，逐条可红：① 存在 `type:"message"` ∧ `role:"user"`（无即 flag）；② 该 prompt 长度 ≥ 下限（实测真实派发 9k–14.5k 字符，空跑会是 0 或几十）；③ 结构行齐备 —— `$version <n>` · `# CDD dispatch —` · **`## Round context`（且是该行本身，不是散文里的反引号提及）**；④ 段内 `ROLE` / `TARGET_TYPE` / `WAVE` / `OUTPUT_*` 与账本同轮一致。四条各一条夹具：真实 session 片段（绿）+ 三种病态（无 user 消息 · 空 prompt · 缺 `## Round context`）
+- 监控的自证 — checkable: 拿一条真实的翻面后 session 跑出 `OK`；把其中 `## Round context` 段删掉 ⇒ 该 session 判 `MISSING`（不是静默放过）
 - 提交 — checkable: `git log -1 --format=%s` 以 `chore(p39):` 起头
 
 #### Acceptance
@@ -1090,3 +1094,4 @@ pin 齐（恰好一条且字节相同 · 删掉拼装即红 · 空 prompt 零 sp
 | v0.65 | 2026-11-28 | wave 18 的 fix 轮二（F1 · F2 · F3 均为 warn，三条内容面落地，未放宽判据）：**同一条被撤下的声称不再留着活着的副本**——review-1 的 F2 把「允许集从引擎词表派生」改成「在契约里声明」时只改了两处，kairos 侧 `#edgeConditionFindings` 的 docstring 仍写着「静态有向图与运行时 `next:` 实例共用一张词表」，而它指的这两个常量在树上都不存在；本轮把它改写成与内层注释同一形状（允许集在契约里声明 · 没有运行时常量携带这些短语 · 词动了就在同一次改动里改那个数组）（F1）；**三处「对账语料」的理由换成语料消失之后仍成立的那条**——`docs/skeleton/assembler.ts` 里 `today` 无默认值原先的理由是「让对账语料在两棵树下冻结同一天、逐字节比 `date:` 行」，改成「日期是入参，故注入即可冻结」；`run/dispatch/__tests__/handoff.test.ts` 原写「对账语料用占位槽驱动渲染带」，改成「这四组比较就是这个围栏唯一的字节记录」；`src/__tests__/smoke.integration.test.ts` 原写「刻意不从对账语料 import」，改成「夹具是本文件自己的，树外没有脚手架能把它拿走」——Files 同批收下这两个文件，零残留那一步的「另两处」随之改成「另四处」（F2）；**不带 `src-next/` 前缀的旧树模块名指路补上两处，并给这一类补上一条看得见它们的扫**——`scripts/__tests__/journey-twin.test.ts` 的 `session/faces.ts` 改指它读的那个联合所在的 `docs/identity/types.ts`，`packages/kairos/tests/claim-shapes.test.ts` 的 `render/templates.ts#docNarrativeAxes` 改指 `docs/judging/criteria.ts#docNarrativeAxes`（模块与符号都已搬家）；那一步第二条 grep 的域从 `packages/cdd-engine/src` 扩到含 `scripts/` 与 kairos 测试面两档（域不收窄：少了这两档，那两处指路没有任何一步看得见），具名指路因此从三笔读作五笔，`src-next` 那条 grep 的域不动（F3）。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:fix · 2026-11-28） |
 | v0.66 | 2026-11-28 | docs-fix 轮五十一（F1 为 blocker、F3 · F4 为 warn：三条内容面落地，未放宽判据；F2 落在结构面，在本轮写权之外，原样交编排者）：**深度判据的计数单位写成读得动的那一种，两条边界臂同批改口**——T19 的深度判据原写「计数单位是入口类原型上的公开成员（转发行：每一行把一次调用交给片内某个实现模块），不含构造函数与注入格」，而这个字面读数把 `get program` 那个访问器也算进去，于是成员侧比文件侧多一格、交付的树上「两侧等势」不成立；同一段自己的括号定义（只数转发行）又只剩十八行，比文件侧少三格，于是「加一行即越界」的边界臂永远发不出红。本轮把三类格逐类点名（不含构造函数 · 不含访问器 · 不含注入的协作者格），并把 `run` / `report` / `progress` 写成**计入**——它们是门面自己的命令面 / 输出面 / 进度面，剔出去读数就落到文件侧以下；Steps 的边界臂与邻居臂、Acceptance 的口径、Constraints ③ 的「为什么仍判深度」同一批改成「加一行方法而不增该片实现模块即红 / 加一行方法并落它那一份实现文件即绿」（F1）。**可删除性 pin 的三条臂各得一处可读的注册面，且规则那条有了自己的可红句**——原先只写了命令壳那一条（文件集与注册行集双向相等），板面那条「每个投影行一处注册」在树上没有可指的表（`crashed:` 一族横跨 `run/ledger/ledger.ts` · `run/index.ts` · `surface/render/board.ts` · `surface/words/words.ts` 四处，而 T19 的 Files 一个都不许动），判据那条连可红句都没有；本轮把三条各自补齐：壳一族点名 `surface/commands/declare.ts#CLI_COMMANDS`，板面一族的注册面点名 `surface/words/words.ts` 的 board 词面（`BoardFactWords` 的 `orphan` / `crashed` 两行加 `RefusalWords#token` 的 `refused:` 一行）并断言 `run/index.ts#BoardFacts` 三个树事实格各在那一族里有一行，判据一族点名 `docs/judging/rules.ts#RULE_REGISTRY` 的 `create()` 所指策略类并给出「删掉表里一行而那个类还在 ⇒ 点名那一行」（F4；本条不新增 Files，三条断言都是对树上现成注册面的读）。**欠编排者的回填从四处里的两处扩到三处，且同一批要纠一个拼写**——Issue inventory 的 P39 行与 Phase inventory 行、D104 一样带着无条件的非目标「不改消费面任何字节」，而具名例外的指针只挂在后两处，于是簿记的那一句「四处」在自己的清册上确实对得上，但清册漏了一个面；本轮把 ④ 写成三处逐处补指针，并把 Phase inventory 的 P39 行 ② 的 `identity/registry/`（目录形）纠正成单文件 `packages/cdd-engine/src/docs/identity/registry.ts`——spec §1.2 已定「登记表不设目录」，这是登记面自身的拼写错、不是新欠一笔（F3）。**F2 不落**：T20 的两条供给边（T3 的 `Paths#root` · T5 的 `detectHost`）与七个 `tests/parity` 写者的载体边都是 `DependsOn` 集，属编排者写权，本轮不写。任务 id 集与 `DependsOn` 集未动 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |
 | v0.67 | 2026-11-28 | docs-fix 轮五十二（F1 · F3 为 warn，两条内容面落地，未放宽判据；F2 落在结构面，在本轮写权之外，原样交编排者）：**章程的登记行按 id 认，不按引语认**——F1 指出第 ④ 条用一句引语去挑行，挑出来的是另一组：引语逐字出现的是 D95 与两处 inventory 行，而当时点名的 D104 写的是同一条非目标的肯定形；本轮把该条改成按 id 逐行点名 D95（相位注册在这一行）· D104（形态重裁定）· Issue inventory 的 P39 行 · Phase inventory 的 P39 行，并写明这几行都不是记录面（spec §3.4 的记录面是已闭合文档的正文与变更记录），故一并补上例外指针，收口读者顺着 Phase inventory 行的引用走到两处决策记录时不再读到没有例外的绝对句。F3 指出 T19 的 `AGENTS.md` 那一笔是「若 T18 未覆盖」的条件句，而 T18 已经覆盖（`AGENTS.md` 的目录表在翻面那次改指里已换成四切片），该步于是只剩一条没有写权的要求；本轮把这一笔从 Files · Produces · Steps · Acceptance 一并撤下，`AGENTS.md` 由 T18 的零命中判据判、spec 验收 #5 由不变量 pin 判。F2 要的是给 T20 的 `DependsOn` 补上 `3, 5`，那是结构面（任务 id 集与 `DependsOn` 集），本轮不动。 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |
+| v0.68 | 2026-11-28 | **编排者补一笔（用户裁定 · 翻面后交付）**：W13 收口加 **`scripts/monitor-dispatch.ts`** —— 从 pi 的 session 日志直接判「派发的 prompt 是否真的进去了」。这条需求来自一次真实故障（拼装错位 ⇒ spawn 成功而 prompt 未进去 ⇒ child 把整份 spec 与计划都做了），翻面后实测四条翻面后 session 全部 `OK`（v27 · role/target/wave 正确 · `## Round context` 非空且值与账本一致），本任务把它固化成可重复的诊断。**它是诊断不是门**：不进 `precommit` / `validate` 的判据链 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |

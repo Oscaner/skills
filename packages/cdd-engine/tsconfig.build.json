@@ -11,7 +11,7 @@
     "strict": true,
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "src-next",
+    "rootDir": "src",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
@@ -20,6 +20,6 @@
     "allowJs": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["src-next"],
-  "exclude": ["src-next/**/__tests__/**"]
+  "include": ["src"],
+  "exclude": ["src/**/__tests__/**"]
 }

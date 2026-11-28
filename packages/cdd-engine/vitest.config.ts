@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     pool: "forks", // node:test compatibility mode (avoids worker_threads interference with execa mocks)
-    // The CLI black-box cases spawn `node packages/cdd-engine/src-next/bin.ts` straight
+    // The CLI black-box cases spawn `node packages/cdd-engine/src/bin.ts` straight
     // (Node ≥22.18 native type stripping) — no dist materialization exists and none is
     // needed. The suite runs on a bare checkout: the binary entry is the source file itself.
     // Memory-bounded concurrency (2026-09-17): the previous default spawned one
@@ -18,9 +18,8 @@ export default defineConfig({
     maxConcurrency: 2,
     testTimeout: 20000,
     coverage: { provider: "v8" },
-    // Post-cutover (T15): the src-next/ tree is the engine's single active plane — the
-    // old src/ project died with the cutover, so the suite is one project over the new
-    // tree's colocated tests (src-next/**/__tests__/**/*.test.ts).
-    include: ["src-next/**/__tests__/**/*.test.ts"],
+    // One tree, one collection root: the engine's own source is `src/`, and every test is
+    // colocated with the slice it defends (`src/**/__tests__/`).
+    include: ["src/**/__tests__/**/*.test.ts"],
   },
 });

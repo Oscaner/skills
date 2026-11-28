@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
+      "revision": "4efbe61f22a8ea2a4f24b01bd0d37e9a84d6aebf"
     }
   },
   "mainPath": [
@@ -29,9 +29,9 @@
       "step": "01",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/contract/completion-criterion.ts",
-          "line": 89,
-          "end_line": 108
+          "path": "packages/cdd-engine/src/docs/judging/completion.ts",
+          "line": 147,
+          "end_line": 218
         }
       ]
     },
@@ -44,14 +44,14 @@
       "step": "02",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/handoff-schema.ts",
-          "line": 47,
-          "end_line": 56
+          "path": "packages/cdd-engine/src/run/dispatch/handoff.ts",
+          "line": 99,
+          "end_line": 117
         },
         {
-          "path": "packages/cdd-engine/src-next/contract/completion-criterion.ts",
-          "line": 143,
-          "end_line": 160
+          "path": "packages/cdd-engine/src/docs/judging/completion.ts",
+          "line": 319,
+          "end_line": 344
         }
       ]
     },
@@ -64,14 +64,14 @@
       "step": "03",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 266,
-          "end_line": 271
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 199,
+          "end_line": 217
         },
         {
-          "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 338,
-          "end_line": 348
+          "path": "packages/cdd-engine/src/surface/render/templates.ts",
+          "line": 501,
+          "end_line": 509
         }
       ]
     },
@@ -84,9 +84,9 @@
       "step": "04",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/contract/completion-criterion.ts",
-          "line": 225,
-          "end_line": 244
+          "path": "packages/cdd-engine/src/docs/judging/completion.ts",
+          "line": 212,
+          "end_line": 317
         }
       ]
     },
@@ -99,9 +99,9 @@
       "step": "05",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 296,
-          "end_line": 310
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 218,
+          "end_line": 235
         }
       ]
     },
@@ -113,9 +113,9 @@
       "tag": "终态",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 80,
-          "end_line": 80
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 86,
+          "end_line": 87
         }
       ]
     },
@@ -127,14 +127,14 @@
       "tag": "用户裁定",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 65,
-          "end_line": 65
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 103,
+          "end_line": 106
         },
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 272,
-          "end_line": 277
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 98,
+          "end_line": 99
         }
       ]
     },
@@ -146,14 +146,14 @@
       "tag": "CDD_BLOCKED",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 248,
-          "end_line": 252
+          "path": "packages/cdd-engine/src/run/advance/next.ts",
+          "line": 186,
+          "end_line": 198
         },
         {
-          "path": "packages/cdd-engine/src-next/session/ledger.ts",
-          "line": 73,
-          "end_line": 122
+          "path": "packages/cdd-engine/src/run/ledger/ledger.ts",
+          "line": 50,
+          "end_line": 64
         }
       ]
     }

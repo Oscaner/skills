@@ -16,5 +16,5 @@
     "allowJs": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["src-next", "vitest.config.ts"]
+  "include": ["src", "vitest.config.ts"]
 }

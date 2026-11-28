@@ -21,8 +21,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { CLI_COMMANDS } from "../../cdd-engine/src-next/face/declare.ts";
-import { HOSTS, type HostId } from "../../cdd-engine/src-next/face/host.ts";
+import { HOSTS, type HostId } from "../../cdd-engine/src/env/process/host.ts";
+import { CLI_COMMANDS } from "../../cdd-engine/src/surface/commands/declare.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -48,7 +48,7 @@ const ROOT_BEHAVIOR_HEADINGS = [
 ];
 
 // The engine's top-level CLI surface — DERIVED from the engine's own declaration rows
-// (`face/declare.ts`'s `CLI_COMMANDS`) instead of hand-copied. The declaration is the single
+// (`surface/commands/declare.ts`'s `CLI_COMMANDS`) instead of hand-copied. The declaration is the single
 // source, so every consumer surface (the engine README CLI table, the kairos README surface
 // sentence, the `CLAUDE.md` engine line) is judged against it — order included.
 const CDD_SUBCOMMANDS: readonly string[] = CLI_COMMANDS.map((command) => command.name);
@@ -530,7 +530,7 @@ const NOMINAL_SECTION_HEADING: Record<string, string> = {
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
  *  source), ship status from the same contract row — the nominal table has no cursor row;
  *  `cursor-agent` survives on these surfaces only as the residue case's banned token. */
-/** One row of the canonical harness contract (the typed host plane, src-next/face/host.ts) —
+/** One row of the canonical harness contract (the typed host plane, env/process/host.ts) —
  *  the nominal-table derivation source (id + cli + detect + ship). */
 interface HarnessContractRow {
   cli?: unknown;

@@ -8,13 +8,20 @@
 // deliberately NOT wired into `precommit` / `validate`: it judges no tree, and this phase adds
 // no judging surface.
 //
-// THE READ FACE, stated rather than left to the reader: the judge is "this band" — a prompt
-// whose first line is `$version <n>` with the version THIS file's `TEMPLATE_PROMPT` declares.
-// A prompt from an older band answers `not-applicable`: it is neither `OK` (it is not this
-// band's object) nor `MISSING` (its prompt is not "never arrived"), and `MISSING` keeps its
-// one meaning only if older bands stop impersonating a red. The same scoping is why rule ③
-// judges the version line by EQUALITY rather than presence, and why rule ④'s required set is
+// THE READ FACE, stated rather than left to the reader: the judge is "this band" — a dispatch
+// body (the record's `# CDD dispatch —` line) whose version line, the line immediately above
+// it, is `$version <n>` with the version THIS file's `TEMPLATE_PROMPT` declares. Anything
+// else is outside the face and answers `not-applicable`: a prompt from an older band, and a
+// prompt carrying no version line at all — it is neither `OK` (it is not this band's object)
+// nor `MISSING` (its prompt is not "never arrived"), and `MISSING` keeps its one meaning only
+// if out-of-band prompts stop impersonating a red. The same scoping is why rule ③ judges the
+// version line by EQUALITY rather than presence — and why that equality is the band gate's
+// one check, never an entry in rule ③'s missing list — and why rule ④'s required set is
 // taken from the same band's row table.
+//
+// The body is located, not assumed: a harness may prepend its own bootstrap to the first user
+// turn, so the version line and every structure line are read relative to the `# CDD dispatch
+// —` line rather than to the record's line 0.
 //
 // THE FOUR RULES, each independently red:
 //   ① a record with `type: "message"` and `role: "user"` exists — absent is exactly "the
@@ -38,7 +45,8 @@
 // families live in `packages/cdd-engine/src/surface/render/templates.ts#TEMPLATE_PROMPT`, and
 // a cell declared `requiredOn: NEVER` with `absent: "none"` (the ruling sidecar) is present
 // and NOT owed — a hand-copied roster of cell names has already been wrong once by flattening
-// that row into "required on the fix faces", which would fail most legal rounds.
+// that row into "required on the fix faces", which would fail most legal rounds. Not owed is
+// not unread: when that row carries a path, the name is compared like any artifact cell's.
 //
 // Fixtures are synthetic and live in `scripts/__tests__/monitor-dispatch.test.ts`; no fragment
 // of a real session is committed — this repository is public and a session file is a whole
@@ -138,10 +146,13 @@ const NEVER_OWED = "declared never-required on this row";
 const NOT_OWED = "no arm on this row covers the dispatch's target type";
 const FRAME_ONLY = "only a frame-fact arm hits, and the prompt carries no frame facts";
 
-/** One laid-out cell and what this dispatch owes it. */
+/** One laid-out cell and what this dispatch owes it. `unowed` is the declared
+ *  `requiredOn: NEVER` + `absent: "none"` row: it sits on the layout, no target type owes it,
+ *  and a value it DOES carry is still compared — so a wrong sidecar path cannot slip past a
+ *  cell this read face never looks at. */
 interface CellPlan {
   readonly token: string;
-  readonly state: "required" | "not-applicable";
+  readonly state: "required" | "unowed" | "not-applicable";
   readonly detail: string;
 }
 
@@ -169,9 +180,12 @@ const planOf = (layout: readonly ContextLine[], type: string): readonly CellPlan
     const neverOwed = line.requiredOn.every(
       (arm) => arm.types !== "always" && arm.types.length === 0,
     );
+    if (neverOwed) {
+      plans.push({ token, state: "unowed", detail: NEVER_OWED });
+      continue;
+    }
     const covered = line.requiredOn.some((arm) => armCoversType(arm, type));
-    const detail = neverOwed ? NEVER_OWED : covered ? FRAME_ONLY : NOT_OWED;
-    plans.push({ token, state: "not-applicable", detail });
+    plans.push({ token, state: "not-applicable", detail: covered ? FRAME_ONLY : NOT_OWED });
   }
   return plans;
 };
@@ -210,7 +224,9 @@ class RoundContext {
   }
 }
 
-/** One prompt, as the child received it. */
+/** One prompt, as the child received it. The dispatch body starts at the record's own
+ *  `# CDD dispatch —` line, so a bootstrap a harness prepended to the first user turn is
+ *  skipped rather than judged as the band. */
 class DispatchPrompt {
   readonly text: string;
 
@@ -227,24 +243,41 @@ class DispatchPrompt {
     return this.text.trim() === "";
   }
 
-  /** The band's version, or null when the first line is not a version line at all. */
+  /** Where the body starts: the heading line, or — when the heading itself is what broke —
+   *  the line after the first version line, so a mangled heading still reads as this band's
+   *  prompt with one missing structure line rather than as an out-of-face one. */
+  get bodyStart(): number {
+    const lines = this.lines;
+    const heading = lines.findIndex((line) => line.startsWith(DISPATCH_HEADING));
+    if (heading !== -1) return heading;
+    const version = lines.findIndex((line) => VERSION_LINE.test(line));
+    return version === -1 ? lines.length : version + 1;
+  }
+
+  /** The body's lines — the record sliced from its own body start. */
+  get body(): readonly string[] {
+    return this.lines.slice(this.bodyStart);
+  }
+
+  /** The band's version: the value of the version line immediately above the body, or null
+   *  when the body is not preceded by one. Null is out of face, never a missing line. */
   get bandVersion(): number | null {
-    const match = VERSION_LINE.exec(this.lines[0] ?? "");
+    const match = VERSION_LINE.exec(this.lines[this.bodyStart - 1] ?? "");
     return match === null ? null : Number(match[1]);
   }
 
   get context(): RoundContext | null {
-    return RoundContext.of(this.lines);
+    return RoundContext.of(this.body);
   }
 
-  /** The structure lines this prompt lacks, each named as the line it should be. The version
-   *  line is judged by EQUALITY with THIS band's version. */
-  structureMissing(version: number): readonly string[] {
-    const lines = this.lines;
+  /** The structure lines this body lacks, each named as the line it should be. The version
+   *  line is not listed: the band gate already judged it by EQUALITY, and a body without one
+   *  never reaches rule ③ — so `MISSING` here means "the dispatch's own body is broken". */
+  structureMissing(): readonly string[] {
     const missing: string[] = [];
-    if (!lines.some((line) => line.startsWith(DISPATCH_HEADING))) missing.push(DISPATCH_HEADING);
-    if (!lines.includes(RoundContext.HEADING)) missing.push(RoundContext.HEADING);
-    if (this.bandVersion !== version) missing.push(`$version ${version}`);
+    if (!this.body.some((line) => line.startsWith(DISPATCH_HEADING)))
+      missing.push(DISPATCH_HEADING);
+    if (!this.body.includes(RoundContext.HEADING)) missing.push(RoundContext.HEADING);
     return missing;
   }
 }
@@ -276,8 +309,9 @@ export class SessionLog {
 
   /** The dispatch prompt this log carries, or null when no user message exists. A harness that
    *  prepends its own bootstrap to the first user turn still reads: the record carrying the
-   *  band's heading is the dispatch, and when NO record carries it the first user record is
-   *  what rule ③ judges — so a prompt whose heading was mangled stays red. */
+   *  band's heading is the dispatch (and `DispatchPrompt` slices it at that heading), and when
+   *  NO record carries it the first user record is what rule ③ judges — so a prompt whose
+   *  heading was mangled stays red on the heading line rather than passing quietly. */
   userPrompt(): string | null {
     const texts = this.#records.filter(isUserMessage).map(textOfMessage);
     return texts.find((text) => text.includes(DISPATCH_HEADING)) ?? texts[0] ?? null;
@@ -321,35 +355,55 @@ interface LedgerRow {
 }
 
 /** The ledger facts rule ④ compares against — the workspace's `progress.json`, or a synthetic
- *  document in a test. An absent document answers the empty set, and the comparison face says
- *  so instead of inventing a red. */
+ *  document in a test. A document that is missing or will not parse answers the empty set and
+ *  says why, so a workspace read mid-write yields unjudged cells instead of a stack trace out
+ *  of a multi-session run — the same tolerance `SessionLog.of` gives a truncated record. */
 export class LedgerFacts {
   static readonly FILE = "progress.json";
 
+  static readonly ABSENT = "no ledger document";
+
+  static readonly CORRUPT = "corrupt ledger document";
+
   readonly #rows: readonly LedgerRow[];
+  readonly #state: "read" | "absent" | "corrupt";
   readonly #source: string;
 
   /** A synthetic document, in the same shape the workspace file holds. */
   static of(document: unknown, source = "<synthetic>"): LedgerFacts {
     const rows = (document as { waves?: unknown } | null)?.waves;
-    return new LedgerFacts(Array.isArray(rows) ? rows.map(rowOf).filter(isRow) : [], source);
+    return new LedgerFacts(
+      Array.isArray(rows) ? rows.map(rowOf).filter(isRow) : [],
+      "read",
+      source,
+    );
   }
 
   /** The workspace's own document, when there is one. */
   static read(workspaceDir: string, repoRoot: string): LedgerFacts {
     const file = path.resolve(repoRoot, workspaceDir, LedgerFacts.FILE);
-    if (!existsSync(file)) return new LedgerFacts([], "no ledger document");
-    return LedgerFacts.of(JSON.parse(readFileSync(file, "utf8")) as unknown, file);
+    if (!existsSync(file)) return new LedgerFacts([], "absent", LedgerFacts.ABSENT);
+    try {
+      return LedgerFacts.of(JSON.parse(readFileSync(file, "utf8")) as unknown, file);
+    } catch {
+      return new LedgerFacts([], "corrupt", `${LedgerFacts.CORRUPT}: ${file}`);
+    }
   }
 
-  private constructor(rows: readonly LedgerRow[], source: string) {
+  private constructor(
+    rows: readonly LedgerRow[],
+    state: "read" | "absent" | "corrupt",
+    source: string,
+  ) {
     this.#rows = rows;
+    this.#state = state;
     this.#source = source;
   }
 
-  /** Whether the document exists at all — a missing document has no comparison face. */
+  /** Whether the document was READ — a missing or corrupt one has no comparison face, so every
+   *  dependent cell reads `not-applicable` with `source` as the reason. */
   get present(): boolean {
-    return this.#source !== "no ledger document";
+    return this.#state === "read";
   }
 
   get source(): string {
@@ -492,23 +546,28 @@ class CellComparisons {
       }),
       "final",
     );
-    return scope.values.valueOf("INPUT_REVIEWS").endsWith(expected)
+    return path.basename(scope.values.valueOf("INPUT_REVIEWS")) === expected
       ? OK
       : MISMATCH(`INPUT_REVIEWS against \`${expected}\``);
   }
 
   /** The ruling sidecar: the literal `none` is the declared `absent: "none"` form and is never
-   *  owed, so it reads `not-applicable`; a path compares against the round's own rulings name. */
+   *  owed, so it reads `not-applicable`; a path value IS compared — the row is present and
+   *  this cell is the one place its name can be checked at all. */
   #rulingsOf(scope: CellScope): CellVerdict {
     const value = scope.values.valueOf("INPUT_RULINGS");
     if (value === "none")
       return NOT_APPLICABLE("the declared `none` form — the row is present and not owed");
     if (scope.round === null) return NOT_APPLICABLE("the handoff names no round");
     const expected = ArtifactIdentity.nameOf(scope.round, "rulings");
-    return value.endsWith(expected) ? OK : MISMATCH(`INPUT_RULINGS against \`${expected}\``);
+    return path.basename(value) === expected
+      ? OK
+      : MISMATCH(`INPUT_RULINGS against \`${expected}\``);
   }
 
-  /** One artifact cell against `nameOf` for this round and that kind. */
+  /** One artifact cell against `nameOf` for this round and that kind. The comparison is byte
+   *  equality with the rendered name — the value's own directory is allowed, a file whose
+   *  name merely ends with the expected one is not. */
   #artifactOf(token: string, scope: CellScope): CellVerdict {
     if (!scope.ledger.present) return NOT_APPLICABLE(scope.ledger.source);
     if (scope.round === null) {
@@ -518,7 +577,7 @@ class CellComparisons {
       return MISMATCH(`the ledger records no round at ${coordinateOf(scope.round)}`);
     }
     const expected = ArtifactIdentity.nameOf(scope.round, ARTIFACT_CELLS[token] as ArtifactKind);
-    return scope.values.valueOf(token).endsWith(expected)
+    return path.basename(scope.values.valueOf(token)) === expected
       ? OK
       : MISMATCH(`${token} against \`${expected}\``);
   }
@@ -582,18 +641,22 @@ export class DispatchMonitor {
       return blocked(file, "record", `no \`type:"message"\` record with \`role:"user"\``);
     }
     const dispatch = new DispatchPrompt(prompt);
+    if (dispatch.blank) return blocked(file, "body", "the user message's body is blank");
     const version = TEMPLATE_PROMPT.$version;
-    if (dispatch.bandVersion !== null && dispatch.bandVersion !== version) {
+    const band = dispatch.bandVersion;
+    if (band !== version) {
       return {
         file,
         verdict: "not-applicable",
         rule: null,
-        detail: `band $version ${dispatch.bandVersion}`,
+        detail:
+          band === null
+            ? "no `$version` line above the dispatch body — not this band's object"
+            : `band $version ${band}`,
         cells: [],
       };
     }
-    if (dispatch.blank) return blocked(file, "body", "the user message's body is blank");
-    const missing = dispatch.structureMissing(version);
+    const missing = dispatch.structureMissing();
     if (missing.length > 0) {
       return blocked(file, "structure", `missing the line(s): ${missing.join(" · ")}`);
     }
@@ -630,6 +693,10 @@ export class DispatchMonitor {
         continue;
       }
       if (value === "") {
+        if (plan.state === "unowed") {
+          cells.push({ token: plan.token, state: "not-applicable", detail: plan.detail });
+          continue;
+        }
         failures.push(`${plan.token} is owed on this row and the prompt does not carry it`);
         cells.push({ token: plan.token, state: "present", detail: "absent" });
         continue;

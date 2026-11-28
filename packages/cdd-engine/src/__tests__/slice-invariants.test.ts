@@ -4,9 +4,11 @@
 //
 //   ① the eight entry-class invariants, judged by CONTENT: the comment block immediately
 //      above each entry class, folded into paragraphs, must still carry the one sentence
-//      that slice declares. Rewriting that sentence goes red; rewording the same block's
-//      Rule zero paragraph does not — an "the first paragraph exists" assertion could not
-//      demonstrate that arm, because every one of these blocks has a continuation below it;
+//      that slice declares. Rewriting that sentence goes red; rewording the same block's other
+//      paragraphs does not — and that neighbour arm locates those paragraphs by structure (a
+//      run the sentence is not in), never by a phrase a legal reword may drop. An "the first
+//      paragraph exists" assertion could not demonstrate that arm at all, because every one
+//      of these blocks has a continuation below it;
 //   ② the depth criterion — one forwarding row of the entry class per implementation module
 //      of its slice. The counted set is the PROTOTYPE's function-valued members: the
 //      constructor is not a row, an accessor is not a row (a getter has no `value`), and an
@@ -78,6 +80,31 @@ const paragraphsOf = (block: readonly string[]): readonly string[] => {
   if (current.length > 0) paragraphs.push(current.join(" ").replace(/\s+/g, " "));
   return paragraphs;
 };
+
+/** One comment block's paragraphs as line-index runs — the fold's own grouping, so a reword
+ *  can be driven by "a paragraph other than the invariant's" instead of by a literal phrase a
+ *  legal reword is free to drop. */
+const paragraphRunsOf = (block: readonly string[]): readonly (readonly number[])[] => {
+  const runs: number[][] = [];
+  let current: number[] = [];
+  block.forEach((line, index) => {
+    if (proseOf(line) === "") {
+      if (current.length > 0) runs.push(current);
+      current = [];
+      return;
+    }
+    current.push(index);
+  });
+  if (current.length > 0) runs.push(current);
+  return runs;
+};
+
+/** The prose one paragraph run folds to, by the same fold `paragraphsOf` makes. */
+const paragraphTextOf = (block: readonly string[], run: readonly number[]): string =>
+  run
+    .map((index) => proseOf(block[index] as string))
+    .join(" ")
+    .replace(/\s+/g, " ");
 
 /** Whether one block still carries the slice's invariant sentence. The criterion is
  *  CONTAINMENT — the label's spelling and which paragraph the sentence lands in are free. */
@@ -157,15 +184,28 @@ describe("the entry classes state their slice's invariant, judged by content", (
     });
   }
 
-  it("stays green when only the same block's Rule zero paragraph is reworded", () => {
+  it("stays green when a paragraph other than the invariant's is reworded", () => {
     const block = blockAbove("surface/index.ts", "Cli");
-    const reworded = block.map((line) =>
-      line.includes("the 200-line cap is exceeded")
-        ? " * Rule zero — a totally different sentence about the cap, written this way instead."
+    const sentence = SLICE_INVARIANTS[3]?.sentence ?? "";
+    // The paragraphs to reword are found SYNTACTICALLY — every run the invariant sentence does
+    // not sit in — never by a literal phrase. A reword driven by a phrase stops demonstrating
+    // its own point the moment that phrase is legally reworded, and the Rule-zero paragraph is
+    // exactly the prose a later wave is free to rewrite.
+    const outside = new Set(
+      paragraphRunsOf(block)
+        .filter((run) => !paragraphTextOf(block, run).includes(sentence))
+        .flat(),
+    );
+    expect(outside.size, "the block carries a paragraph besides the invariant's").toBeGreaterThan(
+      0,
+    );
+    const reworded = block.map((line, index) =>
+      outside.has(index) && proseOf(line) !== ""
+        ? " * A size rule stated in words this test cannot know in advance."
         : line,
     );
     expect(reworded).not.toEqual(block);
-    expect(carriesInvariant(reworded, SLICE_INVARIANTS[3]?.sentence ?? "")).toBe(true);
+    expect(carriesInvariant(reworded, sentence)).toBe(true);
   });
 
   it("goes red when the invariant sentence itself is rewritten or dropped", () => {

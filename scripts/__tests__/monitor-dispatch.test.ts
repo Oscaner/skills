@@ -21,7 +21,11 @@
 //     exemption);
 //   · `INPUT_REVIEWS` compared only against the review record on the same line and cycle, and
 //     reading `not-applicable` when the ledger holds none;
-//   · one older-band prompt reading `not-applicable` — the scope's own red arm.
+//   · one older-band prompt reading `not-applicable` — the scope's own red arm;
+//   · a prompt carrying NO version line, and a this-band dispatch with a harness bootstrap
+//     prepended — both are scope arms too: the first is out of face (not `MISSING`), the
+//     second is in face (`OK`), because the body is located at its own heading line;
+//   · a corrupt ledger document, which is a state rather than a crash.
 //
 // The ledger is a synthetic document too: the real one lives under `.kairos/` and is ignored
 // by git, so it cannot be committed, and rule ④'s whole object is "the prompt disagrees with
@@ -83,6 +87,10 @@ interface Fixture {
   /** Omit the round-context HEADING line, keeping its prose mention (rule ③'s arm). */
   readonly dropContextHeading?: boolean;
   readonly version?: number;
+  /** Omit the version line entirely — a prompt that is not this band's object at all. */
+  readonly omitVersion?: boolean;
+  /** Lines a harness prepended to its first user turn, above the dispatch's own band. */
+  readonly prefix?: readonly string[];
   /** Replace the whole prompt — the blank-body arm. */
   readonly body?: string;
 }
@@ -90,7 +98,14 @@ interface Fixture {
 /** One fixture's bytes. */
 const promptOf = (fixture: Fixture): string => {
   if (fixture.body !== undefined) return fixture.body;
-  const lines = [`$version ${fixture.version ?? 27}`, fixture.heading, "", ...INSTRUCTIONS, ""];
+  const lines = [
+    ...(fixture.prefix ?? []),
+    ...(fixture.omitVersion === true ? [] : [`$version ${fixture.version ?? 27}`]),
+    fixture.heading,
+    "",
+    ...INSTRUCTIONS,
+    "",
+  ];
   if (fixture.dropContextHeading !== true) lines.push("## Round context", "");
   for (const [token, value] of fixture.cells) lines.push(`- \`${token}\`: ${value}`);
   lines.push("", "## Handoff schema", "", "{…}");
@@ -307,6 +322,56 @@ describe("each of the four rules is independently red", () => {
   });
 });
 
+describe("the artifact cells compare the name, not a suffix of it", () => {
+  it("goes red on a file name that merely ends with the rendered one", () => {
+    const cells: Cells = IMPLEMENT.cells.map(([token, value]) =>
+      token === "OUTPUT_REPORT" ? [token, "stale-tasks-19-implement-1-report.md"] : [token, value],
+    );
+    const reading = read({ ...IMPLEMENT, cells });
+    expect(reading.rule).toBe("cells");
+    expect(reading.detail).toContain("OUTPUT_REPORT");
+  });
+
+  it("accepts a value that carries a directory above the rendered name", () => {
+    // Real cells spell a workspace-relative path; the name is the basename, byte for byte.
+    const cells: Cells = DOCS_FIX_PLAN.cells.map(([token, value]) =>
+      token === "OUTPUT_HANDOFF" ? [token, `${WORKSPACE_DIR}/${value}`] : [token, value],
+    );
+    expect(read({ ...DOCS_FIX_PLAN, cells }).verdict).toBe("OK");
+  });
+});
+
+describe("INPUT_RULINGS is not owed, and is still compared when it names a path", () => {
+  /** The `fix` face with the ruling sidecar swapped for the given value. */
+  const withRulings = (value: string): Fixture => ({
+    heading: "# CDD dispatch — fix round",
+    cells: [
+      ["ROLE", "fix"],
+      ["TARGET_TYPE", "branch"],
+      ["INPUT_PLAN", PLAN],
+      ["INPUT_REVIEWS", `${WORKSPACE_DIR}/branch-review-2.c2.json`],
+      ["INPUT_RULINGS", value],
+      ["OUTPUT_REPORT", "branch-fix-2-report.md"],
+      ["OUTPUT_EVIDENCE", `${WORKSPACE_DIR}/branch-fix-2-test-evidence.json`],
+      ["OUTPUT_HANDOFF", "branch-fix-2.c2.json"],
+      ["WORKSPACE_DIR", WORKSPACE_DIR],
+      ["WORKSPACE_ID", WORKSPACE_ID],
+    ],
+  });
+
+  it("accepts the round's own rulings name", () => {
+    const reading = read(withRulings(`${WORKSPACE_DIR}/branch-fix-2.c2.rulings.json`));
+    expect(reading.verdict).toBe("OK");
+    expect(reading.cells.find((cell) => cell.token === "INPUT_RULINGS")?.state).toBe("present");
+  });
+
+  it("goes red on a sidecar path that names another round's file", () => {
+    const reading = read(withRulings(`${WORKSPACE_DIR}/branch-fix-3.c2.rulings.json`));
+    expect(reading.rule).toBe("cells");
+    expect(reading.detail).toContain("INPUT_RULINGS");
+  });
+});
+
 describe("the identity cell goes through the engine's one fold", () => {
   it('reads `ROLE: docs-fix` against a recorded `op: "fix"` as the same cell', () => {
     expect(read(DOCS_FIX_PLAN).verdict).toBe("OK");
@@ -367,6 +432,52 @@ describe("the read face is one band", () => {
 
   it("judges this band's prompt — a missing heading is MISSING, not not-applicable", () => {
     expect(read({ ...IMPLEMENT, dropContextHeading: true }).verdict).toBe("MISSING");
+  });
+
+  it("answers a prompt with no version line at all not-applicable", () => {
+    // The face is DEFINED by the version line: a record whose body opens with the heading and
+    // carries no `$version` line is not this band's object, and its prompt did arrive — so it
+    // is neither `MISSING` nor `OK`, and `MISSING` keeps its one meaning.
+    const reading = read({ ...IMPLEMENT, omitVersion: true });
+    expect(reading.verdict).toBe("not-applicable");
+    expect(reading.rule).toBeNull();
+    expect(reading.detail).toContain("$version");
+  });
+
+  it("locates the body at its heading, so a prepended bootstrap still reads OK", () => {
+    // A harness bootstrap sits above the band; the version line and the structure lines are
+    // judged relative to the `# CDD dispatch —` line, never to the record's line 0.
+    const reading = read({
+      ...IMPLEMENT,
+      prefix: ['<skill name="demo">', "bootstrap prose the harness prepended", "</skill>"],
+    });
+    expect(reading.verdict).toBe("OK");
+    expect(reading.rule).toBeNull();
+  });
+});
+
+describe("a corrupt ledger document is a state, not a crash", () => {
+  it("reads the dependent cells not-applicable instead of throwing out of the run", () => {
+    const workspace = ".kairos/cdd/corrupt";
+    mkdirSync(path.join(ROOT, workspace), { recursive: true });
+    writeFileSync(path.join(ROOT, workspace, LedgerFacts.FILE), '{"waves": [', "utf8");
+    const fixture: Fixture = {
+      ...IMPLEMENT,
+      cells: IMPLEMENT.cells.map(([token, value]) =>
+        token === "WORKSPACE_DIR"
+          ? [token, workspace]
+          : token === "WORKSPACE_ID"
+            ? [token, "corrupt"]
+            : [token, value],
+      ),
+    };
+    // No ledger is injected: the monitor reads the workspace's own (half-written) document.
+    const reading = new DispatchMonitor({ repoRoot: ROOT }).judge(logOfPrompt(fixture));
+    expect(reading.verdict).toBe("OK");
+    const unjudged = reading.cells.filter((cell) => cell.state === "not-applicable");
+    expect(unjudged.some((cell) => (cell.detail ?? "").includes("corrupt ledger document"))).toBe(
+      true,
+    );
   });
 });
 

@@ -362,12 +362,16 @@ export interface LifecycleOptions {
   readonly lineRows: LineRows;
 }
 
-/** The line leg's whole refusal — the verdict the render face prints and the wave board its
- *  `split` cause carries. The verdict is the drift station's value or the wave gate's; both
- *  answer the same one-line refusal shape. */
+/** The line leg's whole refusal — the verdict the render face prints, the wave board its
+ *  `split` cause carries, and the hop the refusal prescribes. The verdict is the drift
+ *  station's value or the wave gate's; both answer the same one-line refusal shape. The hop is
+ *  the row's OWN when it prescribes one (`brief-drift` names the drifted batch's review), and
+ *  the caller's frontier hop otherwise — the ONE cell the `next:` prints, so a refusal can
+ *  never name a round its verdict does not. */
 export interface LineRefusal {
   readonly verdict: WaveVerdict | LineRowRefusal;
   readonly tree: WaveBoard | null;
+  readonly hop?: NextHop | null;
 }
 
 /**
@@ -415,7 +419,9 @@ export class Lifecycle {
     // so the station is handed the very hop the outcome carries.
     const hop = this.#reads.hopOf?.(frame) ?? null;
     const drift = this.#drift.refusalOf({ type: frame.type, pipeline: frame.pipeline, hop });
-    if (drift !== null) return { verdict: drift, tree: null };
+    // A row that prescribes a round of its own (the drifted batch's review) replaces the
+    // frontier hop the caller handed in, so the refusal's cause and its `next:` name one line.
+    if (drift !== null) return { verdict: drift, tree: null, hop: drift.hop ?? hop };
     const wave = this.waveVerdictOf(frame);
     if (wave !== null && !wave.ok) return { verdict: wave, tree: this.waveTreeOf(frame) };
     // The line's own document rows run LAST, and in the shipped order: a moved document ABOVE
@@ -499,7 +505,9 @@ export class Lifecycle {
         verdict: refused.verdict,
         checked: verdict.checked,
         tree: refused.tree,
-        hop: this.#reads.hopOf?.(frame) ?? null,
+        // The row's own hop when it prescribes one (the drifted batch's review), the frontier
+        // hop otherwise — the ONE cell the refusal's `next:` prints.
+        hop: refused.hop ?? this.#reads.hopOf?.(frame) ?? null,
       };
     }
     const landing = await this.#land(frame);

@@ -282,11 +282,25 @@ export class LinePhase {
    *  next dispatch. No recorded identity or no projection means no drift evidence, so the
    *  answer is "not drifted" — a false reopen costs a whole round. */
   briefDriftedAt(key: string): boolean {
+    return this.briefDriftPairOf(key) !== null;
+  }
+
+  /** The two digest ends of one WAVE line's movement — the version its review bound and
+   *  today's task-only projection, both on the recorded basis; null when the line recorded no
+   *  brief identity, the projection cannot be rendered or the bytes have not moved. It is the
+   *  drift FACT alone (`briefDriftedAt` is this read's boolean face) and the ONE read a
+   *  refusal's brief diagnosis prints, so the reopen and the diagnosis can never hash two
+   *  different projections. */
+  briefDriftPairOf(key: string): { readonly recorded: string; readonly current: string } | null {
     const recorded = this.#facts.reviewedOf(LinePhase.waveLineWord(key));
-    if (recorded === null || recorded.kind !== "brief") return false;
+    if (recorded === null || recorded.kind !== "brief") return null;
     const projection = this.#projection(key);
-    if (projection === null) return false;
-    return recorded.driftFrom(projection) === "drift";
+    if (projection === null) return null;
+    if (recorded.driftFrom(projection) !== "drift") return null;
+    return {
+      recorded: recorded.hash,
+      current: ReviewedIdentity.hashOf(projection, recorded.basis),
+    };
   }
 
   /** A wave line's open phase, read off the same one walk: the not-yet-implemented wave is

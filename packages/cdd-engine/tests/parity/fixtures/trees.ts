@@ -104,8 +104,13 @@ const taskBlock = (id: number, dependsOn = "none"): readonly string[] => [
 
 /** A doc-contract-clean plan carrying `tasks` task blocks — independent (one wide
  *  derived layer) unless `chain`, where each task depends on the one before it (one
- *  task per layer). */
-export const planText = (tasks = 1, chain = false): string =>
+ *  task per layer). `deps` states the edges explicitly for a tree whose SHAPE is the
+ *  derivation: a plan with more than one ready task beside an earlier batch still open. */
+export const planText = (
+  tasks = 1,
+  chain = false,
+  deps: Readonly<Record<number, readonly number[]>> = {},
+): string =>
   [
     "---",
     "title: P9 plan",
@@ -119,9 +124,17 @@ export const planText = (tasks = 1, chain = false): string =>
     "",
     "- keep the corpus small",
     "",
-    ...Array.from({ length: tasks }, (_, index) =>
-      taskBlock(index + 1, chain && index > 0 ? String(index) : "none"),
-    ).flat(),
+    ...Array.from({ length: tasks }, (_, index) => {
+      const id = index + 1;
+      const declared = deps[id];
+      const edge =
+        declared === undefined || declared.length === 0
+          ? chain && index > 0
+            ? String(index)
+            : "none"
+          : declared.join(", ");
+      return taskBlock(id, edge);
+    }).flat(),
     "## Change history",
     "",
     "| Version | date | summary | author |",
@@ -498,6 +511,13 @@ export interface TreeOptions {
   /** Plant a CLOSED phase-spec line whose recorded version the document STILL holds — the
    *  closed line's `unchanged` row (`review` on it is refused, not dispatched). */
   readonly specClosed?: boolean;
+  /** The wave face's `brief-drift` row's tree: a plan whose derived batches leave an EARLIER
+   *  batch OPEN while the frontier is another task group, and that earlier batch's recorded
+   *  brief moved past the version its review bound. The two open batches are the cell's whole
+   *  input — on every other fixture the drifted batch IS the frontier, so a reader that only
+   *  walks the frontier prints the frontier's reason and never names the round the moved
+   *  brief owes. */
+  readonly briefDriftOpenBatch?: boolean;
   /** Plant a CLOSED PLAN line whose own document moved while the specification did not — the
    *  arm `specDrift` cannot reach, because there both faces point at the spec. */
   readonly planDrift?: boolean;
@@ -533,12 +553,18 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
   // segment has the two rows its marker and label columns are judged on.
   const tasks = options.twoWaves === true ? 2 : (options.tasks ?? 1);
   const chain = options.twoWaves === true || options.chain === true;
+  // The brief-drift tree's own decomposition: two ready tasks beside a task whose dependency
+  // is done, so the derived batches are [1,2] · [3] · [4] and the frontier (`2,3`) is NOT the
+  // batch whose brief moved.
+  const briefDriftDeps: Readonly<Record<number, readonly number[]>> =
+    options.briefDriftOpenBatch === true ? { 3: [1], 4: [3] } : {};
+  const planTasks = options.briefDriftOpenBatch === true ? 4 : tasks;
   const rounds: WaveRounds = options.rounds ?? (shape === "doc-drift" ? "review" : "none");
   const snapshot = options.snapshot ?? true;
   const docsFor = (): readonly FixtureFile[] => [
     { path: SPEC_REL, text: SPEC_TEXT },
     { path: OVERALL_REL, text: OVERALL_TEXT },
-    { path: PLAN_REL, text: planText(tasks, chain) },
+    { path: PLAN_REL, text: planText(planTasks, chain, briefDriftDeps) },
   ];
   const progress = (state: WaveRounds): FixtureFile => ({
     path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
@@ -798,7 +824,49 @@ export const treeFixture = (shape: TreeShape, options: TreeOptions = {}): TreeFi
     ...knobs,
   });
 
+  /** The wave face's `brief-drift` row's tree. Two derived batches stay open — `[1,2]` and
+   *  the frontier `2,3` — and the EARLIER one's recorded brief no longer matches its own
+   *  task-only projection. The closed `tasks-1` row is what makes the earlier batch
+   *  non-frontier at all: task 1 is done, task 2 is not, and tasks 3 and 4 sit behind it in
+   *  the decomposition. */
+  const briefDriftShape = (): TreeFixture => ({
+    shape,
+    files: [
+      ...docsFor(),
+      {
+        path: `.kairos/cdd/${PHASE_SLUG}/progress.json`,
+        text: `${JSON.stringify(
+          {
+            ...emptyProgress(),
+            waves: [
+              // The closed earlier wave — its carrier is what closes it, and its closed task
+              // set is what moves the frontier past it.
+              { wave: "1", rounds: [round("implement"), round("review")], planTasks: [1] },
+              // The open, drifted batch: its brief was reviewed and has since moved. No
+              // carrier, so the round reads as unreadable and the wave line stays OPEN.
+              {
+                wave: "1,2",
+                rounds: [round("implement"), round("review")],
+                reviewedRevision: {
+                  kind: "brief-revision",
+                  plan: PLAN_REL,
+                  brief_hash: STALE_DIGEST,
+                },
+              },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+      },
+      base,
+      reviewCarrier,
+    ],
+    ...knobs,
+  });
+
   if (options.corruptLock === true) return corruptLock();
+  if (options.briefDriftOpenBatch === true) return briefDriftShape();
 
   switch (shape) {
     case "empty":

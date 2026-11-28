@@ -5,17 +5,22 @@
 // faces hold it in two different ways:
 //   · a DOCUMENT face holds it when it was WORKED and its document moved past the version
 //     its review bound — the `doc-drift` row, with both digest ends;
-//   · the WAVE face holds it when it was ENTERED and its derived waves are not exhausted —
-//     the round above the request is the frontier's own, so the refusal prints the frontier
-//     hop's reason (`task-open` · `pending-fix` · …) and the command that would run it.
+//   · the WAVE face holds it in two rows, the brief's movement FIRST: an OPEN batch whose
+//     task-only projection moved past the version its review bound owns the `brief-drift` row
+//     and the review that batch owes (never the frontier's round — a batch that is not the
+//     frontier would otherwise be told to run somebody else's review); with no open batch
+//     moved, an entered and unexhausted wave face owns the round above the request, so the
+//     refusal prints the frontier hop's reason (`task-open` · `pending-fix` · …) and the
+//     command that would run it.
 // The order is the pipeline's own face order, so the most upstream cause wins: a moved
 // document above the wave face is never reported as an open batch.
 //
 // THE REFUSAL IS ONE VALUE with ONE diagnosis, and it names only facts this segment read: the
 // layer the moved identity belongs to, its coordinate and the two digest ends the review did
-// and does judge — never a sentence. The upstream-face precedence is the whole point: a split
-// batch is what the wave gate would report, and it is not the actionable cause while a round
-// above the request is still owed.
+// and does judge — never a sentence. Two layers, two tokens: a wave line's movement is its
+// BRIEF's projection, a document line's is the document's revision. The upstream-face
+// precedence is the whole point: a split batch is what the wave gate would report, and it is
+// not the actionable cause while a round above the request is still owed.
 //
 // The stations read the LINE's facts, never a second walk: `enteredAt` decides whether a
 // document face was ever worked (an unentered face holds no station) and `driftPairOf` is the
@@ -47,13 +52,15 @@ import type { TargetType } from "./target-faces.ts";
 /** One document's movement, as a refusal prints it: the layer, the line's coordinate and the
  *  two digest ends. The prefix width is the render face's (the diagnosis is DATA here). */
 export interface DriftDiagnosis {
-  /** The layer the moved identity belongs to — a document (`brief` is the wave face's). */
-  readonly layer: "doc";
-  /** The moved document's coordinate, on the one repo-relative basis. */
+  /** The layer the moved identity belongs to — a document (`doc`), or the wave line's
+   *  task-only brief projection (`brief`, a separate layer with a separate token). */
+  readonly layer: "doc" | "brief";
+  /** The moved identity's coordinate, on the one repo-relative basis — a document path, or
+   *  the wave line's batch key. */
   readonly line: string;
   /** The version the completed review bound. */
   readonly recorded: string;
-  /** The version the document holds now. */
+  /** The version the identity holds now. */
   readonly current: string;
 }
 
@@ -74,6 +81,10 @@ export interface LineRowRefusal {
   /** The hop target's two digest ends; absent when that target moved nowhere (or the caller
    *  asked only whether a cause holds). */
   readonly drift?: DriftDiagnosis;
+  /** The hop this row PRESCRIBES, when it prescribes one of its own — the brief's movement
+   *  names the drifted batch's review, which is not the frontier's hop the caller hands in.
+   *  Absent on every row whose `next:` is the caller's own hop. */
+  readonly hop?: NextHop;
 }
 
 /** What one station read needs: the request's target type, its pipeline cells and the hop the
@@ -95,11 +106,14 @@ interface StationLine {
 }
 
 /** The wave face's station read — the ONE pipeline cell this file asks for ("was the face
- *  entered, and are its waves still open?"). Injected, so this file never walks the plan or
- *  the ledger a second time. */
+ *  entered, and are its waves still open?", then "did an open batch's brief move?").
+ *  Injected, so this file never walks the plan or the ledger a second time. */
 export interface WaveFaceStation {
   /** Whether the wave face was entered and has not exhausted its derived waves. */
   readonly wavesHoldRequest: (pipeline: PipelineInput) => boolean;
+  /** The FIRST drifted OPEN batch's review hop, or null when no open batch's brief moved
+   *  (and when the face was never entered — an unentered face has no brief on record). */
+  readonly briefDriftHopOf: (pipeline: PipelineInput) => NextHop | null;
 }
 
 /**
@@ -134,6 +148,11 @@ export class DriftStation {
     if (index <= 0) return null;
     for (const face of PIPELINE_FACES.slice(0, index)) {
       if (face === "wave") {
+        // The brief's movement first — the batch that owes its own review, whose hop is the
+        // drifted batch's and NOT the frontier's the caller handed in; then the frontier's
+        // open round, whose `next:` is that hop.
+        const drifted = this.#waves.briefDriftHopOf(request.pipeline);
+        if (drifted !== null) return this.elsewhereOf(drifted);
         if (!this.#waves.wavesHoldRequest(request.pipeline)) continue;
         return this.elsewhereOf(request.hop ?? null);
       }
@@ -152,10 +171,12 @@ export class DriftStation {
   }
 
   /** The row a line that owes another round names — the hop's OWN reason and the hop target's
-   *  diagnosis, in ONE construction: the wave face's open station above (`refusalOf`) and the
+   *  diagnosis, in ONE construction: the wave face's two rows above (`refusalOf`) and the
    *  line leg's own lookahead row (`line-rows.ts#elsewhereOf`, which delegates here) print the
-   *  same value, so neither can name a round the other refuses. A caller that wired no hop
-   *  keeps the declared closure token rather than inventing a reason. */
+   *  same value, so neither can name a round the other refuses. The hop rides the value, so
+   *  the row that prescribes a round other than the caller's (`brief-drift`) prints THAT round.
+   *  A caller that wired no hop keeps the declared closure token rather than inventing a
+   *  reason. */
   elsewhereOf(hop: NextHop | null): LineRowRefusal {
     const drift = hop === null ? null : this.diagnosisOf(hop);
     return {
@@ -163,6 +184,7 @@ export class DriftStation {
       leg: "line",
       reason: hop === null ? DISPATCH_REASON.closedLine.token : hop.reason,
       ...(drift === null ? {} : { drift }),
+      ...(hop === null ? {} : { hop }),
     };
   }
 
@@ -175,14 +197,20 @@ export class DriftStation {
 
   /** The DIAGNOSIS of the hop's own render target — the shipped composer's one rule, shared
    *  with the row a line at another phase owes (`line-rows.ts`), so one hop target has one
-   *  reading whichever row prints it. The
-   *  target's own type is the ledger key of the line it renders, and a branch target carries
-   *  its document in `plan` while every other doc shape carries it in `id`. Null when the
-   *  target names no document (a wave target's movement is the BRIEF's, a different layer this
-   *  station never diagnoses) or that document recorded no movement. */
+   *  reading whichever row prints it. A wave target's movement is its BRIEF's task-only
+   *  projection (`LinePhase#briefDriftPairOf`, the same read its reopen uses); every other
+   *  target's is the document's revision, whose ledger key is the target's own type (a branch
+   *  target carries its document in `plan` while every other doc shape carries it in `id`).
+   *  Null when the target names no identity (a bare terminal) or that identity recorded no
+   *  movement. */
   diagnosisOf(hop: NextHop | null): DriftDiagnosis | null {
     const target = hop === null ? null : hop.target;
     if (target === null) return null;
+    if (target.type === "wave") {
+      const key = String(target.id);
+      const pair = this.#lines.briefDriftPairOf(key);
+      return pair === null ? null : { layer: "brief", line: key, ...pair };
+    }
     const identity = this.#lines.identityOf({
       type: target.type,
       doc: target.type === "branch" ? null : target.id,

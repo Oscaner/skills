@@ -860,6 +860,69 @@ describe("the declared failures", () => {
     expect(refused.hop?.reason).toBe(hop.reason);
   });
 
+  it("names the drifted batch's own review, not the frontier's round", async () => {
+    const fx = fixture();
+    // A plan whose derived batches leave an EARLIER batch open: `[1,2] · [3] · [4]`, with the
+    // frontier at `2,3` once task 1 closes.
+    oneTaskPlan(fx, [
+      { id: 1, dependsOn: "none" },
+      { id: 2, dependsOn: "none" },
+      { id: 3, dependsOn: "1" },
+      { id: 4, dependsOn: "3" },
+    ]);
+    // The earlier wave closed on a clean review; the WIDE batch was reviewed and its brief has
+    // moved since, while its carrier keeps a blocker so the line stays OPEN.
+    fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "implement", cycle: 1 });
+    fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1"), { op: "review", cycle: 1 });
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1,2"), {
+      op: "implement",
+      cycle: 1,
+    });
+    fx.ledger.recordRound(RoundIdentity.lineWordOf("wave", "1,2"), { op: "review", cycle: 2 });
+    fx.carriedByKey.set("review:2", {
+      findings: [{ severity: "blocker", summary: "row" }],
+      status: null,
+    });
+    const reviewedBrief = "the brief the review bound\n";
+    fx.ledger.recordReviewed(
+      RoundIdentity.lineWordOf("wave", "1,2"),
+      ReviewedIdentity.record("brief", PLAN_REL, reviewedBrief),
+    );
+    // Today's projection is a DIFFERENT body — the wide batch's brief moved.
+    fx.briefBytes.reviewed = "today's projection\n";
+
+    const request = { command: "review", type: "branch" as const, plan: PLAN_REL };
+    const frame = fx.frame.of(request);
+    expect(frame.kind).toBe("frame");
+    if (frame.kind !== "frame") return;
+    // The frontier is ANOTHER task group, so the two readers can disagree: the hop this face
+    // owes is the drifted batch's review, and it is not the hop the frontier renders.
+    const frontier = fx.pipeline.hopOf(frame.pipeline);
+    expect(frontier.target?.id).not.toBe("1,2");
+    const hop = fx.pipeline.briefDriftHopOf(frame.pipeline);
+    expect(hop?.reason).toBe("brief-drift");
+    expect(hop?.route).toEqual({ kind: "review" });
+    expect(hop?.target).toEqual({ type: "wave", id: "1,2", plan: PLAN_REL });
+
+    const refused = fx.lifecycle.lineRefusalOf(frame);
+    expect(refused?.verdict).toMatchObject({ ok: false, leg: "line", reason: "brief-drift" });
+    // The diagnosis is the BRIEF's own two ends — the wave layer, its own coordinate — and the
+    // hop the refusal prescribes rides the verdict, so `next:` names the batch, not the frontier.
+    expect(refused?.verdict).toMatchObject({ drift: { layer: "brief", line: "1,2" } });
+    expect(refused?.hop?.target?.id).toBe("1,2");
+
+    // The neighbour arm: with the projection the review bound, nothing moved and the wave face
+    // answers its OPEN row — the frontier hop's own reason.
+    fx.briefBytes.reviewed = reviewedBrief;
+    expect(fx.pipeline.briefDriftHopOf(frame.pipeline)).toBeNull();
+    expect(fx.lifecycle.lineRefusalOf(frame)?.verdict).toMatchObject({
+      ok: false,
+      leg: "line",
+      reason: frontier.reason,
+    });
+  });
+
   it("answers the board's identity, a document row's header cells and the branch row", async () => {
     const fx = fixture();
     oneTaskPlan(fx);

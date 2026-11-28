@@ -164,6 +164,9 @@ go red.
 | f1.review.refusal.wave-open.stdout | T16 | surface/commands/review.ts#ReviewCommand | refusal |
 | f1.review.refusal.wave-open.stderr | T16 | surface/commands/review.ts#ReviewCommand | refusal |
 | f1.review.refusal.wave-open.exit-code | T16 | surface/commands/review.ts#ReviewCommand | refusal |
+| f1.review.refusal.brief-drift.stdout | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f1.review.refusal.brief-drift.stderr | T17 | run/advance/drift-station.ts#DriftStation | refusal |
+| f1.review.refusal.brief-drift.exit-code | T17 | run/advance/drift-station.ts#DriftStation | refusal |
 | f1.fix.refusal.family-draft.stdout | T16 | surface/commands/fix.ts#FixCommand | refusal |
 | f1.fix.refusal.family-draft.stderr | T16 | surface/commands/fix.ts#FixCommand | refusal |
 | f1.fix.refusal.family-draft.exit-code | T16 | surface/commands/fix.ts#FixCommand | refusal |

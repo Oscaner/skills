@@ -267,6 +267,18 @@
       "state": "recorded",
       "value": "1"
     },
+    "f1.review.refusal.brief-drift.stdout": {
+      "state": "recorded",
+      "value": ""
+    },
+    "f1.review.refusal.brief-drift.stderr": {
+      "state": "recorded",
+      "value": "cdd review: cannot dispatch a branch-review round — brief-drift · layer=brief · line=1,2 · recorded=<digest>0000 · current=9562712c6550 · next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p9.md\nchecked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  plan-ledger\n  plan-ledger: info (plan leads ledger by 2 tasks)\n  no-host\n  carrier\n  dispatch-input\n  artifact\n  presence: skipped (no doc target)\n  change-history-version-unique: skipped (no doc target)\n  change-history-row-shape: skipped (no doc target)\n  change-history-header-columns: skipped (no doc target)\n  change-history-latest-matches-front-matter: skipped (no doc target)\n  change-history-newest-last: skipped (no doc target)\n  task-id-unique: skipped (no doc target)\n  phase-id-unique: skipped (no doc target)\n  domain: skipped (no doc target)\n  crosslink: skipped (no doc target)\n  section-order: skipped (no doc target)\n  front-matter-version-in-lineage: skipped (no doc target)\n  continuity: skipped (no doc target)\n  residue: skipped (no doc target)\n  hollow: skipped (no doc target)\n  link-shape: skipped (no doc target)\n  file-existence: skipped (no doc target)\n  sibling-scan: skipped (no doc target)\n  slug-ref: skipped (no doc target)\n  cross-doc-chain: skipped (no doc target)\n  section-scoped-domain: skipped (no doc target)\n  change-history-row-not-in-other-table: skipped (no doc target)\n  list-marker-not-doubled: skipped (no doc target)\n  wave-width-at-most-three: skipped (no doc target)\n  single-create: skipped (no doc target)\n  dangling-task-ref: skipped (no doc target)\n  depends-on-cycle: skipped (no doc target)\n  phase-design-spec-is-phase-spec: skipped (no doc target)\n  line-coordinate: skipped (no doc target)\n  live-arithmetic: skipped (no doc target)\n  change-history-date-shape: skipped (no doc target)\n  closed-wave-fits-depends-on-layers: passed\n  planned-tasks-vs-recorded-tasks: passed\n"
+    },
+    "f1.review.refusal.brief-drift.exit-code": {
+      "state": "recorded",
+      "value": "1"
+    },
     "f1.fix.refusal.family-draft.stdout": {
       "state": "recorded",
       "value": ""

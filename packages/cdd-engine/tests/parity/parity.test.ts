@@ -609,6 +609,26 @@ describe("the new tree's execution face", () => {
     expect(err.join("")).toBe("");
   });
 
+  it("reads a seam cell with the round's child SUBSTITUTED — the count is the seam's own", async () => {
+    // The step this pins: a `seam` reading answers through the injected child seam, so the
+    // engine launches no round process of its own. Two arms, because one alone would pass on
+    // a counter nobody moves: a refused reading never asks the seam (0), and a dispatching one
+    // asks it exactly once (1) — so the cell is read, and the substitution is what it counts.
+    const refused = cellOf("f1.review.refusal.wave-open", "stderr").probe;
+    if (refused === undefined) throw new Error("the refused seam probe is not declared");
+    expect(kindOf(refused)).toBe("seam");
+    const stopped = await NEW_TREE.read(refused, CORPUS.frozenDate);
+    expect(stopped.exitCode).toBe(1);
+    expect(stopped.spawns).toBe(0);
+
+    const dispatched = cellOf("f1.implement.normal", "stdout").probe;
+    if (dispatched === undefined) throw new Error("the dispatching seam probe is not declared");
+    expect(kindOf(dispatched)).toBe("seam");
+    const ran = await NEW_TREE.read(dispatched, CORPUS.frozenDate);
+    expect(ran.exitCode).toBe(0);
+    expect(ran.spawns).toBe(1);
+  }, 120_000);
+
   it("answers every probe kind the grid derives — no cell is left owing a driver", () => {
     // The kinds are the reconciler's routing table. Each kind is either answered or owed —
     // there is no third route, and in particular no fallback to the old tree. The cutover

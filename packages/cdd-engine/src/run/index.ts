@@ -748,7 +748,9 @@ export class Run {
         verdict: refused.verdict,
         checked: verdict.checked,
         tree: refused.tree,
-        hop: this.#stepReads.hopOf?.(frame) ?? null,
+        // The row's own hop when it prescribes one (the drifted batch's review), the frontier
+        // hop otherwise — the ONE cell the refusal's `next:` prints.
+        hop: refused.hop ?? this.#stepReads.hopOf?.(frame) ?? null,
       };
     }
     return {

@@ -63,6 +63,11 @@ export interface ProbeReading {
   readonly exitCode: number;
   /** The landing fact, or undefined for a probe that declares no target. */
   readonly landing?: Landing;
+  /** How many round children this reading asked the INJECTED child seam to run. A reading
+   *  that never dispatches answers 0; a `seam` reading never launches a round process of its
+   *  own, so the only spawn it can report is the one the harness substituted. Recorded for a
+   *  driver that carries the seam alone — `entry` reads a whole process and reports none. */
+  readonly spawns?: number;
 }
 
 /** How one unit's cells are projected: a per-STREAM override of the default read. A
@@ -573,6 +578,23 @@ export const UNITS: readonly Unit[] = [
     probe: {
       fixture: "wave",
       options: { rounds: "implement" },
+      argv: ["review", "--type", "branch", "--plan", PLAN],
+      dispatch: true,
+    },
+  },
+  {
+    key: "f1.review.refusal.brief-drift",
+    face: "f1",
+    route: "refusal",
+    task: "T17",
+    producer: "run/advance/drift-station.ts#DriftStation",
+    // The wave face's SECOND row: an OPEN batch whose brief moved, on a tree where that batch
+    // is not the frontier. The refusal names the drifted batch's own review — a reader that
+    // asks only "is a wave open" answers the frontier hop's reason and prescribes a round
+    // whose brief nobody judged.
+    probe: {
+      fixture: "wave",
+      options: { briefDriftOpenBatch: true },
       argv: ["review", "--type", "branch", "--plan", PLAN],
       dispatch: true,
     },

@@ -170,6 +170,43 @@ export class Pipeline {
     return !this.#wavesExhausted(graph);
   }
 
+  /** The FIRST drifted OPEN batch's review hop — the wave face's `brief-drift` row, built the
+   *  way every other hop is (`NextRoutes#nextOf`): the moved brief names the batch its own
+   *  review owes, so the refusal's `next:` is `review --type wave --tasks <batch>` even when
+   *  that batch is not the frontier (a plan regrouped after dispatch, a `DependsOn` edge added
+   *  mid-run). Null when the face was never entered, no open batch moved, or the plan is not
+   *  ready — a face nobody entered has no brief on record to compare.
+   *
+   *  P29 §2.1 — the drift read is NOT retroactive: a batch whose tasks all closed is filtered
+   *  out before the brief is compared. A closed wave has no round left to reopen, so its stale
+   *  brief is nobody's `next:`. */
+  briefDriftHopOf(input: PipelineInput): NextHop | null {
+    const graph = input.graph;
+    if (graph === null || !this.#wavesEntered(graph)) return null;
+    const batch = this.#firstDriftedOpenBatch(graph);
+    if (batch === null) return null;
+    const target: RouteTarget = { type: "wave", id: batch, plan: input.planPath ?? undefined };
+    return this.#routes.nextOf({
+      target,
+      route: { kind: "review" },
+      verdict: this.#docClassOf(target),
+      gate: { docDrift: false, briefDrift: true },
+    });
+  }
+
+  /** The FIRST open batch whose task-only brief moved, in `graph.batches()` order — the ONE
+   *  order the wave decomposition declares. The closure cell is `closedTasks()`, the same read
+   *  the frontier's exhaustion uses: a batch is closed when every one of its tasks is. */
+  #firstDriftedOpenBatch(graph: TaskGraph): string | null {
+    const closed = this.closedTasks();
+    for (const batch of graph.batches()) {
+      if (batch.every((id) => closed.has(id))) continue;
+      const key = batch.join(",");
+      if (this.#lines.briefDriftedAt(key)) return key;
+    }
+    return null;
+  }
+
   /** Whether the branch line holds a dispatchable open round — the sixth hop cell's ONE
    *  judge: the branch row's drift-aware reopen or a still-active hop. Undefined when no
    *  plan fact exists. */

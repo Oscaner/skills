@@ -825,11 +825,15 @@ interface ScriptedRound {
 /**
  * ScriptedChild — the `seam` kind's child: it does what a dispatched round does to the tree
  * (write the carrier the record reads back, write the work plane's evidence file, commit the
- * round) and answers a clean exit — so a cell is read over the composed graph with ZERO
- * spawned processes.
+ * round) and answers a clean exit — so a cell is read over the composed graph with the round's
+ * child SUBSTITUTED rather than launched.
  */
 class ScriptedChild implements ChildRunner {
-  /** The spawn count — a `seam` reading must never leave this at anything but 0. */
+  /** How many round children this reading asked the seam to run. A reading that never
+   *  dispatches leaves it at 0 (a refusal, a preview, a hold), and a dispatching reading
+   *  leaves it at 1 — the count is the COUNTER the suite reads, never a claim about real
+   *  processes: the engine launches none here, and this script stands in for the one it
+   *  would otherwise have started. */
   spawns = 0;
   readonly #verdict: string | undefined;
 
@@ -978,6 +982,7 @@ const SEAM_DRIVER: NewTreeDriver = {
         stderr: normalizeReading(capture.stderr, corpus.repo),
         exitCode,
         landing: corpus.landing(),
+        spawns: child.spawns,
       };
     } finally {
       process.chdir(before);

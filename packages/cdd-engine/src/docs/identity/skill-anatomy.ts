@@ -49,11 +49,9 @@ export interface AnatomyDigraph {
    *  carry (the `until next is terminal` self-loop · the `no next` failure face).
    *  This slot IS the authoritative home for the family (P9 branch-review-1 F9):
    *  the phrases are the SKILL-digraph EDGE-LABEL vocabulary — a consumer-surface
-   *  prose face the runtime `next:` never emits — so there is no engine runtime
-   *  constant to derive them from (unlike the status family ← the word table and
-   *  the route family ← `ROUTE_DECISION_WORDS`, both engine-grounded). The two
-   *  runtime-derived families derive from those engine sources; the loop family IS
-   *  this slot, consumed verbatim. */
+   *  prose face the runtime `next:` never emits — so the value is DECLARED here and
+   *  nothing derives it: no engine runtime constant carries these phrases, and no
+   *  gate pins this slot to the word table. A moved phrase set is edited here. */
   nextLoopConditions: readonly string[];
 }
 
@@ -317,13 +315,11 @@ export const SKILL_ANATOMY = {
     routeFactRule:
       "the `next:` face renders through the word table's template rows — a pipeline `ref` renders the `route to {ref} skill` instruction phrase, a `literal` a cdd command string, a `done` the bare terminal word; a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
-  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
-  // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +
-  // the decision status words (the word table's status vocabulary minus the failure
-  // statuses) + the Route decision words (the `next:` lexical domain). It is DERIVED,
-  // not typed: the engine word table / Route lexicon (`status` minus `FAILED_STATUS`,
-  // `ROUTE_DECISION_WORDS`, `nextLoopConditions`) are the source, so a drifted engine
-  // word moves this set with it and a silent second list has no place to live.
+  // The condition words a digraph decision edge may carry — the NEXT-LOOP phrases plus
+  // the closure status words plus the `next:` route words. An allowlist DECLARED here:
+  // nothing derives it and no gate pins it to the word table or the route lexicon, so a
+  // changed engine word does NOT move this set — it is edited here, in the same change,
+  // as the second half of that word move.
   edgeConditionWords: [
     "until next is terminal",
     "no next",

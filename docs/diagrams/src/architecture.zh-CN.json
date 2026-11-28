@@ -212,10 +212,10 @@
       ]
     },
     {
-      "id": "contract",
+      "id": "slice_docs",
       "type": "backend",
-      "label": "Contract 平面",
-      "sublabel": "规则 · 不变量 · 评级",
+      "label": "docs/ 切片",
+      "sublabel": "文法 · 身份 · 判定",
       "pos": [
         970,
         180
@@ -226,22 +226,18 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src/docs/judging/rules.ts",
-          "line": 106,
-          "end_line": 416
-        },
-        {
-          "path": "packages/cdd-engine/src/surface/render/templates.ts",
-          "line": 82,
-          "end_line": 94
+          "path": "packages/cdd-engine/src/docs/index.ts",
+          "line": 313,
+          "end_line": 323
         }
       ]
     },
     {
-      "id": "face",
+      "id": "slice_surface",
       "type": "backend",
-      "label": "Face 平面",
-      "sublabel": "命令 · 门禁 · 输出面",
+      "label": "surface/ 切片",
+      "sublabel": "命令 · 词表 · 渲染",
+      "tag": "缓存对齐",
       "pos": [
         970,
         270
@@ -252,22 +248,22 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src/surface/render/capsule.ts",
-          "line": 1,
-          "end_line": 12
+          "path": "packages/cdd-engine/src/surface/index.ts",
+          "line": 189,
+          "end_line": 200
         },
         {
-          "path": "packages/cdd-engine/src/surface/render/board.ts",
-          "line": 88,
-          "end_line": 97
+          "path": "packages/cdd-engine/src/surface/words/words.ts",
+          "line": 1,
+          "end_line": 7
         }
       ]
     },
     {
-      "id": "session",
+      "id": "slice_run",
       "type": "backend",
-      "label": "Session 平面",
-      "sublabel": "下一步 · 账本 · 记录",
+      "label": "run/ 切片",
+      "sublabel": "账本 · 门禁 · 派发",
       "tag": "唯一推演",
       "pos": [
         970,
@@ -279,23 +275,22 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src/run/advance/next.ts",
-          "line": 199,
-          "end_line": 217
+          "path": "packages/cdd-engine/src/run/index.ts",
+          "line": 652,
+          "end_line": 663
         },
         {
           "path": "packages/cdd-engine/src/run/advance/next.ts",
-          "line": 218,
-          "end_line": 235
+          "line": 201,
+          "end_line": 206
         }
       ]
     },
     {
-      "id": "render",
+      "id": "slice_env",
       "type": "backend",
-      "label": "Render 平面",
-      "sublabel": "提示词模板",
-      "tag": "缓存对齐",
+      "label": "env/ 切片",
+      "sublabel": "路径 · 工作区 · git",
       "pos": [
         970,
         450
@@ -306,17 +301,17 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src/surface/render/templates.ts",
-          "line": 501,
-          "end_line": 509
+          "path": "packages/cdd-engine/src/env/index.ts",
+          "line": 167,
+          "end_line": 170
         }
       ]
     },
     {
-      "id": "infra",
+      "id": "bin_root",
       "type": "backend",
-      "label": "Infra 平面",
-      "sublabel": "git · 工作区 · 日志",
+      "label": "bin.ts——组合根",
+      "sublabel": "一张图，构造一次",
       "pos": [
         970,
         540
@@ -327,14 +322,9 @@
       ],
       "sources": [
         {
-          "path": "packages/cdd-engine/src/env/workspace/round-log.ts",
-          "line": 14,
-          "end_line": 37
-        },
-        {
-          "path": "packages/cdd-engine/src/env/workspace/workspace.ts",
-          "line": 132,
-          "end_line": 144
+          "path": "packages/cdd-engine/src/bin.ts",
+          "line": 3,
+          "end_line": 12
         }
       ]
     },
@@ -395,7 +385,7 @@
       "id": "ci",
       "type": "security",
       "label": "CI 校验",
-      "sublabel": "7 个 job · emit 漂移",
+      "sublabel": "8 个 job · emit 漂移",
       "pos": [
         40,
         660
@@ -419,11 +409,11 @@
       "label": "cdd-engine 包",
       "wraps": [
         "engine",
-        "contract",
-        "face",
-        "session",
-        "render",
-        "infra"
+        "slice_docs",
+        "slice_surface",
+        "slice_run",
+        "slice_env",
+        "bin_root"
       ],
       "pad": 24
     },
@@ -484,29 +474,31 @@
       "variant": "emphasis"
     },
     {
-      "id": "engine-contract",
+      "id": "engine-docs",
       "from": "engine",
-      "to": "contract"
+      "to": "slice_docs"
     },
     {
-      "id": "engine-face",
+      "id": "engine-surface",
       "from": "engine",
-      "to": "face"
+      "to": "slice_surface"
     },
     {
-      "id": "engine-session",
+      "id": "engine-run",
       "from": "engine",
-      "to": "session"
+      "to": "slice_run"
     },
     {
-      "id": "engine-render",
+      "id": "engine-env",
       "from": "engine",
-      "to": "render"
+      "to": "slice_env"
     },
     {
-      "id": "engine-infra",
-      "from": "engine",
-      "to": "infra"
+      "id": "bin-engine",
+      "from": "bin_root",
+      "to": "engine",
+      "label": "一次构造",
+      "variant": "emphasis"
     },
     {
       "id": "engine-host",

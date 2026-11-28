@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 import { emitComparer, emitService, REPO_ROOT } from "../emit.ts";
 import { FirstParty } from "../lib/first-party.ts";
 
-describe("EmitService — the single emit orchestrator (derivation + byte-check)", () => {
+// The byte check compares the whole committed emit set, roughly 5 MB of it the diagram
+// HTML — so the timeout measures bytes rather than machine speed and stays clear of
+// vitest's 5 s default on a loaded machine.
+describe("EmitService — the single emit orchestrator (derivation + byte-check)", {
+  timeout: 30_000,
+}, () => {
   it("derives the first-party set from the oscaner gate (package-as-source)", () => {
     const names = FirstParty.names(path.join(REPO_ROOT, "packages"));
     expect(names).toContain("kairos");

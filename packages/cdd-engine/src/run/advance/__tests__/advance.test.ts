@@ -1616,6 +1616,11 @@ describe("the drift reopen and the closure terminal", () => {
     const waveLine = RoundIdentity.lineWordOf("wave", "1");
     const bound = fx.ledger.reviewedOf(waveLine);
     expect(bound?.kind).toBe("brief");
+    // The booking hands the ledger the PLAN the brief renders from beside the digest — the
+    // cell's coordinate layer, in the shape the shipped engine wrote it. The landed brief's
+    // own coordinate names one dispatch's carrier (`…-brief.md`), so a carrier name here would
+    // make `sameAs` answer false for every brief this line's own earlier round recorded.
+    expect(bound?.path).toBe(PLAN_REL);
     // The recorded version is the projection, not the landed brief: the landed bytes carry the
     // round-context section, which changes with every dispatch.
     expect(bound?.hash).toBe(ReviewedIdentity.hashOf("task body\n"));

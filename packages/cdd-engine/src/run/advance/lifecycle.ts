@@ -743,10 +743,16 @@ export class Lifecycle {
     if (op === "implement") return;
     if (op === "fix" && touched === false) return;
     if (TargetFaces.advancesBatch(frame.type)) {
-      if (landed.reviewed === undefined) return;
+      // The cell's coordinate layer is the PLAN the task-only brief renders from — the layer
+      // every cell the shipped engine wrote holds (its writer booked the plan path, and its
+      // comparator reads that layer as the identity's first). The landed brief's own
+      // coordinate names ONE dispatch's carrier (`tasks-18-brief.md`), so persisting it would
+      // leave the column with two meanings and leave `sameAs` unable to recognise the same
+      // brief across engines. Only present facts land: no plan, no binding.
+      if (landed.reviewed === undefined || frame.planPath === null) return;
       this.#ledger.recordReviewed(
         frame.key,
-        ReviewedIdentity.record("brief", landed.path, landed.reviewed),
+        ReviewedIdentity.record("brief", frame.planPath, landed.reviewed),
       );
       return;
     }

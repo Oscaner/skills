@@ -57,7 +57,11 @@ export interface ReviewedFacts {
   readonly kind: ReviewedKind;
   /** The input's path, on the one repo-relative basis. For a document line that is the path of
    *  the document the round read — the same layer the shipped engine recorded and the shipped
-   *  comparator read as the identity's coordinate, never the line's own word (`phase-spec`). */
+   *  comparator read as the identity's coordinate, never the line's own word (`phase-spec`).
+   *  For a wave line it is the PLAN the task-only brief renders from — again the layer every
+   *  cell the shipped engine wrote holds, never the landed carrier's own name for one dispatch
+   *  (`tasks-18-brief.md`), which no other round of that line could recognise as the same
+   *  brief. */
   readonly path: string;
   /** The content digest, hex. */
   readonly hash: string;

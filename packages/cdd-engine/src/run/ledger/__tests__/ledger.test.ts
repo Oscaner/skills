@@ -216,7 +216,7 @@ describe("the document review line", () => {
   });
 
   it("records the version a wave line reviewed and reads it back", () => {
-    const { ledger } = fixture();
+    const { ledger, workspace } = fixture();
     const reviewed = ReviewedIdentity.record(
       "brief",
       "docs/kairos/plans/p39.md",
@@ -224,6 +224,13 @@ describe("the document review line", () => {
     );
     ledger.recordReviewed("tasks-7,8,9", reviewed);
     expect(ledger.reviewedOf("tasks-7,8,9")?.sameAs(reviewed)).toBe(true);
+    // The cell's coordinate layer is the PLAN the task-only brief renders from — the layer
+    // every cell the shipped engine wrote holds (its writer booked
+    // `briefRevision(plan, …)`, the plan path), never the landed carrier's own name for one
+    // dispatch (`tasks-18-brief.md`). A carrier name here would leave one column with two
+    // meanings and leave `sameAs` unable to recognise the same brief across engines.
+    const raw = JSON.parse(readFileSync(workspace.resolve(Ledger.FILE), "utf8"));
+    expect(raw.waves[0].reviewedRevision.plan).toBe("docs/kairos/plans/p39.md");
     expect(ledger.reviewedOf("tasks-7,8,9")?.driftFrom("task-only bytes")).toBe("same");
     expect(ledger.reviewedOf("tasks-7,8,9")?.driftFrom("edited")).toBe("drift");
     expect(ledger.reviewedOf("tasks-1")).toBeNull();

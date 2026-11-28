@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.8
+version: v0.9
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -104,9 +104,9 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 #### 2.3 语料：取旧测试的夹具，丢旧测试的断言
 
-语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。八种树形态：空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合 · `overall` 型文档（章程行带评审轮的那一型，交付时补入，见计划 v0.60）。
+语料不新造：旧测试的 fixture 树正好覆盖全部形态，而它们的断言是旧抽象的产物、全部丢弃。名册有两条轴，别读成一张清单：**树状态七种**——空树 · wave 进行中 · in-flight 持有 · refused 记录在树 · doc-drift · stale holder 且 target gone · branch 线已闭合；**文档形状一型**——`overall` 型文档（章程行带评审轮的那一型），旧套件已带着它的夹具（`src-next/contract/__tests__/fixtures/overall.md`），它与树状态一同提取，不是交付时新造的一臂。
 
-语料是旧测试的**整个夹具面**，不只是一张树状态清单：树状态产不出冻结面要的每一份输入——`init` 与 `plugins` 的字节靠一个架在 PATH 上的替身 harness 加一个注入的 step runner 生成（`face/__tests__/init.test.ts` 就是今日那份夹具），`issue render` 从 stdin 读 findings JSON，骨架面把构造入参的运行日期写进 front matter、所以那份日期也要钉住。§5 的「不新增语料臂」是「不超过旧测试已经带着的那些臂」，不是「不超过七种树形态」。
+语料是旧测试的**整个夹具面**，不只是一张树状态清单：树状态产不出冻结面要的每一份输入——`init` 与 `plugins` 的字节靠一个架在 PATH 上的替身 harness 加一个注入的 step runner 生成（`face/__tests__/init.test.ts` 就是今日那份夹具），`issue render` 从 stdin 读 findings JSON，骨架面把构造入参的运行日期写进 front matter、所以那份日期也要钉住。§5 的「不新增语料臂」是「不超过旧测试已经带着的那些臂」，不是给一张清单封顶。
 
 钉那份日期的家只有一处：日期从 `render/skeleton.ts#SkeletonAssembler` 的构造入参进来，CLI 面把它取成系统时钟当天（`face/artifacts.ts#Artifacts.#today` 自己的注释就写明骨架不带日期参数面），旗标、环境变量与夹具缝都不通到它，而 §5 不许为它新开一条。所以四族骨架的字节格走装配器入口、在进程内同时驱动两棵树，同传一个冻结的日期——这个日期是语料的常量，录制基线与判比取同一个值，基线才跨天稳定——`date:` 行照常逐字节比，不屏蔽也不归一：被屏蔽掉的那一格正好是字节面存在的理由。必须真起进程的格（`init` 的 PATH 替身）产出的字节里没有日期，于是没有一格依赖运行当天；`schema get` 的壳面（回显路径与退出码）仍在起进程的那组格里比，它同样不带日期。
 
@@ -175,8 +175,8 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 - 消费者面字节保真：§2.2 的八个面在固定语料上与冻结基线逐字节相同——判者是翻面前那一次对账器运行，那一跑就是证据（基线随旧树一同销毁，翻面后不再有字节判者，见 Constraints）。
 - 不混的两条禁门可红（产品文件里 `src/` 与旧树互相 import 各一条；正控 = 对账器同时读两棵树仍绿），对账器人为改一处字节即红；两条断言与对账器都落在一个被收集的执行面上（`pnpm -C packages/cdd-engine exec vitest run`，含 §2.3 的 `tests/parity` include），不是写在无人执行的目录里。
 - 旧树零留存：`src-next/` 整棵不在树上，编译面、测试 include、smoke 脚本、零裸函数扫描根、六份图源全部指向 `src/`，树外测试面（`packages/kairos/tests/` · `scripts/__tests__/` 两个孪生 · `precommit` 三条守卫路径）与手维护的消费者文档（`README.md` 及其 `README.zh-CN.md` 镜像 · `packages/cdd-engine/README.md` 及其 `README.zh-CN.md` 镜像 · `AGENTS.md`）同时改指，`emit` 之后 `emit:check` 报 fresh。
-- 深度可陈述：四个一级切片与 `run/` 四段各有一句不变量写在入口模块的类注释里，且每片的对外成员数**不多于**其实现文件数（`surface/` 交付时落在等号上——判据判的是「界面没有多出一个文件数」，不是「远小于」）。
-- `pnpm run validate` exit 0，引擎全套件绿；changesets **全部落在 `cdd-engine` 一包**，共两笔：重建取 **patch**（方法论契约未变、重建本身不改消费者字节），两处被判明的消费面字节移动取 **minor**（D74 判的是方法论契约而非字节兼容：拒绝事实的 `detail` 格 · 板面那一行 · prompt 带首行）。
+- 深度可陈述：四个一级切片与 `run/` 四段各有一句不变量写在入口模块的类注释里，且每片的对外成员数**不多于**其实现文件数。计数单位是入口类的公开方法与 getter，它持有的协作者字段不进这个数（`surface/` 交付时落在等号上——判据判的是「界面没有多出一个文件数」，不是「远小于」）。
+- `pnpm run validate` exit 0，引擎全套件绿；changesets **全部落在 `cdd-engine` 一包**，共两笔：重建取 **patch**（方法论契约未变、重建本身不改消费者字节）；被判明的消费面字节移动同取 **minor**（D74 判的是方法论契约而非字节兼容）。移动的是两个格，落在消费面上是三处：树级拒绝记录的 `detail` 格（`run/gate/refusal.ts#RefusalFacts`）由板面的 `refused:` 行（`surface/render/board.ts#BoardView`）与预览的 blocked 块（`surface/render/route.ts#RouteRenderer#refusalDetails`）逐字印出，两侧共用 `surface/words/words.ts#WORDS` 里 `refusal.token` 那一个词；派发 prompt 的首行 `$version` 由 `surface/render/templates.ts#PromptBandsRenderer#bandOf` 落在带的首格（值不变，动的只是行）。
 
 ## Constraints
 
@@ -201,3 +201,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.6 | 2026-11-25 | 开发期漂移回填（第一波 implement 撞出）：旧树的 cutover 终态 pin `src-next/__tests__/zero-dep.test.ts` 断言退役平面 `src` 与 `config` 不在包根，而本相位按 D104 在 `src/` 重建。Constraints 补一条把作废面收窄到 `src` 那一条腿（`config` 腿与零说明符断言保留），并声明它是本相位唯一被允许的旧树改动、与第一波同批落地 | Oscaner M. · Claude（kairos:cdd-dev 编排器回填 · 2026-11-25） |
 | v0.7 | 2026-11-25 | 评审轮五（F1–F3）落地：§2.3 把对账器落户的前提从「今天的 include 只有一条、`typecheck` 链只点名三个工程」这一快照改写成一条条件——把 `tests/parity/**/*.test.ts` 追加进 `packages/cdd-engine/vitest.config.ts` 当下的 include、把一份独立 tsconfig 工程追加进根 `typecheck` 链，既有条目全部保留，散文里不写计数也不写既有模式字面 · §3.1 删掉「`src/` 的测试面含 §2.4 的对账器」这处与 §2.3 冲突的家，改述为两棵树的测试面都在禁门域外、对账器另住在 `packages/cdd-engine/tests/parity/` · §6 补一句把 D104 ④ 与 P39 登记格的「`src-next/` 冻结零改动」收窄到 `zero-dep.test.ts` 的 `src` 腿这一条具名例外（`config` 腿与零说明符断言保留） | Oscaner M. · Claude（kairos:docs-fix · 2026-11-25） |
 | v0.8 | 2026-11-28 | **收口前的登记面回填（分支终审 F1）**：① Acceptance 的 changeset 句写实为「两笔同包：重建 patch + 两处被判明字节移动 minor」——交付树确有两份 changeset，其中一份 `minor` 是 D74 下正确的；② §2.3 的树形态由七种改八种并点名 `overall` 那一型（计划 v0.60 已解，spec 侧未同步）；③ Acceptance #5 的「远小于」改「不多于」——`surface/` 交付落在等号上，旧句会把正确实现判红 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
+| v0.9 | 2026-11-28 | **评审轮六（F1–F4）落地**：§2.3 的名册拆成两条轴写一次——树状态七种 · 文档形状一型 `overall`，并点名后者由旧套件已带的 `overall` 夹具提取而非交付时新造，同句删掉「不超过七种树形态」这处对同一名册的第二套计数 · Acceptance 的 changeset 句把计量单位写实为两个移动的格、三处消费面，并给两处移动各带一个交付树内的 `module#Symbol` pin · Acceptance #5 的深度判据点名计数单位（入口类的公开方法与 getter，所持协作者字段不计），使同一条判据两次读出同一个数 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v4.87
+version: v4.88
 date: 2026-11-19
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
@@ -9,7 +9,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 
 
 ## Document scope
 
-Charter only, zero implementation detail. **Overall approval is not equivalent to any phase started（GATE）**——各 phase 串行执行，顺序 = **注册序，除执行序段（`## Dependency graph` 之后的「执行序：」段）明确重排者**：重排须由该段的决策行写出理由（D96 把 P40 排在 P39 之前即此形——两者同改一批接缝，先修后搬）；仅 P1 ‖ P2 无硬依赖（review face 与 schema/template 不同面），其余依 Dependency graph 的 hard 边；回填纪律住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`。全部引擎改动先行实现于现行 `src-next/` 树（D8 拆 pin —— 与依赖升级与 src 更名程序 P2 为 sweep 面关系，非硬 pin；rename sweep 随后全库覆盖本程序新文件面 · 该兄弟程序已收拢，见 Dependency graph）。
+Charter only, zero implementation detail. **Overall approval is not equivalent to any phase started（GATE）**——各 phase 串行执行，顺序 = **注册序，除执行序段（`## Dependency graph` 之后的「执行序：」段）明确重排者**：重排须由该段的决策行写出理由（D96 把 P40 排在 P39 之前即此形——两者同改一批接缝，先修后搬）；仅 P1 ‖ P2 无硬依赖（review face 与 schema/template 不同面），其余依 Dependency graph 的 hard 边；回填纪律住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`。全部引擎改动先行实现于现行 `src/` 树（**路径已换代**：引擎树自 P39 起为 `src/`，`src-next/` 已于该相位翻面时整棵删除；本句的规则不变，只换指称）（D8 拆 pin —— 与依赖升级与 src 更名程序 P2 为 sweep 面关系，非硬 pin；rename sweep 随后全库覆盖本程序新文件面 · 该兄弟程序已收拢，见 Dependency graph）。
 
 ## File paths
 
@@ -38,7 +38,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - **gate 零例外底线**：判据住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md` · `docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md` 与 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p4.md` 各自的 `## Constraints` 一节
 - **消费面先 gen 后填**：cdd-spec-writer / cdd-plan 的 author 节点从「`schema get --output json` 参考 + 手工转写」更新为「`schema get <type> --output skeleton <target>` 骨架 + 就地填内容」；`--output json` 保留（声明参考面 · 其他工具/测试消费面不动）
 - **CLAUDE.md pin 修订先行**：「cdd CLI 零新子命令」例外面扩骨架生成面（例外面按声明面读：骨架档 = `schema get --output skeleton`）——文档改动与实现同 commit 面落地，不可只实现不改文
-- **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：本程序 P1/P2 引擎改动**先行实现于现行 `src-next/` 树**（不等 rename P2）——rename sweep 随全库 `grep -rn src-next` 改本程序新文件面（Q3→b 语义 · 豁免面为空）
+- **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：本程序 P1/P2 引擎改动**先行实现于现行 `src/` 树**（**路径已换代**：引擎树自 P39 起为 `src/`，`src-next/` 已于该相位翻面时整棵删除；本句的规则不变，只换指称）（不等 rename P2）——rename sweep 随全库改本程序新文件面（Q3→b 语义 · 豁免面为空；该 sweep 程序已于 2026-10-13 收拢，其命令行引用的 `src-next` 字面随之失效）
 - **P1 face 重塑保行为等价（2026-10-11 立 · P3 面 2026-10-11 Q5/Q6 裁定增补）**：退出码表（0/1/2 · 0 含 `--help`）· CDD_BLOCKED 通道 · doc-contract 判定语义 · `next:` dispatch 字面——全部零变化，引擎 vitest 全绿作证；**P3 面**：commander 原生为基——错误消息/帮助形面/usage 字节开放原生更替（pins 整体重锚 · deliberate）· 语义契约保：退出码 0/1/2（exitOverride 归一）· CDD_BLOCKED 通道 · 裸 cdd usage 语义（退 2 · 字节原生）· did-you-mean 三 ID 用例语义（命令树结构保真 · 零自定义 hint 码）· `--help` 任意位置 · 领域 run 语义；零运行时依赖变化（**P3 例外：commander ^15 重准入 · 维护文档 05 退役（deliberate · D11/D12）** · 自研 help 渲染面反转）
 - **分级判收敛（severity-graded convergence）为程序方法论主轴（2026-11-02 用户裁定 · D70）**：CDD 按 findings 的分级向前推进——**有 blocker 就把线推回 fix 并重新评审 · 无 blocker 时以 `REVIEW_FIX` 收敛 · 全空即通过 · 连续 80 个 blocker 周期触软上限交人裁定**；`docs/diagrams/` 的 next-loop 与 architecture 两图（EN + zh-CN 四份）即其公布面，图的形状 = 引擎的转移表。此后任何相位**不得把下一跳改由 route kind 反推 / 漂移抢判 / 新分级信号决定**（被 reset 的旧 P22 正是这么坏的）；**定级口径与分级计数是同一件事的两半**（口径让计数有意义 · 计数是推进的唯一判据），改一半必须同批改另一半；图与判据须有孪生 pin，任一侧改动两侧同时红
 - **版本级以方法论契约为准（2026-11-03 用户裁定 · D74）**：CDD 流程语义（design → spec → plan → dev → close · 分级判收敛 · 门禁与 `next:` 面）不变时，即使消费面字节破坏（旗标 / 词表 / 字面重命名），changeset 也只发 **minor**；`major` 保留给方法论本身变化——本仓几乎不可能出现 major。破坏性字节仍须「pins 整体重锚 + 消费面同步」，与版本级是两件事
@@ -53,7 +53,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 | D5 | schema gen 输出合约（2026-10-11 grilling Q1→a） | **stdout 纯渲染 + 编排器落盘**：`cdd schema gen <type> > specs/<name>.md`；骨架 = **完整结构**（标题树 · 表列头 · 版本/change-history 脚手架全须齐备），主体内容/description 槽位带**占位符提示**；填后零占位符残留 pin | P2 scope + Constraints |
 | D6 | 重构许可边界（2026-10-11 grilling Q2→b） | **六前提全面开放**：P2 落地可重写/重组整个 face/cli.ts 与目录级（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；重构保行为等价（vitest 全绿作证）；Non-goal ④ 随之改写；gate 零例外不变（跨程序树依赖随 D8 拆 pin · 2026-10-11） | P2 scope + Constraints + Non-goal ④ |
 | D7 | CLAUDE.md 去流程化处置（2026-10-11 grilling Q3→c） | **直接删除 kairos/引擎流程叙述**（不迁 maintainers · 不迁 README）——工作树逼近消费者环境以验证消费者视角使用引擎的真实体验；消费面引导改由 skills 承担（R4「先 gen 后填」） | P2 scope + Constraints |
-| D8 | 跨程序树依赖语义（2026-10-11 用户裁定拆 pin · D6 之后复核） | **hard pin → sweep 面关系**：本程序 P1/P2 引擎改动**先行于现行 `src-next/` 树实现**（不等 rename P2）· rename sweep 全库 `grep -rn src-next` 随后覆盖本程序新文件面（Q3→b · 豁免面为空）· 跨程序依赖由阻挡改**非硬**（sweep 按字面量全局改 = 零登记成本） | Constraints + Dependency graph + Boundary + Phase inventory |
+| D8 | 跨程序树依赖语义（2026-10-11 用户裁定拆 pin · D6 之后复核） | **hard pin → sweep 面关系**：本程序 P1/P2 引擎改动**先行于现行 `src-next/` 树实现**（不等 rename P2）· rename sweep 全库 （该 sweep 程序已收拢，死命令引用的字面随之失效） 随后覆盖本程序新文件面（Q3→b · 豁免面为空）· 跨程序依赖由阻挡改**非硬**（sweep 按字面量全局改 = 零登记成本） | Constraints + Dependency graph + Boundary + Phase inventory |
 | D9 | P1 面重构许可与 help 路线（2026-10-11 cdd-design [P1] 会话 · Q1–Q6） | **六前提破格于 P1 整 face 层**（Q6→b：cli.ts + capsule + words + graph-view + host 全层可重写/目录级重组）· **help 自研渲染重建**（Q4→a：零运行时依赖保持 · 维护文档 do-not-re-add 守约）· **usage 六行重写**（Q5→b：deliberate pin break · 测试锚同步更替）· **docKey 推导共享化**（Q1→a · Q2→a：契约层导出类成员 · validate 改调 · spec 树同源） | P1 scope + Constraints + Non-goal ④ + Cross-cutting |
 | D10 | docKey 词表统一（2026-10-11 用户 backfill → P1 随 cli 面统一处理） | **全库单一拼写 `phase-spec`（kebab）**——declare 登记表行键 · judge DOC_KEYS/DocKey 类型 · invariants ctx 站点 · Projector 五投影键 · validate 派生 · preflight docKey · words 键 kebab 化 · **schema get 值域统一**（get/gen 一表两面 · phaseSpec 别名归一面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级） | P1 scope + Constraints |
 | D11 | help 框架化路线（2026-10-11 用户研究后裁定 · P1 收尾期） | **引入 mature CLI 框架 `commander` ^15**（运行时依赖 0 · 声明式 · 数据驱动——ARGV_CHANNEL 行度入 `.option()/.command()` 保单源）· **反转 D9 的 help 自研渲染面 + 维护文档 05 整文件退役**（第三方依赖不留存运维文档说明 · 用户裁定 2026-10-11 · 依赖面断言载体 = package.json#dependencies · v0.5 定）· **落地时机 = P1 收口后落地 · P3 槽位直接改写为 commander 框架化**（2026-10-11 用户裁定：不新增 phase · 原 P3「changesets 收尾」独立 scope 折叠入 P3 框架化的变更集义务——P1/P2 deferred + 框架化 bump 一次归并）· 适配层保行为面：退出码表 0/1/2 · CDD_BLOCKED 通道 · 字节错误消息 · did-you-mean · `--help` 任意位置 | P3（Phase inventory/Issue inventory/Dependency graph）+ 本表 + Change history v1.7 |
@@ -301,7 +301,7 @@ P41 ‖ (无硬依赖：判据面形状门 + finding 证据面 + 跨文档去重
 P42 ‖ (无硬依赖：finding 档位收口与任务块图判据，与 P39 的目录重整不同面；执行串行，**排在 P39 之前**——它改的是 review 的判决面，而 P39 的搬家要由该面审计 · 2026-11-20 注册 · github#506)
 P43 ‖ (无硬依赖：pin 门整条撤 + 测试不再规训本仓文档，与 P39 的目录重整不同面；执行串行，**排在 P39 之前**——撤完 pin 与语料臂，`face/lifecycle.ts` 少一批注入点，P39 要拆的面更小（同 D96「先修后搬」）· 2026-11-23 注册 · github#517 · D101)
 P44 ‖ (无硬依赖：接手授权 + stale 形态 + 读数脱钩记账，判据面住恢复判定与 in-flight 形态读面，与 P39 的目录重整不同面；执行串行，**排在 P39 之前**——同 D96「先修后搬」· 2026-11-25 注册 · github#520/#521 · D102)
-跨程序: P1/P2 ->(rename sweep) 依赖升级与 src 更名程序 P2（sweep 按字面量全局覆盖本程序新文件面 · 非硬依赖 · D8 拆 pin——本程序先行实现于 `src-next/`）· **已收拢（2026-10-13 · `b67fc66b` 删除该程序三文档 · 换代后目录面已更替）**——原 rename-sweep 依赖随程序收拢解除，D8 拆 pin 语义保持（本程序文件面已在技术债清理中直接于 `src-next/` 落地）
+跨程序: P1/P2 ->(rename sweep) 依赖升级与 src 更名程序 P2（sweep 按字面量全局覆盖本程序新文件面 · 非硬依赖 · D8 拆 pin——本程序先行实现于当时的 `src-next/`）· **已收拢（2026-10-13 · `b67fc66b` 删除该程序三文档 · 换代后目录面已更替）**——原 rename-sweep 依赖随程序收拢解除，D8 拆 pin 语义保持（本程序文件面已在技术债清理中直接于 `src-next/` 落地）
 ```
 
 Legend:
@@ -313,7 +313,7 @@ Legend:
 ## Boundary rules
 
 - 每 phase 完整 brainstorm → plan → dev 闭环；serial-phase 硬门：注册 phase 的 hard-dependency 前驱 Design spec ≠ Done → BLOCKED
-- **跨程序树协调（D8 · 拆 pin 后）**：本程序 P1/P2 引擎改动先行于现行 `src-next/` 树实现（不等 rename P2）——rename sweep 全库 `grep -rn src-next` 改本程序新文件面（Q3→b · 豁免面为空）
+- **跨程序树协调（D8 · 拆 pin 后）**：本程序 P1/P2 引擎改动先行于现行 `src/` 树实现（**路径已换代**：引擎树自 P39 起为 `src/`，`src-next/` 已于该相位翻面时整棵删除；本句的规则不变，只换指称）（不等 rename P2）——rename sweep 全库改本程序新文件面（Q3→b · 豁免面为空；该 sweep 程序已收拢，其命令行引用失效）
 - 需求变更在 phase 中发生时，回填纪律住 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p9-design.md` 的 `## Constraints`；受影响 phase 的 scope / acceptance / dependency 随同一次写入同步
 - **验证面的归属（D98）**：引擎的行为由夹具判，物料的状态由引擎判；测试里不再出现手写的语料读数，生成物一致性只经 `emit:check`。裁定正文与正反例住本表 D98，此处不重述。
 - **验自面的边界（D101）**：边界按消费者划，不按路径划——退役面只有 `docs/kairos/**`（引擎在真实 CDD 运行里消费的物料）；保留面是消费者拿到的字节：README family · `AGENTS.md` · `marketplace/source.json` · `packages/kairos/skills/` 与其探针 · 生成物。每条规则留成对夹具（违规必报 · 邻居沉默；零候选那一臂的归属见 D101 ②），生成物一致只归 `emit:check`。规范本体住 `AGENTS.md`，裁定与实测账住本表 D101，此处只留指针。
@@ -324,7 +324,7 @@ Legend:
 ## Constraints
 
 - **从「依赖升级与 src 更名」程序拆出（2026-10-10 用户拍板「这个问题和 P4 其实是同一类的吧？那把 P4 拆出来和这个问题一起放独立 overall 里」）**：本程序承接该程序原 **P4（review-face overall 键）** + 用户 2026-10-10 提出的**写文档方案重设计（schema gen 模板写作）**——同属**引擎 doc-tooling 能力面**（裁判侧缺口：引擎判不了 overall · 写侧缺口：引擎不给写作结构）
-- **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：~~强依赖~~ ——本程序 P1/P2 引擎改动**在 rename P2 落定前先行实现于现行 `src-next/` 树**，rename P2 的 sweep 随全库 grep 覆盖本程序新文件面（零登记豁免 · 豁免面清单仍为空——sweep 按字面量全局改，非登记列表）；本程序期引用沿用现行 `src-next/` 路径面（Q3→b 历史面全改语义 · rename sweep 覆盖本文件字面量 + 本程序实现新文件）
+- **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：~~强依赖~~ ——本程序 P1/P2 引擎改动**在 rename P2 落定前先行实现于现行 `src/` 树**（**路径已换代**：引擎树自 P39 起为 `src/`，`src-next/` 已于该相位翻面时整棵删除；本句的规则不变，只换指称），rename P2 的 sweep 随全库 grep 覆盖本程序新文件面（零登记豁免 · 豁免面清单仍为空——sweep 按字面量全局改，非登记列表）；本程序期引用沿用现行 `src-next/` 路径面（Q3→b 历史面全改语义 · rename sweep 覆盖本文件字面量 + 本程序实现新文件）
 - **CLAUDE.md「cdd CLI 零新子命令」pin 连带修订（2026-10-10 用户拍板授权）**：注册当日的唯一例外 = `schema get` + `issue render`；`schema gen` 属新能力面，pin 修订为本程序 P2 范围内落地（文档先行 · 实现随之，不可只实现不改文）。**例外面按声明面读**（`face/declare.ts#CLI_COMMANDS`）：`schema get`（`--output json|skeleton`）· `issue render` · `board`（P8）· `init`（P20）——注册当日只列了前两者，后两者各随一个相位增一命令；pin 本体随 CLAUDE.md 去流程化退役（D7），此处不手写计数
 - **P2 grilling 定案（2026-10-11 · cdd-design [P2] · Q1/Q2/Q3 裁定）**：① **骨架渲染落盘由编排器承担**（`cdd schema gen phase-spec > specs/<name>.md` 经 D19 并入 `cdd schema get phase-spec --output skeleton <target>`）；生成的骨架 = **完整结构**（标题树 · 表列头 · 版本/change-history 脚手架全须齐备），主体内容/description 槽位以**占位符提示**标出（填后零残留 pin）。② **CLAUDE.md 去 kairos/引擎流程（Q3→c · 直接删除，不迁不存）**——本仓库工作树逼近消费者环境，以验证消费者视角使用引擎的真实体验；消费面引导由 skills 承担（R4「先 gen 后填」）。③ **重构许可扩至整引擎 CLI 面（Q2→b · 六前提）**——schema gen 落地可重写代码、重组目录（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；许可不止 schema/template 面，涉整个 face/cli.ts 与目录级重组，Non-goal ④ 随之改写（跨程序树 pin 与 gate 零例外不变）
 - **P1 grilling 定案（2026-10-11 · cdd-design [P1] · Q1–Q6 裁定）**：① **六前提重构许可扩至 P1 整 face 层**（Q3→c · 与 P2 同款许可）——cli.ts（六命令注册 · parse 通道 · run 分发 · preflight doc 构造 · help 渲染）+ capsule + words + graph-view + host 可重写/目录级重组（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；② **help/`--help` 展示面完整重建**（Q4→a 自研渲染——零运行时依赖姿态保持 · 维护文档 maintainers 第三方依赖篇 do-not-re-add 守约）——目标形面：顶层 `cdd` 命令总览 · 每命令 `--help` 旗标级说明 + 值域 · 子命令树（`base set|get` · `schema get|gen` · `issue render`）· review/fix `--type` 值域提示 · 错误路径智能提示；③ **usage 行重写**（Q5→b · deliberate pin break）——CLI_USAGE 六行全面重写为友好语法，cli.test.ts usage pins + smoke-cdd 锚同步更替；④ **docKey 推导共享化**（Q1→a · Q2→a）——契约层导出共享推导（类成员形态 · 零裸函数），校验脚本 改调（spec 树 = 共享推导 · plans 目录分支留在 validate 侧组合）
@@ -635,3 +635,4 @@ Legend:
 | v4.85 | 2026-11-28 | **登记面假账修正（分支终审三 F2）**：v4.84 行记「四处回填已落」，而 D104 的例外指针实测命中 0——D104 的非目标句写作「改任何消费面字节」，与另外三处的「不改消费面任何字节」不同形，v4.84 的批量替换漏了它。本轮补上，并把三处被判明字节移动逐笔点名（拒绝事实的 `detail` 格 · 板面那一行 · 板面 `next:` 行） | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
 | v4.86 | 2026-11-28 | **计数对齐（分支终审四 F3）**：本表与 Issue/Phase inventory 的例外组此前写「两处」而 D104 写「三处」，spec 又用「两个格 / 三处」两套单位。全部收敛到 changeset 的枚举：**三处** —— ① `detail` 格及 `refused:` 行 ② prompt 带首行 ③ 板面 `next:` 行及 `reason:` 行 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
 | v4.87 | 2026-11-28 | **P39 closeout（十三波 · 20 任务 · 翻面在第 12 波）**：Phase inventory 的 P39 两格转 `✔ Done`，验收格记交付证据；plan / spec 各抬一版并记交付行。**如实入账的评审成本**：波次评审 49 轮 · 计划评审 61 轮 · spec 评审 9 轮 · 分支终审 5 轮——长尾的根因是「归属与计数用散文写」，已开 issue 记入 `cdd-plan` 的 Files 粒度改进（#536） | Oscaner M. · Claude（kairos:cdd-close · 2026-11-28） |
+| v4.88 | 2026-11-28 | **活文档死指称改真（P39 翻面后）**：宪章的 Document scope · Boundary rules（两处）· D8 决策行与依赖图共六处把引擎树钉在 `src-next/`，而该树已随 P39 翻面整棵删除。六处换成现行 `src/` 并逐处标注换代；**规则本身不变**（D8 的「拆 pin → sweep 面关系」语义照旧），只换指称——同 P44 ⑤ 处置已发布死指称的形态。相位行与变更记录是记录面，保留落笔时的文字 | Oscaner M. · Claude（kairos:cdd-close · 2026-11-28） |

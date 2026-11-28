@@ -62,6 +62,11 @@ jobs:
           cd "$run_dir"
           npm init -y >/dev/null
           npm install "$pack_dir"/*.tgz
+          # The engine resolves its repo root before it parses: a consumer always has one, so
+          # the probe runs inside one too. Without this the probe is a non-git temp dir and
+          # every command refuses — which is exactly what a caller saw when this step still
+          # passed vacuously against a bin that did nothing.
+          git init -q .
           npx cdd schema get overall >/dev/null
       - uses: changesets/action@v2
         id: changesets

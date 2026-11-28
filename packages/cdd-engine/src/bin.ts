@@ -30,7 +30,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import { type FrontMatter, frontmatterOf } from "./docs/grammar/frontmatter.ts";
 import { TaskBlocks } from "./docs/grammar/task-blocks.ts";
 import { isLegalSlug } from "./docs/identity/registry.ts";
@@ -38,6 +37,7 @@ import { DOC_TYPE_VALUES, type DocType } from "./docs/identity/types.ts";
 import { Documents } from "./docs/index.ts";
 import { TaskGraph } from "./docs/judging/task-graph.ts";
 import { DocWorld } from "./docs/world.ts";
+import { isThisProcess } from "./entry-guard.ts";
 import { Env } from "./env/index.ts";
 import type { RepoPath } from "./env/paths/root.ts";
 import type { SlugIndex } from "./env/paths/slug-index.ts";
@@ -738,8 +738,7 @@ export const main = async (argv: readonly string[], seams: BootSeams = {}): Prom
   Boot.main(argv, seams);
 
 /** Whether this module IS the process entry (a suite importing `main` never boots). */
-const isEntry =
-  process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isEntry = isThisProcess(import.meta.url);
 
 /** The boot — one call per process, its failures mapped to the engine's one exit-1 face. */
 if (isEntry) {

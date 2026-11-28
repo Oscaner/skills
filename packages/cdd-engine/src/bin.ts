@@ -30,7 +30,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import { type FrontMatter, frontmatterOf } from "./docs/grammar/frontmatter.ts";
 import { TaskBlocks } from "./docs/grammar/task-blocks.ts";
 import { isLegalSlug } from "./docs/identity/registry.ts";

@@ -9,15 +9,17 @@
 // no judging surface.
 //
 // THE READ FACE, stated rather than left to the reader: the judge is "this band" — a dispatch
-// body (the record's `# CDD dispatch —` line) whose version line, the line immediately above
-// it, is `$version <n>` with the version THIS file's `TEMPLATE_PROMPT` declares. Anything
-// else is outside the face and answers `not-applicable`: a prompt from an older band, and a
-// prompt carrying no version line at all — it is neither `OK` (it is not this band's object)
-// nor `MISSING` (its prompt is not "never arrived"), and `MISSING` keeps its one meaning only
-// if out-of-band prompts stop impersonating a red. The same scoping is why rule ③ judges the
-// version line by EQUALITY rather than presence — and why that equality is the band gate's
-// one check, never an entry in rule ③'s missing list — and why rule ④'s required set is
-// taken from the same band's row table.
+// body (the record's `# CDD dispatch —` line) whose declared version line is `$version <n>`
+// carrying the version THIS file's `TEMPLATE_PROMPT` declares. Anything else is outside the
+// face and answers `not-applicable`: a prompt from an older band, and a prompt carrying no
+// version line at all — it is neither `OK` (it is not this band's object) nor `MISSING` (its
+// prompt is not "never arrived"), and `MISSING` keeps its one meaning only if out-of-band
+// prompts stop impersonating a red. The DECLARED line is the nearest `$version` line above the
+// heading, so the version NUMBER is the band gate's one check (equality) while its PLACE is
+// rule ③'s: one blank line inserted between the version line and the heading is this band's
+// prompt with a broken structure line, never another band's record — filing an assembly fault
+// under "not our prompt" is the misalignment class this tool exists to name. Rule ④'s
+// required set comes from the same band's row table.
 //
 // The body is located, not assumed: a harness may prepend its own bootstrap to the first user
 // turn, so the version line and every structure line are read relative to the `# CDD dispatch
@@ -28,8 +30,9 @@
 //      prompt never arrived";
 //   ② that record's body is not blank — an empty prompt and "the shell arrived, the round
 //      context did not" are two different faults, and the second one belongs to ③;
-//   ③ the structure lines are LINES (`$version <n>`, `# CDD dispatch —`, `## Round context`),
-//      not a backticked mention in prose;
+//   ③ the structure lines are LINES (`$version <n>`, `# CDD dispatch —`, `## Round context`)
+//      in their places — not a backticked mention in prose, and the version line immediately
+//      above the heading rather than one blank line away from it;
 //   ④ the round context's owed cells are present and the COMPARABLE ones agree.
 //
 // Rule ④ compares only what the ledger and the workspace can witness: the identity cell
@@ -107,6 +110,12 @@ const VERSION_LINE = /^\$version (\d+)$/;
 
 /** The band's own heading, as a line PREFIX (the row's title follows it). */
 const DISPATCH_HEADING = "# CDD dispatch —";
+
+/** The version line, as rule ③ names it when it is not where it belongs. */
+const VERSION_LINE_PLACED = "`$version <n>` immediately above the heading";
+
+/** A second version line inside the body that names a band other than this one. */
+const VERSION_LINE_STRAY = "`$version <n>` inside the body naming another band";
 
 /** One round-context cell line: `- \`TOKEN\`: <value>`. */
 const CELL_LINE = /^- `([A-Z0-9_]+)`: ?(.*)$/;
@@ -259,10 +268,24 @@ class DispatchPrompt {
     return this.lines.slice(this.bodyStart);
   }
 
-  /** The band's version: the value of the version line immediately above the body, or null
-   *  when the body is not preceded by one. Null is out of face, never a missing line. */
+  /** Where the record declares its band: the line immediately above the body, or — when a
+   *  blank line was inserted between the two — the nearest `$version` line above it. Reading
+   *  the declaration rather than the adjacency is what keeps a misassembled THIS-band prompt
+   *  inside the face, so rule ③ names the fault instead of the face gate discarding it.
+   *  `-1` when the record declares no version line above its body at all — out of face, never
+   *  a broken structure line. */
+  get versionAt(): number {
+    const lines = this.lines;
+    for (let at = this.bodyStart - 1; at >= 0; at -= 1) {
+      if (VERSION_LINE.test(lines[at] ?? "")) return at;
+    }
+    return -1;
+  }
+
+  /** The band's version — the number the declared version line carries, or null when the
+   *  record declares none. Null is out of face, never a missing line. */
   get bandVersion(): number | null {
-    const match = VERSION_LINE.exec(this.lines[this.bodyStart - 1] ?? "");
+    const match = VERSION_LINE.exec(this.lines[this.versionAt] ?? "");
     return match === null ? null : Number(match[1]);
   }
 
@@ -270,15 +293,27 @@ class DispatchPrompt {
     return RoundContext.of(this.body);
   }
 
-  /** The structure lines this body lacks, each named as the line it should be. The version
-   *  line is not listed: the band gate already judged it by EQUALITY, and a body without one
-   *  never reaches rule ③ — so `MISSING` here means "the dispatch's own body is broken". */
+  /** The structure lines this body is missing or holds out of place, each named as the line it
+   *  should be. The version line's NUMBER is the band gate's business (equality); its PLACE is
+   *  rule ③'s — immediately above the heading, and no second `$version` line inside the body
+   *  may name another band. A repeat of the band's own number is redundant, not broken. */
   structureMissing(): readonly string[] {
     const missing: string[] = [];
+    if (this.versionAt !== this.bodyStart - 1) missing.push(VERSION_LINE_PLACED);
     if (!this.body.some((line) => line.startsWith(DISPATCH_HEADING)))
       missing.push(DISPATCH_HEADING);
     if (!this.body.includes(RoundContext.HEADING)) missing.push(RoundContext.HEADING);
+    if (this.#bodyNamesAnotherBand()) missing.push(VERSION_LINE_STRAY);
     return missing;
+  }
+
+  /** Whether a `$version` line inside the body carries a number that is not this band's. */
+  #bodyNamesAnotherBand(): boolean {
+    const band = this.bandVersion;
+    return this.body.some((line) => {
+      const match = VERSION_LINE.exec(line);
+      return match !== null && Number(match[1]) !== band;
+    });
   }
 }
 

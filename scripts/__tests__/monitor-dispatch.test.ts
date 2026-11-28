@@ -25,6 +25,10 @@
 //   · a prompt carrying NO version line, and a this-band dispatch with a harness bootstrap
 //     prepended — both are scope arms too: the first is out of face (not `MISSING`), the
 //     second is in face (`OK`), because the body is located at its own heading line;
+//   · one blank line between the version line and the heading — a this-band prompt with its
+//     version line out of place reads `MISSING at structure`, never `not-applicable`, while a
+//     body repeating the band's own number stays `OK` (the criterion is placement, not "any
+//     second version line") and one naming another band goes red;
 //   · a corrupt ledger document, which is a state rather than a crash.
 //
 // The ledger is a synthetic document too: the real one lives under `.kairos/` and is ignored
@@ -89,6 +93,10 @@ interface Fixture {
   readonly version?: number;
   /** Omit the version line entirely — a prompt that is not this band's object at all. */
   readonly omitVersion?: boolean;
+  /** Insert one blank line between the version line and the heading — the misassembly arm. */
+  readonly blankAfterVersion?: boolean;
+  /** A second `$version` line inside the body, carrying this number. */
+  readonly strayVersion?: number;
   /** Lines a harness prepended to its first user turn, above the dispatch's own band. */
   readonly prefix?: readonly string[];
   /** Replace the whole prompt — the blank-body arm. */
@@ -101,9 +109,11 @@ const promptOf = (fixture: Fixture): string => {
   const lines = [
     ...(fixture.prefix ?? []),
     ...(fixture.omitVersion === true ? [] : [`$version ${fixture.version ?? 27}`]),
+    ...(fixture.blankAfterVersion === true ? [""] : []),
     fixture.heading,
     "",
     ...INSTRUCTIONS,
+    ...(fixture.strayVersion === undefined ? [] : [`$version ${fixture.strayVersion}`]),
     "",
   ];
   if (fixture.dropContextHeading !== true) lines.push("## Round context", "");
@@ -442,6 +452,23 @@ describe("the read face is one band", () => {
     expect(reading.verdict).toBe("not-applicable");
     expect(reading.rule).toBeNull();
     expect(reading.detail).toContain("$version");
+  });
+
+  it("reads a this-band prompt whose version line sits one blank line from the heading as MISSING at structure", () => {
+    // Its declared version line IS this band's, so the prompt is in face and the fault belongs
+    // to rule ③ — the line is out of place. Answering `not-applicable` here would file an
+    // assembly fault as "not our prompt", which is the misalignment this tool exists to name.
+    const reading = read({ ...IMPLEMENT, blankAfterVersion: true });
+    expect(reading.verdict).toBe("MISSING");
+    expect(reading.rule).toBe("structure");
+    expect(reading.detail).toContain("$version");
+  });
+
+  it("goes red when the body names another band's version, and stays green when it repeats this one", () => {
+    // The criterion is placement, not "any second version line": a repeat of the band's own
+    // number is redundant, a different number is a broken band.
+    expect(read({ ...IMPLEMENT, strayVersion: 26 }).rule).toBe("structure");
+    expect(read({ ...IMPLEMENT, strayVersion: 27 }).verdict).toBe("OK");
   });
 
   it("locates the body at its heading, so a prepended bootstrap still reads OK", () => {

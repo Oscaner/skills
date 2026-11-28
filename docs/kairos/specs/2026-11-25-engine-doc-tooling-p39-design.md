@@ -1,7 +1,7 @@
 ---
 title: '引擎在 src/ 的再抽象复刻 — Phase Spec'
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-25
 slug: '2026-11-25-engine-doc-tooling-p39-design'
 program: 2026-10-10-engine-doc-tooling
@@ -157,9 +157,9 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 
 **接受的代价**：消费者面在机器与出口建完之前无法端到端验证，缓解手段是 §2.4 的逐波对账；翻面之前 `dist/` 仍由旧树产出，因此本相位的中途状态不可发布、也不必发布；一份 spec 覆盖一整棵新树，它只能是架构级的——每一片内部的类清单留给计划。
 
-**失败模式**：对账器绿而翻面红。那说明语料缺一种形态，处置是补语料，不是放宽判据。反之，为了翻面绿而改消费者字节，按缺陷处理。
+**失败模式**：对账器绿而翻面红。那说明语料缺一种形态，处置是补语料，不是放宽判据。反之，为了翻面绿而改消费者字节，按缺陷处理。**本条已命中的那一次**：第三处移动正是前半句的形态——语料里没有「记录格坐标与被读路径分家」的那两处形——而它的处置既不是补语料（对账器与语料在翻面同批销毁，补出来也没有判者）也不是按缺陷处理（新判据下印出的字节是正解，回退它才是缺陷），而是收口前判明的一处具名例外加一笔 `minor` 认领；条件、两处形与它的可红臂写在 Acceptance ③，翻面后这条判据由评审面读、不由门读。
 
-**不做**：改任何消费者字节 · 新增命令、旗标、门或语料臂 · 动 `packages/kairos/` 的发布面字节（`skills/**` 与生成物；引擎 import 的测试文件随翻面改指，见 Constraints）· 搬运旧测试 · 在产品树里混两棵树 · 把旧树留成历史副本 · 重开已闭合相位的结论。
+**不做**：改任何消费者字节——唯一例外是 Acceptance 的 changeset 句里那三处具名移动（树级拒绝记录 `detail` 格及其印出的两个面 · prompt 带的首行 · 板面 `next:` 与 `reason:` 行），各带交付树内的 pin 与可红臂 · 新增命令、旗标、门或语料臂 · 动 `packages/kairos/` 的发布面字节（`skills/**` 与生成物；引擎 import 的测试文件随翻面改指，见 Constraints）· 搬运旧测试 · 在产品树里混两棵树 · 把旧树留成历史副本 · 重开已闭合相位的结论。
 
 ### 6. 与在册账目的关系
 
@@ -176,7 +176,7 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 - 不混的两条禁门可红（产品文件里 `src/` 与旧树互相 import 各一条；正控 = 对账器同时读两棵树仍绿），对账器人为改一处字节即红；两条断言与对账器都落在一个被收集的执行面上（`pnpm -C packages/cdd-engine exec vitest run`，含 §2.3 的 `tests/parity` include），不是写在无人执行的目录里。
 - 旧树零留存：`src-next/` 整棵不在树上，编译面、测试 include、smoke 脚本、零裸函数扫描根、六份图源全部指向 `src/`，树外测试面（`packages/kairos/tests/` · `scripts/__tests__/` 两个孪生 · `precommit` 三条守卫路径）与手维护的消费者文档（`README.md` 及其 `README.zh-CN.md` 镜像 · `packages/cdd-engine/README.md` 及其 `README.zh-CN.md` 镜像 · `AGENTS.md`）同时改指，`emit` 之后 `emit:check` 报 fresh。
 - 深度可陈述：四个一级切片与 `run/` 四段各有一句不变量写在入口模块的类注释里，且每片的对外成员数**不多于**其实现文件数。计数单位是入口类的公开方法与 getter，它持有的协作者字段不进这个数（`surface/` 交付时落在等号上——判据判的是「界面没有多出一个文件数」，不是「远小于」）。
-- `pnpm run validate` exit 0，引擎全套件绿；changesets **全部落在 `cdd-engine` 一包**，共两笔：重建取 **patch**（方法论契约未变、重建本身不改消费者字节）；被判明的消费面字节移动取 **minor**（D74 判的是方法论契约而非字节兼容）——移动的是 **三处消费面字节**（以 `.changeset/p39-run-env-docs-segments.md` 的认领为单一来源）：① 树级拒绝记录 `detail` 格及其印出的 `refused:` 行 ② prompt 带的首行 ③ 板面 `next:` 行及其旁的 `reason:` 行。
+- `pnpm run validate` exit 0，引擎全套件绿；changesets **全部落在 `cdd-engine` 一包**，共两笔：重建取 **patch**（方法论契约未变、重建本身不改消费者字节）；被判明的消费面字节移动取 **minor**（D74 判的是方法论契约而非字节兼容）。移动的是 **三处消费面字节**（以 `.changeset/p39-run-env-docs-segments.md` 的认领为单一来源），每处带交付树内的 `module#Symbol` pin 与它的可红臂：① 树级拒绝记录 `detail` 格（`run/gate/refusal.ts#RefusalFacts`）及其印出的两个面——板面的 `refused:` 行（`surface/render/board.ts#BoardView`）与 `--dry-run` 的 blocked 块（`surface/render/preview.ts#Preview#blockedBlock`，经 `surface/render/route.ts#RouteRenderer#refusalDetails` 取那一格的分行），红臂是 `run/gate/__tests__/gate.test.ts` 里逐行拼出结论格的那张表；② 派发 prompt 带的首行（`surface/render/templates.ts#PromptBandsRenderer#bandOf` 把它摆成这一带 `fixed` 的第一格，`$version` 的值与冻结基线同、动的只是那一行字），红臂是 `surface/render/__tests__/render.test.ts` 的带首行断言；③ 板面的 `next:` 行及其旁的 `reason:` 行——判据是 `run/advance/line-phase.ts#LinePhase#driftPairOf` 的两格摘要（`recorded` / `current`），印出它的仍是 `surface/render/board.ts#BoardView`，红臂是 `run/advance/__tests__/advance.test.ts` 的前沿顺序臂（漂移的上游身份行 + 一条开着的分支行 ⇒ `next:` 与 `reason:` 归上游；上游未动 ⇒ 归分支行），而它在哪些行上动按 `.changeset/p39-run-env-docs-segments.md` 那一句的条件读：只在**记录格里的坐标已不是被读文档的路径**的行上动，分家的形有两处——坐标是线键（本树修正前的写者往那一格落的记录），或坐标是一条文档已不在的位置的旧路径——别的行不动，语料里也没有这样一格，所以验收 #2 与这三处例外同时在册并不矛盾。
 
 ## Constraints
 
@@ -203,3 +203,4 @@ author: '[human] · Claude Opus 5（kairos:cdd-design · 用户裁定 fit「一�
 | v0.8 | 2026-11-28 | **收口前的登记面回填（分支终审 F1）**：① Acceptance 的 changeset 句写实为「两笔同包：重建 patch + 两处被判明字节移动 minor」——交付树确有两份 changeset，其中一份 `minor` 是 D74 下正确的；② §2.3 的树形态由七种改八种并点名 `overall` 那一型（计划 v0.60 已解，spec 侧未同步）；③ Acceptance #5 的「远小于」改「不多于」——`surface/` 交付落在等号上，旧句会把正确实现判红 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
 | v0.9 | 2026-11-28 | **评审轮六（F1–F4）落地**：§2.3 的名册拆成两条轴写一次——树状态七种 · 文档形状一型 `overall`，并点名后者由旧套件已带的 `overall` 夹具提取而非交付时新造，同句删掉「不超过七种树形态」这处对同一名册的第二套计数 · Acceptance 的 changeset 句把计量单位写实为两个移动的格、三处消费面，并给两处移动各带一个交付树内的 `module#Symbol` pin · Acceptance #5 的深度判据点名计数单位（入口类的公开方法与 getter，所持协作者字段不计），使同一条判据两次读出同一个数 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |
 | v0.10 | 2026-11-28 | **计数对齐（分支终审四 F3）**：三份文档对「动了几处消费者字节」给出三种计数。以 changeset 的认领为单一来源写定 **三处**（`detail` 格 + `refused:` 行 · prompt 带首行 · 板面 `next:` 行 + `reason:` 行），Acceptance 的 changeset 句改成同一条枚举，不再用「两个格 / 三处」两套单位 | Oscaner M. · Claude（kairos:cdd-dev 编排者 · 2026-11-28） |
+| v0.11 | 2026-11-28 | **评审轮八（F1–F4 落地；F5 · F6 落在本轮写权之外，交编排者回填）**：Acceptance 的 changeset 句把 ① 的两个印出面写全——板面的 `refused:` 行与 `--dry-run` 的 blocked 块——并给三处移动各配交付树内的 pin 与可红臂 · ③ 补上它成立的条件与两处分家形（坐标是线键，或是一条文档已不在的位置的旧路径），并写明语料里没有这样一格、故验收 #2 与例外同在册而不矛盾 · §5 的「不做」补上三处具名例外的指针，失败模式一段写明已命中的那一次是怎么处置的（不是补语料、不是按缺陷处理，而是判明的例外加一笔 `minor`），于是 §5 与 Acceptance 对同一份交付给出同一判 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-28） |

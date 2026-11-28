@@ -25,4 +25,13 @@ places that line as the band's first fixed cell, where the retired assembler ope
 shell's own first line — so every dispatched prompt of the four work modes and the review
 family now opens with the band contract's version. The value is unchanged (27); only the line
 moved. A reader comparing two engines' prompts therefore sees one added first line per band,
-and nothing else in the band's bytes.
+and nothing else in the band's bytes. A third consumer byte moves, declared here as well: `cdd board`'s
+`next:` line (with the `reason:` row beside it) on a workspace whose recorded revision cell carries
+the line's own word. The retired drift gate compared that cell's coordinate — the line word — with
+the document's path as one half of the revision identity, so a document line with a reviewed
+version on record always read `drift`: its closed face reopened and `next:` named the topmost
+recorded document, whose bytes had not moved at all. The gate here compares the two digests (the
+recorded revision and today's reviewed body), so a face reopens only when its document really
+moved, and `next:` names the face that owes the round. The departure shows on the shape "a closed,
+unmoved document line above a face that is still waiting", where the retired engine printed that
+document's review and this tree prints the waiting face's own round.

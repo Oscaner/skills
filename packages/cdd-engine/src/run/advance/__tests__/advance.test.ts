@@ -1383,6 +1383,54 @@ describe("the drift reopen and the closure terminal", () => {
     expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
   });
 
+  it("holds the frontier at the drifted identity document, above an open branch line", () => {
+    const fx = fixture();
+    oneTaskPlan(fx);
+    // The two doc faces below the identity document are CLOSED: each reviewed the bytes it
+    // then held. The wave face is drained, so the order's last face is the one in play.
+    for (const [word, rel] of [
+      [RoundIdentity.lineWordOf("phase-spec"), SPEC_REL],
+      [RoundIdentity.lineWordOf("plan"), PLAN_REL],
+    ] as const) {
+      fx.ledger.recordRound(word, { op: "review", cycle: 1 });
+      fx.ledger.recordDocReview(word, docBodyOf(readFileSync(path.join(fx.repo, rel), "utf8")));
+    }
+    fx.carriedByKey.set("review:1", { findings: [], status: null });
+    const wave = RoundIdentity.lineWordOf("wave", "1");
+    fx.ledger.recordRound(wave, { op: "implement", cycle: 1 });
+    fx.ledger.recordRound(wave, { op: "review", cycle: 1 });
+    // The branch line is OPEN — its own review carried a blocker, so the fix hop below it is
+    // ready and awaits nothing upstream.
+    const branch = RoundIdentity.lineWordOf("branch");
+    fx.ledger.recordRound(branch, { op: "review", cycle: 2 });
+    fx.carriedByKey.set("review:2", {
+      findings: [{ severity: "blocker", summary: "row" }],
+      status: null,
+    });
+    const input = () => ({
+      specType: "phase-spec" as const,
+      specPath: SPEC_REL,
+      planPath: PLAN_REL,
+      graph: TaskGraph.parse(readFileSync(path.join(fx.repo, PLAN_REL), "utf8")),
+    });
+    expect(fx.pipeline.closedTasks()).toEqual(new Set([1]));
+    // Nothing moved: the identity face is closed, so the frontier is the branch line's own.
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("closed");
+    const downstream = fx.pipeline.hopOf(input());
+    expect(downstream.target?.type).toBe("branch");
+    expect(downstream.reason).toBe("pending-fix");
+    // The neighbour arm — the identity document's BODY moves past the version its review
+    // bound. The face reopens, and the order holds it ABOVE the branch line that is also
+    // waiting: `next:` names the review the identity document owes, never the branch's round.
+    const spec = path.join(fx.repo, SPEC_REL);
+    writeFileSync(spec, `${readFileSync(spec, "utf8")}\nagain\n`, "utf8");
+    expect(fx.lines.stateOf("phase-spec", "phase-spec", SPEC_REL)).toBe("reopened");
+    const upstream = fx.pipeline.hopOf(input());
+    expect(upstream.target).toEqual({ type: "phase-spec", id: SPEC_REL });
+    expect(upstream.route).toEqual({ kind: "review" });
+    expect(upstream.reason).toBe("doc-drift");
+  });
+
   it("digests the reviewed BODY, so a registration write never reopens the line", async () => {
     const fx = fixture();
     oneTaskPlan(fx);
